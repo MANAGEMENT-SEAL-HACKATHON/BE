@@ -1,71 +1,171 @@
 package com.se194093.be.mentor_assignments.service.impl;
 
+import com.se194093.be.common.audit.AuditAction;
+import com.se194093.be.common.audit.AuditService;
+import com.se194093.be.common.exception.BusinessRuleException;
+import com.se194093.be.common.exception.ConflictException;
+import com.se194093.be.common.exception.ErrorCode;
+import com.se194093.be.common.exception.ResourceNotFoundException;
+import com.se194093.be.common.response.Warning;
+import com.se194093.be.common.security.CurrentUserAccessor;
+import com.se194093.be.hackathons.entity.Hackathon;
+import com.se194093.be.hackathons.value_object.HackathonStatus;
+import com.se194093.be.judge_assignments.entity.JudgeAssignment;
+import com.se194093.be.judge_assignments.repository.JudgeAssignmentRepository;
 import com.se194093.be.mentor_assignments.dto.request.CreateMentorAssignmentRequest;
 import com.se194093.be.mentor_assignments.dto.response.MentorAssignmentResponse;
+import com.se194093.be.mentor_assignments.entity.MentorAssignment;
+import com.se194093.be.mentor_assignments.mapper.MentorAssignmentMapper;
+import com.se194093.be.mentor_assignments.repository.MentorAssignmentRepository;
 import com.se194093.be.mentor_assignments.service.MentorAssignmentService;
+import com.se194093.be.notifications.service.NotificationService;
+import com.se194093.be.tracks.entity.Track;
+import com.se194093.be.tracks.repository.TrackRepository;
+import com.se194093.be.users.entity.User;
+import com.se194093.be.users.repository.UserRepository;
+import com.se194093.be.users.value_object.UserRole;
+import com.se194093.be.users.value_object.UserStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 /**
- * Skeleton — TODO Dev theo {@code docs/api/mf-01/fr-05-personnel.md} §FR-05b.
- *
- * <p>Inject: MentorAssignmentRepository, JudgeAssignmentRepository (conflict 2 chiều),
- * UserRepository, TrackRepository, HackathonRepository, NotificationRepository,
- * MentorAssignmentMapper, AuditService, CurrentUserAccessor.
+ * FR-05b Mentor assignment impl. Conflict warning 2 chiều với judge_assignments.
+ * Notify mentor khi unassign.
  */
 @Service
 @Slf4j
 @RequiredArgsConstructor
+@Transactional
 public class MentorAssignmentServiceImpl implements MentorAssignmentService {
+
+    private static final Set<HackathonStatus> MUTABLE_PARENT = EnumSet.of(
+            HackathonStatus.DRAFT, HackathonStatus.ONGOING);
+
+    private final MentorAssignmentRepository mentorAssignmentRepository;
+    private final JudgeAssignmentRepository judgeAssignmentRepository;
+    private final UserRepository userRepository;
+    private final TrackRepository trackRepository;
+    private final MentorAssignmentMapper mentorAssignmentMapper;
+    private final AuditService auditService;
+    private final CurrentUserAccessor currentUserAccessor;
+    private final NotificationService notificationService;
 
     @Override
     public CreateResult assign(CreateMentorAssignmentRequest req) {
-        // TODO Dev:
-        //  1. mentor = userRepo.findById(req.mentorId) or 404
-        //     guard role=MENTOR & status=APPROVED → 422 USER_INVALID_ROLE / USER_NOT_APPROVED
-        //  2. track = trackRepo.findById(req.trackId) or 404
-        //     guard track.hackathon.status IN (DRAFT, ONGOING) → 409 TRACK_HACKATHON_LOCKED
-        //  3. if mentorAssignmentRepo.existsByMentorIdAndTrackId(mentor.id, track.id)
-        //         → 409 MENTOR_ASSIGN_DUPLICATE
-        //  4. Conflict check 2 chiều:
-        //     conflictsRounds = judgeAssignmentRepo.findRoundsByJudgeIdAndTrackId(mentor.id, track.id)
-        //     if conflictsRounds.isEmpty():
-        //         if judgeAssignmentRepo.countByJudgeId(mentor.id) == 0:
-        //             audit.log(WARNING_CONFLICT_CHECK_SKIPPED, "mentor_assignments", null,
-        //                       Map.of("mentorId", mentor.id, "trackId", track.id,
-        //                              "reason", "judge_assignments has no row for this user"))
-        //         conflictWarning = Optional.empty()
-        //     else:
-        //         conflictWarning = Optional.of(Warning.of("MENTOR_JUDGE_CONFLICT",
-        //                                       "...", Map.of("conflictRoundIds", conflictsRounds)))
-        //  5. save MentorAssignment(mentor, track, assignedBy=currentUser)
-        //  6. audit.log(MENTOR_ASSIGNED, "mentor_assignments", saved.id, snapshot)
-        //  7. return CreateResult(mapper.toResponse(saved), conflictWarning)
-        throw new UnsupportedOperationException("FR-05b POST /mentor-assignments - to be implemented");
+        User mentor = userRepository.findById(req.getMentorId())
+                .orElseThrow(() -> new ResourceNotFoundException("User (mentor)", req.getMentorId()));
+        if (mentor.getRole() != UserRole.MENTOR) {
+            throw new BusinessRuleException(ErrorCode.USER_INVALID_ROLE,
+                    "User #%d không có role MENTOR (hiện %s)".formatted(mentor.getId(), mentor.getRole()),
+                    Map.of("userId", mentor.getId(), "role", mentor.getRole()));
+        }
+        if (mentor.getStatus() != UserStatus.APPROVED) {
+            throw new BusinessRuleException(ErrorCode.USER_NOT_APPROVED,
+                    "User #%d chưa APPROVED (hiện %s)".formatted(mentor.getId(), mentor.getStatus()),
+                    Map.of("userId", mentor.getId(), "status", mentor.getStatus()));
+        }
+
+        Track track = trackRepository.findById(req.getTrackId())
+                .orElseThrow(() -> new ResourceNotFoundException("Track", req.getTrackId()));
+        Hackathon parent = track.getHackathon();
+        if (parent != null && !MUTABLE_PARENT.contains(parent.getStatus())) {
+            throw new ConflictException(ErrorCode.TRACK_HACKATHON_LOCKED,
+                    "Hackathon đang %s — không cho phân công Mentor".formatted(parent.getStatus()));
+        }
+
+        if (mentorAssignmentRepository.existsByMentorIdAndTrackId(mentor.getId(), track.getId())) {
+            throw new ConflictException(ErrorCode.MENTOR_ASSIGN_DUPLICATE,
+                    "Mentor #%d đã được phân công vào Track #%d"
+                            .formatted(mentor.getId(), track.getId()));
+        }
+
+        Optional<Warning> conflictWarning = computeConflictWarning(mentor.getId(), track.getId());
+
+        Integer uid = currentUserAccessor.currentUserId();
+        MentorAssignment entity = MentorAssignment.builder()
+                .mentor(mentor)
+                .track(track)
+                .assignedAt(LocalDateTime.now())
+                .assignedBy(uid == null ? null : User.builder().id(uid).build())
+                .build();
+        MentorAssignment saved = mentorAssignmentRepository.save(entity);
+        MentorAssignmentResponse response = mentorAssignmentMapper.toResponse(saved);
+
+        auditService.log(AuditAction.MENTOR_ASSIGNED, "mentor_assignments", saved.getId(), Map.of(
+                "mentorId", mentor.getId(),
+                "trackId",  track.getId(),
+                "snapshot", response,
+                "conflictWarning", conflictWarning.map(Warning::getCode).orElse("NONE")
+        ));
+
+        notificationService.send(mentor, "MENTOR_ASSIGNED",
+                "Bạn được phân công làm Mentor Track '%s'".formatted(track.getName()),
+                "Hackathon: %s | Chúc bạn hỗ trợ teams tốt!".formatted(
+                        parent == null ? "?" : parent.getName()),
+                "tracks", track.getId());
+
+        return new CreateResult(response, conflictWarning);
+    }
+
+    private Optional<Warning> computeConflictWarning(Integer mentorId, Integer trackId) {
+        List<JudgeAssignment> conflicts = judgeAssignmentRepository
+                .findByJudgeIdAndRoundTrackId(mentorId, trackId);
+        if (!conflicts.isEmpty()) {
+            List<Integer> roundIds = conflicts.stream().map(c -> c.getRound().getId()).toList();
+            return Optional.of(Warning.of("MENTOR_JUDGE_CONFLICT",
+                    "User cũng đang là Judge của %d Round trong Track #%d"
+                            .formatted(roundIds.size(), trackId),
+                    Map.of("trackId", trackId, "conflictRoundIds", roundIds)));
+        }
+        long total = judgeAssignmentRepository.countByJudgeId(mentorId);
+        if (total == 0) {
+            auditService.log(AuditAction.WARNING_CONFLICT_CHECK_SKIPPED, "mentor_assignments", null,
+                    Map.of("mentorId", mentorId, "trackId", trackId,
+                           "reason", "judge_assignments empty for this user"));
+        }
+        return Optional.empty();
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<MentorAssignmentResponse> listByTrack(Integer trackId) {
-        // TODO Dev: repo.findByTrackId(trackId).stream().map(mapper::toResponse).toList()
-        throw new UnsupportedOperationException("FR-05b GET /tracks/{id}/mentors - to be implemented");
+        return mentorAssignmentRepository.findByTrackId(trackId).stream()
+                .map(mentorAssignmentMapper::toResponse).toList();
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<MentorAssignmentResponse> listByMentor(Integer mentorId) {
-        // TODO Dev: repo.findByMentorId(mentorId).stream().map(mapper::toResponse).toList()
-        throw new UnsupportedOperationException("FR-05b GET /users/{mentorId}/track-assignments - to be implemented");
+        return mentorAssignmentRepository.findByMentorId(mentorId).stream()
+                .map(mentorAssignmentMapper::toResponse).toList();
     }
 
     @Override
     public Integer unassign(Integer assignmentId) {
-        // TODO Dev:
-        //  - findById → 404
-        //  - delete
-        //  - notify mentor via notifications type=MENTOR_UNASSIGNED
-        //  - audit MENTOR_UNASSIGNED
-        throw new UnsupportedOperationException("FR-05b DELETE /mentor-assignments/{id} - to be implemented");
+        MentorAssignment ma = mentorAssignmentRepository.findById(assignmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("MentorAssignment", assignmentId));
+        MentorAssignmentResponse snapshot = mentorAssignmentMapper.toResponse(ma);
+        User mentor = ma.getMentor();
+        Track track = ma.getTrack();
+
+        mentorAssignmentRepository.delete(ma);
+
+        notificationService.send(mentor, "MENTOR_UNASSIGNED",
+                "Bạn không còn là Mentor Track '%s'".formatted(track == null ? "?" : track.getName()),
+                "Phân công đã được hủy bởi Coordinator.",
+                "tracks", track == null ? null : track.getId());
+
+        auditService.log(AuditAction.MENTOR_UNASSIGNED, "mentor_assignments", assignmentId,
+                Map.of("snapshot", snapshot));
+        return assignmentId;
     }
 }

@@ -1,79 +1,161 @@
 package com.se194093.be.hackathons.service.impl;
 
+import com.se194093.be.common.audit.AuditAction;
+import com.se194093.be.common.audit.AuditService;
+import com.se194093.be.common.exception.BusinessRuleException;
+import com.se194093.be.common.exception.ConflictException;
+import com.se194093.be.common.exception.ErrorCode;
+import com.se194093.be.common.exception.ResourceNotFoundException;
 import com.se194093.be.common.response.PageResponse;
+import com.se194093.be.common.security.CurrentUserAccessor;
+import com.se194093.be.events.repository.EventRepository;
 import com.se194093.be.hackathons.dto.request.CreateHackathonRequest;
 import com.se194093.be.hackathons.dto.request.UpdateHackathonRequest;
 import com.se194093.be.hackathons.dto.response.HackathonResponse;
 import com.se194093.be.hackathons.dto.response.HackathonSummaryResponse;
+import com.se194093.be.hackathons.entity.Hackathon;
+import com.se194093.be.hackathons.mapper.HackathonMapper;
+import com.se194093.be.hackathons.repository.HackathonRepository;
 import com.se194093.be.hackathons.service.HackathonService;
 import com.se194093.be.hackathons.value_object.HackathonStatus;
 import com.se194093.be.hackathons.value_object.Season;
+import com.se194093.be.tracks.repository.TrackRepository;
+import com.se194093.be.users.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Map;
 
 /**
- * Skeleton impl cho {@link HackathonService}.
+ * Implementation cho {@link HackathonService} — FR-01 CRUD.
  *
- * <p>TẦNG NGHIỆP VỤ — chưa implement. Dev triển khai theo pseudocode trong
- * {@code docs/api/mf-01/fr-01-hackathons.md} với các bước:
- * <ol>
- *   <li>Validate UNIQUE name/season/year và slug → throw ConflictException</li>
- *   <li>Validate eventStart &gt;= registrationEnd → throw BusinessRuleException</li>
- *   <li>Map DTO → entity; set status=DRAFT; set createdBy từ {@code CurrentUserAccessor}</li>
- *   <li>Save entity; gọi {@code AuditService.log(HACKATHON_CREATE, ...)} cùng transaction</li>
- *   <li>Trả response map từ entity vừa save</li>
- * </ol>
- *
- * <p>Inject sẵn: {@code HackathonRepository}, {@code HackathonMapper}, {@code AuditService},
- * {@code CurrentUserAccessor} — KHÔNG inject ở skeleton để tránh warning bean rỗng; Dev tự bổ sung.
+ * <p>Audit cho mọi mutation. Validate UNIQUE (name+season+year, slug). State guard DRAFT cho
+ * update/delete. Guard child entity (Track/Event) khi delete.
  */
 @Service
 @Slf4j
 @RequiredArgsConstructor
+@Transactional
 public class HackathonServiceImpl implements HackathonService {
 
-    // TODO Dev: inject HackathonRepository, HackathonMapper, AuditService, CurrentUserAccessor,
-    //          TrackRepository, RoundRepository, EventRepository (cho guard DELETE)
+    private final HackathonRepository hackathonRepository;
+    private final HackathonMapper hackathonMapper;
+    private final AuditService auditService;
+    private final CurrentUserAccessor currentUserAccessor;
+    private final TrackRepository trackRepository;
+    private final EventRepository eventRepository;
 
     @Override
     public HackathonResponse create(CreateHackathonRequest req) {
-        // TODO Dev: implement theo pseudocode FR-01 §1
-        throw new UnsupportedOperationException("FR-01 POST /hackathons - to be implemented");
+        if (hackathonRepository.existsByNameAndSeasonAndYear(req.getName(), req.getSeason(), req.getYear())) {
+            throw new ConflictException(ErrorCode.HACKATHON_DUPLICATE,
+                    "Hackathon đã tồn tại cho (name=%s, season=%s, year=%d)"
+                            .formatted(req.getName(), req.getSeason(), req.getYear()));
+        }
+        if (hackathonRepository.existsBySlug(req.getSlug())) {
+            throw new ConflictException(ErrorCode.HACKATHON_DUPLICATE,
+                    "Slug đã được sử dụng: " + req.getSlug());
+        }
+        validateEventStartAfterRegistrationEnd(req.getRegistrationEnd(), req.getEventStart());
+
+        Hackathon entity = hackathonMapper.toEntity(req);
+        entity.setStatus(HackathonStatus.DRAFT);
+        Integer uid = currentUserAccessor.currentUserId();
+        if (uid != null) {
+            entity.setCreatedBy(User.builder().id(uid).build());
+        }
+        Hackathon saved = hackathonRepository.save(entity);
+
+        HackathonResponse response = hackathonMapper.toResponse(saved);
+        auditService.log(AuditAction.HACKATHON_CREATE, "hackathons", saved.getId(),
+                Map.of("snapshot", response));
+        return response;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public HackathonResponse getById(Integer id) {
-        // TODO Dev: findById hoặc throw ResourceNotFoundException("Hackathon", id)
-        throw new UnsupportedOperationException("FR-01 GET /hackathons/{id} - to be implemented");
+        Hackathon h = hackathonRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Hackathon", id));
+        return hackathonMapper.toResponse(h);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public PageResponse<HackathonSummaryResponse> search(HackathonStatus status, Integer year,
                                                          Season season, String q, Pageable pageable) {
-        // TODO Dev: repository.search(...) → map sang HackathonSummaryResponse → PageResponse.from()
-        throw new UnsupportedOperationException("FR-01 GET /hackathons - to be implemented");
+        String keyword = (q == null || q.isBlank()) ? null : q.trim();
+        Page<Hackathon> page = hackathonRepository.search(status, year, season, keyword, pageable);
+        List<HackathonSummaryResponse> items = page.getContent().stream()
+                .map(hackathonMapper::toSummary)
+                .toList();
+        return PageResponse.from(page, items);
     }
 
     @Override
     public HackathonResponse update(Integer id, UpdateHackathonRequest req) {
-        // TODO Dev:
-        //  - findById → 404 nếu thiếu
-        //  - guard status = DRAFT → 409 HACKATHON_NOT_DRAFT
-        //  - re-validate UNIQUE nếu name/season/year/slug đổi
-        //  - validate eventStart >= registrationEnd
-        //  - mapper.applyUpdate(entity, req); save; audit HACKATHON_UPDATE { before, after }
-        throw new UnsupportedOperationException("FR-01 PUT /hackathons/{id} - to be implemented");
+        Hackathon h = hackathonRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Hackathon", id));
+        if (h.getStatus() != HackathonStatus.DRAFT) {
+            throw new ConflictException(ErrorCode.HACKATHON_NOT_DRAFT,
+                    "Chỉ được sửa Hackathon khi status=DRAFT (hiện %s)".formatted(h.getStatus()));
+        }
+        boolean identityChanged = !req.getName().equals(h.getName())
+                || req.getSeason() != h.getSeason()
+                || !req.getYear().equals(h.getYear());
+        if (identityChanged
+                && hackathonRepository.existsByNameAndSeasonAndYear(req.getName(), req.getSeason(), req.getYear())) {
+            throw new ConflictException(ErrorCode.HACKATHON_DUPLICATE,
+                    "Hackathon đã tồn tại cho (name=%s, season=%s, year=%d)"
+                            .formatted(req.getName(), req.getSeason(), req.getYear()));
+        }
+        if (!req.getSlug().equals(h.getSlug()) && hackathonRepository.existsBySlug(req.getSlug())) {
+            throw new ConflictException(ErrorCode.HACKATHON_DUPLICATE,
+                    "Slug đã được sử dụng: " + req.getSlug());
+        }
+        validateEventStartAfterRegistrationEnd(req.getRegistrationEnd(), req.getEventStart());
+
+        HackathonResponse before = hackathonMapper.toResponse(h);
+        hackathonMapper.applyUpdate(h, req);
+        Hackathon saved = hackathonRepository.save(h);
+        HackathonResponse after = hackathonMapper.toResponse(saved);
+
+        auditService.logBeforeAfter(AuditAction.HACKATHON_UPDATE, "hackathons", saved.getId(),
+                before, after);
+        return after;
     }
 
     @Override
     public Integer delete(Integer id) {
-        // TODO Dev:
-        //  - findById → 404
-        //  - guard status = DRAFT → 409 HACKATHON_NOT_DRAFT
-        //  - guard !exists Track/Round/Event của hackathon → 409 HACKATHON_HAS_CHILDREN
-        //  - delete; audit HACKATHON_DELETE
-        throw new UnsupportedOperationException("FR-01 DELETE /hackathons/{id} - to be implemented");
+        Hackathon h = hackathonRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Hackathon", id));
+        if (h.getStatus() != HackathonStatus.DRAFT) {
+            throw new ConflictException(ErrorCode.HACKATHON_NOT_DRAFT,
+                    "Chỉ được xóa Hackathon khi status=DRAFT (hiện %s)".formatted(h.getStatus()));
+        }
+        if (trackRepository.existsByHackathonId(id) || eventRepository.existsByHackathonId(id)) {
+            throw new ConflictException(ErrorCode.HACKATHON_HAS_CHILDREN,
+                    "Hackathon còn Track/Event con — không thể xóa");
+        }
+
+        HackathonResponse snapshot = hackathonMapper.toResponse(h);
+        hackathonRepository.delete(h);
+        auditService.log(AuditAction.HACKATHON_DELETE, "hackathons", id,
+                Map.of("snapshot", snapshot));
+        return id;
+    }
+
+    private void validateEventStartAfterRegistrationEnd(java.time.LocalDate regEnd,
+                                                        java.time.LocalDate eventStart) {
+        if (regEnd != null && eventStart != null && eventStart.isBefore(regEnd)) {
+            throw new BusinessRuleException(ErrorCode.HACKATHON_DATE_RANGE,
+                    "eventStart (%s) phải >= registrationEnd (%s)".formatted(eventStart, regEnd),
+                    Map.of("eventStart", eventStart, "registrationEnd", regEnd));
+        }
     }
 }

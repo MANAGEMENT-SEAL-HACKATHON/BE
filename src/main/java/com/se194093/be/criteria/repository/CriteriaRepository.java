@@ -16,6 +16,10 @@ public interface CriteriaRepository extends JpaRepository<Criteria, Integer> {
 
     long countByRoundId(Integer roundId);
 
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional
+    void deleteByRoundId(Integer roundId);
+
     /**
      * Tổng weight của Criteria type ≠ PENALTY trong một Round. Dùng cho:
      * <ul>

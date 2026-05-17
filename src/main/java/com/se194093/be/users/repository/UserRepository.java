@@ -41,4 +41,9 @@ public interface UserRepository extends JpaRepository<User, Integer> {
      * Đếm bài đang APPROVED toàn hệ thống — dùng trong notification fan-out khi chuyển ONGOING.
      */
     long countByStatus(UserStatus status);
+
+    /**
+     * Lấy mọi user theo status — dùng cho fan-out notification HACKATHON_OPEN khi DRAFT→ONGOING.
+     */
+    java.util.List<User> findAllByStatus(UserStatus status);
 }

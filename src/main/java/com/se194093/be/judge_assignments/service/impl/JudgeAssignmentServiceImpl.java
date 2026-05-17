@@ -1,75 +1,175 @@
 package com.se194093.be.judge_assignments.service.impl;
 
+import com.se194093.be.common.audit.AuditAction;
+import com.se194093.be.common.audit.AuditService;
+import com.se194093.be.common.exception.BusinessRuleException;
+import com.se194093.be.common.exception.ConflictException;
+import com.se194093.be.common.exception.ErrorCode;
+import com.se194093.be.common.exception.ResourceNotFoundException;
+import com.se194093.be.common.response.Warning;
+import com.se194093.be.common.security.CurrentUserAccessor;
 import com.se194093.be.judge_assignments.dto.request.CreateJudgeAssignmentRequest;
 import com.se194093.be.judge_assignments.dto.response.JudgeAssignmentResponse;
+import com.se194093.be.judge_assignments.entity.JudgeAssignment;
+import com.se194093.be.judge_assignments.mapper.JudgeAssignmentMapper;
+import com.se194093.be.judge_assignments.repository.JudgeAssignmentRepository;
 import com.se194093.be.judge_assignments.service.JudgeAssignmentService;
+import com.se194093.be.judge_assignments.value_object.JudgeAssignmentType;
+import com.se194093.be.mentor_assignments.entity.MentorAssignment;
+import com.se194093.be.mentor_assignments.repository.MentorAssignmentRepository;
+import com.se194093.be.notifications.service.NotificationService;
+import com.se194093.be.rounds.entity.Round;
+import com.se194093.be.rounds.repository.RoundRepository;
+import com.se194093.be.tracks.entity.Track;
+import com.se194093.be.users.entity.User;
+import com.se194093.be.users.repository.UserRepository;
+import com.se194093.be.users.value_object.UserRole;
+import com.se194093.be.users.value_object.UserStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
- * Skeleton — TODO Dev theo {@code docs/api/mf-01/fr-05-personnel.md} §FR-05c.
- *
- * <p>Inject: JudgeAssignmentRepository, MentorAssignmentRepository (conflict 2 chiều),
- * UserRepository, RoundRepository, NotificationRepository, JudgeAssignmentMapper,
- * AuditService, CurrentUserAccessor.
+ * FR-05c Judge assignment impl. Warning JUDGE_FINAL_ROUND_AT_PHASE1 + MENTOR_JUDGE_CONFLICT 2 chiều.
+ * Notify judge khi unassign.
  */
 @Service
 @Slf4j
 @RequiredArgsConstructor
+@Transactional
 public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
+
+    private final JudgeAssignmentRepository judgeAssignmentRepository;
+    private final MentorAssignmentRepository mentorAssignmentRepository;
+    private final UserRepository userRepository;
+    private final RoundRepository roundRepository;
+    private final JudgeAssignmentMapper judgeAssignmentMapper;
+    private final AuditService auditService;
+    private final CurrentUserAccessor currentUserAccessor;
+    private final NotificationService notificationService;
 
     @Override
     public CreateResult assign(CreateJudgeAssignmentRequest req) {
-        // TODO Dev:
-        //  1. judge = userRepo.findById(req.judgeId) or 404
-        //     guard role=JUDGE & status=APPROVED → 422
-        //  2. round = roundRepo.findById(req.roundId) or 404
-        //  3. if existsByJudgeIdAndRoundId(judge.id, round.id) → 409 JUDGE_ASSIGN_DUPLICATE
-        //  4. assignmentType = req.assignmentType != null ? req.assignmentType : NORMAL
-        //  5. save JudgeAssignment(judge, round, assignmentType, assignedBy=currentUser)
-        //  6. warnings = []
-        //  7. Final-round warn: maxSeq = roundRepo.findMaxSequenceByTrackId(round.track.id)
-        //     if maxSeq != null && round.sequenceOrder.equals(maxSeq):
-        //         warnings.add(Warning.of("JUDGE_FINAL_ROUND_AT_PHASE1",
-        //             "Round Chung kết — khuyến nghị phân công ở GĐ5 (FR-27)",
-        //             Map.of("roundId", round.id, "trackId", round.track.id)))
-        //  8. Conflict 2 chiều với mentor_assignments:
-        //     mentorConflicts = mentorAssignmentRepo.findByMentorIdAndTrackId(judge.id, round.track.id)
-        //     if mentorConflicts.isEmpty():
-        //         if mentorAssignmentRepo.countByMentorId(judge.id) == 0:
-        //             audit.log(WARNING_CONFLICT_CHECK_SKIPPED, "judge_assignments", null,
-        //                       Map.of("judgeId", judge.id, "roundId", round.id,
-        //                              "reason", "mentor_assignments empty"))
-        //     else:
-        //         warnings.add(Warning.of("MENTOR_JUDGE_CONFLICT",
-        //             "User đang là Mentor của Track #...",
-        //             Map.of("trackId", round.track.id, "mentorAssignmentIds", mentorConflicts...)))
-        //  9. audit.log(JUDGE_ASSIGNED, "judge_assignments", saved.id,
-        //               Map.of("judgeId", judge.id, "roundId", round.id, "type", assignmentType))
-        // 10. return CreateResult(mapper.toResponse(saved), warnings)
-        throw new UnsupportedOperationException("FR-05c POST /judge-assignments - to be implemented");
+        User judge = userRepository.findById(req.getJudgeId())
+                .orElseThrow(() -> new ResourceNotFoundException("User (judge)", req.getJudgeId()));
+        if (judge.getRole() != UserRole.JUDGE) {
+            throw new BusinessRuleException(ErrorCode.USER_INVALID_ROLE,
+                    "User #%d không có role JUDGE (hiện %s)".formatted(judge.getId(), judge.getRole()),
+                    Map.of("userId", judge.getId(), "role", judge.getRole()));
+        }
+        if (judge.getStatus() != UserStatus.APPROVED) {
+            throw new BusinessRuleException(ErrorCode.USER_NOT_APPROVED,
+                    "User #%d chưa APPROVED (hiện %s)".formatted(judge.getId(), judge.getStatus()),
+                    Map.of("userId", judge.getId(), "status", judge.getStatus()));
+        }
+        Round round = roundRepository.findById(req.getRoundId())
+                .orElseThrow(() -> new ResourceNotFoundException("Round", req.getRoundId()));
+
+        if (judgeAssignmentRepository.existsByJudgeIdAndRoundId(judge.getId(), round.getId())) {
+            throw new ConflictException(ErrorCode.JUDGE_ASSIGN_DUPLICATE,
+                    "Judge #%d đã được phân công Round #%d"
+                            .formatted(judge.getId(), round.getId()));
+        }
+
+        JudgeAssignmentType assignType = (req.getAssignmentType() != null)
+                ? req.getAssignmentType() : JudgeAssignmentType.NORMAL;
+
+        Integer uid = currentUserAccessor.currentUserId();
+        JudgeAssignment entity = JudgeAssignment.builder()
+                .judge(judge)
+                .round(round)
+                .assignmentType(assignType)
+                .assignedAt(LocalDateTime.now())
+                .assignedBy(uid == null ? null : User.builder().id(uid).build())
+                .build();
+        JudgeAssignment saved = judgeAssignmentRepository.save(entity);
+        JudgeAssignmentResponse response = judgeAssignmentMapper.toResponse(saved);
+
+        List<Warning> warnings = new ArrayList<>();
+        Track track = round.getTrack();
+        Integer trackId = track == null ? null : track.getId();
+        if (trackId != null) {
+            Integer maxSeq = roundRepository.findMaxSequenceByTrackId(trackId);
+            if (maxSeq != null && maxSeq.equals(round.getSequenceOrder())) {
+                warnings.add(Warning.of("JUDGE_FINAL_ROUND_AT_PHASE1",
+                        "Round '%s' là Round Chung kết Track — phân công Judge khuyến nghị làm ở GĐ5"
+                                .formatted(round.getName()),
+                        Map.of("roundId", round.getId(), "trackId", trackId,
+                               "sequenceOrder", round.getSequenceOrder())));
+                auditService.log(AuditAction.WARNING_JUDGE_FINAL_AT_PHASE1, "judge_assignments",
+                        saved.getId(),
+                        Map.of("roundId", round.getId(), "trackId", trackId));
+            }
+
+            List<MentorAssignment> mentorConflicts = mentorAssignmentRepository
+                    .findByMentorIdAndTrackId(judge.getId(), trackId);
+            if (!mentorConflicts.isEmpty()) {
+                List<Integer> ids = mentorConflicts.stream().map(MentorAssignment::getId).toList();
+                warnings.add(Warning.of("MENTOR_JUDGE_CONFLICT",
+                        "User đang là Mentor của Track #%d — chấm điểm Judge sẽ gây xung đột"
+                                .formatted(trackId),
+                        Map.of("trackId", trackId, "mentorAssignmentIds", ids)));
+            } else if (mentorAssignmentRepository.countByMentorId(judge.getId()) == 0) {
+                auditService.log(AuditAction.WARNING_CONFLICT_CHECK_SKIPPED, "judge_assignments",
+                        saved.getId(),
+                        Map.of("judgeId", judge.getId(), "roundId", round.getId(),
+                               "reason", "mentor_assignments empty for this user"));
+            }
+        }
+
+        auditService.log(AuditAction.JUDGE_ASSIGNED, "judge_assignments", saved.getId(), Map.of(
+                "judgeId",   judge.getId(),
+                "roundId",   round.getId(),
+                "type",      assignType.name(),
+                "warningCount", warnings.size()
+        ));
+
+        notificationService.send(judge, "JUDGE_ASSIGNED",
+                "Bạn được phân công làm Judge Round '%s'".formatted(round.getName()),
+                "Track: %s | Chuẩn bị sẵn sàng cho phiên chấm điểm.".formatted(
+                        track == null ? "?" : track.getName()),
+                "rounds", round.getId());
+
+        return new CreateResult(response, warnings);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<JudgeAssignmentResponse> listByRound(Integer roundId) {
-        // TODO Dev: repo.findByRoundId(roundId).stream().map(mapper::toResponse).toList()
-        throw new UnsupportedOperationException("FR-05c GET /rounds/{id}/judges - to be implemented");
+        return judgeAssignmentRepository.findByRoundId(roundId).stream()
+                .map(judgeAssignmentMapper::toResponse).toList();
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<JudgeAssignmentResponse> listByJudge(Integer judgeId) {
-        // TODO Dev: repo.findByJudgeId(judgeId).stream().map(mapper::toResponse).toList()
-        throw new UnsupportedOperationException("FR-05c GET /users/{judgeId}/round-assignments - to be implemented");
+        return judgeAssignmentRepository.findByJudgeId(judgeId).stream()
+                .map(judgeAssignmentMapper::toResponse).toList();
     }
 
     @Override
     public Integer unassign(Integer assignmentId) {
-        // TODO Dev:
-        //  - findById → 404
-        //  - delete; audit JUDGE_UNASSIGNED; notify judge
-        throw new UnsupportedOperationException("FR-05c DELETE /judge-assignments/{id} - to be implemented");
+        JudgeAssignment ja = judgeAssignmentRepository.findById(assignmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("JudgeAssignment", assignmentId));
+        JudgeAssignmentResponse snapshot = judgeAssignmentMapper.toResponse(ja);
+        User judge = ja.getJudge();
+        Round round = ja.getRound();
+
+        judgeAssignmentRepository.delete(ja);
+
+        notificationService.send(judge, "JUDGE_UNASSIGNED",
+                "Bạn không còn là Judge Round '%s'".formatted(round == null ? "?" : round.getName()),
+                "Phân công đã được hủy bởi Coordinator.",
+                "rounds", round == null ? null : round.getId());
+
+        auditService.log(AuditAction.JUDGE_UNASSIGNED, "judge_assignments", assignmentId,
+                Map.of("snapshot", snapshot));
+        return assignmentId;
     }
 }

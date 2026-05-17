@@ -21,6 +21,9 @@ public interface RoundRepository extends JpaRepository<Round, Integer> {
 
     long countByTrackId(Integer trackId);
 
+    @Query("SELECT MAX(r.sequenceOrder) FROM Round r WHERE r.track.id = :trackId")
+    Integer findMaxSequenceByTrackId(@Param("trackId") Integer trackId);
+
     /**
      * Khi activate Round mới — tắt cờ {@code is_active} của tất cả Round khác trong cùng Track
      * (theo FR-06B step 6).

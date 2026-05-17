@@ -1,78 +1,163 @@
 package com.se194093.be.events.service.impl;
 
+import com.se194093.be.common.audit.AuditAction;
+import com.se194093.be.common.audit.AuditService;
+import com.se194093.be.common.exception.ResourceNotFoundException;
+import com.se194093.be.common.response.Warning;
+import com.se194093.be.common.security.CurrentUserAccessor;
 import com.se194093.be.events.dto.request.CreateEventRequest;
 import com.se194093.be.events.dto.request.UpdateEventRequest;
 import com.se194093.be.events.dto.response.EventResponse;
+import com.se194093.be.events.entity.Event;
+import com.se194093.be.events.mapper.EventMapper;
+import com.se194093.be.events.repository.EventRepository;
+import com.se194093.be.events.service.EventScheduleValidator;
 import com.se194093.be.events.service.EventService;
 import com.se194093.be.events.value_object.EventType;
+import com.se194093.be.hackathons.entity.Hackathon;
+import com.se194093.be.hackathons.repository.HackathonRepository;
+import com.se194093.be.notifications.entity.Notification;
+import com.se194093.be.notifications.repository.NotificationRepository;
+import com.se194093.be.notifications.service.NotificationService;
+import com.se194093.be.users.entity.User;
+import com.se194093.be.users.repository.UserRepository;
+import com.se194093.be.users.value_object.UserStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
- * Skeleton — TODO Dev implement theo {@code docs/api/mf-01/fr-06a-events.md}.
- *
- * <p>Inject: EventRepository, HackathonRepository, EventMapper, AuditService, EventScheduleValidator,
- * UserRepository (lấy danh sách APPROVED cho REMINDER fan-out), NotificationRepository,
- * CurrentUserAccessor.
+ * FR-06A Event CRUD impl. Gọi {@link EventScheduleValidator} mọi mutation.
+ * REMINDER fan-out tới user APPROVED khi {@code isPublic=true}.
  */
 @Service
 @Slf4j
 @RequiredArgsConstructor
+@Transactional
 public class EventServiceImpl implements EventService {
+
+    private final EventRepository eventRepository;
+    private final HackathonRepository hackathonRepository;
+    private final EventMapper eventMapper;
+    private final AuditService auditService;
+    private final EventScheduleValidator scheduleValidator;
+    private final NotificationService notificationService;
+    private final NotificationRepository notificationRepository;
+    private final UserRepository userRepository;
+    private final CurrentUserAccessor currentUserAccessor;
 
     @Override
     public CreateResult create(Integer hackathonId, CreateEventRequest req) {
-        // TODO Dev:
-        //  1. h = hackathonRepo.findById(hackathonId) or 404
-        //  2. scheduleValidator.validateBlocking(h, req, 0)
-        //  3. warnings = scheduleValidator.computeLayer3Warnings(h, req)
-        //  4. entity = mapper.toEntity(req, h); entity.createdBy = currentUserRef
-        //  5. saved = eventRepo.save(entity)
-        //  6. audit.log(EVENT_CREATE, "events", saved.id, snapshot(saved))
-        //  7. for w in warnings: audit.log(WARNING_EVENT_ORDER, "events", saved.id, w.details)
-        //  8. if saved.isPublic: enqueueRemindersAsync(saved)
-        //  9. return CreateResult(mapper.toResponse(saved), warnings)
-        throw new UnsupportedOperationException("FR-06A POST /events - to be implemented");
+        Hackathon h = hackathonRepository.findById(hackathonId)
+                .orElseThrow(() -> new ResourceNotFoundException("Hackathon", hackathonId));
+
+        scheduleValidator.validateBlocking(h, req, 0);
+        List<Warning> warnings = scheduleValidator.computeLayer3Warnings(h, req);
+
+        Event entity = eventMapper.toEntity(req, h);
+        Integer uid = currentUserAccessor.currentUserId();
+        if (uid != null) {
+            entity.setCreatedBy(User.builder().id(uid).build());
+        }
+        Event saved = eventRepository.save(entity);
+        EventResponse response = eventMapper.toResponse(saved);
+
+        auditService.log(AuditAction.EVENT_CREATE, "events", saved.getId(),
+                Map.of("hackathonId", hackathonId, "snapshot", response));
+        for (Warning w : warnings) {
+            auditService.log(AuditAction.WARNING_EVENT_ORDER, "events", saved.getId(),
+                    Map.of("code", w.getCode(), "message", w.getMessage(),
+                           "details", w.getDetails() == null ? Map.of() : w.getDetails()));
+        }
+        if (Boolean.TRUE.equals(saved.getIsPublic())) {
+            fanoutReminder(saved);
+        }
+        return new CreateResult(response, warnings);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<EventResponse> listByHackathon(Integer hackathonId, EventType type,
                                                LocalDateTime from, LocalDateTime to, Boolean isPublic) {
-        // TODO Dev:
-        //   - if type != null: repo.findByHackathonIdAndType(hackathonId, type)
-        //   - elif from != null && to != null: repo.findInRange(hackathonId, from, to)
-        //   - else: repo.findByHackathonIdOrderByStartsAtAsc(hackathonId)
-        //   - filter isPublic nếu truyền
-        //   - map → response
-        throw new UnsupportedOperationException("FR-06A GET /events - to be implemented");
+        List<Event> events;
+        if (type != null) {
+            events = eventRepository.findByHackathonIdAndType(hackathonId, type);
+        } else if (from != null && to != null) {
+            events = eventRepository.findInRange(hackathonId, from, to);
+        } else {
+            events = eventRepository.findByHackathonIdOrderByStartsAtAsc(hackathonId);
+        }
+        return events.stream()
+                .filter(e -> isPublic == null || isPublic.equals(e.getIsPublic()))
+                .map(eventMapper::toResponse)
+                .toList();
     }
 
     @Override
+    @Transactional(readOnly = true)
     public EventResponse getById(Integer id) {
-        throw new UnsupportedOperationException("FR-06A GET /events/{id} - to be implemented");
+        Event e = eventRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", id));
+        return eventMapper.toResponse(e);
     }
 
     @Override
     public UpdateResult update(Integer id, UpdateEventRequest req) {
-        // TODO Dev:
-        //  - findById → 404
-        //  - scheduleValidator.validateBlocking(h, req, id) (exclude id từ overlap check)
-        //  - warnings = scheduleValidator.computeLayer3Warnings(h, req)
-        //  - applyUpdate; save; audit EVENT_UPDATE {before, after}
-        //  - notification: optionally re-send REMINDER nếu đổi startsAt
-        throw new UnsupportedOperationException("FR-06A PUT /events/{id} - to be implemented");
+        Event e = eventRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", id));
+        Hackathon h = e.getHackathon();
+        scheduleValidator.validateBlocking(h, req, id);
+        List<Warning> warnings = scheduleValidator.computeLayer3Warnings(h, req);
+
+        EventResponse before = eventMapper.toResponse(e);
+        LocalDateTime prevStart = e.getStartsAt();
+        eventMapper.applyUpdate(e, req);
+        Event saved = eventRepository.save(e);
+        EventResponse after = eventMapper.toResponse(saved);
+
+        auditService.logBeforeAfter(AuditAction.EVENT_UPDATE, "events", saved.getId(), before, after);
+        for (Warning w : warnings) {
+            auditService.log(AuditAction.WARNING_EVENT_ORDER, "events", saved.getId(),
+                    Map.of("code", w.getCode(), "message", w.getMessage(),
+                           "details", w.getDetails() == null ? Map.of() : w.getDetails()));
+        }
+        if (Boolean.TRUE.equals(saved.getIsPublic()) && !saved.getStartsAt().equals(prevStart)) {
+            fanoutReminder(saved);
+        }
+        return new UpdateResult(after, warnings);
     }
 
     @Override
     public Integer delete(Integer id) {
-        // TODO Dev:
-        //  - findById → 404
-        //  - delete; audit EVENT_DELETE snapshot
-        //  - delete notifications referencing event id (best-effort)
-        throw new UnsupportedOperationException("FR-06A DELETE /events/{id} - to be implemented");
+        Event e = eventRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", id));
+        EventResponse snapshot = eventMapper.toResponse(e);
+
+        List<Notification> stale = notificationRepository.findByReferenceTypeAndReferenceId("events", id);
+        if (!stale.isEmpty()) {
+            notificationRepository.deleteAll(stale);
+        }
+        eventRepository.delete(e);
+
+        auditService.log(AuditAction.EVENT_DELETE, "events", id,
+                Map.of("snapshot", snapshot, "notificationCleanup", stale.size()));
+        return id;
+    }
+
+    private void fanoutReminder(Event event) {
+        List<User> users = userRepository.findAllByStatus(UserStatus.APPROVED);
+        notificationService.sendBatch(
+                users,
+                "EVENT_REMINDER",
+                "Sự kiện sắp diễn ra: %s".formatted(event.getTitle()),
+                "Thời gian: %s%s".formatted(
+                        event.getStartsAt(),
+                        event.getLocation() == null ? "" : " — " + event.getLocation()),
+                "events", event.getId());
     }
 }

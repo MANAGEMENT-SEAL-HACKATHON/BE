@@ -19,6 +19,21 @@ public interface EventRepository extends JpaRepository<Event, Integer> {
 
     boolean existsByHackathonIdAndType(Integer hackathonId, EventType type);
 
+    boolean existsByHackathonId(Integer hackathonId);
+
+    /**
+     * Lớp 3 helper: lấy event muộn nhất theo {@code endsAt} (fallback {@code startsAt}) cho một type.
+     * Dùng cho rule "PRESENTATION trước max KICKOFF.endsAt".
+     */
+    @Query("""
+            SELECT e FROM Event e
+            WHERE e.hackathon.id = :hackathonId
+              AND e.type = :type
+            ORDER BY COALESCE(e.endsAt, e.startsAt) DESC
+            """)
+    List<Event> findLatestByType(@Param("hackathonId") Integer hackathonId,
+                                 @Param("type") EventType type);
+
     /**
      * Lớp 2 overlap check — tìm các event cùng type trong khoảng giao với (start, end).
      * Bỏ qua chính event đang sửa (excludeId optional, dùng 0 hoặc -1 cho POST).

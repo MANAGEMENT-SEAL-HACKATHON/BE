@@ -26,4 +26,15 @@ public interface AuditService {
      */
     void logAs(Integer userId, String action, String targetTable, Integer targetId,
                Map<String, Object> detail);
+
+    /**
+     * Helper convenience cho mọi UPDATE action: gói {@code detail = { "before": ..., "after": ... }}.
+     * Caller tự chuẩn bị snapshot trước/sau (thường là DTO response qua mapper).
+     */
+    default void logBeforeAfter(String action, String targetTable, Integer targetId,
+                                Object before, Object after) {
+        log(action, targetTable, targetId, Map.of(
+                "before", before == null ? "" : before,
+                "after",  after  == null ? "" : after));
+    }
 }
