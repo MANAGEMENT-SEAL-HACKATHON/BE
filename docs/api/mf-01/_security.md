@@ -29,7 +29,7 @@ Trước khi Auth module ra mắt, mọi endpoint ở MF-01 **mở** ở runtime
 }
 ```
 
-Mapping → [`CurrentUserStub`](../../../src/main/java/com/se194093/be/common/security/CurrentUserStub.java):
+Mapping → [`CurrentUserStub`](../../../src/main/java/com/sealhackathon/api/common/security/CurrentUserStub.java):
 | Claim | Field |
 |---|---|
 | `sub` hoặc `userId` | `userId` |
@@ -41,7 +41,7 @@ Mapping → [`CurrentUserStub`](../../../src/main/java/com/se194093/be/common/se
 
 ## 4. Meta-annotation `@CoordinatorOnly`
 
-File: [common/security/CoordinatorOnly.java](../../../src/main/java/com/se194093/be/common/security/CoordinatorOnly.java).
+File: [common/security/CoordinatorOnly.java](../../../src/main/java/com/sealhackathon/api/common/security/CoordinatorOnly.java).
 
 ### 4.1 Trạng thái hiện tại
 Pure marker annotation — chỉ document intent. Không enforce gì ở runtime.

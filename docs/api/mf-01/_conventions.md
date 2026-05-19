@@ -76,7 +76,7 @@
 
 ## 5. Error codes (`ErrorCode.java`)
 
-Xem [common/exception/ErrorCode.java](../../../src/main/java/com/se194093/be/common/exception/ErrorCode.java) — tập hợp đầy đủ. Trích yếu:
+Xem [common/exception/ErrorCode.java](../../../src/main/java/com/sealhackathon/api/common/exception/ErrorCode.java) — tập hợp đầy đủ. Trích yếu:
 
 | Code | Status | Mô tả |
 |---|---|---|
@@ -118,7 +118,7 @@ Xem [common/exception/ErrorCode.java](../../../src/main/java/com/se194093/be/com
 
 ## 7. Audit action codes
 
-Xem [common/audit/AuditAction.java](../../../src/main/java/com/se194093/be/common/audit/AuditAction.java).
+Xem [common/audit/AuditAction.java](../../../src/main/java/com/sealhackathon/api/common/audit/AuditAction.java).
 
 Mỗi mutation gọi:
 ```java
