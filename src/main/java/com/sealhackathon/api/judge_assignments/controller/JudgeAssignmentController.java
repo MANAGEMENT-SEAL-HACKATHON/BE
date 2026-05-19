@@ -2,6 +2,9 @@ package com.sealhackathon.api.judge_assignments.controller;
 
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
+import com.sealhackathon.api.config.OpenApiConfig;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.sealhackathon.api.judge_assignments.dto.request.CreateJudgeAssignmentRequest;
 import com.sealhackathon.api.judge_assignments.dto.response.JudgeAssignmentResponse;
 import com.sealhackathon.api.judge_assignments.service.JudgeAssignmentService;
@@ -21,6 +24,8 @@ import java.util.Map;
 /**
  * FR-05c — Judge Assignment controller.
  */
+@Tag(name = "Personnel — Judge", description = "FR-05c — Phân công judge vào track")
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
 @RequiredArgsConstructor
 @CoordinatorOnly

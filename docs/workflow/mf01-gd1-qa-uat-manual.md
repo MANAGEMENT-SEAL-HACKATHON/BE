@@ -653,7 +653,13 @@ Expected: **422** `INVITATION_STILL_VALID`
 
 Expected: **200**, token mới.
 
-#### TC-GD1-E07 — DELETE mentor assignment
+#### TC-GD1-E07 — DELETE track OPEN (một bước, không cần CANCELLED)
+
+`DELETE /api/v1/tracks/{{track1Id}}` — track `status=OPEN`, không có team active, round cha không `is_active`.
+
+Expected: **200**, `data.deletedId` khớp. **Không** còn `TRACK_NOT_CANCELLED`.
+
+#### TC-GD1-E07b — DELETE mentor assignment
 
 `DELETE /api/v1/mentor-assignments/{{mentorAssignmentId}}`
 

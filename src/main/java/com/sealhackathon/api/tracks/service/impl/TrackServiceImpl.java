@@ -12,6 +12,8 @@ import com.sealhackathon.api.events.value_object.EventType;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
+import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
+import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.mentor_assignments.entity.MentorAssignment;
 import com.sealhackathon.api.mentor_assignments.repository.MentorAssignmentRepository;
 import com.sealhackathon.api.notifications.service.NotificationService;
@@ -53,6 +55,7 @@ public class TrackServiceImpl implements TrackService {
     private final AuditService auditService;
     private final TeamPlaceholderRepository teamRepository;
     private final MentorAssignmentRepository mentorAssignmentRepository;
+    private final JudgeAssignmentRepository judgeAssignmentRepository;
     private final NotificationService notificationService;
     private final EventRepository eventRepository;
     private final CriteriaRepository criteriaRepository;
@@ -161,23 +164,15 @@ public class TrackServiceImpl implements TrackService {
             throw new ConflictException(ErrorCode.TRACK_HACKATHON_LOCKED,
                     "Không thể xóa Track khi Hackathon ở status %s".formatted(parent.getStatus()));
         }
-        if (t.getStatus() != TrackStatus.CANCELLED) {
-            throw new ConflictException(ErrorCode.TRACK_NOT_CANCELLED,
-                    "Chỉ xóa Track khi status=CANCELLED",
-                    Map.of("trackId", id, "status", t.getStatus()));
-        }
-        if (criteriaRepository.countByTrackId(id) > 0) {
-            throw new ConflictException(ErrorCode.TRACK_HAS_CRITERIA,
-                    "Track còn Criteria — không thể xóa",
-                    Map.of("trackId", id));
-        }
         if (teamRepository.countActiveByTrackId(id) > 0) {
             throw new ConflictException(ErrorCode.TRACK_HAS_TEAMS,
-                    "Track còn team đang đăng ký");
+                    "Track còn team đang đăng ký",
+                    Map.of("trackId", id));
         }
         if (t.getRound() != null && Boolean.TRUE.equals(t.getRound().getIsActive())) {
             throw new ConflictException(ErrorCode.TRACK_HAS_ACTIVE_ROUND,
-                    "Round cha đang active — không thể xóa Track");
+                    "Round cha đang active — không thể xóa Track",
+                    Map.of("trackId", id));
         }
 
         TrackResponse snapshot = trackMapper.toResponse(t);
@@ -188,9 +183,16 @@ public class TrackServiceImpl implements TrackService {
                     "Bạn không còn là Mentor của Track này do Track bị xóa.",
                     "tracks", id);
         }
+        List<JudgeAssignment> judges = judgeAssignmentRepository.findByTrackId(id);
+        for (JudgeAssignment ja : judges) {
+            notificationService.send(ja.getJudge(), "JUDGE_UNASSIGNED",
+                    "Track '%s' đã bị xóa".formatted(t.getName()),
+                    "Bạn không còn là Judge của Track này do Track bị xóa.",
+                    "tracks", id);
+        }
         trackRepository.delete(t);
         auditService.log(AuditAction.TRACK_DELETE, "tracks", id,
-                Map.of("snapshot", snapshot, "mentorCount", mentors.size()));
+                Map.of("snapshot", snapshot, "mentorCount", mentors.size(), "judgeCount", judges.size()));
         return id;
     }
 

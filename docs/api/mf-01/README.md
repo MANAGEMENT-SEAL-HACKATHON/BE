@@ -1,5 +1,17 @@
 # MF-01 — API catalog (index)
 
+## Swagger UI (OpenAPI 3)
+
+| Mục | URL |
+|-----|-----|
+| Swagger UI | http://localhost:8080/swagger-ui.html |
+| OpenAPI JSON | http://localhost:8080/v3/api-docs |
+| OpenAPI YAML | http://localhost:8080/v3/api-docs.yaml |
+
+Bật mọi profile (SpringDoc 3.x). Auth JWT mô tả trong UI (`bearerAuth`); runtime GĐ1 vẫn dùng stub — Try it out **không bắt buộc** token.
+
+---
+
 > **Kiến trúc v3:** Hackathon → Round → Track.  
 > **Nguồn chính khi implement / test API:**
 > - [Quy trình API GĐ1 (7 bước)](../../workflow/mf01-gd1-quy-trinh-api.md)

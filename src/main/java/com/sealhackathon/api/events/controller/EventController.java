@@ -2,6 +2,9 @@ package com.sealhackathon.api.events.controller;
 
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
+import com.sealhackathon.api.config.OpenApiConfig;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.sealhackathon.api.events.dto.request.CreateEventRequest;
 import com.sealhackathon.api.events.dto.request.UpdateEventRequest;
 import com.sealhackathon.api.events.dto.response.EventResponse;
@@ -30,6 +33,8 @@ import java.util.Map;
 /**
  * FR-06A — Event controller. Validate 3 lớp ở {@link EventScheduleValidator}.
  */
+@Tag(name = "Events", description = "FR-06 — Lịch sự kiện (WORKSHOP, KICKOFF, …)")
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
 @RequiredArgsConstructor
 @CoordinatorOnly

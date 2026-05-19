@@ -2,6 +2,9 @@ package com.sealhackathon.api.criteria.controller;
 
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
+import com.sealhackathon.api.config.OpenApiConfig;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.sealhackathon.api.criteria.dto.request.BatchCreateCriteriaRequest;
 import com.sealhackathon.api.criteria.dto.request.CloneCriteriaRequest;
 import com.sealhackathon.api.criteria.dto.request.CreateCriterionRequest;
@@ -28,6 +31,8 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import java.net.URI;
 import java.util.Map;
 
+@Tag(name = "Criteria", description = "FR-04 — Criteria (track XOR round FINAL)")
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
 @RequiredArgsConstructor
 @CoordinatorOnly

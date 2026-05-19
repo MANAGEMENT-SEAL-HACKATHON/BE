@@ -21,6 +21,7 @@
 | Mục | Giá trị |
 |-----|---------|
 | Base URL | `http://localhost:8080` (hoặc port trong `application.properties`) |
+| **Swagger UI** | http://localhost:8080/swagger-ui.html · OpenAPI: `/v3/api-docs` |
 | Prefix | `/api/v1` |
 | Profile dev | `spring.profiles.active=dev` → `Gd1DataSeeder` tạo dữ liệu mẫu |
 | Auth (hiện tại) | **Stub** — mọi endpoint `@CoordinatorOnly` coi user **id=1** là Coordinator |
@@ -198,7 +199,7 @@ Lặp lại với `sequenceOrder: 2` cho Track 2 (nếu cần).
 | GET | `/api/v1/hackathons/{hackathonId}/tracks` | List toàn bộ tracks hackathon (mỗi item có `roundId`, `sequenceOrder`) |
 | GET | `/api/v1/tracks/{id}` | Chi tiết |
 | PUT | `/api/v1/tracks/{id}` | Sửa; **topic** sau KICKOFF (GĐ2) — cần đã có event KICKOFF |
-| DELETE | `/api/v1/tracks/{id}` | Hard delete — chỉ khi `status=CANCELLED`, không team, không criteria |
+| DELETE | `/api/v1/tracks/{id}` | Hard delete — FE xác nhận một bước; không bắt `CANCELLED` trước. Chặn nếu còn team active hoặc Round cha `is_active=TRUE`. Criteria/Mentor/Judge con cascade (DB) |
 
 **Hủy track:** `PUT` body `{ "status": "CANCELLED" }` — block nếu còn đội (`TRACK_CANCEL_HAS_TEAMS`).
 

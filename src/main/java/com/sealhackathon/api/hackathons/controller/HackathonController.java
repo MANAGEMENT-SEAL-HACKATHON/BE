@@ -3,6 +3,9 @@ package com.sealhackathon.api.hackathons.controller;
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.response.PageResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
+import com.sealhackathon.api.config.OpenApiConfig;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.sealhackathon.api.hackathons.dto.request.CreateHackathonRequest;
 import com.sealhackathon.api.hackathons.dto.request.UpdateHackathonRequest;
 import com.sealhackathon.api.hackathons.dto.response.HackathonResponse;
@@ -36,6 +39,8 @@ import java.util.Map;
  * <p>Spec: {@code docs/api/mf-01/fr-01-hackathons.md}.
  * <p>State transition (FR-06) ở {@link HackathonStatusController}.
  */
+@Tag(name = "Hackathon", description = "FR-01 — CRUD hackathon")
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
 @RequestMapping("/api/v1/hackathons")
 @RequiredArgsConstructor

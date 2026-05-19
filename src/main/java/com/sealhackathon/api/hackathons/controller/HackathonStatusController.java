@@ -2,6 +2,9 @@ package com.sealhackathon.api.hackathons.controller;
 
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
+import com.sealhackathon.api.config.OpenApiConfig;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.sealhackathon.api.hackathons.dto.request.ChangeHackathonStatusRequest;
 import com.sealhackathon.api.hackathons.dto.response.HackathonReadinessResponse;
 import com.sealhackathon.api.hackathons.dto.response.HackathonResponse;
@@ -25,6 +28,8 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>Tách thành controller riêng (không gộp với {@link HackathonController}) để rõ phân quyền
  * mutation trạng thái có thể cần audit/lock chặt hơn.
  */
+@Tag(name = "Status", description = "FR-07 — Readiness gate + PATCH hackathon status")
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
 @RequestMapping("/api/v1/hackathons")
 @RequiredArgsConstructor

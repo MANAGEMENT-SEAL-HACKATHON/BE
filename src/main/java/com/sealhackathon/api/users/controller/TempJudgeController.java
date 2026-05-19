@@ -3,6 +3,9 @@ package com.sealhackathon.api.users.controller;
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.response.PageResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
+import com.sealhackathon.api.config.OpenApiConfig;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.sealhackathon.api.users.dto.request.CreateTempJudgeRequest;
 import com.sealhackathon.api.users.dto.response.TempJudgeResponse;
 import com.sealhackathon.api.users.dto.response.UserSummaryResponse;
@@ -23,6 +26,8 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * FR-05a — Tạo / list Judge khách mời. Resend invitation tách ở {@link InvitationController}.
  */
+@Tag(name = "Personnel — Temp judge", description = "FR-05a — Tạo judge khách mời")
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
 @RequestMapping("/api/v1/users/temp-judges")
 @RequiredArgsConstructor

@@ -2,6 +2,9 @@ package com.sealhackathon.api.invitations.controller;
 
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
+import com.sealhackathon.api.config.OpenApiConfig;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.sealhackathon.api.invitations.service.InvitationService;
 import com.sealhackathon.api.users.dto.response.TempJudgeResponse;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * FR-05a — Resend invitation cho Judge khách mời.
  */
+@Tag(name = "Personnel — Invitations", description = "FR-05a — Resend invitation judge")
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
 @RequestMapping("/api/v1/invitations")
 @RequiredArgsConstructor

@@ -3,6 +3,9 @@ package com.sealhackathon.api.mentor_assignments.controller;
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.response.Warning;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
+import com.sealhackathon.api.config.OpenApiConfig;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.sealhackathon.api.mentor_assignments.dto.request.CreateMentorAssignmentRequest;
 import com.sealhackathon.api.mentor_assignments.dto.response.MentorAssignmentResponse;
 import com.sealhackathon.api.mentor_assignments.service.MentorAssignmentService;
@@ -22,6 +25,8 @@ import java.util.Map;
 /**
  * FR-05b — Mentor Assignment (POST/DELETE + 2 GET inverse-lookup).
  */
+@Tag(name = "Personnel — Mentor", description = "FR-05b — Phân công mentor vào track")
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
 @RequiredArgsConstructor
 @CoordinatorOnly

@@ -2,6 +2,9 @@ package com.sealhackathon.api.rounds.controller;
 
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
+import com.sealhackathon.api.config.OpenApiConfig;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.sealhackathon.api.rounds.dto.request.ActivateRoundRequest;
 import com.sealhackathon.api.rounds.dto.response.RoundResponse;
 import com.sealhackathon.api.rounds.service.RoundActivationService;
@@ -19,6 +22,8 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>Tách thành controller riêng để dễ áp guard / rate-limit nếu cần ở phase sau.
  */
+@Tag(name = "Round — Activate", description = "FR-07B — Kích hoạt round (GĐ3)")
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
 @RequestMapping("/api/v1/rounds")
 @RequiredArgsConstructor

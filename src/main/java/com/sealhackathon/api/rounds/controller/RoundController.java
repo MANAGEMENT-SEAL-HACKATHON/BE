@@ -2,6 +2,9 @@ package com.sealhackathon.api.rounds.controller;
 
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
+import com.sealhackathon.api.config.OpenApiConfig;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.sealhackathon.api.rounds.dto.request.CreateRoundRequest;
 import com.sealhackathon.api.rounds.dto.request.UpdateRoundRequest;
 import com.sealhackathon.api.rounds.dto.response.RoundResponse;
@@ -26,6 +29,8 @@ import java.util.Map;
 /**
  * FR-02 Round CRUD. Activate ở {@link RoundActivationController}.
  */
+@Tag(name = "Round", description = "FR-02 — Round CRUD (dưới hackathon)")
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
 @RequiredArgsConstructor
 @CoordinatorOnly
