@@ -8,9 +8,10 @@
 
 | Tài liệu | Mục đích |
 |----------|----------|
+| [mf01-gd1-test-happy-path.md](mf01-gd1-test-happy-path.md) | **Test happy path** — checklist, JSON mẫu, seed, biến Postman |
 | [mf01-gd1-doi-chieu.md](mf01-gd1-doi-chieu.md) | Business rules, FR, gate G1–G5, Implementation |
 | [mf01.md](mf01.md) | Spec normative đầy đủ |
-| [Gd1SeedConstants.java](../../src/main/java/com/se194093/be/config/seed/Gd1SeedConstants.java) | Slug / email seed dev |
+| [Gd1SeedConstants.java](../../src/main/java/com/sealhackathon/api/config/seed/Gd1SeedConstants.java) | Slug / email seed dev |
 
 ---
 
@@ -150,12 +151,7 @@ flowchart LR
 | PUT | `/api/v1/rounds/{id}` | Cập nhật deadline, lock chấm điểm, … |
 | DELETE | `/api/v1/rounds/{id}` | Xóa — không khi đang `isActive` / có submission / có criteria |
 
-### Legacy (delegate v3)
-
-| Method | Path | Ghi chú |
-|--------|------|---------|
-| POST | `/api/v1/tracks/{trackId}/rounds` | Deprecated — resolve hackathon từ track |
-| GET | `/api/v1/tracks/{trackId}/rounds` | Deprecated |
+Response list round gồm `trackCount` (số track con; 0 nếu FINAL), `criteriaCount`, `currentWeightTotal`.
 
 ### Ràng buộc nhanh
 
@@ -197,18 +193,13 @@ Lặp lại với `sequenceOrder: 2` cho Track 2 (nếu cần).
 
 | Method | Path | Khi nào dùng |
 |--------|------|----------------|
-| GET | `/api/v1/hackathons/{hackathonId}/tracks` | List tracks (query `status` tùy chọn) |
+| **GET** | **`/api/v1/rounds/{roundId}/tracks`** | **List tracks thuộc một round** (sort `sequenceOrder`; query `status` tùy chọn) — UI “round gồm track nào” |
+| GET | `/api/v1/hackathons/{hackathonId}/tracks` | List toàn bộ tracks hackathon (mỗi item có `roundId`, `sequenceOrder`) |
 | GET | `/api/v1/tracks/{id}` | Chi tiết |
 | PUT | `/api/v1/tracks/{id}` | Sửa; **topic** sau KICKOFF (GĐ2) — cần đã có event KICKOFF |
 | DELETE | `/api/v1/tracks/{id}` | Hard delete — chỉ khi `status=CANCELLED`, không team, không criteria |
 
 **Hủy track:** `PUT` body `{ "status": "CANCELLED" }` — block nếu còn đội (`TRACK_CANCEL_HAS_TEAMS`).
-
-### Legacy
-
-| Method | Path | Ghi chú |
-|--------|------|---------|
-| POST | `/api/v1/hackathons/{hackathonId}/tracks` | Tự resolve round Sơ loại đầu tiên |
 
 ### Ràng buộc nhanh
 
@@ -314,10 +305,9 @@ Tổng weight (không tính PENALTY) = **1.0** (±0.001) — gate cứng tại B
 | Method | Path | Ghi chú |
 |--------|------|---------|
 | **POST** | `/api/v1/judge-assignments` | Body `{ "judgeId", "trackId", "assignmentType": "NORMAL" }` |
-| GET | `/api/v1/tracks/{trackId}/judges` | List |
+| GET | `/api/v1/tracks/{trackId}/judges` | List Judge Sơ loại |
+| GET | `/api/v1/rounds/{roundId}/judges` | List Judge **Chung kết** — **GĐ4 only**, không dùng GĐ1 |
 | DELETE | `/api/v1/judge-assignments/{id}` | Hủy |
-
-**Legacy:** `GET /api/v1/rounds/{roundId}/judges`
 
 ### Không làm ở GĐ1
 
@@ -458,7 +448,7 @@ Thứ tự tối thiểu sau khi có `hackathonId`, `prelimRoundId`, `finalRound
 |--------|-----------|
 | Hackathon | POST/GET/PUT/DELETE `/hackathons`, GET/PATCH `/hackathons/{id}/readiness`, `/status` |
 | Round | POST/GET `/hackathons/{id}/rounds`, GET/PUT/DELETE `/rounds/{id}`, PATCH `/rounds/{id}/activate` |
-| Track | POST `/rounds/{id}/tracks`, GET `/hackathons/{id}/tracks`, GET/PUT/DELETE `/tracks/{id}` |
+| Track | POST/GET `/rounds/{id}/tracks`, GET `/hackathons/{id}/tracks`, GET/PUT/DELETE `/tracks/{id}` |
 | Criteria | POST/GET/batch/clone/weight-summary dưới `/tracks/{id}/criteria` và `/rounds/{id}/criteria`, GET/PUT/DELETE `/criteria/{id}` |
 | Users | POST/GET `/users/temp-judges`, PATCH `/users/{userId}` |
 | Invitations | POST `/invitations/{id}/resend` |

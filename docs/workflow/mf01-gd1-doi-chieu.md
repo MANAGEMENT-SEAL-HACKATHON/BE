@@ -1042,7 +1042,7 @@ Round Chung kết: `"isFinal": true`, `"roundType": "FINAL"`, `"lateSubmissionPo
 
 ### 10.4 Mã lỗi ứng dụng (ErrorCode)
 
-Đồng bộ [`ErrorCode.java`](../../src/main/java/com/se194093/be/common/exception/ErrorCode.java). Mã **DB-only** (chưa có constant Java) → §10.5.
+Đồng bộ [`ErrorCode.java`](../../src/main/java/com/sealhackathon/api/common/exception/ErrorCode.java). Mã **DB-only** (chưa có constant Java) → §10.5.
 
 | Code | HTTP | FR (mf01 v3.0) | Mô tả |
 |------|------|----------------|-------|
@@ -1294,7 +1294,7 @@ Comment trong `ErrorCode.java` gán **FR-02 = Track**, **FR-03 = Round** (v2.x).
 
 ## Phụ lục A — Dữ liệu seed dev (profile `dev`)
 
-Chạy `Gd1DataSeeder` khi start app (`spring.profiles.active=dev`). Xem log `[Gd1DataSeeder]` cho ID thực tế. Class: [`Gd1SeedConstants.java`](../../src/main/java/com/se194093/be/config/seed/Gd1SeedConstants.java).
+Chạy `Gd1DataSeeder` khi start app (`spring.profiles.active=dev`). Xem log `[Gd1DataSeeder]` cho ID thực tế. Class: [`Gd1SeedConstants.java`](../../src/main/java/com/sealhackathon/api/config/seed/Gd1SeedConstants.java).
 
 | Slug | Mục đích |
 |------|----------|
