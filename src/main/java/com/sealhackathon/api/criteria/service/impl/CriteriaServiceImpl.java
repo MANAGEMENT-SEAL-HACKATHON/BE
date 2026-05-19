@@ -196,7 +196,14 @@ public class CriteriaServiceImpl implements CriteriaService {
             throw new BusinessRuleException(ErrorCode.CRITERIA_CLONE_SOURCE_EMPTY,
                     "Track nguồn không có Criteria", Map.of("sourceTrackId", req.getSourceTrackId()));
         }
+        int deletedCount = replaceExistingForTrackIfRequested(trackId, req);
         List<Integer> createdIds = saveClonesForTrack(sources, target);
+        auditService.log(AuditAction.CRITERIA_CLONE, "criteria", trackId, Map.of(
+                "targetTrackId", trackId,
+                "sourceTrackId", req.getSourceTrackId(),
+                "replaceExisting", Boolean.TRUE.equals(req.getReplaceExisting()),
+                "deletedCount", deletedCount,
+                "clonedCount", createdIds.size()));
         return CloneResponse.builder()
                 .createdIds(createdIds)
                 .count(createdIds.size())
@@ -207,16 +214,28 @@ public class CriteriaServiceImpl implements CriteriaService {
     @Override
     public CloneResponse cloneFromSourceForFinalRound(Integer finalRoundId, CloneCriteriaRequest req) {
         Round target = loadFinalRound(finalRoundId);
+        if (req.getSourceRoundId() == null) {
+            throw new BusinessRuleException(ErrorCode.CRITERIA_CLONE_SOURCE_EMPTY,
+                    "sourceRoundId bắt buộc khi clone vào Round Chung kết",
+                    Map.of("roundId", finalRoundId));
+        }
         List<Criteria> sources = criteriaRepository.findByFinalRoundIdOrderByDisplayOrderAsc(req.getSourceRoundId());
         if (sources.isEmpty()) {
             throw new BusinessRuleException(ErrorCode.CRITERIA_CLONE_SOURCE_EMPTY,
                     "Round nguồn không có Criteria", Map.of("sourceRoundId", req.getSourceRoundId()));
         }
+        int deletedCount = replaceExistingForFinalRoundIfRequested(finalRoundId, req);
         List<Integer> createdIds = new ArrayList<>();
         for (Criteria src : sources) {
             Criteria saved = criteriaRepository.save(criteriaMapper.toCloneForFinalRound(src, target));
             createdIds.add(saved.getId());
         }
+        auditService.log(AuditAction.CRITERIA_CLONE, "criteria", finalRoundId, Map.of(
+                "targetRoundId", finalRoundId,
+                "sourceRoundId", req.getSourceRoundId(),
+                "replaceExisting", Boolean.TRUE.equals(req.getReplaceExisting()),
+                "deletedCount", deletedCount,
+                "clonedCount", createdIds.size()));
         return CloneResponse.builder()
                 .createdIds(createdIds)
                 .sourceRoundId(req.getSourceRoundId())
@@ -254,6 +273,44 @@ public class CriteriaServiceImpl implements CriteriaService {
             createdIds.add(saved.getId());
         }
         return createdIds;
+    }
+
+    /**
+     * FR-04 clone: {@code replaceExisting=true} → xóa hết criteria của track đích trước khi clone (block nếu có scores).
+     */
+    private int replaceExistingForTrackIfRequested(Integer trackId, CloneCriteriaRequest req) {
+        boolean replace = Boolean.TRUE.equals(req.getReplaceExisting());
+        if (!replace) {
+            return 0;
+        }
+        List<Criteria> existing = criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(trackId);
+        for (Criteria c : existing) {
+            if (scoreRepository.countByCriteriaId(c.getId()) > 0) {
+                throw new ConflictException(ErrorCode.CRITERIA_HAS_SCORES,
+                        "Track đích đã có scores — không thể replaceExisting",
+                        Map.of("trackId", trackId, "criterionId", c.getId()));
+            }
+        }
+        for (Criteria c : existing) {
+            criteriaRepository.delete(c);
+        }
+        return existing.size();
+    }
+
+    private int replaceExistingForFinalRoundIfRequested(Integer finalRoundId, CloneCriteriaRequest req) {
+        if (!Boolean.TRUE.equals(req.getReplaceExisting())) {
+            return 0;
+        }
+        if (scoreRepository.countByRoundId(finalRoundId) > 0) {
+            throw new ConflictException(ErrorCode.CRITERIA_HAS_SCORES,
+                    "Round Chung kết đích đã có scores — không thể replaceExisting",
+                    Map.of("roundId", finalRoundId));
+        }
+        List<Criteria> existing = criteriaRepository.findByFinalRoundIdOrderByDisplayOrderAsc(finalRoundId);
+        for (Criteria c : existing) {
+            criteriaRepository.delete(c);
+        }
+        return existing.size();
     }
 
     private Optional<Warning> weightWarningForCriteria(Criteria c) {
