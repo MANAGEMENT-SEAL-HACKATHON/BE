@@ -2,6 +2,7 @@ package com.se194093.be.common.exception;
 
 import com.se194093.be.common.response.ErrorResponse;
 import com.se194093.be.common.response.ValidationErrorResponse;
+import com.se194093.be.hackathons.dto.response.HackathonReadinessResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -43,6 +45,7 @@ public class GlobalExceptionHandler {
                 traceId, req.getMethod(), req.getRequestURI(),
                 ex.getStatus().value(), ex.getCode(), ex.getMessage());
 
+        List<ErrorResponse.GateErrorItem> gateErrors = extractGateErrors(ex);
         ErrorResponse body = ErrorResponse.builder()
                 .success(false)
                 .error(ErrorResponse.ErrorPayload.builder()
@@ -51,10 +54,33 @@ public class GlobalExceptionHandler {
                         .status(ex.getStatus().value())
                         .details(ex.getDetails().isEmpty() ? null : ex.getDetails())
                         .build())
+                .errors(gateErrors == null || gateErrors.isEmpty() ? null : gateErrors)
                 .traceId(traceId)
                 .timestamp(Instant.now())
                 .build();
         return ResponseEntity.status(ex.getStatus()).body(body);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<ErrorResponse.GateErrorItem> extractGateErrors(BaseException ex) {
+        if (!ErrorCode.READINESS_NOT_PASSED.equals(ex.getCode())) {
+            return List.of();
+        }
+        Object raw = ex.getDetails().get("blockers");
+        if (!(raw instanceof List<?> list)) {
+            return List.of();
+        }
+        List<ErrorResponse.GateErrorItem> items = new ArrayList<>();
+        for (Object o : list) {
+            if (o instanceof HackathonReadinessResponse.Blocker b) {
+                items.add(ErrorResponse.GateErrorItem.builder()
+                        .code(b.getCode())
+                        .message(b.getMessage())
+                        .details(b.getDetails())
+                        .build());
+            }
+        }
+        return items;
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -117,13 +143,62 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleDataIntegrity(
             DataIntegrityViolationException ex, HttpServletRequest req) {
         String traceId = traceId();
+        String root = rootMessage(ex);
+        String signalCode = extractMysqlSignalCode(root);
+        if (signalCode != null) {
+            log.warn("[{}] {} {} -> 422 DB signal: {}",
+                    traceId, req.getMethod(), req.getRequestURI(), signalCode);
+            return ResponseEntity.unprocessableEntity().body(
+                    ErrorResponse.of(signalCode, humanMessageForSignal(signalCode),
+                            HttpStatus.UNPROCESSABLE_ENTITY.value())
+            );
+        }
         log.warn("[{}] {} {} -> 409 DB integrity: {}",
-                traceId, req.getMethod(), req.getRequestURI(), rootMessage(ex));
+                traceId, req.getMethod(), req.getRequestURI(), root);
         ErrorResponse body = ErrorResponse.of(
                 "DB_INTEGRITY_VIOLATION",
                 "Vi phạm ràng buộc dữ liệu (UNIQUE / FK / NOT NULL)",
                 HttpStatus.CONFLICT.value());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    /**
+     * MySQL SIGNAL SQLSTATE '45000' — MESSAGE_TEXT thường là mã nghiệp vụ (vd CONFLICT_SAME_TRACK).
+     */
+    static String extractMysqlSignalCode(String message) {
+        if (message == null || message.isBlank()) {
+            return null;
+        }
+        String[] known = {
+                ErrorCode.CONFLICT_SAME_TRACK,
+                ErrorCode.INTERNAL_JUDGE_NOT_ALLOWED_IN_FINAL,
+                ErrorCode.INTERNAL_MENTOR_NOT_ALLOWED_IN_FINAL,
+                ErrorCode.INVALID_ASSIGNMENT_TYPE,
+                ErrorCode.INVALID_FINAL_ROUND,
+                ErrorCode.DESIGN_VIOLATION,
+                ErrorCode.INVALID_ROUND_FOR_CRITERIA,
+                ErrorCode.FINAL_JUDGE_CANNOT_BE_MENTOR,
+        };
+        for (String code : known) {
+            if (message.contains(code)) {
+                return code;
+            }
+        }
+        return null;
+    }
+
+    private static String humanMessageForSignal(String code) {
+        return switch (code) {
+            case ErrorCode.CONFLICT_SAME_TRACK -> "Không được vừa Mentor vừa Judge cùng Track";
+            case ErrorCode.INTERNAL_JUDGE_NOT_ALLOWED_IN_FINAL -> "Judge INTERNAL không được phân công Chung kết";
+            case ErrorCode.INTERNAL_MENTOR_NOT_ALLOWED_IN_FINAL -> "Mentor không được làm Judge Chung kết";
+            case ErrorCode.INVALID_ASSIGNMENT_TYPE -> "assignment_type không hợp lệ cho ngữ cảnh";
+            case ErrorCode.INVALID_FINAL_ROUND -> "round_id phải trỏ Round Chung kết";
+            case ErrorCode.DESIGN_VIOLATION -> "Round Chung kết không được có Track con";
+            case ErrorCode.INVALID_ROUND_FOR_CRITERIA -> "Criteria Chung kết phải gắn Round FINAL";
+            case ErrorCode.FINAL_JUDGE_CANNOT_BE_MENTOR -> "Judge Chung kết không được làm Mentor Sơ loại";
+            default -> "Vi phạm ràng buộc nghiệp vụ tại cơ sở dữ liệu";
+        };
     }
 
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})

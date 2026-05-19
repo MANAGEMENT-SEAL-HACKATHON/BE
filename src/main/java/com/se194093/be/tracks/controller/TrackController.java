@@ -44,8 +44,23 @@ public class TrackController {
 
     // ------- nested ROUTES -------
 
+    @PostMapping("/api/v1/rounds/{roundId}/tracks")
+    public ResponseEntity<ApiResponse<TrackResponse>> createByRound(
+            @PathVariable Integer roundId,
+            @Valid @RequestBody CreateTrackRequest req
+    ) {
+        TrackResponse data = trackService.createByRound(roundId, req);
+        URI location = ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path("/api/v1/tracks/{id}")
+                .buildAndExpand(data.getId())
+                .toUri();
+        return ResponseEntity.created(location).body(ApiResponse.created(data));
+    }
+
+    /** @deprecated delegate — tạo Track trong Round Sơ loại đầu tiên */
+    @Deprecated
     @PostMapping("/api/v1/hackathons/{hackathonId}/tracks")
-    public ResponseEntity<ApiResponse<TrackResponse>> create(
+    public ResponseEntity<ApiResponse<TrackResponse>> createLegacy(
             @PathVariable Integer hackathonId,
             @Valid @RequestBody CreateTrackRequest req
     ) {

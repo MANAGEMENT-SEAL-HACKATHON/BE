@@ -32,6 +32,8 @@ public interface JudgeAssignmentService {
 
     CreateResult assign(CreateJudgeAssignmentRequest req);
 
+    List<JudgeAssignmentResponse> listByTrack(Integer trackId);
+
     List<JudgeAssignmentResponse> listByRound(Integer roundId);
 
     List<JudgeAssignmentResponse> listByJudge(Integer judgeId);

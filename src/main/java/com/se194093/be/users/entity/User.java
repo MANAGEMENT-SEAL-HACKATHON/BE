@@ -53,6 +53,15 @@ public class User {
     @Column(name = "is_temp_account", nullable = false)
     private Boolean isTempAccount = false;
 
+    /**
+     * [FIX-02] Cờ "Trưởng khoa" — cho phép ngoại lệ làm Judge Chung kết
+     * dù là INTERNAL, miễn KHÔNG đồng thời là Mentor.
+     * Trigger {@code trg_check_mentor_judge_conflict_ins} (docs §5.4) sử dụng cờ này.
+     */
+    @Builder.Default
+    @Column(name = "is_dept_head", nullable = false)
+    private Boolean isDeptHead = false;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private UserStatus status = UserStatus.PENDING;
@@ -83,9 +92,11 @@ public class User {
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
+    @Builder.Default
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    @Builder.Default
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt = LocalDateTime.now();
 

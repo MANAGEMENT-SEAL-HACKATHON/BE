@@ -23,6 +23,7 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class WeightSummaryResponse {
 
+    private final Integer trackId;
     private final Integer roundId;
     private final Double total;
     private final Double missing;

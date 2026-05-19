@@ -1,5 +1,6 @@
 package com.se194093.be.hackathons.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.se194093.be.hackathons.value_object.HackathonStatus;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -22,7 +23,9 @@ import lombok.Setter;
 @Builder
 public class ChangeHackathonStatusRequest {
 
+    /** §10.3: {@code "status": "ONGOING"} — {@link JsonAlias} giữ tương thích {@code targetStatus}. */
     @NotNull
+    @JsonAlias("status")
     private HackathonStatus targetStatus;
 
     @Size(max = 1000)

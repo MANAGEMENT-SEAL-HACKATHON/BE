@@ -1,0 +1,1329 @@
+# MF-01 — Tài liệu đối chiếu Giai đoạn 1 (Chuẩn bị sự kiện)
+
+**Dự án:** SEAL Hackathon Management System — Backend (Spring Boot)  
+**Phiên bản tài liệu:** 2.1 · **MF-01 spec:** v3.1 (team review) · **DB schema:** v3.0 (MySQL 8)  
+**Đồng bộ nội dung nghiệp vụ từ:** [mf01.md](mf01.md) + changelog v3.1 (FIX-R1…FIX-R10)  
+**Mục đích:** Business rules, functional requirements, main flow và API **đầy đủ** (cùng cấu trúc mf01.md), kèm lớp **Implementation (SEAL BE)** để đối chiếu dự án khác.
+
+**Quy tắc ưu tiên:** `schema-v3.0-mysql.md` > `mf01.md` > `workflow.md` (đoạn cũ).
+
+| Tài liệu | Vai trò |
+|----------|---------|
+| [mf01.md](mf01.md) | Spec normative gốc |
+| [schema-v3.0-mysql.md](../db/schema-v3.0-mysql.md) | DDL, trigger |
+| [workflow.md](workflow.md) v5.0 | Luồng 6 giai đoạn |
+| [mf01-gd1-quy-trinh-api.md](mf01-gd1-quy-trinh-api.md) | **Quy trình chạy API** theo 7 bước GĐ1 |
+
+> **Cách đọc:** Các mục `### X.Y` … `### X.5` là nghiệp vụ chuẩn (từ mf01). Mục **`### X.6+ Implementation`** mô tả code SEAL BE hiện tại.
+
+---
+
+## 0. Ma trận audit FR-01 … FR-07B (v3.0)
+
+| FR | Workflow GĐ1 | DB v3.0 | mf01 § | Trạng thái | Ghi chú chỉnh | Implementation (SEAL BE) |
+|----|--------------|---------|--------|------------|---------------|---------------------------|
+| FR-01 Hackathon | Bước 1 | hackathons | §2 | **PASS** | JSON (không JSONB); `updated_at` MySQL | `HackathonServiceImpl` |
+| FR-02 Round | Bước 2 | BC-01 rounds | §3 | **PASS** | API target: `POST .../hackathons/{id}/rounds` | `RoundServiceImpl` |
+| FR-03 Track | Bước 3 | BC-02 tracks | §4 | **PASS** | API target: `POST .../rounds/{id}/tracks`; `assigned_group` ở GĐ2 | `TrackServiceImpl` |
+| FR-04 Criteria | Bước 4 | BC-03 XOR | §5 | **PASS** | 2 nhánh API track / final round | `CriteriaService` |
+| FR-05 Nhân sự | Bước 5 | BC-07, triggers | §6 | **PASS** | Conflict BLOCK ở DB; warn chỉ weight/events | Temp/Mentor/Judge services |
+| FR-06 Events | Bước 6 | BC-09 | §7 | **PASS** | REMINDER sync trong transaction (hiện tại) | `EventScheduleValidatorImpl` |
+| FR-07 Status | Bước 7 | Gate G1–G5 | §8 | **PASS** | Thêm `GET .../readiness` §10 | `HackathonReadinessServiceImpl` |
+| FR-07B Activate | GĐ3 ref | rounds.is_active | §9 | **PASS** | Phạm vi doc GĐ1; runtime GĐ3 | `RoundActivationServiceImpl` |
+
+**Gate [G1–G5]** khớp workflow Bước 7 và §1.4. **Implementation drift** (route URL cũ, readiness logic cũ): xem §14 — không là normative.
+
+---
+
+## Changelog v2.2 → v3.0
+Mã thay đổi	Loại	Nội dung
+[ARCH-01]	BREAKING	Đảo kiến trúc hoàn toàn: Hackathon → Round → Track (cũ: Hackathon → Track → Round). Toàn bộ luồng tạo cấu trúc ở GĐ1 thay đổi thứ tự.
+[ARCH-02]	BREAKING	Round là con trực tiếp của Hackathon (rounds.hackathon_id). Track là con của Round (tracks.round_id).
+[FR-02↔03]	BREAKING	FR-02 và FR-03 hoán đổi vị trí: FR-02 nay là Tạo Round (dưới Hackathon); FR-03 nay là Tạo Track (trong Round).
+[FR-04-XOR]	BREAKING	criteria dùng XOR FK: track_id cho Sơ loại, round_id cho Chung kết. Không còn round_id duy nhất. Trigger trg_check_criteria_round_is_final enforce tại DB-layer.
+[FR-05-BLOCK]	BREAKING	Conflict Mentor↔Judge BLOCK CỨNG (cũ: chỉ warn). Trigger trg_check_mentor_judge_conflict_ins/upd + trg_check_judge_mentor_conflict_ins enforce tại DB-layer.
+[FR-05-FINAL]	MỚI	Rule Chung kết: 100% Judge EXTERNAL. INTERNAL chỉ được ngoại lệ nếu is_dept_head=TRUE AND không có mentor_assignment trong kỳ, kèm xác nhận tường minh.
+[FR-05-DEPT]	MỚI	Trường users.is_dept_head BOOLEAN — flag Trưởng khoa/bộ môn. Dùng trong logic ngoại lệ Judge Chung kết.
+[FR-06-ENUM]	SỬA	events.type bỏ TEAM_MEETING khỏi CHECK enum (không tồn tại thực tế).
+[FR-07-GATE]	BREAKING	Gate DRAFT→ONGOING cập nhật: 5 điều kiện theo kiến trúc mới. Criteria Sơ loại validate qua track_id; Criteria Chung kết validate qua round_id.
+[FR-07B-NET]	SỬA	Safety net khi activate Round: validate weight qua criteria.track_id (Sơ loại) hoặc criteria.round_id (Chung kết).
+[NEW-TRT]	MỚI	Bảng team_round_tracks (mới hoàn toàn) thay thế teams.registration_track_id, assigned_track_id, assigned_group.
+[NEW-TRIGGERS]	MỚI	9+ trigger GĐ1-relevant (MySQL): trg_prevent_track_in_final_round, trg_check_mentor_judge_conflict_ins/upd, trg_check_judge_mentor_conflict_ins, trg_check_criteria_round_is_final_ins/upd, trg_check_submission_round_is_final_ins/upd, trg_check_team_track_same_hackathon_ins/upd (+ score/member lock GĐ2/3 — §13).
+## 1. Tổng quan MF-01 — Giai đoạn Chuẩn bị Sự kiện
+MF-01 bao phủ toàn bộ giai đoạn chuẩn bị — từ khi Coordinator tạo Hackathon cho đến khi chuyển trạng thái ONGOING mở cổng đăng ký. Giai đoạn này chỉ có Actor là Coordinator. Sinh viên, Judge, Mentor chưa tham gia.
+
+### 1.1 Kiến trúc Hackathon → Round → Track
+HACKATHON  (VD: Fall 2025 hoặc Spring 2026)
+├── Round 1: Sơ loại  (round_type=PRELIMINARY, sequence_order=1)
+│    ├── Track 1  (topic = chủ đề bốc thăm)
+│    │    ├── Bảng A  ≤6 đội  [assigned_group="A"]
+│    │    └── Bảng B  ≤6 đội  [assigned_group="B"]
+│    └── Track 2  (topic = chủ đề bốc thăm)
+│         ├── Bảng C  ≤6 đội
+│         └── Bảng D  ≤6 đội
+│
+└── Round 2: Chung kết  (round_type=FINAL, is_final=TRUE)
+     └── [KHÔNG CÓ TRACK — KHÔNG CÓ BẢNG]
+          Pool chung 6 đội → 100% Judge EXTERNAL
+Nguyên tắc thiết kế cốt lõi:
+
+Track không phải hạng mục cố định của Hackathon — Track là bảng đấu trong một Round cụ thể.
+Round Chung kết is_final=TRUE không có Track con — đây là thiết kế đúng, không phải lỗi.
+criteria.track_id (Sơ loại) / criteria.round_id (Chung kết) — XOR constraint tại DB.
+submissions.track_id (Sơ loại) / submissions.round_id (Chung kết) — XOR constraint tại DB.
+judge_assignments.track_id (Sơ loại) / judge_assignments.round_id (Chung kết) — XOR + generated column UNIQUE (MySQL — xem schema §1.1).
+### 1.2 Actor và phân quyền
+Coordinator là quyền CỐ ĐỊNH: users.role='COORDINATOR' AND users.status='APPROVED'. Không phải quyền tạm thời theo sự kiện. Một Coordinator có quyền trên mọi Hackathon trong hệ thống. Mọi hành động đều qua middleware JWT kiểm tra role + status trước khi xử lý.
+
+**Implementation (SEAL BE):** Dev dùng `StubCurrentUserAccessor` — user id **1** = coordinator (`coord@fpt.edu.vn` trong seed). Endpoint GĐ1 có `@CoordinatorOnly`; chưa có JWT thật (xem checklist #19, §14.4).
+
+Ghi chú tương lai: Nếu cần phân quyền Coordinator theo từng Hackathon riêng → bổ sung bảng hackathon_coordinators(hackathon_id, user_id). DB v3.0 hiện chưa có.
+
+### 1.3 Luồng chính GĐ1 (tóm tắt theo kiến trúc mới)
+Bước	Hành động	Đầu ra DB
+1	Tạo Hackathon	hackathons (status=DRAFT)
+2	Tạo Rounds (Sơ loại + Chung kết)	rounds (hackathon_id FK)
+3	Tạo Tracks trong Round Sơ loại	tracks (round_id FK)
+4	Thiết lập Criteria cho Track & Round Chung kết	criteria (XOR: track_id hoặc round_id)
+5	Quản lý nhân sự	users, invitations, mentor_assignments, judge_assignments
+6	Lên lịch sự kiện	events, notifications
+7	Chuyển DRAFT → ONGOING (gate cứng 5 điều kiện)	hackathons.status=ONGOING
+Thứ tự bắt buộc: Bước 2 (Round) trước Bước 3 (Track). Track phải biết mình thuộc Round nào. Bước 4 (Criteria) sau Bước 3. Không validate weight ở Bước 2 và 3.
+
+### 1.4 Điều kiện Gate chuyển GĐ2 (Gate Condition)
+hackathons.status = ONGOING
+  ├── [G1] ≥1 Round PRELIMINARY tồn tại VÀ có ≥1 Track con
+  ├── [G2] Đúng 1 Round FINAL (is_final=TRUE) — không cần Track con
+  ├── [G3] Mọi Track (Round Sơ loại) có Criteria, SUM(weight) = 1.0 (±0.001)
+  ├── [G4] Round Chung kết có Criteria (criteria.round_id), SUM(weight) = 1.0 (±0.001)
+  └── [G5] ≥1 event type=KICKOFF tồn tại và hợp lệ
+### 1.5 Các bảng DB tham gia MF-01 (v3.0)
+Bảng	Vai trò trong MF-01	Ghi chú DB v3.0
+hackathons	Bảng chính — định nghĩa kỳ thi	status: DRAFT→ONGOING→PENDING_CONFIRM→FINISHED
+rounds	[BC-01] Vòng thi — con của Hackathon	hackathon_id FK; is_final, round_type, late_submission_policy mới
+tracks	[BC-02] Bảng đấu — con của Round	round_id FK (thay hackathon_id); topic, sequence_order mới
+criteria	[BC-03] Tiêu chí chấm điểm	XOR FK: track_id (Sơ loại) / round_id (Chung kết)
+users	Xác thực Coordinator; tạo Judge tạm	is_dept_head BOOLEAN mới; is_temp_account cho Judge EXTERNAL
+invitations	Thư mời Judge khách mời (token 48h)	Token one-time-use
+mentor_assignments	Phân công Mentor → Track Sơ loại	UNIQUE(mentor_id, track_id); track_id FK → tracks mới
+judge_assignments	[BC-07] Phân công Judge → Track/Round	XOR FK; FINAL_EXTERNAL type; generated column UNIQUE (`track_uk`, `round_uk`)
+events	Lịch sự kiện	[BC-09] Bỏ TEAM_MEETING khỏi enum
+notifications	REMINDER tự động khi tạo event	type=REMINDER
+audit_logs	Lịch sử mọi hành động	action, target_table, detail JSON (MySQL)
+team_round_tracks	[BC-04] Phân công đội → Track (GĐ2)	Bảng mới; `assigned_group` tại đây (không còn trên teams). GĐ1 chỉ tham chiếu
+wildcard_reviews	[BC-10] Wild Card	GĐ4+; có `track_id` — ngoài phạm vi API MF-01
+## 2. FR-01 — Tạo Hackathon mới
+Mô tả: Coordinator tạo kỳ thi với các thông tin định nghĩa cơ bản. Trạng thái khởi tạo mặc định DRAFT. Sự kiện DRAFT không hiển thị với Student / Judge / Mentor.
+
+Workflow v5.0 ref: GĐ1 — Bước 1 | DB v3.0 ref: hackathons
+
+### 2.1 Bảng chính: hackathons
+Trường	Kiểu / Ràng buộc	Ghi chú nghiệp vụ	Thay đổi v3.0
+id	SERIAL PK	Auto-increment	—
+name	VARCHAR(300) NOT NULL	Tên kỳ thi	—
+slug	VARCHAR(150) UNIQUE NOT NULL	URL-friendly: "seal-spring-2026"	—
+season	VARCHAR(20) CHECK IN ('Spring','Summer','Fall','Winter')	Mùa thi	—
+year	INT NOT NULL	Năm tổ chức	—
+status	VARCHAR(20) DEFAULT 'DRAFT' CHECK IN ('DRAFT','ONGOING','PENDING_CONFIRM','FINISHED')	State machine một chiều	—
+description	TEXT	Mô tả cuộc thi; tuỳ chọn	—
+rules	TEXT	Quy chế tham dự; tuỳ chọn	—
+banner_url	TEXT	Ảnh banner; tuỳ chọn	—
+registration_start	DATE	Ngày mở đăng ký đội	—
+registration_end	DATE	Ngày đóng đăng ký đội	—
+event_start	DATE	Ngày bắt đầu thi đấu	—
+event_end	DATE	Ngày kết thúc / Lễ trao giải	—
+wildcard_enabled	BOOLEAN NOT NULL DEFAULT FALSE	Global toggle — cả hackathon.wildcard_enabled VÀ round.wildcard_enabled phải TRUE thì Wild Card mới hoạt động	—
+individual_ranking_enabled	BOOLEAN NOT NULL DEFAULT FALSE	Bật/tắt XH Cá nhân. Fall 2025=TRUE; Spring 2026=FALSE	—
+chapter_scoring_formula	TEXT	JSON placeholder công thức XH Chapter (Pending #5)	—
+created_by	INT FK users.id	Coordinator tạo kỳ thi	—
+created_at / updated_at	DATETIME	Auto set; `updated_at` qua `@PreUpdate` / `ON UPDATE CURRENT_TIMESTAMP` (MySQL)	—
+UNIQUE constraint: UNIQUE(name, season, year) — ngăn trùng kỳ thi.
+
+### 2.2 Bảng liên quan
+Bảng liên quan	Vai trò	Cách liên kết / Điều kiện
+users	Xác thực Coordinator	role='COORDINATOR' AND status='APPROVED' — middleware JWT trước mọi request
+audit_logs	Ghi lịch sử tạo	action='HACKATHON_CREATE', target_table='hackathons', detail=JSON snapshot
+### 2.3 Ràng buộc nghiệp vụ
+Ràng buộc	Tầng	Hành động khi vi phạm
+UNIQUE(name, season, year)	DB + App	409 Conflict: "Kỳ thi đã tồn tại"
+status chỉ được khởi tạo là DRAFT — không set ONGOING khi tạo	App	Enforce DEFAULT 'DRAFT'; ignore field status trong CREATE request
+registration_end ≥ registration_start	App	422: validate date range trước INSERT
+event_end ≥ event_start	App	422: validate date range trước INSERT
+event_start ≥ registration_end (thi đấu sau khi đăng ký đóng)	App	422 kèm message rõ ràng
+Coordinator phải role='COORDINATOR' AND status='APPROVED' — quyền cố định	API Guard (Middleware JWT)	403 Forbidden
+wildcard_enabled ở hackathons = global toggle; phải AND với rounds.wildcard_enabled	App (logic)	Document rõ trong API spec; không block khi tạo
+### 2.4 Luồng xử lý — Happy Path
+1. POST /api/v1/hackathons  { name, slug, season, year, description, rules,
+                              registration_start, registration_end,
+                              event_start, event_end, wildcard_enabled,
+                              individual_ranking_enabled }
+2. Middleware: xác thực JWT → role=COORDINATOR, status=APPROVED
+3. App validate:
+   - UNIQUE(name, season, year) → 409 nếu trùng
+   - registration_end ≥ registration_start → 422 nếu sai
+   - event_start ≥ registration_end → 422 nếu sai
+   - event_end ≥ event_start → 422 nếu sai
+4. INSERT INTO hackathons (status='DRAFT', ...)
+5. INSERT INTO audit_logs (action='HACKATHON_CREATE', ...)
+6. Response: 201 Created { hackathon_id, slug }
+### 2.5 Luồng xử lý — Alternative / Error Path
+Tình huống	Xử lý
+Trùng (name, season, year)	409 + message "Kỳ thi [name] [season] [year] đã tồn tại"
+event_start < registration_end	422 + message "Ngày thi đấu phải sau ngày đóng đăng ký"
+JWT invalid / hết hạn	401 Unauthorized
+role != 'COORDINATOR'	403 Forbidden
+
+### 2.6 Implementation (SEAL BE — codebase)
+
+| Thành phần | Chi tiết |
+|------------|----------|
+| Controller | `HackathonController` — `/api/v1/hackathons` |
+| Service | `HackathonServiceImpl` |
+| Auth | `StubCurrentUserAccessor` — coordinator **id=1** (dev); `@CoordinatorOnly` |
+| Create | POST luôn `status=DRAFT`; không nhận status từ client |
+| Errors | `HACKATHON_DUPLICATE` (409), `HACKATHON_DATE_RANGE` (422), `HACKATHON_HAS_CHILDREN` (409) |
+
+---
+
+## 3. FR-02 — Tạo / Cấu hình Round (Vòng thi)
+Mô tả: Coordinator tạo các Round (vòng thi) trực tiếp dưới Hackathon. Round là cấp cha của Track. Mỗi Hackathon cần ít nhất 1 Round PRELIMINARY và đúng 1 Round FINAL.
+
+[ARCH CHANGE v3.0] Round không còn là con của Track. rounds.hackathon_id thay rounds.track_id. Đây là thay đổi kiến trúc cốt lõi nhất của v5.0.
+
+Workflow v5.0 ref: GĐ1 — Bước 2 | DB v3.0 ref: rounds [BC-01]
+
+### 3.1 Bảng chính: rounds
+Trường	Kiểu / Ràng buộc	Ghi chú nghiệp vụ	Thay đổi v3.0
+id	SERIAL PK	Auto-increment	—
+hackathon_id	INT FK hackathons.id ON DELETE CASCADE NOT NULL	[BC-01] Round thuộc Hackathon — thay track_id cũ	BREAKING
+name	VARCHAR(100) NOT NULL	VD: "Vòng Sơ loại", "Vòng Chung kết"	—
+sequence_order	INT NOT NULL	Thứ tự vòng: 1=Sơ loại, 2=Chung kết. UNIQUE(hackathon_id, sequence_order)	MỚI
+is_final	BOOLEAN NOT NULL DEFAULT FALSE	TRUE = Round Chung kết — KHÔNG có Track con. FALSE = Sơ loại/Bán kết có Track	MỚI
+round_type	VARCHAR(20) NOT NULL DEFAULT 'PRELIMINARY' CHECK IN ('PRELIMINARY','SEMIFINAL','FINAL')	Phân loại Round. FINAL: pool chung, 100% Judge EXTERNAL. SEMIFINAL: cùng rule PRELIMINARY (có Track con)	MỚI
+coding_duration_hours	INT	Số giờ coding. Thực tế 2 mùa = 7 giờ	—
+submission_open	TIMESTAMP	Thời điểm mở nhận bài (tuỳ chọn)	—
+submission_deadline	TIMESTAMP NOT NULL	Hạn nộp bài. Bài sau deadline → LATE	—
+late_submission_policy	VARCHAR(20) NOT NULL DEFAULT 'ALLOW_LATE_PENDING' CHECK IN ('ALLOW_LATE_PENDING','HARD_LOCK')	Sơ loại: ALLOW_LATE_PENDING. Chung kết: HARD_LOCK (không có LATE_PENDING)	MỚI
+problem_statement_url	TEXT	URL đề bài — set khi phát đề (GĐ3)	—
+problem_released_at	TIMESTAMP	Thời điểm phát đề chính thức (GĐ3)	—
+top_n_advance	INT	Số đội top N MỖI BẢNG (assigned_group) vào Round tiếp. NULL nếu is_final=TRUE	—
+min_teams_final	INT	Số đội tối thiểu vào Round tiếp — kích hoạt Wild Card nếu thiếu. NULL nếu is_final=TRUE	—
+wildcard_enabled	BOOLEAN NOT NULL DEFAULT FALSE	Per-round override. Phải hackathon.wildcard_enabled=TRUE mới có hiệu lực	—
+tiebreak_rule	VARCHAR(50) DEFAULT 'PENALTY_SCORE' CHECK IN ('PENALTY_SCORE','SUBMISSION_TIME','COORDINATOR_DECISION')	Luật xử lý đồng điểm	—
+is_active	BOOLEAN NOT NULL DEFAULT FALSE	TRUE = Round đang diễn ra. Mỗi hackathon_id chỉ có 1 Round is_active=TRUE	—
+scoring_locked	BOOLEAN NOT NULL DEFAULT FALSE	TRUE = đã khóa chấm điểm	—
+scoring_locked_at / scoring_locked_by	TIMESTAMP / INT FK users.id	Thời điểm và người khóa	—
+force_locked / force_lock_reason	BOOLEAN / TEXT	Force-lock kèm lý do bắt buộc	—
+created_at	TIMESTAMP NOT NULL DEFAULT NOW()	Auto set	—
+Constraints DB:
+
+sql
+UNIQUE (hackathon_id, sequence_order)
+CONSTRAINT chk_round_type_final_consistent CHECK (
+    (is_final = TRUE  AND round_type = 'FINAL')
+    OR (is_final = FALSE AND round_type IN ('PRELIMINARY', 'SEMIFINAL'))
+)
+-- Mỗi Hackathon chỉ có đúng 1 Round is_final=TRUE (MySQL — generated column):
+ALTER TABLE rounds
+  ADD COLUMN final_uk INT GENERATED ALWAYS AS (CASE WHEN is_final = TRUE THEN hackathon_id END) VIRTUAL,
+  ADD UNIQUE KEY uk_rounds_one_final_per_hackathon (final_uk);
+
+-- Trigger (MySQL):
+-- trg_prevent_track_in_final_round_ins/upd — INSERT/UPDATE tracks khi round.is_final=TRUE
+-- → SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'DESIGN_VIOLATION: Round Chung kết không được có Track con'.
+
+### 3.2 Bảng liên quan
+Bảng liên quan	Vai trò	Cách liên kết / Điều kiện
+hackathons	Parent — validate trạng thái	Hackathon phải DRAFT hoặc ONGOING mới cho phép tạo/sửa Round
+tracks	Child — thuộc Round Sơ loại	tracks.round_id FK → rounds.id. Round FINAL không có Track con (enforce bởi trigger)
+criteria	Child — Criteria Chung kết	criteria.round_id dùng khi is_final=TRUE (XOR với criteria.track_id)
+judge_assignments	Child — Judge Chung kết	judge_assignments.round_id dùng khi track_id IS NULL (Round FINAL)
+submissions	Child — bài nộp Chung kết	submissions.round_id dùng khi track_id IS NULL (Round FINAL)
+audit_logs	Ghi lịch sử	action='ROUND_CREATE' / 'ROUND_UPDATE' / 'ROUND_DELETE'
+### 3.3 Ràng buộc nghiệp vụ
+Ràng buộc	Tầng	Hành động khi vi phạm
+hackathon_id phải trỏ Hackathon tồn tại và status IN ('DRAFT','ONGOING')	App	422 nếu Hackathon không đúng trạng thái
+UNIQUE(hackathon_id, sequence_order) — mỗi kỳ chỉ 1 Round tại mỗi sequence	DB + App	409 Conflict
+is_final=TRUE ↔ round_type='FINAL' phải nhất quán	DB (CHECK constraint)	DB reject
+Mỗi Hackathon đúng 1 Round FINAL (is_final=TRUE)	DB (`final_uk` generated + UNIQUE)	DB reject nếu cố tạo thêm Round FINAL
+KHÔNG validate tổng weight Criteria tại bước này — Criteria chưa tồn tại	App	Không validate; chỉ warn tại Bước 4; gate cứng tại Bước 7
+top_n_advance = NULL khi is_final=TRUE	App	422 nếu set top_n_advance cho Round FINAL
+late_submission_policy='HARD_LOCK' bắt buộc với round_type='FINAL'	App	Warn hoặc auto-set khi Coordinator tạo Round FINAL
+submission_deadline > submission_open (nếu có) và > NOW()	App	422 nếu sai thứ tự timestamp
+force_lock_reason NOT NULL khi force_locked=TRUE	App	422 nếu thiếu lý do force-lock
+Không xóa Round khi có submissions hoặc criteria liên quan	App	409 Conflict
+Không xóa Round khi is_active=TRUE	App	409 Conflict
+### 3.4 Thực tế 2 mùa — Cấu hình Round
+Mùa	Round Sơ loại	Round Chung kết
+Fall 2025	coding_duration_hours=7, top_n_advance=2 (per bảng), late_submission_policy='ALLOW_LATE_PENDING', wildcard_enabled=TRUE, min_teams_final=6	is_final=TRUE, late_submission_policy='HARD_LOCK', top_n_advance=NULL
+Spring 2026	coding_duration_hours=7, top_n_advance=2 (per Track=per bảng), late_submission_policy='ALLOW_LATE_PENDING', wildcard_enabled=TRUE, min_teams_final=6	is_final=TRUE, late_submission_policy='HARD_LOCK', top_n_advance=NULL
+### 3.5 Luồng xử lý — Happy Path (tạo 2 Round)
+1. POST /api/v1/hackathons/{hackathon_id}/rounds
+   Body Round 1: { name="Vòng Sơ loại", sequence_order=1,
+                   is_final=false, round_type="PRELIMINARY",
+                   submission_deadline=..., coding_duration_hours=7,
+                   late_submission_policy="ALLOW_LATE_PENDING",
+                   top_n_advance=2, min_teams_final=6,
+                   wildcard_enabled=true, tiebreak_rule="PENALTY_SCORE" }
+
+2. POST /api/v1/hackathons/{hackathon_id}/rounds
+   Body Round 2: { name="Vòng Chung kết", sequence_order=2,
+                   is_final=true, round_type="FINAL",
+                   submission_deadline=...,
+                   late_submission_policy="HARD_LOCK" }
+
+3. App validate mỗi Round:
+   - Hackathon tồn tại và DRAFT/ONGOING
+   - UNIQUE(hackathon_id, sequence_order)
+   - is_final ↔ round_type nhất quán
+   - Không tạo Round FINAL thứ 2 (generated column `final_uk` + UNIQUE — schema §3 rounds)
+   - submission_deadline hợp lệ
+
+4. INSERT INTO rounds (hackathon_id=..., ...)
+5. INSERT INTO audit_logs (action='ROUND_CREATE', ...)
+6. Response: 201 Created { round_id }
+
+### 3.6 Implementation (SEAL BE — codebase)
+
+| Thành phần | Chi tiết |
+|------------|----------|
+| Controller | `RoundController` — `POST/GET /api/v1/hackathons/{hackathonId}/rounds` |
+| Service | `RoundServiceImpl` — `submissionDeadline > NOW()` |
+| Legacy | `POST/GET /api/v1/tracks/{trackId}/rounds` delegate v3 |
+| Errors | `ROUND_DEADLINE_INVALID`, `ROUND_HAS_SUBMISSIONS`, `ROUND_HAS_CRITERIA` |
+| v3.1 [ADD-R4] | `ROUND_FINAL_SEQUENCE_ORDER` — FINAL `sequence_order` > max PRELIMINARY |
+
+---
+
+## 4. FR-03 — Tạo / Cấu hình Track (Bảng đấu trong Round)
+Mô tả: Coordinator tạo các Track (bảng đấu thi) trong Round Sơ loại. Mỗi Track có Criteria riêng, Judge riêng, Mentor riêng. Round Chung kết (is_final=TRUE) tuyệt đối không có Track con.
+
+[ARCH CHANGE v3.0] Track không còn thuộc Hackathon mà thuộc Round cụ thể. tracks.round_id thay tracks.hackathon_id. Track là bảng đấu trong vòng thi đó, không phải hạng mục cố định.
+
+`assigned_group` (A/B/C/D) **không** còn trên `teams` — ghi tại `team_round_tracks.assigned_group` khi GĐ2 bốc thăm (BC-04, BC-05).
+
+Workflow v5.0 ref: GĐ1 — Bước 3 | DB v3.0 ref: tracks [BC-02]
+
+### 4.1 Bảng chính: tracks
+Trường	Kiểu / Ràng buộc	Ghi chú nghiệp vụ	Thay đổi v3.0
+id	SERIAL PK	Auto-increment	—
+round_id	INT FK rounds.id ON DELETE CASCADE NOT NULL	[BC-02] Track thuộc Round cụ thể — thay hackathon_id cũ	BREAKING
+name	VARCHAR(200) NOT NULL	VD: "Bảng A", "Track 1 — RAG Pipeline"	—
+description	TEXT	Mô tả chủ đề thi đấu; tuỳ chọn	—
+topic	VARCHAR(300)	[MỚI] Chủ đề bốc thăm tại KICKOFF. NULL/placeholder khi tạo; cập nhật sau bốc thăm	MỚI
+max_teams	INT	Tổng đội tối đa trong Track (tất cả bảng cộng lại). Fall 2025: 3 bảng × 6 = 18 đội	—
+max_teams_per_group	INT	Số đội tối đa MỖI BẢNG (assigned_group). Fall 2025=6, Spring 2026=8	Giữ từ v2.1
+min_team_size	INT NOT NULL DEFAULT 3	Số thành viên tối thiểu. Thực tế 2 mùa = 3	—
+max_team_size	INT NOT NULL DEFAULT 5	Số thành viên tối đa. Thực tế 2 mùa = 5	—
+status	VARCHAR(20) NOT NULL DEFAULT 'OPEN' CHECK IN ('OPEN','CLOSED','CANCELLED')	Trạng thái Track	—
+sequence_order	INT NOT NULL DEFAULT 1	[MỚI] Thứ tự Track trong Round. UNIQUE(round_id, sequence_order)	MỚI
+Constraints DB:
+
+sql
+UNIQUE (round_id, sequence_order)
+-- Trigger enforce: Round FINAL không có Track con
+-- Xem docs/db/schema-v3.0-mysql.md §5.6 — trg_prevent_track_in_final_round_ins/upd
+Lưu ý quan trọng: tracks.hackathon_id (cũ) đã bị XÓA. Muốn biết Track thuộc Hackathon nào: Track → Round → Hackathon (qua JOIN: tracks JOIN rounds ON tracks.round_id = rounds.id).
+
+### 4.2 Phân biệt max_teams vs max_teams_per_group
+max_teams	max_teams_per_group
+Ý nghĩa	Tổng đội trong Track (tất cả bảng)	Số đội trong 1 bảng (assigned_group)
+Fall 2025	18 (3 bảng × 6)	6
+Spring 2026	8 (1 bảng = Track)	8
+NULL	Không giới hạn tổng	Không giới hạn per bảng
+Hai giá trị này độc lập nhau và đều có thể NULL.
+
+### 4.3 Bảng liên quan
+Bảng liên quan	Vai trò	Cách liên kết / Điều kiện
+rounds	Parent — validate Round	Round phải tồn tại, thuộc Hackathon DRAFT/ONGOING, và is_final=FALSE. Trigger block Track vào Round FINAL
+criteria	Child — Criteria Sơ loại	criteria.track_id FK → tracks.id. Không có Criteria gắn Track cho Round FINAL
+mentor_assignments	Child — ON DELETE CASCADE	Notify Mentor bị hủy khi Track bị xóa/CANCELLED
+judge_assignments	Child — ON DELETE CASCADE	Notify Judge bị hủy khi Track bị xóa/CANCELLED
+team_round_tracks	Child — phân công đội	team_round_tracks.track_id FK → tracks.id. Không xóa Track khi có đội đã phân công
+audit_logs	Ghi lịch sử	action='TRACK_CREATE' / 'TRACK_UPDATE' / 'TRACK_DELETE'
+### 4.4 Ràng buộc nghiệp vụ
+Ràng buộc	Tầng	Hành động khi vi phạm
+round_id phải trỏ Round is_final=FALSE (không phải Round Chung kết)	DB (Trigger) + App	DB: DESIGN_VIOLATION: Round Chung kết không được có Track con. App: 422
+UNIQUE(round_id, sequence_order)	DB + App	409 Conflict
+Không xóa Track khi có đội trong team_round_tracks	App	409: "Track đang có đội được phân công"
+Không xóa Track khi có Round is_active=TRUE liên quan	App	409
+max_teams_per_group ≤ max_teams nếu cả hai có giá trị	App	422 warn
+min_team_size ≤ max_team_size	DB (CHECK) + App	DB reject; App 422
+Hackathon phải DRAFT hoặc ONGOING để tạo/sửa Track	App	422
+topic: tạo trong GĐ1 có thể để NULL; cập nhật sau bốc thăm tại KICKOFF (GĐ2 Bước 6)	App	Không block nếu NULL khi tạo
+### 4.5 Thực tế 2 mùa — Cấu hình Track
+Mùa	Số Track	max_teams	max_teams_per_group	Ghi chú
+Fall 2025	2 Track trong Round Sơ loại	18 (3 bảng × 6)	6	Mỗi Track nhiều bảng; bốc thăm bảng sau bốc thăm Track
+Spring 2026	N Track (= số bảng đăng ký)	8	8	Mỗi Track = 1 bảng; assigned_group=NULL
+### 4.6 Luồng xử lý — Happy Path (Fall 2025: 2 Track)
+POST /api/v1/rounds/{round_id}/tracks  (round_id = Round Sơ loại)
+Body Track 1: { name="Track 1 — SDLC nhóm 1", topic=NULL,
+                max_teams=18, max_teams_per_group=6,
+                min_team_size=3, max_team_size=5, sequence_order=1 }
+
+Body Track 2: { name="Track 2 — SDLC nhóm 2", topic=NULL,
+                max_teams=18, max_teams_per_group=6,
+                min_team_size=3, max_team_size=5, sequence_order=2 }
+
+App validate:
+  - round_id tồn tại và is_final=FALSE → không phải Round FINAL
+  - Hackathon trạng thái DRAFT/ONGOING
+  - UNIQUE(round_id, sequence_order)
+  - max_teams_per_group ≤ max_teams
+
+INSERT INTO tracks (round_id=..., topic=NULL, ...)
+INSERT INTO audit_logs (action='TRACK_CREATE', ...)
+Response: 201 Created { track_id }
+
+### 4.7 Implementation (SEAL BE — codebase)
+
+| Thành phần | Chi tiết |
+|------------|----------|
+| Controller | `TrackController` — `POST /api/v1/rounds/{roundId}/tracks` |
+| Service | `TrackServiceImpl` — topic sau KICKOFF khi PUT |
+| Legacy | `POST /api/v1/hackathons/{hackathonId}/tracks` |
+| Topic | `PUT /tracks/{id}` + audit `TRACK_TOPIC_UPDATE` sau KICKOFF |
+| v3.1 [ADD-R7] | CANCEL block `TRACK_CANCEL_HAS_TEAMS`; DELETE cần `CANCELLED` + không criteria (`TRACK_NOT_CANCELLED`, `TRACK_HAS_CRITERIA`) |
+| Errors | `TRACK_HAS_TEAMS`, `DESIGN_VIOLATION` (DB) |
+
+---
+
+## 5. FR-04 — Thiết lập Criteria (Tiêu chí chấm điểm)
+Mô tả: Coordinator tạo bộ tiêu chí chấm điểm. [BREAKING CHANGE v3.0] Criteria dùng XOR FK: track_id cho Round Sơ loại/Bán kết; round_id cho Round Chung kết (is_final=TRUE). Tuyệt đối không có cả hai hoặc cả hai NULL.
+
+Workflow v5.0 ref: GĐ1 — Bước 4 | DB v3.0 ref: criteria [BC-03]
+
+### 5.1 Bảng chính: criteria
+Trường	Kiểu / Ràng buộc	Ghi chú nghiệp vụ	Thay đổi v3.0
+id	SERIAL PK	Auto-increment	—
+track_id	INT FK tracks.id ON DELETE CASCADE	[BC-03] Criteria gắn vào Track (Sơ loại). NULL khi là Criteria Chung kết	BREAKING
+round_id	INT FK rounds.id ON DELETE CASCADE	[BC-03] CHỈ dùng cho Round Chung kết (is_final=TRUE). NULL khi là Criteria Sơ loại	MỚI
+source_criteria_id	INT FK criteria.id ON DELETE SET NULL	Self-ref — kế thừa từ kỳ trước. Chỉ trace lịch sử, không cascade	—
+name	VARCHAR(200) NOT NULL	Tên tiêu chí	—
+type	VARCHAR(20) NOT NULL CHECK IN ('TECHNICAL','SOFT_SKILL','PENALTY')	PENALTY không tính vào weight tổng, chỉ dùng tiebreak	—
+weight	FLOAT NOT NULL CHECK (weight > 0 AND weight <= 1)	Tổng weight (loại trừ PENALTY) = 1.0. Validate tại app-layer	—
+max_score	INT NOT NULL DEFAULT 10	Điểm tối đa tiêu chí	—
+description	TEXT	Mô tả tiêu chí; hướng dẫn chấm	—
+rubric_url	TEXT	Link rubric chi tiết	—
+display_order	INT NOT NULL DEFAULT 0	Thứ tự hiển thị trong UI chấm điểm	—
+XOR Constraint DB:
+
+sql
+CONSTRAINT chk_criteria_xor_fk CHECK (
+    (track_id IS NOT NULL AND round_id IS NULL)   -- Sơ loại
+    OR
+    (track_id IS NULL AND round_id IS NOT NULL)   -- Chung kết
+)
+
+-- Trigger: round_id phải trỏ Round is_final=TRUE
+-- Xem schema §5.8 — trg_check_criteria_round_is_final_ins/upd (SIGNAL nếu round_id không FINAL)
+-- Nếu track_id IS NULL mà round_id trỏ Round is_final=FALSE
+-- → RAISE EXCEPTION 'INVALID_ROUND_FOR_CRITERIA'
+### 5.2 Bảng liên quan
+Bảng liên quan	Vai trò	Cách liên kết / Điều kiện
+tracks	Parent (Sơ loại)	track_id FK → tracks.id. Track phải tồn tại
+rounds	Parent (Chung kết)	round_id FK → rounds.id. Round phải is_final=TRUE (enforce bởi trigger)
+scores	Guard — ngăn sửa/xóa	Nếu scores đã có criterion_id=id → không cho sửa weight/type hoặc xóa
+criteria	Self-ref (kế thừa)	source_criteria_id → clone độc lập, không ảnh hưởng bản gốc
+audit_logs	Ghi lịch sử	action='CRITERIA_CREATE' / 'CRITERIA_UPDATE' / 'CRITERIA_DELETE'
+### 5.3 Validate tổng weight — 3 tầng
+Tầng	Thời điểm	Hành động
+Tầng 1 (Soft warn)	Khi nhập liệu realtime (Bước 4)	UI hiển thị: "Tổng weight hiện tại: 0.85 / 1.0" màu vàng. KHÔNG block
+Tầng 2 (Gate cứng)	Khi chuyển DRAFT → ONGOING (Bước 7 / FR-07)	Block 422 kèm danh sách Track/Round vi phạm. Không UPDATE cho đến khi sửa xong
+Tầng 3 (Safety net)	Khi set rounds.is_active=TRUE (FR-07B)	Block 422 nếu SUM(weight) ≠ 1.0. Ngăn bypass tầng 2 sau khi Hackathon ONGOING
+sql
+-- Query validate tổng weight (dùng ở Tầng 2 và 3):
+-- Sơ loại: validate qua track_id
+SELECT tr.id AS track_id, tr.name AS track_name,
+       SUM(c.weight) AS total_weight
+FROM criteria c JOIN tracks tr ON tr.id = c.track_id
+WHERE c.type != 'PENALTY'
+  AND tr.round_id = :preliminary_round_id
+GROUP BY tr.id, tr.name
+HAVING ABS(SUM(c.weight) - 1.0) > 0.001;
+
+-- Chung kết: validate qua round_id
+SELECT r.id AS round_id, SUM(c.weight) AS total_weight
+FROM criteria c JOIN rounds r ON r.id = c.round_id
+WHERE c.type != 'PENALTY'
+  AND r.is_final = TRUE
+  AND r.hackathon_id = :hackathon_id
+GROUP BY r.id
+HAVING ABS(SUM(c.weight) - 1.0) > 0.001;
+### 5.4 Ràng buộc nghiệp vụ
+Ràng buộc	Tầng	Hành động khi vi phạm
+XOR FK: đúng 1 trong 2 (track_id hoặc round_id) phải có giá trị	DB (CHECK)	DB reject; App 422
+round_id (Chung kết) phải trỏ Round is_final=TRUE	DB (Trigger)	INVALID_ROUND_FOR_CRITERIA; App 422
+Tổng weight (không PENALTY) = 1.0 — chỉ validate cứng tại Tầng 2 và 3	App (Gate/Safety net)	Tầng 1: warn mềm; Tầng 2-3: 422
+Không sửa weight / type / xóa khi Round đã có scores	App	409: "Criteria đã có điểm chấm, không thể sửa"
+Criteria Sơ loại và Chung kết phải tạo riêng — không share	App	Mỗi criterion gắn 1 track_id hoặc 1 round_id, không dùng chung
+Nếu nhiều Track dùng cùng bộ Criteria → vẫn tạo riêng cho từng Track (khác track_id)	App	Document rõ; không cho share bằng cách đặt track_id=NULL
+type='PENALTY' không tính vào leaderboard — chỉ dùng tiebreak	App	Filter WHERE type != 'PENALTY' khi tính leaderboard và validate weight
+Sửa bản Criteria kế thừa không ảnh hưởng bản gốc	App	Clone hoàn toàn độc lập; source_criteria_id chỉ để audit trail
+### 5.5 Bộ Criteria thực tế 2 mùa
+Fall 2025 — Sơ loại (mỗi Track, track_id khác nhau):
+
+Tiêu chí	Type	Weight
+Tính ứng dụng & khả thi	TECHNICAL	0.30
+AI tự động hóa & tích hợp	TECHNICAL	0.30
+Giao diện & trải nghiệm	SOFT_SKILL	0.20
+Slide trình bày & demo	SOFT_SKILL	0.20
+Tổng		1.00
+Fall 2025 — Chung kết (round_id của Round FINAL):
+
+Tiêu chí	Type	Weight
+Hoàn thiện	TECHNICAL	0.30
+Sáng tạo	TECHNICAL	0.25
+Hiệu quả	TECHNICAL	0.20
+Mở rộng	TECHNICAL	0.15
+Trình bày & Phản biện	SOFT_SKILL	0.10
+Tổng		1.00
+Spring 2026 — Sơ loại (mỗi Track):
+
+Tiêu chí	Type	Weight
+Domain Accuracy	TECHNICAL	0.30
+Kiến trúc RAG	TECHNICAL	0.30
+Ý tưởng & Thuyết trình	SOFT_SKILL	0.15
+Thực thi & Sáng tạo	TECHNICAL	0.15
+UX & Giao diện	SOFT_SKILL	0.10
+Tổng		1.00
+Spring 2026 — Chung kết (round_id của Round FINAL):
+
+Tiêu chí	Type	Weight
+Xử lý & Truy xuất	TECHNICAL	0.30
+Độ tin cậy	TECHNICAL	0.20
+Tư duy Agent	TECHNICAL	0.20
+Thực tế & Triển khai	TECHNICAL	0.20
+Mở rộng	SOFT_SKILL	0.10
+Tổng		1.00
+### 5.6 Luồng kế thừa Criteria từ kỳ trước
+1. Coordinator chọn nguồn kế thừa (hackathon kỳ trước, Track tương ứng)
+2. GET /api/v1/criteria?track_id=:source_track_id
+3. App clone:
+   INSERT INTO criteria (track_id=:new_track_id,
+                         source_criteria_id=:original_id,
+                         name, type, weight, max_score, ...)
+   -- Tạo bản copy hoàn toàn độc lập
+4. Coordinator sửa name/weight/type tùy ý trong bản copy
+5. UI hiển thị warn mềm nếu SUM(weight) ≠ 1.0 sau clone
+
+---
+
+### 5.7 Implementation (SEAL BE — codebase)
+
+| Thành phần | Chi tiết |
+|------------|----------|
+| Controller | `CriteriaController` — track + round paths; batch, clone, weight-summary |
+| Service | `CriteriaService`, `WeightSummaryService` |
+| Clone | `sourceTrackId` trong body — không `GET /criteria?track_id=` |
+| Errors | `CRITERIA_HAS_SCORES`, `TRACK_CRITERIA_WEIGHT`, `FINAL_CRITERIA_WEIGHT` |
+
+---
+
+## 6. FR-05 — Quản lý nhân sự giải đấu
+
+Mô tả: Module tập trung 3 hành động con, thực hiện tại GĐ1 để đảm bảo conflict check có đủ dữ liệu hai chiều: (5a) Tạo tài khoản Judge EXTERNAL khách mời; (5b) Phân công Mentor vào Track Sơ loại; (5c) Phân công Judge sơ bộ vào Track Sơ loại.
+
+[BREAKING CHANGE v3.0] Conflict Mentor↔Judge giờ là BLOCK CỨNG (cũ: chỉ warn). Enforce tại DB-layer bởi 2 trigger. Judge Chung kết: 100% EXTERNAL, enforce bởi trigger với ngoại lệ is_dept_head.
+
+Workflow v5.0 ref: GĐ1 — Bước 5 | DB v3.0 ref: users, invitations, mentor_assignments, judge_assignments
+
+### 6.1 Bước 5a — Tạo tài khoản Judge EXTERNAL (khách mời)
+Trường	Giá trị	Ghi chú
+users.role	'JUDGE'	Cố định
+users.user_type	'EXTERNAL'	Judge khách mời luôn EXTERNAL
+users.is_temp_account	TRUE	Flag phân biệt tài khoản tạm; giới hạn quyền qua middleware
+users.is_dept_head	FALSE (default)	Trưởng khoa/bộ môn → set TRUE trước khi phân công Chung kết
+users.status	'APPROVED'	Coordinator tạo và approve trực tiếp, không qua PENDING
+users.institution	VARCHAR(300)	Tên công ty/tổ chức (VD: "Google Vietnam")
+invitations.token	VARCHAR(128) UNIQUE	Token one-time-use gửi qua email; Judge dùng để set password lần đầu
+invitations.expires_at	TIMESTAMP	48 giờ từ thời điểm tạo. Hết hạn → Coordinator resend
+Luồng email: Hệ thống TỰ ĐỘNG gửi link one-time-use (không gửi password plaintext). Judge đăng nhập → bắt buộc đổi mật khẩu lần đầu. Coordinator không gửi tay.
+
+POST /api/v1/users/judge-external
+Body: { full_name, email, institution, is_dept_head=false }
+→ INSERT users (role='JUDGE', user_type='EXTERNAL', is_temp_account=TRUE, status='APPROVED')
+→ INSERT invitations (token=uuid(), expires_at=NOW()+48h)
+→ Async worker: gửi email với link one-time-use
+→ audit_logs: action='TEMP_ACCOUNT_CREATE'
+→ Response: 201 { user_id }
+### 6.2 Bước 5b — Phân công Mentor vào Track Sơ loại
+Bảng chính: mentor_assignments
+Trường	Kiểu / Ràng buộc	Ghi chú nghiệp vụ	Thay đổi v3.0
+id	SERIAL PK	Auto-increment	—
+mentor_id	INT FK users.id NOT NULL	Phải role='MENTOR' AND status='APPROVED'	—
+track_id	INT FK tracks.id NOT NULL	Track trong Round Sơ loại. Track đã mang round_id → tự biết vòng nào. Không tạo Mentor cho Round Chung kết	FK giờ trỏ tracks mới (thuộc round)
+assigned_at	TIMESTAMP NOT NULL DEFAULT NOW()	Auto set	—
+assigned_by	INT FK users.id	Coordinator thực hiện phân công	—
+Constraint: UNIQUE(mentor_id, track_id) — 1 Mentor / 1 Track trong 1 Round.
+
+Trigger `trg_check_judge_mentor_conflict_ins` (BEFORE INSERT on mentor_assignments) — logic đầy đủ: [schema-v3.0-mysql.md](../db/schema-v3.0-mysql.md) §5.5:
+
+Rule 1: Nếu người này đã là Judge của cùng track_id → BLOCK 'CONFLICT_SAME_TRACK'
+Rule 2: Nếu người này đã là Judge Chung kết (FINAL_EXTERNAL) trong cùng Hackathon → BLOCK 'FINAL_JUDGE_CANNOT_BE_MENTOR'
+sql
+-- Rule 1: cùng Track → BLOCK
+SELECT 1 FROM judge_assignments WHERE judge_id=:mentor_id AND track_id=:track_id;
+
+-- Rule 2: đã là Judge Chung kết → BLOCK
+SELECT 1 FROM judge_assignments ja
+JOIN rounds r ON r.id = ja.round_id
+WHERE ja.judge_id = :mentor_id
+  AND ja.assignment_type = 'FINAL_EXTERNAL'
+  AND r.hackathon_id = (SELECT r2.hackathon_id FROM tracks tr2
+                        JOIN rounds r2 ON r2.id = tr2.round_id
+                        WHERE tr2.id = :track_id);
+### 6.3 Bước 5c — Phân công Judge Sơ loại vào Track
+Bảng chính: judge_assignments (phần Sơ loại)
+Trường	Kiểu / Ràng buộc	Ghi chú nghiệp vụ	Thay đổi v3.0
+id	SERIAL PK	Auto-increment	—
+judge_id	INT FK users.id NOT NULL	INTERNAL hoặc EXTERNAL, status='APPROVED'	—
+track_id	INT FK tracks.id	[BC-07] Judge Sơ loại — gắn vào Track cụ thể. NOT NULL khi là Judge Sơ loại	BREAKING
+round_id	INT FK rounds.id	NULL khi là Judge Sơ loại (track_id IS NOT NULL)	—
+assignment_type	VARCHAR(20) CHECK IN ('NORMAL','HEAD','CALIBRATION','FINAL_EXTERNAL')	Sơ loại chỉ dùng 'NORMAL', 'HEAD', 'CALIBRATION'. Không dùng 'FINAL_EXTERNAL' ở đây	—
+assigned_at / assigned_by	TIMESTAMP / INT FK users.id	Auto set / Coordinator	—
+**UNIQUE qua generated column (MySQL)** — xem [schema-v3.0-mysql.md](../db/schema-v3.0-mysql.md) §2 `judge_assignments`:
+
+```sql
+-- track_uk / round_uk: GENERATED ALWAYS AS ... VIRTUAL (XOR pattern §11.2)
+UNIQUE KEY uk_ja_judge_track (judge_id, track_uk),
+UNIQUE KEY uk_ja_judge_final_round (judge_id, round_uk);
+```
+
+Trigger `trg_check_mentor_judge_conflict_ins` / `trg_check_mentor_judge_conflict_upd` (BEFORE INSERT/UPDATE on judge_assignments) — NHÁNH A (track_id IS NOT NULL); DDL §5.4:
+
+Rule A: Nếu người này đã là Mentor của cùng track_id → BLOCK 'CONFLICT_SAME_TRACK'
+Rule B: assignment_type='FINAL_EXTERNAL' không được dùng khi track_id IS NOT NULL → BLOCK 'INVALID_ASSIGNMENT_TYPE'
+sql
+-- Rule A: cùng Track → BLOCK CỨng
+SELECT 1 FROM mentor_assignments
+WHERE mentor_id = :judge_id AND track_id = :track_id;
+-- Có kết quả → SIGNAL MESSAGE_TEXT 'CONFLICT_SAME_TRACK'
+### 6.4 Quy tắc Conflict Mentor ↔ Judge đầy đủ (v3.0)
+Ma trận conflict tổng hợp
+Giảng viên / Nhân sự	Vai trò trong Sơ loại	Muốn Judge Track/Round	Kết quả	Mã lỗi
+GV A — Mentor Track AI	Judge Track AI (cùng Round)	✗ BLOCK	CONFLICT_SAME_TRACK	
+GV A — Mentor Track AI	Judge Track Web (cùng Round)	✓ HỢP LỆ	—	
+GV A — Mentor Track AI	Judge Round Chung kết	✗ BLOCK	INTERNAL_MENTOR_NOT_ALLOWED_IN_FINAL	
+GV B — không Mentor	Judge bất kỳ Track Sơ loại	✓ HỢP LỆ	—	
+GV B — không Mentor (INTERNAL)	Judge Round Chung kết	✗ BLOCK	INTERNAL_JUDGE_NOT_ALLOWED_IN_FINAL	
+Trưởng khoa (is_dept_head=TRUE) — không Mentor	Judge Round Chung kết	✓ NỌI LỆ (ghi audit)	DEPT_HEAD_FINAL_JUDGE_EXCEPTION	
+Judge EXTERNAL (bất kỳ)	Judge Round Chung kết	✓ HỢP LỆ	—	
+Judge đã phân công Chung kết	Mentor Track Sơ loại	✗ BLOCK	FINAL_JUDGE_CANNOT_BE_MENTOR	
+Logic trigger MySQL `trg_check_mentor_judge_conflict_ins/upd` (trên judge_assignments — schema §5.4)
+NHÁNH A: track_id IS NOT NULL (Judge Sơ loại)
+  ├── Rule A: EXISTS mentor_assignments WHERE mentor_id=judge_id AND track_id=track_id
+  │   → BLOCK: CONFLICT_SAME_TRACK
+  └── Rule B: assignment_type='FINAL_EXTERNAL'
+      → BLOCK: INVALID_ASSIGNMENT_TYPE (FINAL_EXTERNAL không dùng ở Sơ loại)
+
+NHÁNH B: track_id IS NULL (Judge Chung kết)
+  ├── Validate: round_id NOT NULL
+  ├── Validate: rounds.is_final=TRUE (round_id phải là Round FINAL)
+  ├── Validate: assignment_type='FINAL_EXTERNAL' (bắt buộc)
+  └── Validate user_type:
+      ├── EXTERNAL → ALLOW
+      └── INTERNAL:
+          ├── is_dept_head=TRUE AND NOT EXISTS mentor_assignments WHERE mentor_id=judge_id
+          │   → ALLOW (ngoại lệ, ghi audit DEPT_HEAD_FINAL_JUDGE_EXCEPTION)
+          ├── EXISTS mentor_assignments WHERE mentor_id=judge_id
+          │   → BLOCK: INTERNAL_MENTOR_NOT_ALLOWED_IN_FINAL
+          └── else
+              → BLOCK: INTERNAL_JUDGE_NOT_ALLOWED_IN_FINAL
+Logic trigger MySQL `trg_check_judge_mentor_conflict_ins` (trên mentor_assignments — schema §5.5)
+Rule 1: EXISTS judge_assignments WHERE judge_id=mentor_id AND track_id=track_id
+  → BLOCK: CONFLICT_SAME_TRACK
+
+Rule 2: EXISTS judge_assignments ja JOIN rounds r
+        WHERE ja.judge_id=mentor_id
+          AND ja.assignment_type='FINAL_EXTERNAL'
+          AND r.hackathon_id = <hackathon của track_id>
+  → BLOCK: FINAL_JUDGE_CANNOT_BE_MENTOR
+### 6.5 Phạm vi phân công tại GĐ1
+Hành động	Thời điểm	Ghi chú
+Tạo tài khoản Judge EXTERNAL	GĐ1 Bước 5a	Phải tạo trước khi phân công (để conflict check hoạt động)
+Phân công Mentor vào Track Sơ loại	GĐ1 Bước 5b	mentor_assignments(mentor_id, track_id)
+Phân công Judge vào Track Sơ loại	GĐ1 Bước 5c	judge_assignments(judge_id, track_id), assignment_type='NORMAL'
+Phân công Judge vào Round Chung kết	GĐ4 Bước 6	KHÔNG làm ở GĐ1. judge_assignments(judge_id, round_id), assignment_type='FINAL_EXTERNAL'
+Lý do dồn nhân sự Sơ loại về GĐ1: Nếu Judge chưa tồn tại khi phân công Mentor, conflict check chiều Judge→Mentor sẽ bị skip (không có dữ liệu). Dồn cả 3 bước về GĐ1 đảm bảo cả 2 chiều conflict đều có đủ dữ liệu khi cần.
+
+### 6.6 Ràng buộc nghiệp vụ tổng hợp FR-05
+Ràng buộc	Tầng	Hành động khi vi phạm
+Conflict Mentor Track X ↔ Judge Track X → BLOCK CỨNG	DB (Trigger)	RAISE EXCEPTION CONFLICT_SAME_TRACK; App 422
+Judge Chung kết phải assignment_type='FINAL_EXTERNAL'	DB (Trigger)	INVALID_ASSIGNMENT_TYPE; App 422
+Judge Chung kết phải round_id trỏ Round is_final=TRUE	DB (Trigger)	INVALID_FINAL_ROUND; App 422
+INTERNAL Judge không được vào Chung kết (trừ is_dept_head=TRUE + không Mentor)	DB (Trigger)	INTERNAL_JUDGE_NOT_ALLOWED_IN_FINAL; App 422
+Ngoại lệ is_dept_head: Coordinator phải set users.is_dept_head=TRUE trước	App	Không tự suy diễn; Coordinator explicit action
+mentor_id phải role='MENTOR' AND status='APPROVED'	App	422
+judge_id phải role='JUDGE' AND status='APPROVED'	App	422
+UNIQUE(mentor_id, track_id)	DB	409 Conflict
+UNIQUE(judge_id, track_uk) / UNIQUE(judge_id, round_uk) — generated column	DB	409 (`JUDGE_ASSIGN_DUPLICATE`)
+Track phân công Mentor phải status='OPEN' và không CANCELLED	App	422
+Không phân công Judge Chung kết tại GĐ1 — chỉ ở GĐ4	App	Block 422 nếu gọi API với `round_id` FINAL + `FINAL_EXTERNAL` (trigger DB cũng block)
+
+### 6.7 Implementation (SEAL BE — codebase)
+
+| Thành phần | Chi tiết |
+|------------|----------|
+| 5a | `TempJudgeController`, `InvitationController` resend |
+| 5a v3.1 | `PATCH /api/v1/users/{id}` (`UserController`) — `is_dept_head`; resend chỉ khi hết hạn (`INVITATION_STILL_VALID`) |
+| 5b | `MentorAssignmentController` |
+| 5c | `JudgeAssignmentController` — GĐ1: track + NORMAL only; CK → `JUDGE_FINAL_AT_PHASE1` |
+| Conflict | 422 `CONFLICT_SAME_TRACK`, `FINAL_JUDGE_CANNOT_BE_MENTOR` (DB+App) |
+
+---
+
+## 7. FR-06 — Lên lịch sự kiện
+Mô tả: Coordinator lên lịch các sự kiện đi kèm Hackathon. Validate thời gian 3 lớp bắt buộc.
+
+[BC-09 v3.0] Bỏ TEAM_MEETING khỏi events.type CHECK enum — loại sự kiện này không tồn tại trong thực tế vận hành 2 mùa.
+
+Workflow v5.0 ref: GĐ1 — Bước 6 | DB v3.0 ref: events, notifications
+
+### 7.1 Bảng chính: events
+Trường	Kiểu / Ràng buộc	Ghi chú nghiệp vụ	Thay đổi v3.0
+id	SERIAL PK	Auto-increment	—
+hackathon_id	INT FK hackathons.id ON DELETE CASCADE NOT NULL	Sự kiện thuộc kỳ thi	—
+title	VARCHAR(300) NOT NULL	Tên sự kiện	—
+type	VARCHAR(30) NOT NULL CHECK IN ('KICKOFF','WORKSHOP','PRESENTATION','AWARDS','OTHER')	[BC-09] Bỏ TEAM_MEETING. 4 loại chính + OTHER	SỬA ENUM
+description	TEXT	Mô tả nội dung; tuỳ chọn	—
+location	VARCHAR(300)	Địa điểm vật lý (offline). NULL nếu online	—
+meet_url	TEXT	Link Zoom/Teams/Meet. NULL nếu offline	—
+starts_at	TIMESTAMP NOT NULL	Thời điểm bắt đầu	—
+ends_at	TIMESTAMP	Thời điểm kết thúc. Phải ≥ starts_at nếu có	—
+is_public	BOOLEAN NOT NULL DEFAULT TRUE	Hiển thị công khai với mọi người trong Hackathon	—
+created_by	INT FK users.id	Coordinator tạo	—
+### 7.2 Bảng hỗ trợ: notifications (type = REMINDER)
+Trường	Kiểu	Ghi chú
+type	'REMINDER'	Phân biệt với các loại notification khác
+reference_type	'events'	Polymorphic FK logic
+reference_id	INT	events.id
+user_id	INT FK users.id	Người nhận (tất cả status='APPROVED' trong Hackathon)
+is_read / read_at	BOOLEAN / TIMESTAMP	Tracking đọc
+### 7.3 Validate thời gian sự kiện — 3 Lớp
+Lớp	Tên	Điều kiện	Hành động khi vi phạm
+Lớp 1	Trong khung Hackathon	starts_at ≥ hackathons.event_start VÀ ends_at ≤ hackathons.event_end + 1 ngày buffer	BLOCK CỨNG 422
+Lớp 2	Không chồng lấn	Không 2 event cùng type KICKOFF hoặc AWARDS diễn ra song song (overlap starts_at–ends_at)	BLOCK CỨNG 422
+Lớp 3	Thứ tự logic	(a) WORKSHOP: starts_at ≤ registration_end; (b) KICKOFF: starts_at ∈ [event_start, event_start+1d]; (c) PRESENTATION: starts_at > KICKOFF.ends_at; (d) AWARDS: starts_at > MAX(PRESENTATION.starts_at)	WARN MỀM — Coordinator xác nhận
+Lớp 1 + 2: implement app-layer BEFORE INSERT/UPDATE. Lớp 3: warn mềm — không enforce ở DB (cross-row); Coordinator xác nhận qua `warnings[]`.
+
+### 7.4 Thực tế 2 mùa — Lịch sự kiện
+Sự kiện	Fall 2025	Spring 2026
+WORKSHOP	Online 19h30–21h30 ngày 29/10	Online 20h–21h30 ngày 9/4
+KICKOFF	Offline 14h–17h ngày 1/11 — bốc thăm chia Track + họp đội	Offline 14h–17h ngày 11/4
+PRESENTATION	Ngày thi Sơ loại (ngày 2/11)	Ngày thi Sơ loại (12/4 — cả 2 vòng)
+AWARDS	Lễ trao giải Chung kết (cuối tháng 11)	Lễ trao giải Chung kết (cuối tháng 4)
+### 7.5 Ràng buộc nghiệp vụ
+Ràng buộc	Tầng	Hành động khi vi phạm
+ends_at ≥ starts_at nếu có ends_at	App	422 Block cứng
+Lớp 1: starts_at ≥ hackathons.event_start	App	422 Block cứng
+Lớp 1: ends_at ≤ hackathons.event_end + 1d	App	422 Block cứng
+Lớp 2: Không 2 KICKOFF/AWARDS song song	App	422 Block cứng
+Lớp 3a: WORKSHOP trước registration_end	App	Warn mềm + xác nhận
+Lớp 3b: KICKOFF trong [event_start, event_start+1d]	App	Warn mềm + xác nhận
+Lớp 3c: PRESENTATION sau KICKOFF	App	Warn mềm + xác nhận
+Lớp 3d: AWARDS sau mọi PRESENTATION	App	Warn mềm + xác nhận
+type chỉ trong ('KICKOFF','WORKSHOP','PRESENTATION','AWARDS','OTHER')	DB (CHECK)	DB reject
+TEAM_MEETING không còn tồn tại	DB (CHECK)	DB reject nếu cố dùng
+Gửi REMINDER đến tất cả APPROVED users khi tạo event public	App (sync)	`NotificationService` insert đồng bộ trong transaction (có thể chuyển async sau)
+≥1 event type=KICKOFF phải tồn tại trước khi chuyển ONGOING	App (Gate FR-07)	422 tại Gate DRAFT→ONGOING
+
+### 7.6 Implementation (SEAL BE — codebase)
+
+| Thành phần | Chi tiết |
+|------------|----------|
+| Controller | `EventController` |
+| Validator | `EventScheduleValidatorImpl` — L1+L2 block; **v3.1** L3a–3c block `EVENT_ORDER_VIOLATION`; L3d warn |
+| v3.1 [FIX-R10] | `EVENT_LOCATION_REQUIRED` — ít nhất `location` hoặc `meetUrl` |
+| Gate G5 | Re-validate KICKOFF (L1+L2+3a–3c) trong `HackathonReadinessServiceImpl` |
+| Side effect | REMINDER notification sync trong transaction |
+
+---
+
+## 8. FR-07 — Chuyển trạng thái Hackathon (State Machine)
+Mô tả: Coordinator chuyển trạng thái Hackathon theo chiều một chiều tuyến tính. DRAFT → ONGOING là gate quan trọng nhất với 5 điều kiện cứng.
+
+Workflow v5.0 ref: GĐ1 — Bước 7 | GĐ5 — Bước 4 | GĐ6 — Bước 3 | DB v3.0 ref: hackathons.status
+
+### 8.1 State Machine — hackathons.status
+DRAFT ──[Gate 5 điều kiện]──► ONGOING ──[Round CK locked]──► PENDING_CONFIRM ──[Xác nhận]──► FINISHED
+  ↑                                                                                                  
+  └──────────────────── KHÔNG được quay lại (terminal transition) ───────────────────────────────────
+Transition	Actor	Pre-condition bắt buộc
+DRAFT → ONGOING	Coordinator	Gate 5 điều kiện [G1–G5] (xem §8.2)
+ONGOING → PENDING_CONFIRM	Coordinator	Round Chung kết scoring_locked=TRUE; BTC họp thống nhất
+PENDING_CONFIRM → FINISHED	Coordinator	Coordinator xác nhận; prizes đã ghi nhận
+Bất kỳ → quay lại	—	KHÔNG CHO PHÉP
+### 8.2 Gate cứng 5 điều kiện — DRAFT → ONGOING
+Gate	Điều kiện	Query kiểm tra	Lỗi khi fail
+[G1]	≥1 Round round_type='PRELIMINARY' và có ≥1 Track con (is_final=FALSE)	SELECT COUNT(*) FROM rounds WHERE hackathon_id=:id AND round_type='PRELIMINARY' + SELECT COUNT(*) FROM tracks WHERE round_id IN (...)	"Chưa có Vòng Sơ loại hoặc chưa có Track"
+[G2]	Đúng 1 Round is_final=TRUE (round_type='FINAL')	SELECT COUNT(*) FROM rounds WHERE hackathon_id=:id AND is_final=TRUE = 1	"Thiếu hoặc dư Round Chung kết"
+[G3]	Mọi Track của Round Sơ loại có Criteria, SUM(weight)=1.0 (±0.001)	SELECT track_id, SUM(weight) FROM criteria WHERE track_id IN (...Sơ loại tracks...) AND type!='PENALTY' GROUP BY track_id HAVING ABS(SUM(weight)-1.0)>0.001	"Track [X]: tổng weight = Y.YY (cần 1.0)"
+[G4]	Round Chung kết có Criteria (gắn round_id), SUM(weight)=1.0	SELECT SUM(weight) FROM criteria WHERE round_id=:final_round_id AND type!='PENALTY' HAVING ABS(SUM(weight)-1.0)>0.001	"Round Chung kết: tổng weight = Z.ZZ"
+[G5]	≥1 event type='KICKOFF' tồn tại và validate Lớp 1+2	SELECT COUNT(*) FROM events WHERE hackathon_id=:id AND type='KICKOFF' ≥ 1	"Thiếu sự kiện Khai mạc (KICKOFF)"
+Round Chung kết không cần Track con — đây là thiết kế đúng của kiến trúc mới, không phải thiếu sót. Gate không check Track con cho Round FINAL.
+
+### 8.3 Bảng liên quan — Validate DRAFT → ONGOING
+Bảng	Vai trò	Query kiểm tra
+rounds	[G1,G2] Kiểm tra Round PRELIMINARY và FINAL	Xem §8.2
+tracks	[G1,G3] Kiểm tra Track trong Round Sơ loại	WHERE round_id IN (SELECT id FROM rounds WHERE hackathon_id=:id AND round_type='PRELIMINARY')
+criteria	[G3,G4] Validate weight	XOR: track_id (Sơ loại) / round_id (Chung kết)
+events	[G5] Validate KICKOFF	WHERE hackathon_id=:id AND type='KICKOFF'
+audit_logs	Ghi lịch sử transition	action='HACKATHON_STATUS_CHANGE', detail={from:'DRAFT', to:'ONGOING', validated_at, validated_by}
+notifications	Gửi thông báo ONGOING	type='HACKATHON_OPEN' đến tất cả users.status='APPROVED'
+### 8.4 Ràng buộc nghiệp vụ
+Ràng buộc	Tầng	Hành động khi vi phạm
+Transition một chiều: không quay lại DRAFT	App	422: "Không thể quay lại trạng thái DRAFT"
+Tất cả 5 Gate [G1–G5] phải pass — fail bất kỳ 1 gate → block toàn bộ	App	422 kèm errors array chi tiết từng gate fail
+Chỉ Coordinator mới thực hiện transition	API Guard	403 Forbidden
+Mọi transition ghi audit_logs trong cùng DB transaction	App	Rollback nếu audit fail
+Sau ONGOING: gửi notification HACKATHON_OPEN async	App (Worker)	Async; không block transition
+### 8.5 Luồng xử lý — DRAFT → ONGOING
+PATCH /api/v1/hackathons/{id}/status  { "status": "ONGOING" }
+
+1. Middleware: role=COORDINATOR, status=APPROVED
+2. Validate current status = 'DRAFT' (không cho skip)
+3. Chạy 5 Gate theo thứ tự [G1 → G5]:
+   a. G1: ≥1 PRELIMINARY Round + ≥1 Track con → fail: collect error
+   b. G2: đúng 1 FINAL Round → fail: collect error
+   c. G3: mọi Track Sơ loại có Criteria, weight=1.0 → fail: collect errors per track
+   d. G4: Round Chung kết có Criteria, weight=1.0 → fail: collect error
+   e. G5: ≥1 KICKOFF event → fail: collect error
+4. Nếu có bất kỳ error → return 422 { errors: [...] }  (KHÔNG UPDATE)
+5. Nếu tất cả pass:
+   BEGIN TRANSACTION
+     UPDATE hackathons SET status='ONGOING', updated_at=NOW() WHERE id=:id
+     INSERT audit_logs (action='HACKATHON_STATUS_CHANGE', detail={from:'DRAFT',to:'ONGOING',...})
+   COMMIT
+6. Async: gửi notification HACKATHON_OPEN
+7. Response: 200 OK { status: 'ONGOING' }
+
+### 8.6 Implementation (SEAL BE — codebase)
+
+| Thành phần | Chi tiết |
+|------------|----------|
+| Readiness | `HackathonReadinessServiceImpl` — G1–G5; mentor thiếu = warning |
+| Status | `HackathonStatusServiceImpl` — one-way state machine |
+| API | `GET .../readiness`, `PATCH .../status` (`status` / `targetStatus`) |
+| Fail | 422 `READINESS_NOT_PASSED` + `blockers[]` |
+
+---
+
+## 9. FR-07B — Safety Net: Validate weight khi kích hoạt Round
+Mô tả: Tầng bảo vệ thứ 3 — block rounds.is_active=TRUE nếu Criteria chưa hợp lệ. Ngăn trường hợp Coordinator thêm/sửa Criteria sau khi Hackathon đã ONGOING nhưng trước khi activate Round.
+
+Workflow v5.0 ref: GĐ3 — Bước 1 (khi activate Round Sơ loại) | DB v3.0 ref: rounds.is_active, criteria
+
+### 9.1 Logic validate (App-layer) — cập nhật cho kiến trúc XOR
+PATCH /api/v1/rounds/{round_id}/activate
+
+1. Lấy round (is_final, round_type)
+2. NẾU is_final = FALSE (Round Sơ loại/Bán kết):
+   a. Lấy tất cả tracks WHERE round_id = :round_id AND status != 'CANCELLED'
+   b. Với MỖI track:
+      total = SELECT SUM(weight) FROM criteria
+              WHERE track_id = tr.id AND type != 'PENALTY'
+      - Nếu total IS NULL → Block 422: "Track [name] chưa có Criteria"
+      - Nếu ABS(total - 1.0) > 0.001 → Block 422: "Track [name]: weight = X.XX"
+   c. Validate conflict Mentor↔Judge cho từng Track
+
+3. NẾU is_final = TRUE (Round Chung kết):
+   a. total = SELECT SUM(weight) FROM criteria
+              WHERE round_id = :round_id AND type != 'PENALTY'
+   b. Nếu total IS NULL → Block 422: "Round Chung kết chưa có Criteria"
+   c. Nếu ABS(total - 1.0) > 0.001 → Block 422: "Round CK: weight = X.XX"
+   d. Validate 100% Judge FINAL_EXTERNAL (không có Judge INTERNAL trừ ngoại lệ)
+
+4. Kiểm tra: chỉ 1 Round is_active=TRUE per hackathon tại 1 thời điểm
+   SELECT COUNT(*) FROM rounds WHERE hackathon_id=:hid AND is_active=TRUE
+   Nếu > 0 → SET is_active=FALSE cho round đang active trước
+
+5. Nếu tất cả pass:
+   UPDATE rounds SET is_active=TRUE WHERE id=:round_id
+   INSERT audit_logs (action='ROUND_ACTIVATE', ...)
+   Gửi notification ROUND_STARTED cho Judge, Mentor, đội
+### 9.2 Bảng liên quan
+Bảng	Vai trò	Điều kiện
+criteria	Nguồn validate weight	Sơ loại: WHERE track_id IN (Track của Round). Chung kết: WHERE round_id=:id
+tracks	Lấy danh sách Track của Round	WHERE round_id=:id AND status != 'CANCELLED'
+rounds	Target activate + deactivate others	UPDATE is_active=TRUE; deactivate round cũ
+judge_assignments	Validate Judge Chung kết	100% assignment_type='FINAL_EXTERNAL' khi Round FINAL
+notifications	Gửi ROUND_STARTED	Async: Judge, Mentor, Đội trong Hackathon
+audit_logs	Ghi lịch sử	action='ROUND_ACTIVATE'
+
+### 9.3 Implementation (SEAL BE — codebase)
+
+| Thành phần | Chi tiết |
+|------------|----------|
+| Controller | `RoundActivationController` — `PATCH /api/v1/rounds/{id}/activate` |
+| Service | `RoundActivationServiceImpl` — weight + conflict; runtime GĐ3 |
+
+---
+
+## 10. API Specification (MF-01) — Target v3.0
+
+> **Normative:** URL và body dưới đây theo kiến trúc **Hackathon → Round → Track**. Code hiện tại có thể dùng route legacy — xem §14.
+
+### 10.0 Tóm tắt FR ↔ Endpoint
+
+| FR | Bảng chính | Endpoint chính (v3.0) |
+|----|------------|------------------------|
+| FR-01 | hackathons | `POST /api/v1/hackathons` |
+| FR-02 | rounds | `POST /api/v1/hackathons/{hackathonId}/rounds` |
+| FR-03 | tracks | `POST /api/v1/rounds/{roundId}/tracks` |
+| FR-04 | criteria | `POST .../tracks/{trackId}/criteria` · `POST .../rounds/{finalRoundId}/criteria` |
+| FR-05a | users, invitations | `POST /api/v1/users/temp-judges` |
+| FR-05b | mentor_assignments | `POST /api/v1/mentor-assignments` |
+| FR-05c | judge_assignments | `POST /api/v1/judge-assignments` (`trackId` XOR `roundId`) |
+| FR-06 | events | `POST /api/v1/hackathons/{hackathonId}/events` |
+| FR-07 | hackathons.status | `GET .../readiness` · `PATCH .../status` |
+| FR-07B | rounds.is_active | `PATCH /api/v1/rounds/{roundId}/activate` |
+
+### 10.1 Quy ước chung
+
+- **Base path:** `/api/v1`
+- **Auth:** JWT Bearer; `@CoordinatorOnly` → `role=COORDINATOR` AND `status=APPROVED`
+- **Envelope 2xx:**
+
+```json
+{
+  "success": true,
+  "data": { },
+  "message": "optional",
+  "warnings": [ { "code": "WEIGHT_NOT_ONE", "message": "...", "details": {} } ],
+  "traceId": "uuid",
+  "timestamp": "2026-05-18T08:00:00Z"
+}
+```
+
+- **Envelope 4xx:**
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "ROUND_WEIGHT_NOT_ONE",
+    "message": "Human readable",
+    "details": { "roundId": 2, "total": 0.85 }
+  },
+  "traceId": "uuid",
+  "timestamp": "2026-05-18T08:00:00Z"
+}
+```
+
+- **Gate ONGOING fail:** HTTP `422` + top-level `errors[]` (danh sách blocker) và `error.code` = `READINESS_NOT_PASSED`; `error.details.blockers` giữ tương thích.
+- **`warnings[]`:** Cảnh báo mềm — **không** thay thế BLOCK conflict Mentor↔Judge (FR-05).
+
+### 10.2 Danh mục endpoint đầy đủ
+
+| Method | Path | FR | Ghi chú | Legacy |
+|--------|------|-----|---------|--------|
+| POST | `/api/v1/hackathons` | FR-01 | Tạo; status luôn DRAFT | |
+| GET | `/api/v1/hackathons` | FR-01 | Search + page | |
+| GET | `/api/v1/hackathons/{id}` | FR-01 | Chi tiết | |
+| PUT | `/api/v1/hackathons/{id}` | FR-01 | Cập nhật (DRAFT/ONGOING) | |
+| DELETE | `/api/v1/hackathons/{id}` | FR-01 | Xóa nếu không có child | |
+| POST | `/api/v1/hackathons/{hackathonId}/rounds` | FR-02 | Parent = hackathon | |
+| GET | `/api/v1/hackathons/{hackathonId}/rounds` | FR-02 | List theo hackathon | |
+| GET | `/api/v1/rounds/{id}` | FR-02 | Chi tiết | |
+| PUT | `/api/v1/rounds/{id}` | FR-02 | Cập nhật | |
+| DELETE | `/api/v1/rounds/{id}` | FR-02 | Guard submissions/criteria | |
+| POST | `/api/v1/rounds/{roundId}/tracks` | FR-03 | `round.is_final` phải FALSE | |
+| GET | `/api/v1/hackathons/{hackathonId}/tracks` | FR-03 | List tracks (JOIN round→hackathon) | |
+| GET | `/api/v1/tracks/{id}` | FR-03 | Chi tiết | |
+| PUT | `/api/v1/tracks/{id}` | FR-03 | Cập nhật; topic sau KICKOFF | |
+| DELETE | `/api/v1/tracks/{id}` | FR-03 | Guard team_round_tracks | |
+| POST | `/api/v1/tracks/{trackId}/criteria` | FR-04 | Sơ loại — body không có roundId | |
+| POST | `/api/v1/rounds/{roundId}/criteria` | FR-04 | Chung kết — `roundId` = FINAL | |
+| POST | `.../criteria/batch` | FR-04 | Theo track hoặc round parent path | |
+| GET | `.../criteria/weight-summary` | FR-04 | Warn mềm tổng weight | |
+| POST | `.../criteria/clone` | FR-04 | Clone từ track/round nguồn | |
+| POST | `/api/v1/users/temp-judges` | FR-05a | Judge EXTERNAL + invitation | |
+| GET | `/api/v1/users/temp-judges` | FR-05a | Search | |
+| POST | `/api/v1/mentor-assignments` | FR-05b | `trackId` bắt buộc | |
+| GET | `/api/v1/tracks/{trackId}/mentors` | FR-05b | List | |
+| POST | `/api/v1/judge-assignments` | FR-05c | `trackId` **hoặc** `roundId` (XOR) | |
+| GET | `/api/v1/tracks/{trackId}/judges` | FR-05c | List Judge Sơ loại | |
+| POST | `/api/v1/hackathons/{hackathonId}/events` | FR-06 | Validate 3 lớp | |
+| GET | `/api/v1/hackathons/{hackathonId}/events` | FR-06 | List | |
+| GET | `/api/v1/hackathons/{id}/readiness?target=ONGOING` | FR-07 | Dry-run G1–G5 | |
+| PATCH | `/api/v1/hackathons/{id}/status` | FR-07 | Body `{ "status": "ONGOING" }` | |
+| PATCH | `/api/v1/rounds/{roundId}/activate` | FR-07B | Safety net weight (GĐ3) | |
+| POST | `/api/v1/invitations/{id}/resend` | FR-05a | Resend Judge tạm | |
+| POST | `/api/v1/tracks/{trackId}/rounds` | FR-02 | Delegate → hackathon rounds | **Yes** |
+| GET | `/api/v1/tracks/{trackId}/rounds` | FR-02 | Delegate list | **Yes** |
+| POST | `/api/v1/hackathons/{hackathonId}/tracks` | FR-03 | Resolve prelim round rồi tạo track | **Yes** |
+
+> Các dòng khác: cột **Legacy** = trống (route v3 primary).
+
+### 10.3 Request / Response theo FR (rút gọn)
+
+#### FR-01 — POST `/api/v1/hackathons`
+
+**Body:** `name`, `slug`, `season`, `year` (required); `description`, `rules`, `bannerUrl`, `registrationStart/End`, `eventStart/End`, `wildcardEnabled`, `individualRankingEnabled`, `chapterScoringFormula` (optional). **Không** gửi `status`.
+
+**201:** `HackathonResponse` (`id`, `slug`, `status=DRAFT`, ...).
+
+**Errors:** `HACKATHON_DUPLICATE` (409), `HACKATHON_DATE_RANGE` (422), `VALIDATION_FAILED` (400).
+
+#### FR-02 — POST `/api/v1/hackathons/{hackathonId}/rounds`
+
+**Body (v3.0):**
+
+```json
+{
+  "name": "Vòng Sơ loại",
+  "sequenceOrder": 1,
+  "isFinal": false,
+  "roundType": "PRELIMINARY",
+  "submissionDeadline": "2026-02-15T23:59:00",
+  "submissionOpen": "2026-02-15T06:00:00",
+  "codingDurationHours": 7,
+  "lateSubmissionPolicy": "ALLOW_LATE_PENDING",
+  "topNAdvance": 2,
+  "minTeamsFinal": 6,
+  "wildcardEnabled": true,
+  "tiebreakRule": "PENALTY_SCORE"
+}
+```
+
+Round Chung kết: `"isFinal": true`, `"roundType": "FINAL"`, `"lateSubmissionPolicy": "HARD_LOCK"`, `topNAdvance`/`minTeamsFinal` = null.
+
+**Errors:** `INVALID_STATE` (422 hackathon), unique sequence (409), DB `chk_rounds_final_consistent`.
+
+#### FR-03 — POST `/api/v1/rounds/{roundId}/tracks`
+
+**Body:** `name`, `minTeamSize`, `maxTeamSize` (required); `description`, `topic` (nullable GĐ1), `maxTeams`, `maxTeamsPerGroup`, `sequenceOrder` (default 1).
+
+**Errors:** `DESIGN_VIOLATION` (422/DB trigger nếu round FINAL), `TRACK_INVALID_GROUP_CAP`.
+
+#### FR-04 — Criteria
+
+- **Sơ loại:** `POST /api/v1/tracks/{trackId}/criteria` — server set `criteria.track_id`, `round_id=null`.
+- **Chung kết:** `POST /api/v1/rounds/{finalRoundId}/criteria` — `track_id=null`, `round_id=finalRoundId`.
+
+**Body item:** `name`, `type` (`TECHNICAL`|`SOFT_SKILL`|`PENALTY`), `weight`, `maxScore`, `displayOrder`, `description`, `rubricUrl`.
+
+**201 + warnings:** `WEIGHT_NOT_ONE` khi tổng ≠ 1.0 (Tầng 1 — không block).
+
+**Errors:** `CRITERIA_HAS_SCORES` (409 update/delete), `CRITERIA_WEIGHT_RANGE`, DB `INVALID_ROUND_FOR_CRITERIA`.
+
+#### FR-05c — POST `/api/v1/judge-assignments`
+
+**Body (Sơ loại):**
+
+```json
+{ "judgeId": 3, "trackId": 1, "assignmentType": "NORMAL" }
+```
+
+**Body (Chung kết — GĐ4 only):**
+
+```json
+{ "judgeId": 3, "roundId": 2, "assignmentType": "FINAL_EXTERNAL" }
+```
+
+**422 (DB/App):** `CONFLICT_SAME_TRACK`, `INTERNAL_JUDGE_NOT_ALLOWED_IN_FINAL`, `INVALID_ASSIGNMENT_TYPE`, `INVALID_FINAL_ROUND`, `JUDGE_ASSIGN_DUPLICATE`.
+
+#### FR-06 — POST `/api/v1/hackathons/{hackathonId}/events`
+
+**Body:** `title`, `type` (`KICKOFF`|`WORKSHOP`|`PRESENTATION`|`AWARDS`|`OTHER`), `startsAt`, `endsAt`, `location`, `meetUrl`, `isPublic`, `description`.
+
+**Warnings:** `WARNING_EVENT_ORDER` (Lớp 3). **Block:** `EVENT_OUT_OF_HACKATHON`, `EVENT_OVERLAP`.
+
+#### FR-07 — Readiness & Status
+
+**GET** `/api/v1/hackathons/{id}/readiness?target=ONGOING`
+
+**200:** `{ ready, targetStatus, blockers[], warnings[], summary }`
+
+**Blocker codes (target):** map từ [G1]–[G5]: `MISSING_PRELIMINARY_ROUND`, `MISSING_FINAL_ROUND`, `TRACK_CRITERIA_WEIGHT`, `FINAL_CRITERIA_WEIGHT`, `EVENT_KICKOFF_MISSING`.
+
+**PATCH** `/api/v1/hackathons/{id}/status` — `{ "status": "ONGOING" }`. Fail → `READINESS_NOT_PASSED` hoặc `errors[]`.
+
+### 10.4 Mã lỗi ứng dụng (ErrorCode)
+
+Đồng bộ [`ErrorCode.java`](../../src/main/java/com/se194093/be/common/exception/ErrorCode.java). Mã **DB-only** (chưa có constant Java) → §10.5.
+
+| Code | HTTP | FR (mf01 v3.0) | Mô tả |
+|------|------|----------------|-------|
+| `VALIDATION_FAILED` | 400 | * | Bean Validation |
+| `RESOURCE_NOT_FOUND` | 404 | * | Không tìm thấy |
+| `FORBIDDEN` | 403 | * | Không phải Coordinator |
+| `INTERNAL_ERROR` | 500 | * | Lỗi không mong đợi |
+| `INVALID_STATE` | 422 | * | Trạng thái entity không cho phép thao tác |
+| `HACKATHON_DUPLICATE` | 409 | FR-01 | UNIQUE(name, season, year) |
+| `HACKATHON_DATE_RANGE` | 422 | FR-01 | Ngày không hợp lệ |
+| `HACKATHON_NOT_DRAFT` | 422 | FR-01 | Sửa/xóa khi không còn DRAFT |
+| `HACKATHON_HAS_CHILDREN` | 409 | FR-01 | Xóa khi còn round/track |
+| `ROUND_DEADLINE_INVALID` | 422 | FR-02 | Deadline / thứ tự timestamp |
+| `ROUND_FORCE_LOCK_REASON` | 422 | FR-02 | `force_locked` thiếu lý do |
+| `ROUND_HAS_SUBMISSIONS` | 409 | FR-02 | Xóa/sửa Round có submission |
+| `ROUND_ANOTHER_ACTIVE` | 422 | FR-07B | Activate khi đã có round active khác |
+| `ROUND_NO_CRITERIA` | 422 | FR-07B | Activate / gate thiếu criteria |
+| `ROUND_WEIGHT_NOT_ONE` | 422 | FR-07B / FR-07 | Activate / gate weight ≠ 1.0 |
+| `TRACK_HAS_TEAMS` | 409 | FR-03 | `team_round_tracks` |
+| `TRACK_HAS_ACTIVE_ROUND` | 409 | FR-03 | Track gắn Round đang active |
+| `TRACK_INVALID_TEAM_SIZE` | 422 | FR-03 | min/max team size |
+| `TRACK_INVALID_GROUP_CAP` | 422 | FR-03 | max_teams_per_group > max_teams |
+| `TRACK_HACKATHON_LOCKED` | 422 | FR-03 | Hackathon không DRAFT/ONGOING |
+| `CRITERIA_HAS_SCORES` | 409 | FR-04 | Sửa/xóa khi đã có điểm |
+| `CRITERIA_WEIGHT_RANGE` | 422 | FR-04 | weight ngoài [0,1] |
+| `CRITERIA_CLONE_SOURCE_EMPTY` | 422 | FR-04 | Clone không có nguồn |
+| `USER_INVALID_ROLE` | 422 | FR-05 | Role không phù hợp phân công |
+| `USER_NOT_APPROVED` | 422 | FR-05 | status ≠ APPROVED |
+| `USER_EMAIL_TAKEN` | 409 | FR-05a | Email trùng |
+| `INVITATION_NOT_FOUND` | 404 | FR-05a | Resend invitation |
+| `INVITATION_ALREADY_ACCEPTED` | 422 | FR-05a | Đã accept |
+| `MENTOR_ASSIGN_DUPLICATE` | 409 | FR-05b | UNIQUE(mentor_id, track_id) |
+| `JUDGE_ASSIGN_DUPLICATE` | 409 | FR-05c | UNIQUE(judge_id, track_uk/round_uk) |
+| `EVENT_OUT_OF_HACKATHON` | 422 | FR-06 | Lớp 1 — ngoài event_start/end |
+| `EVENT_OVERLAP` | 422 | FR-06 | Lớp 2 — trùng giờ |
+| `EVENT_END_BEFORE_START` | 422 | FR-06 | endsAt ≤ startsAt |
+| `EVENT_KICKOFF_MISSING` | 422 | FR-07 | [G5] |
+| `READINESS_NOT_PASSED` | 422 | FR-07 | PATCH status khi gate fail |
+| `STATUS_TRANSITION_INVALID` | 422 | FR-07 | Transition sai |
+
+**Readiness (target G1–G5, có thể chưa có constant):** `MISSING_PRELIMINARY_ROUND`, `MISSING_FINAL_ROUND`, `TRACK_CRITERIA_WEIGHT`, `FINAL_CRITERIA_WEIGHT` — xem §10.3 FR-07.
+
+**DB trigger → 422 (thường chưa có constant riêng):** xem §10.5 (`CONFLICT_SAME_TRACK`, `INTERNAL_JUDGE_NOT_ALLOWED_IN_FINAL`, …).
+
+> Ghi chú: comment trong `ErrorCode.java` vẫn gán FR-02=Track, FR-03=Round (v2.x). mf01 v3.0: FR-02=Round, FR-03=Track.
+
+### 10.5 DB trigger → HTTP (422)
+
+| MESSAGE_TEXT (MySQL SIGNAL) | Ngữ cảnh |
+|-----------------------------|----------|
+| `CONFLICT_SAME_TRACK` | Mentor↔Judge cùng track |
+| `INTERNAL_JUDGE_NOT_ALLOWED_IN_FINAL` | INTERNAL vào CK |
+| `INTERNAL_MENTOR_NOT_ALLOWED_IN_FINAL` | INTERNAL đã Mentor |
+| `INVALID_ASSIGNMENT_TYPE` | FINAL_EXTERNAL sai ngữ cảnh |
+| `INVALID_FINAL_ROUND` | round_id không FINAL |
+| `DESIGN_VIOLATION` | Track trong Round FINAL |
+| `INVALID_ROUND_FOR_CRITERIA` | criteria.round_id không FINAL |
+| `CROSS_HACKATHON_VIOLATION` | team_round_tracks |
+| `FINAL_JUDGE_CANNOT_BE_MENTOR` | Đã Judge CK → không Mentor |
+
+Map trong `GlobalExceptionHandler` từ `DataIntegrityViolationException` → `422` + `code` = prefix MESSAGE_TEXT.
+
+---
+
+## 11. Điểm thiết kế quan trọng — Dev Notes
+### 11.1 Thứ tự tạo cấu trúc — BẮT BUỘC
+Hackathon (DRAFT)
+   ↓
+Rounds (hackathon_id) — tạo Sơ loại trước, Chung kết sau
+   ↓
+Tracks (round_id) — CHỈ tạo trong Round is_final=FALSE
+   ↓
+Criteria — XOR: track_id (Sơ loại) hoặc round_id (Chung kết)
+Sai thứ tự → FK constraint fail. Không thể tạo Track trước Round.
+
+### 11.2 XOR FK Pattern — Áp dụng ở 3 bảng
+Cùng một pattern (X IS NOT NULL AND Y IS NULL) OR (X IS NULL AND Y IS NOT NULL) áp dụng tại:
+
+criteria: (track_id, round_id)
+submissions: (track_id, round_id)
+judge_assignments: (track_id, round_id)
+MySQL không hỗ trợ partial UNIQUE `WHERE`. Dùng **generated column** + UNIQUE (xem [schema-v3.0-mysql.md](../db/schema-v3.0-mysql.md) §1.1): `track_uk`, `round_uk` trên `judge_assignments`, `submissions`.
+
+### 11.3 Conflict Rules — 3 lớp enforcement (FR-05)
+
+| Lớp | Cơ chế | Hành vi |
+|-----|--------|---------|
+| **1 — DB** | `trg_check_mentor_judge_conflict_ins/upd`, `trg_check_judge_mentor_conflict_ins` | **BLOCK CỨNG** — `SIGNAL SQLSTATE '45000'`; Hibernate → 422 |
+| **2 — App** | Pre-check trước INSERT (khuyến nghị) | Trả 422 sớm với `code` map từ MESSAGE_TEXT (§10.4) |
+| **3 — UI preview** | Gợi ý trước submit (optional) | Chỉ preview; **không** trả 201 + warning cho conflict đã vi phạm |
+
+**Không** dùng `warnings[]` cho Mentor↔Judge conflict sau khi DB trigger đã bật (v3.0). `warnings[]` chỉ cho: FR-04 weight, FR-06 Lớp 3, FR-05c Judge final-at-phase1 (nếu vẫn cho phép ở GĐ1 — khuyến nghị block).
+
+**assignment_type** tại GĐ1 (Track Sơ loại): `NORMAL` (mặc định), `HEAD` (trưởng nhóm Judge), `CALIBRATION` (phiên hiệu chuẩn — GĐ3). `FINAL_EXTERNAL` **chỉ** khi `track_id IS NULL` và `round_id` = Round FINAL (GĐ4).
+### 11.4 Validate weight — 3 tầng, không được skip
+Tầng	Khi nào	Chế độ
+1 — UI realtime	Khi Coordinator nhập từng criterion	Warn mềm (hiển thị tổng hiện tại)
+2 — Gate ONGOING	PATCH /hackathons/:id/status	Block cứng — không UPDATE nếu fail
+3 — Activate Round	PATCH /rounds/:id/activate	Block cứng — ngăn bypass tầng 2
+Dev KHÔNG ĐƯỢC validate cứng ở Tầng 1 — sẽ block UX nhập liệu.
+
+### 11.5 is_dept_head — Quy trình ngoại lệ Chung kết
+1. Coordinator xác định GV là Trưởng khoa/bộ môn → PATCH /users/{id} { is_dept_head: true }
+2. Đảm bảo GV không có mentor_assignment trong kỳ (NOT EXISTS check)
+3. Phân công Judge Chung kết → trigger cho phép, ghi audit DEPT_HEAD_FINAL_JUDGE_EXCEPTION
+Không có tự động — Coordinator phải explicit set is_dept_head=TRUE trước.
+
+### 11.6 Round Chung kết — Không có Track, Judge phân công GĐ4
+KHÔNG tạo Track cho Round Chung kết (trigger block)
+KHÔNG phân công Judge Chung kết ở GĐ1 (làm ở GĐ4 Bước 6)
+Criteria Chung kết gắn round_id (không phải track_id)
+submissions Chung kết dùng round_id, track_id=NULL
+### 11.7 Async Workers cần thiết ở GĐ1
+Worker	Trigger	Công việc
+email_judge_invitation	Sau INSERT users (Judge tạm)	Gửi link one-time-use; log invitations.email_sent_at
+notification_reminder	Sau INSERT events	INSERT notifications (type=REMINDER) cho tất cả APPROVED users
+notification_hackathon_open	Sau UPDATE hackathons status=ONGOING	INSERT notifications (type=HACKATHON_OPEN)
+## 12. Pending Items — Chờ BTC xác nhận
+Mã	Nội dung	Tác động	Trạng thái
+Pending #5	Công thức tính điểm Chapter (chapter_scoring_formula)	chapter_rankings.total_score chưa tính được cho đến khi BTC định nghĩa công thức	Pending
+Pending #6	Judge INTERNAL vs EXTERNAL có trọng số khác nhau không? (judge_weight FLOAT DEFAULT 1.0 trong judge_assignments)	Nếu có → cộng điểm weighted; cần thêm cột vào judge_assignments	Pending
+Pending #1	Tiebreak Level 2 sau Penalty — BTC quyết định xử lý đồng điểm tiếp theo	Cần thêm tiebreak_level_2 vào rounds hoặc priority_score vào tiebreak_evaluations	Pending
+Pending #3	Cơ chế khiếu nại (appeals) — BTC có cho phép không?	Cần thêm bảng appeals(team_id, round_id, reason, evidence_url, status, ...)	Pending
+Pending: Phân quyền Coordinator	Nếu cần Coordinator chỉ quản lý Hackathon của mình	Thêm bảng hackathon_coordinators(hackathon_id, user_id). Hiện tại: 1 Coordinator = toàn quyền hệ thống	Pending
+## 13. Trigger Summary — MySQL (đồng bộ schema-v3.0-mysql.md §5)
+
+| Trigger | Bảng | Event | Mục đích |
+|---------|------|-------|----------|
+| `trg_prevent_track_in_final_round_ins` / `_upd` | tracks | BEFORE INSERT/UPDATE | Block Track trong Round FINAL |
+| `trg_check_mentor_judge_conflict_ins` / `_upd` | judge_assignments | BEFORE INSERT/UPDATE | Mentor↔Judge; INTERNAL CK; FINAL_EXTERNAL |
+| `trg_check_judge_mentor_conflict_ins` | mentor_assignments | BEFORE INSERT | Judge↔Mentor; FINAL Judge không Mentor |
+| `trg_check_criteria_round_is_final_ins` / `_upd` | criteria | BEFORE INSERT/UPDATE | `round_id` chỉ khi Round FINAL |
+| `trg_check_submission_round_is_final_ins` / `_upd` | submissions | BEFORE INSERT/UPDATE | XOR + HARD_LOCK |
+| `trg_check_team_track_same_hackathon_ins` / `_upd` | team_round_tracks | BEFORE INSERT/UPDATE | Cùng hackathon; Track ∉ FINAL |
+| `trg_lock_score_insert` / `_update` | scores | BEFORE INSERT/UPDATE | GĐ3 — scoring_locked |
+| `trg_lock_member_insert` / `_update` | team_members | BEFORE INSERT/UPDATE | GĐ2 — is_locked |
+| `trg_audit_team_status` | teams | AFTER UPDATE | Audit đổi status đội |
+
+`updated_at`: `@PreUpdate` entity hoặc `ON UPDATE CURRENT_TIMESTAMP` (MySQL) — không dùng `fn_set_updated_at()` PostgreSQL.
+
+---
+
+## 14. Appendix A — Implementation drift (2026-05)
+
+> **Cập nhật 2026-05:** Backend đã migrate theo §10 (route v3 primary + legacy delegate + readiness G1–G5). Bảng dưới ghi **đã xử lý** vs **còn lệch nhỏ**.
+
+> **Không normative.** Spec target v3.0 là §10.
+
+### 14.1 URL routing — đã xử lý
+
+| Nghiệp vụ | Target v3.0 (§10) | Code |
+|-----------|-------------------|------|
+| Tạo Round | `POST .../hackathons/{hackathonId}/rounds` | **Primary** + legacy `POST .../tracks/{trackId}/rounds` delegate |
+| Tạo Track | `POST .../rounds/{roundId}/tracks` | **Primary** + legacy `POST .../hackathons/{id}/tracks` |
+| Criteria Sơ loại | `POST .../tracks/{trackId}/criteria` | **Có** (batch, weight-summary, clone) |
+| List Judge Sơ loại | `GET .../tracks/{trackId}/judges` | **Primary**; legacy `GET .../rounds/{roundId}/judges` |
+
+### 14.2 Readiness & activate — đã xử lý (audit 2026-05)
+
+- **G1–G5:** `HackathonReadinessServiceImpl` — PRELIMINARY/SEMIFINAL + tracks, 1 FINAL, weight `criteria.track_id` / `round_id`, KICKOFF + validate Lớp 1+2 trên từng event KICKOFF.
+- **Blocker codes:** `MISSING_PRELIMINARY_ROUND`, `MISSING_FINAL_ROUND`, `TRACK_CRITERIA_WEIGHT`, `FINAL_CRITERIA_WEIGHT`, `EVENT_KICKOFF_MISSING`, …
+- **FR-07B:** `RoundActivationServiceImpl` — weight per track/final, conflict Mentor↔Judge per track, FINAL chỉ `FINAL_EXTERNAL`, `ROUND_STARTED` notification.
+
+### 14.3 FR-05 conflict & DTO — đã xử lý
+
+- Mentor↔Judge cùng track: **422** `CONFLICT_SAME_TRACK` (cả hai chiều Judge assign + Mentor assign).
+- Judge Chung kết → Mentor: **422** `FINAL_JUDGE_CANNOT_BE_MENTOR`.
+- Mentor assign: Track phải **OPEN**, không **CANCELLED**.
+
+### 14.4 Còn lệch nhỏ (không chặn GĐ1)
+
+| Mục | Ghi chú |
+|-----|---------|
+| Clone nguồn §5.6 | Không có `GET /criteria?track_id=` — dùng `sourceTrackId` trong `POST .../clone` |
+| PATCH status body | Nhận cả `"status"` và `"targetStatus"` (`@JsonAlias`) |
+| `ErrorCode` JavaDoc | Comment FR-02/03 có thể còn số v2.x — map theo §10.4 |
+| JWT / email async | Stub `@CoordinatorOnly`; Judge invite email sync trong transaction |
+
+### 14.4b Đã xử lý MF-01 v3.1 (2026-05)
+
+| Mã | Implementation |
+|----|----------------|
+| FIX-R1 | Layer 3a–3c BLOCK trong `EventScheduleValidatorImpl` |
+| FIX-R10 | `EVENT_LOCATION_REQUIRED` |
+| ADD-R4 | `ROUND_FINAL_SEQUENCE_ORDER` trong `RoundServiceImpl` |
+| ADD-R7 | Track CANCEL/DELETE + Round DELETE criteria guard |
+| ADD-R2/R9 | Resend expiry; `PATCH /users/{id}`; optional `hackathonId` trên temp judge |
+| FIX-R5 | Auto-deactivate round active (đã có từ v3.0) |
+
+### 14.5 Notification GĐ1 (ADD-R6)
+
+| Type | Trigger (code) |
+|------|----------------|
+| REMINDER | `EventServiceImpl` — `EVENT_REMINDER` |
+| HACKATHON_OPEN | `HackathonStatusServiceImpl` |
+| ROUND_STARTED | `RoundActivationServiceImpl` |
+| TEMP_ACCOUNT_CREATE | `TempJudgeServiceImpl` audit + email stub |
+
+### 14.6 ErrorCode.java — đánh số FR
+
+Comment trong `ErrorCode.java` gán **FR-02 = Track**, **FR-03 = Round** (v2.x). mf01 v3.0: **FR-02 = Round**, **FR-03 = Track**. Map lỗi theo §10.4; đổi tên constant không bắt buộc cho doc.
+
+### 14.7 Tham chiếu chéo workflow.md
+
+| workflow.md (có thể lỗi thời) | mf01 v3.0 |
+|-------------------------------|-----------|
+| §1.3 `submissions(team_id, round_id)` | XOR `track_id` / `round_id` |
+| §2.3 bảng `final_criteria` riêng | `criteria.round_id` khi FINAL |
+| Header PostgreSQL 15+ | MySQL 8 — [schema-v3.0-mysql.md](../db/schema-v3.0-mysql.md) |
+
+**Ưu tiên:** schema > mf01 > workflow đoạn cũ.
+
+---
+
+## 15. Checklist đối chiếu (cho team bạn)
+
+Điền cột **Dự án bạn** khi so sánh.
+
+| # | Hạng mục | SEAL BE (dự án này) | Dự án bạn | Ghi chú |
+|---|----------|---------------------|-----------|---------|
+| 1 | Kiến trúc Hackathon → Round → Track | Có | | |
+| 2 | Round FINAL không có Track | Có (trigger) | | |
+| 3 | Criteria XOR track_id / round_id | Có | | |
+| 4 | Judge assign XOR track / round | Có | | |
+| 5 | Gate G1: prelim + tracks | Có | | |
+| 6 | Gate G2: đúng 1 FINAL | Có | | |
+| 7 | Gate G3–G4: weight = 1.0 | Có | | |
+| 8 | Gate G5: KICKOFF bắt buộc | Có | | |
+| 9 | API GET `/readiness` | Có | | |
+| 10 | PATCH ONGOING với blockers | Có | | |
+| 11 | Mentor↔Judge conflict BLOCK | Có (DB+App) | | |
+| 12 | Judge CK chỉ EXTERNAL (GĐ4) | Có (trigger) | | |
+| 13 | `is_dept_head` ngoại lệ CK | Có (DB + PATCH user) | | v3.1 |
+| 14 | Temp judge EXTERNAL + invitation | Có | | resend khi hết hạn |
+| 15 | Event validate 3 lớp | Có (L3a–c block, 3d warn) | | v3.1 FIX-R1 |
+| 26 | Round FINAL sau PRELIM sequence | Có | | v3.1 ADD-R4 |
+| 16 | Criteria batch / clone / weight-summary | Có | | |
+| 17 | assigned_group trên team_round_tracks | DB có; API GĐ2 | | |
+| 18 | FR-07B activate round | Có (GĐ3) | | |
+| 19 | Auth JWT thật | Chưa (stub) | | |
+| 20 | State machine 4 trạng thái hackathon | Có | | |
+| 21 | UNIQUE hackathon (name, season, year) | Có | | |
+| 22 | submission_deadline > now khi tạo round | Có | | |
+| 23 | PENALTY không tính weight | Có | | |
+| 24 | Legacy route round/track cũ | Có delegate | | |
+| 25 | MySQL trigger vs chỉ app-layer | DB + App | | |
+
+---
+
+## Phụ lục A — Dữ liệu seed dev (profile `dev`)
+
+Chạy `Gd1DataSeeder` khi start app (`spring.profiles.active=dev`). Xem log `[Gd1DataSeeder]` cho ID thực tế. Class: [`Gd1SeedConstants.java`](../../src/main/java/com/se194093/be/config/seed/Gd1SeedConstants.java).
+
+| Slug | Mục đích |
+|------|----------|
+| `seal-gd1-incomplete` | DRAFT, không round — readiness **fail** |
+| `seal-gd1-ready` | DRAFT, đủ G1–G5 — **PATCH ONGOING** |
+| `seal-spring-2026` | ONGOING, prelim active — dataset đầy đủ |
+
+**Email test:** `coord@fpt.edu.vn` (coordinator **id=1** cho stub), `judge1@fpt.edu.vn`, `mentor@fpt.edu.vn`, `guestjudge@gmail.com`, `pending.judge@fpt.edu.vn`.
+
+---
+
+## Phụ lục B — Map sang mf01.md và cập nhật tài liệu
+
+| Chủ đề | mf01.md |
+|--------|---------|
+| FR-01 chi tiết | §2 |
+| FR-02 Round | §3 |
+| FR-03 Track | §4 |
+| FR-04 Criteria | §5 |
+| FR-05 Nhân sự | §6 |
+| FR-06 Events | §7 |
+| FR-07 Status | §8 |
+| FR-07B Activate | §9 |
+| API spec | §10 |
+| Dev notes / trigger | §11, §13 |
+| Implementation drift | §14 |
+
+**Normative:** chỉ sửa tại [mf01.md](mf01.md). Bản đối chiếu này: re-sync khi đổi spec hoặc code SEAL BE.
+
+---
+
+*SEAL Hackathon BE — MF-01 đối chiếu v3.0 — FPT University HCMC*

@@ -38,8 +38,19 @@ public class JudgeAssignmentController {
         );
     }
 
+    @GetMapping("/api/v1/tracks/{trackId}/judges")
+    public ResponseEntity<ApiResponse<List<JudgeAssignmentResponse>>> listByTrack(
+            @PathVariable Integer trackId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(judgeAssignmentService.listByTrack(trackId)));
+    }
+
+    /** @deprecated — list Judge gắn round_id (Chung kết) */
+    @Deprecated
     @GetMapping("/api/v1/rounds/{roundId}/judges")
-    public ResponseEntity<ApiResponse<List<JudgeAssignmentResponse>>> listByRound(@PathVariable Integer roundId) {
+    public ResponseEntity<ApiResponse<List<JudgeAssignmentResponse>>> listByRound(
+            @PathVariable Integer roundId
+    ) {
         return ResponseEntity.ok(ApiResponse.ok(judgeAssignmentService.listByRound(roundId)));
     }
 

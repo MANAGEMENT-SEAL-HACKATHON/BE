@@ -15,12 +15,13 @@ import com.se194093.be.judge_assignments.mapper.JudgeAssignmentMapper;
 import com.se194093.be.judge_assignments.repository.JudgeAssignmentRepository;
 import com.se194093.be.judge_assignments.service.JudgeAssignmentService;
 import com.se194093.be.judge_assignments.value_object.JudgeAssignmentType;
-import com.se194093.be.mentor_assignments.entity.MentorAssignment;
 import com.se194093.be.mentor_assignments.repository.MentorAssignmentRepository;
 import com.se194093.be.notifications.service.NotificationService;
 import com.se194093.be.rounds.entity.Round;
 import com.se194093.be.rounds.repository.RoundRepository;
 import com.se194093.be.tracks.entity.Track;
+import com.se194093.be.tracks.repository.TrackRepository;
+import com.se194093.be.tracks.support.TrackRoundRules;
 import com.se194093.be.users.entity.User;
 import com.se194093.be.users.repository.UserRepository;
 import com.se194093.be.users.value_object.UserRole;
@@ -31,14 +32,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- * FR-05c Judge assignment impl. Warning JUDGE_FINAL_ROUND_AT_PHASE1 + MENTOR_JUDGE_CONFLICT 2 chiều.
- * Notify judge khi unassign.
- */
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -49,6 +45,7 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
     private final MentorAssignmentRepository mentorAssignmentRepository;
     private final UserRepository userRepository;
     private final RoundRepository roundRepository;
+    private final TrackRepository trackRepository;
     private final JudgeAssignmentMapper judgeAssignmentMapper;
     private final AuditService auditService;
     private final CurrentUserAccessor currentUserAccessor;
@@ -56,92 +53,77 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
 
     @Override
     public CreateResult assign(CreateJudgeAssignmentRequest req) {
-        User judge = userRepository.findById(req.getJudgeId())
-                .orElseThrow(() -> new ResourceNotFoundException("User (judge)", req.getJudgeId()));
-        if (judge.getRole() != UserRole.JUDGE) {
-            throw new BusinessRuleException(ErrorCode.USER_INVALID_ROLE,
-                    "User #%d không có role JUDGE (hiện %s)".formatted(judge.getId(), judge.getRole()),
-                    Map.of("userId", judge.getId(), "role", judge.getRole()));
-        }
-        if (judge.getStatus() != UserStatus.APPROVED) {
-            throw new BusinessRuleException(ErrorCode.USER_NOT_APPROVED,
-                    "User #%d chưa APPROVED (hiện %s)".formatted(judge.getId(), judge.getStatus()),
-                    Map.of("userId", judge.getId(), "status", judge.getStatus()));
-        }
-        Round round = roundRepository.findById(req.getRoundId())
-                .orElseThrow(() -> new ResourceNotFoundException("Round", req.getRoundId()));
-
-        if (judgeAssignmentRepository.existsByJudgeIdAndRoundId(judge.getId(), round.getId())) {
-            throw new ConflictException(ErrorCode.JUDGE_ASSIGN_DUPLICATE,
-                    "Judge #%d đã được phân công Round #%d"
-                            .formatted(judge.getId(), round.getId()));
-        }
-
-        JudgeAssignmentType assignType = (req.getAssignmentType() != null)
+        User judge = loadApprovedJudge(req.getJudgeId());
+        JudgeAssignmentType assignType = req.getAssignmentType() != null
                 ? req.getAssignmentType() : JudgeAssignmentType.NORMAL;
 
-        Integer uid = currentUserAccessor.currentUserId();
-        JudgeAssignment entity = JudgeAssignment.builder()
-                .judge(judge)
-                .round(round)
-                .assignmentType(assignType)
-                .assignedAt(LocalDateTime.now())
-                .assignedBy(uid == null ? null : User.builder().id(uid).build())
-                .build();
-        JudgeAssignment saved = judgeAssignmentRepository.save(entity);
-        JudgeAssignmentResponse response = judgeAssignmentMapper.toResponse(saved);
+        if (req.getTrackId() != null) {
+            return assignToTrack(judge, req.getTrackId(), assignType);
+        }
+        return assignToFinalRound(judge, req.getRoundId(), assignType);
+    }
 
-        List<Warning> warnings = new ArrayList<>();
-        Track track = round.getTrack();
-        Integer trackId = track == null ? null : track.getId();
-        if (trackId != null) {
-            Integer maxSeq = roundRepository.findMaxSequenceByTrackId(trackId);
-            if (maxSeq != null && maxSeq.equals(round.getSequenceOrder())) {
-                warnings.add(Warning.of("JUDGE_FINAL_ROUND_AT_PHASE1",
-                        "Round '%s' là Round Chung kết Track — phân công Judge khuyến nghị làm ở GĐ5"
-                                .formatted(round.getName()),
-                        Map.of("roundId", round.getId(), "trackId", trackId,
-                               "sequenceOrder", round.getSequenceOrder())));
-                auditService.log(AuditAction.WARNING_JUDGE_FINAL_AT_PHASE1, "judge_assignments",
-                        saved.getId(),
-                        Map.of("roundId", round.getId(), "trackId", trackId));
-            }
+    private CreateResult assignToTrack(User judge, Integer trackId, JudgeAssignmentType assignType) {
+        if (assignType == JudgeAssignmentType.FINAL_EXTERNAL) {
+            throw new BusinessRuleException(ErrorCode.INVALID_ASSIGNMENT_TYPE,
+                    "FINAL_EXTERNAL không dùng cho Track Sơ loại",
+                    Map.of("trackId", trackId));
+        }
+        Track track = trackRepository.findById(trackId)
+                .orElseThrow(() -> new ResourceNotFoundException("Track", trackId));
+        TrackRoundRules.requirePreliminaryAssignmentTrack(track);
 
-            List<MentorAssignment> mentorConflicts = mentorAssignmentRepository
-                    .findByMentorIdAndTrackId(judge.getId(), trackId);
-            if (!mentorConflicts.isEmpty()) {
-                List<Integer> ids = mentorConflicts.stream().map(MentorAssignment::getId).toList();
-                warnings.add(Warning.of("MENTOR_JUDGE_CONFLICT",
-                        "User đang là Mentor của Track #%d — chấm điểm Judge sẽ gây xung đột"
-                                .formatted(trackId),
-                        Map.of("trackId", trackId, "mentorAssignmentIds", ids)));
-            } else if (mentorAssignmentRepository.countByMentorId(judge.getId()) == 0) {
-                auditService.log(AuditAction.WARNING_CONFLICT_CHECK_SKIPPED, "judge_assignments",
-                        saved.getId(),
-                        Map.of("judgeId", judge.getId(), "roundId", round.getId(),
-                               "reason", "mentor_assignments empty for this user"));
-            }
+        if (mentorAssignmentRepository.existsByMentorIdAndTrackId(judge.getId(), trackId)) {
+            throw new BusinessRuleException(ErrorCode.CONFLICT_SAME_TRACK,
+                    "User đang là Mentor Track #%d — không thể phân công Judge cùng Track"
+                            .formatted(trackId),
+                    Map.of("trackId", trackId, "judgeId", judge.getId()));
+        }
+        if (judgeAssignmentRepository.existsByJudgeIdAndTrackId(judge.getId(), trackId)) {
+            throw new ConflictException(ErrorCode.JUDGE_ASSIGN_DUPLICATE,
+                    "Judge #%d đã được phân công Track #%d".formatted(judge.getId(), trackId));
         }
 
+        JudgeAssignment saved = saveAssignment(judge, track, null, assignType);
+        JudgeAssignmentResponse response = judgeAssignmentMapper.toResponse(saved);
         auditService.log(AuditAction.JUDGE_ASSIGNED, "judge_assignments", saved.getId(), Map.of(
-                "judgeId",   judge.getId(),
-                "roundId",   round.getId(),
-                "type",      assignType.name(),
-                "warningCount", warnings.size()
-        ));
-
+                "judgeId", judge.getId(), "trackId", trackId, "type", assignType.name()));
         notificationService.send(judge, "JUDGE_ASSIGNED",
-                "Bạn được phân công làm Judge Round '%s'".formatted(round.getName()),
-                "Track: %s | Chuẩn bị sẵn sàng cho phiên chấm điểm.".formatted(
-                        track == null ? "?" : track.getName()),
-                "rounds", round.getId());
+                "Bạn được phân công làm Judge Track '%s'".formatted(track.getName()),
+                "Track: %s".formatted(track.getName()),
+                "tracks", trackId);
+        return new CreateResult(response, List.of());
+    }
 
-        return new CreateResult(response, warnings);
+    private CreateResult assignToFinalRound(User judge, Integer roundId, JudgeAssignmentType assignType) {
+        Round round = roundRepository.findById(roundId)
+                .orElseThrow(() -> new ResourceNotFoundException("Round", roundId));
+        if (!Boolean.TRUE.equals(round.getIsFinal())) {
+            throw new BusinessRuleException(ErrorCode.INVALID_FINAL_ROUND,
+                    "Judge qua round_id chỉ cho Round Chung kết",
+                    Map.of("roundId", roundId));
+        }
+        if (assignType != JudgeAssignmentType.FINAL_EXTERNAL) {
+            throw new BusinessRuleException(ErrorCode.INVALID_ASSIGNMENT_TYPE,
+                    "Round Chung kết yêu cầu assignment_type=FINAL_EXTERNAL",
+                    Map.of("roundId", roundId));
+        }
+        throw new BusinessRuleException(ErrorCode.JUDGE_FINAL_AT_PHASE1,
+                "Phân công Judge Chung kết chỉ thực hiện ở GĐ4 — không làm ở GĐ1",
+                Map.of("roundId", roundId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<JudgeAssignmentResponse> listByTrack(Integer trackId) {
+        return judgeAssignmentRepository.findByTrackId(trackId).stream()
+                .map(judgeAssignmentMapper::toResponse).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<JudgeAssignmentResponse> listByRound(Integer roundId) {
+        log.warn("Deprecated: GET /rounds/{}/judges — dùng GET /tracks/{{trackId}}/judges cho Sơ loại", roundId);
         return judgeAssignmentRepository.findByRoundId(roundId).stream()
                 .map(judgeAssignmentMapper::toResponse).toList();
     }
@@ -154,22 +136,48 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
     }
 
     @Override
-    public Integer unassign(Integer assignmentId) {
-        JudgeAssignment ja = judgeAssignmentRepository.findById(assignmentId)
-                .orElseThrow(() -> new ResourceNotFoundException("JudgeAssignment", assignmentId));
-        JudgeAssignmentResponse snapshot = judgeAssignmentMapper.toResponse(ja);
+    public Integer unassign(Integer id) {
+        JudgeAssignment ja = judgeAssignmentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("JudgeAssignment", id));
         User judge = ja.getJudge();
-        Round round = ja.getRound();
-
+        String label = ja.getTrack() != null ? ja.getTrack().getName()
+                : (ja.getRound() != null ? ja.getRound().getName() : "?");
         judgeAssignmentRepository.delete(ja);
-
         notificationService.send(judge, "JUDGE_UNASSIGNED",
-                "Bạn không còn là Judge Round '%s'".formatted(round == null ? "?" : round.getName()),
-                "Phân công đã được hủy bởi Coordinator.",
-                "rounds", round == null ? null : round.getId());
+                "Bạn không còn phân công Judge '%s'".formatted(label),
+                "Unassigned by coordinator.",
+                "judge_assignments", id);
+        auditService.log(AuditAction.JUDGE_UNASSIGNED, "judge_assignments", id,
+                Map.of("judgeId", judge.getId()));
+        return id;
+    }
 
-        auditService.log(AuditAction.JUDGE_UNASSIGNED, "judge_assignments", assignmentId,
-                Map.of("snapshot", snapshot));
-        return assignmentId;
+    private User loadApprovedJudge(Integer judgeId) {
+        User judge = userRepository.findById(judgeId)
+                .orElseThrow(() -> new ResourceNotFoundException("User (judge)", judgeId));
+        if (judge.getRole() != UserRole.JUDGE) {
+            throw new BusinessRuleException(ErrorCode.USER_INVALID_ROLE,
+                    "User #%d không có role JUDGE".formatted(judge.getId()),
+                    Map.of("userId", judge.getId(), "role", judge.getRole()));
+        }
+        if (judge.getStatus() != UserStatus.APPROVED) {
+            throw new BusinessRuleException(ErrorCode.USER_NOT_APPROVED,
+                    "User #%d chưa APPROVED".formatted(judge.getId()),
+                    Map.of("userId", judge.getId(), "status", judge.getStatus()));
+        }
+        return judge;
+    }
+
+    private JudgeAssignment saveAssignment(User judge, Track track, Round round,
+                                           JudgeAssignmentType type) {
+        Integer uid = currentUserAccessor.currentUserId();
+        return judgeAssignmentRepository.save(JudgeAssignment.builder()
+                .judge(judge)
+                .track(track)
+                .round(round)
+                .assignmentType(type)
+                .assignedAt(LocalDateTime.now())
+                .assignedBy(uid == null ? null : User.builder().id(uid).build())
+                .build());
     }
 }

@@ -13,25 +13,32 @@ import com.se194093.be.criteria.dto.response.CriterionResponse;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * FR-04 — CRUD + batch + clone Criteria. Validate weight chỉ ở mức WARN MỀM (không block).
- *
- * <p>Audit: {@code CRITERIA_CREATE}, {@code CRITERIA_UPDATE}, {@code CRITERIA_DELETE},
- * {@code CRITERIA_CLONE}.
- */
 public interface CriteriaService {
 
-    /**
-     * Container trả về cả entity và Optional&lt;Warning&gt; (cho mutation đơn).
-     */
     record CreateResult(CriterionResponse criterion, Optional<Warning> weightWarning) {}
 
     record UpdateResult(CriterionResponse criterion, Optional<Warning> weightWarning) {}
 
+    CreateResult createForTrack(Integer trackId, CreateCriterionRequest req);
+
+    CreateResult createForFinalRound(Integer finalRoundId, CreateCriterionRequest req);
+
+    /** @deprecated — chỉ Round FINAL */
+    @Deprecated
     CreateResult create(Integer roundId, CreateCriterionRequest req);
 
+    BatchCreateResponse batchCreateForTrack(Integer trackId, BatchCreateCriteriaRequest req);
+
+    BatchCreateResponse batchCreateForFinalRound(Integer finalRoundId, BatchCreateCriteriaRequest req);
+
+    @Deprecated
     BatchCreateResponse batchCreate(Integer roundId, BatchCreateCriteriaRequest req);
 
+    CriteriaListResponse listByTrack(Integer trackId);
+
+    CriteriaListResponse listByFinalRound(Integer finalRoundId);
+
+    @Deprecated
     CriteriaListResponse listByRound(Integer roundId);
 
     CriterionResponse getById(Integer id);
@@ -40,10 +47,12 @@ public interface CriteriaService {
 
     Integer delete(Integer id);
 
+    CloneResponse cloneFromSourceForTrack(Integer trackId, CloneCriteriaRequest req);
+
+    CloneResponse cloneFromSourceForFinalRound(Integer finalRoundId, CloneCriteriaRequest req);
+
+    @Deprecated
     CloneResponse cloneFromSource(Integer roundId, CloneCriteriaRequest req);
 
-    /**
-     * Helper trả về danh sách warning (max 1) — wrap {@link Optional} cho controller dùng tiện.
-     */
     List<Warning> wrap(Optional<Warning> single);
 }

@@ -24,6 +24,12 @@ public class UpdateTrackRequest {
 
     private String description;
 
+    /**
+     * Chủ đề bốc thăm — workflow GĐ1: có thể cập nhật sau KICKOFF (mf01 §10 FR-03).
+     */
+    @Size(max = 300)
+    private String topic;
+
     @Min(1)
     private Integer maxTeams;
 

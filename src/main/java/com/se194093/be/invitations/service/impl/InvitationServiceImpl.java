@@ -2,6 +2,7 @@ package com.se194093.be.invitations.service.impl;
 
 import com.se194093.be.common.audit.AuditAction;
 import com.se194093.be.common.audit.AuditService;
+import com.se194093.be.common.exception.BusinessRuleException;
 import com.se194093.be.common.exception.ConflictException;
 import com.se194093.be.common.exception.ErrorCode;
 import com.se194093.be.common.exception.ResourceNotFoundException;
@@ -49,6 +50,11 @@ public class InvitationServiceImpl implements InvitationService {
             throw new ConflictException(ErrorCode.INVITATION_ALREADY_ACCEPTED,
                     "Invitation đã được accept tại " + inv.getAcceptedAt(),
                     Map.of("invitationId", invitationId, "acceptedAt", inv.getAcceptedAt()));
+        }
+        if (inv.getExpiresAt() != null && inv.getExpiresAt().isAfter(LocalDateTime.now())) {
+            throw new BusinessRuleException(ErrorCode.INVITATION_STILL_VALID,
+                    "Token còn hiệu lực — chỉ resend sau khi hết hạn",
+                    Map.of("invitationId", invitationId, "expiresAt", inv.getExpiresAt()));
         }
 
         inv.setToken(generateToken());

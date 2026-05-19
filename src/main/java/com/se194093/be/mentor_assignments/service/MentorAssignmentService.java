@@ -15,10 +15,9 @@ import java.util.Optional;
  *   <li>{@code mentorId}: role=MENTOR &amp; status=APPROVED → 422.</li>
  *   <li>{@code trackId}: tồn tại; hackathon.status IN (DRAFT, ONGOING) → 409 nếu sai.</li>
  *   <li>UNIQUE(mentor_id, track_id) → 409 {@code MENTOR_ASSIGN_DUPLICATE}.</li>
- *   <li>Conflict warning 2 chiều với {@code judge_assignments}: nếu user này đang là Judge của Round
- *       trong cùng Track → trả 201 kèm {@code warnings:[{code:"MENTOR_JUDGE_CONFLICT",...}]}.</li>
- *   <li>Nếu {@code judge_assignments} cho user này EMPTY → ghi audit
- *       {@code WARNING_CONFLICT_CHECK_SKIPPED}; KHÔNG đẩy warning ra response.</li>
+ *   <li>Track {@code status=OPEN} (không CANCELLED) → 422 {@code INVALID_STATE}.</li>
+ *   <li>Conflict Mentor↔Judge cùng track → 422 {@code CONFLICT_SAME_TRACK}.</li>
+ *   <li>Đã Judge Chung kết cùng hackathon → 422 {@code FINAL_JUDGE_CANNOT_BE_MENTOR}.</li>
  * </ul>
  *
  * <p>Audit: {@code MENTOR_ASSIGNED}, {@code MENTOR_UNASSIGNED}.

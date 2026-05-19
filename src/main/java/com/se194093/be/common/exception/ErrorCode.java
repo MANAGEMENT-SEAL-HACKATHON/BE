@@ -37,9 +37,14 @@ public final class ErrorCode {
     public static final String TRACK_INVALID_TEAM_SIZE  = "TRACK_INVALID_TEAM_SIZE";
     public static final String TRACK_INVALID_GROUP_CAP  = "TRACK_INVALID_GROUP_CAP";
     public static final String TRACK_HACKATHON_LOCKED   = "TRACK_HACKATHON_LOCKED";
+    public static final String TRACK_NOT_CANCELLED      = "TRACK_NOT_CANCELLED";
+    public static final String TRACK_HAS_CRITERIA       = "TRACK_HAS_CRITERIA";
+    public static final String TRACK_CANCEL_HAS_TEAMS     = "TRACK_CANCEL_HAS_TEAMS";
 
     // ---------- FR-03 ROUND ----------
     public static final String ROUND_DEADLINE_INVALID   = "ROUND_DEADLINE_INVALID";
+    public static final String ROUND_FINAL_SEQUENCE_ORDER = "ROUND_FINAL_SEQUENCE_ORDER";
+    public static final String ROUND_HAS_CRITERIA       = "ROUND_HAS_CRITERIA";
     public static final String ROUND_FORCE_LOCK_REASON  = "ROUND_FORCE_LOCK_REASON";
     public static final String ROUND_HAS_SUBMISSIONS    = "ROUND_HAS_SUBMISSIONS";
     public static final String ROUND_ANOTHER_ACTIVE     = "ROUND_ANOTHER_ACTIVE";
@@ -59,6 +64,7 @@ public final class ErrorCode {
     public static final String USER_EMAIL_TAKEN         = "USER_EMAIL_TAKEN";
     public static final String INVITATION_NOT_FOUND     = "INVITATION_NOT_FOUND";
     public static final String INVITATION_ALREADY_ACCEPTED = "INVITATION_ALREADY_ACCEPTED";
+    public static final String INVITATION_STILL_VALID     = "INVITATION_STILL_VALID";
     public static final String MENTOR_ASSIGN_DUPLICATE  = "MENTOR_ASSIGN_DUPLICATE";
     public static final String JUDGE_ASSIGN_DUPLICATE   = "JUDGE_ASSIGN_DUPLICATE";
 
@@ -71,4 +77,24 @@ public final class ErrorCode {
     public static final String EVENT_OVERLAP            = "EVENT_OVERLAP";
     public static final String EVENT_END_BEFORE_START   = "EVENT_END_BEFORE_START";
     public static final String EVENT_KICKOFF_MISSING    = "EVENT_KICKOFF_MISSING";
+    public static final String EVENT_ORDER_VIOLATION    = "EVENT_ORDER_VIOLATION";
+    public static final String EVENT_LOCATION_REQUIRED  = "EVENT_LOCATION_REQUIRED";
+
+    // ---------- FR-07 READINESS (G1–G5) ----------
+    public static final String MISSING_PRELIMINARY_ROUND = "MISSING_PRELIMINARY_ROUND";
+    public static final String MISSING_FINAL_ROUND       = "MISSING_FINAL_ROUND";
+    public static final String TRACK_CRITERIA_WEIGHT     = "TRACK_CRITERIA_WEIGHT";
+    public static final String FINAL_CRITERIA_WEIGHT     = "FINAL_CRITERIA_WEIGHT";
+
+    // ---------- DB TRIGGER / XOR (422) ----------
+    public static final String CONFLICT_SAME_TRACK                  = "CONFLICT_SAME_TRACK";
+    public static final String INTERNAL_JUDGE_NOT_ALLOWED_IN_FINAL  = "INTERNAL_JUDGE_NOT_ALLOWED_IN_FINAL";
+    public static final String INTERNAL_MENTOR_NOT_ALLOWED_IN_FINAL = "INTERNAL_MENTOR_NOT_ALLOWED_IN_FINAL";
+    public static final String INVALID_ASSIGNMENT_TYPE              = "INVALID_ASSIGNMENT_TYPE";
+    public static final String INVALID_FINAL_ROUND                  = "INVALID_FINAL_ROUND";
+    public static final String DESIGN_VIOLATION                     = "DESIGN_VIOLATION";
+    public static final String INVALID_ROUND_FOR_CRITERIA         = "INVALID_ROUND_FOR_CRITERIA";
+    public static final String FINAL_JUDGE_CANNOT_BE_MENTOR         = "FINAL_JUDGE_CANNOT_BE_MENTOR";
+    public static final String ROUND_NOT_FINAL_FOR_CRITERIA         = "ROUND_NOT_FINAL_FOR_CRITERIA";
+    public static final String JUDGE_FINAL_AT_PHASE1                  = "JUDGE_FINAL_AT_PHASE1";
 }

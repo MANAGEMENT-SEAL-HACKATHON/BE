@@ -1,0 +1,1 @@
+{"sessionId":"a3f3e0","timestamp":1779112942634,"location":"SchemaStartupDiagnostics:onApplicationEvent","message":"startup schema state","data":{"createDropExpected":false,"ddlAuto":"update","hypothesisId":"A","schemaName":"sealhackathon","tableCount":27}}

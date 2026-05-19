@@ -2,9 +2,18 @@ package com.se194093.be.criteria.entity;
 
 import com.se194093.be.criteria.value_object.CriteriaType;
 import com.se194093.be.rounds.entity.Round;
+import com.se194093.be.tracks.entity.Track;
 import jakarta.persistence.*;
 import lombok.*;
 
+/**
+ * [BC-03] Criteria gắn XOR vào Track (Sơ loại) HOẶC Round (Chung kết).
+ *
+ * <p>Đúng 1 trong 2 FK NOT NULL, enforce bởi DB CHECK constraint + trigger
+ * {@code trg_check_criteria_round_is_final}.
+ *
+ * <p>Xem chi tiết: {@code docs/db/schema-v3.0-mysql.md} §2 (criteria) và §5.8.
+ */
 @Entity
 @Table(name = "criteria")
 @Getter
@@ -18,14 +27,22 @@ public class Criteria {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    // FK -> rounds(id)
+    /**
+     * [BC-03] FK XOR — Track (Sơ loại). Nullable=true; chỉ có khi {@code round} = null.
+     */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "round_id", nullable = false)
+    @JoinColumn(name = "track_id")
+    private Track track;
+
+    /**
+     * [BC-03] FK XOR — Round (Chung kết). Nullable=true; chỉ có khi {@code track} = null.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "round_id")
     private Round round;
 
     /**
-     * Kế thừa criteria từ kỳ trước
-     * FK tự tham chiếu
+     * Kế thừa criteria từ kỳ trước. FK tự tham chiếu.
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "source_criteria_id")
@@ -39,11 +56,12 @@ public class Criteria {
     private CriteriaType type;
 
     /**
-     * weight > 0 && weight <= 1
+     * Giá trị trong khoảng (0, 1]. CHECK constraint ở DB.
      */
     @Column(name = "weight", nullable = false)
     private Float weight;
 
+    @Builder.Default
     @Column(name = "max_score", nullable = false)
     private Integer maxScore = 10;
 
@@ -53,6 +71,7 @@ public class Criteria {
     @Column(name = "rubric_url", columnDefinition = "TEXT")
     private String rubricUrl;
 
+    @Builder.Default
     @Column(name = "display_order", nullable = false)
     private Integer displayOrder = 0;
 }

@@ -6,12 +6,11 @@ import com.se194093.be.common.exception.BusinessRuleException;
 import com.se194093.be.common.exception.ConflictException;
 import com.se194093.be.common.exception.ErrorCode;
 import com.se194093.be.common.exception.ResourceNotFoundException;
-import com.se194093.be.common.response.Warning;
 import com.se194093.be.common.security.CurrentUserAccessor;
 import com.se194093.be.hackathons.entity.Hackathon;
 import com.se194093.be.hackathons.value_object.HackathonStatus;
-import com.se194093.be.judge_assignments.entity.JudgeAssignment;
 import com.se194093.be.judge_assignments.repository.JudgeAssignmentRepository;
+import com.se194093.be.judge_assignments.value_object.JudgeAssignmentType;
 import com.se194093.be.mentor_assignments.dto.request.CreateMentorAssignmentRequest;
 import com.se194093.be.mentor_assignments.dto.response.MentorAssignmentResponse;
 import com.se194093.be.mentor_assignments.entity.MentorAssignment;
@@ -21,6 +20,8 @@ import com.se194093.be.mentor_assignments.service.MentorAssignmentService;
 import com.se194093.be.notifications.service.NotificationService;
 import com.se194093.be.tracks.entity.Track;
 import com.se194093.be.tracks.repository.TrackRepository;
+import com.se194093.be.tracks.support.TrackRoundRules;
+import com.se194093.be.tracks.value_object.TrackStatus;
 import com.se194093.be.users.entity.User;
 import com.se194093.be.users.repository.UserRepository;
 import com.se194093.be.users.value_object.UserRole;
@@ -38,8 +39,7 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * FR-05b Mentor assignment impl. Conflict warning 2 chiều với judge_assignments.
- * Notify mentor khi unassign.
+ * FR-05b Mentor assignment — conflict Mentor↔Judge BLOCK 422 (mf01 §6, §10).
  */
 @Service
 @Slf4j
@@ -76,6 +76,19 @@ public class MentorAssignmentServiceImpl implements MentorAssignmentService {
 
         Track track = trackRepository.findById(req.getTrackId())
                 .orElseThrow(() -> new ResourceNotFoundException("Track", req.getTrackId()));
+        TrackRoundRules.requirePreliminaryAssignmentTrack(track);
+        if (track.getStatus() == TrackStatus.CANCELLED) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Track #%d đã CANCELLED — không phân công Mentor".formatted(track.getId()),
+                    Map.of("trackId", track.getId(), "status", track.getStatus()));
+        }
+        if (track.getStatus() != TrackStatus.OPEN) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Track #%d phải OPEN để phân công Mentor (hiện %s)"
+                            .formatted(track.getId(), track.getStatus()),
+                    Map.of("trackId", track.getId(), "status", track.getStatus()));
+        }
+
         Hackathon parent = track.getHackathon();
         if (parent != null && !MUTABLE_PARENT.contains(parent.getStatus())) {
             throw new ConflictException(ErrorCode.TRACK_HACKATHON_LOCKED,
@@ -88,7 +101,7 @@ public class MentorAssignmentServiceImpl implements MentorAssignmentService {
                             .formatted(mentor.getId(), track.getId()));
         }
 
-        Optional<Warning> conflictWarning = computeConflictWarning(mentor.getId(), track.getId());
+        validateJudgeConflicts(mentor.getId(), track.getId());
 
         Integer uid = currentUserAccessor.currentUserId();
         MentorAssignment entity = MentorAssignment.builder()
@@ -102,9 +115,8 @@ public class MentorAssignmentServiceImpl implements MentorAssignmentService {
 
         auditService.log(AuditAction.MENTOR_ASSIGNED, "mentor_assignments", saved.getId(), Map.of(
                 "mentorId", mentor.getId(),
-                "trackId",  track.getId(),
-                "snapshot", response,
-                "conflictWarning", conflictWarning.map(Warning::getCode).orElse("NONE")
+                "trackId", track.getId(),
+                "snapshot", response
         ));
 
         notificationService.send(mentor, "MENTOR_ASSIGNED",
@@ -113,26 +125,22 @@ public class MentorAssignmentServiceImpl implements MentorAssignmentService {
                         parent == null ? "?" : parent.getName()),
                 "tracks", track.getId());
 
-        return new CreateResult(response, conflictWarning);
+        return new CreateResult(response, Optional.empty());
     }
 
-    private Optional<Warning> computeConflictWarning(Integer mentorId, Integer trackId) {
-        List<JudgeAssignment> conflicts = judgeAssignmentRepository
-                .findByJudgeIdAndRoundTrackId(mentorId, trackId);
-        if (!conflicts.isEmpty()) {
-            List<Integer> roundIds = conflicts.stream().map(c -> c.getRound().getId()).toList();
-            return Optional.of(Warning.of("MENTOR_JUDGE_CONFLICT",
-                    "User cũng đang là Judge của %d Round trong Track #%d"
-                            .formatted(roundIds.size(), trackId),
-                    Map.of("trackId", trackId, "conflictRoundIds", roundIds)));
+    private void validateJudgeConflicts(Integer mentorId, Integer trackId) {
+        if (judgeAssignmentRepository.existsByJudgeIdAndTrackId(mentorId, trackId)) {
+            throw new BusinessRuleException(ErrorCode.CONFLICT_SAME_TRACK,
+                    "User đang là Judge Track #%d — không thể phân công Mentor cùng Track"
+                            .formatted(trackId),
+                    Map.of("trackId", trackId, "mentorId", mentorId));
         }
-        long total = judgeAssignmentRepository.countByJudgeId(mentorId);
-        if (total == 0) {
-            auditService.log(AuditAction.WARNING_CONFLICT_CHECK_SKIPPED, "mentor_assignments", null,
-                    Map.of("mentorId", mentorId, "trackId", trackId,
-                           "reason", "judge_assignments empty for this user"));
+        if (judgeAssignmentRepository.existsFinalExternalJudgeInHackathonOfTrack(
+                mentorId, trackId, JudgeAssignmentType.FINAL_EXTERNAL)) {
+            throw new BusinessRuleException(ErrorCode.FINAL_JUDGE_CANNOT_BE_MENTOR,
+                    "User đã là Judge Chung kết — không thể làm Mentor Sơ loại",
+                    Map.of("trackId", trackId, "mentorId", mentorId));
         }
-        return Optional.empty();
     }
 
     @Override

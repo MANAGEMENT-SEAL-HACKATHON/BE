@@ -1,30 +1,43 @@
 package com.se194093.be.rounds.mapper;
 
+import com.se194093.be.hackathons.entity.Hackathon;
 import com.se194093.be.rounds.dto.request.CreateRoundRequest;
 import com.se194093.be.rounds.dto.request.UpdateRoundRequest;
 import com.se194093.be.rounds.dto.response.RoundResponse;
 import com.se194093.be.rounds.dto.response.RoundSummaryResponse;
 import com.se194093.be.rounds.entity.Round;
+import com.se194093.be.rounds.value_object.LateSubmissionPolicy;
+import com.se194093.be.rounds.value_object.RoundType;
 import com.se194093.be.rounds.value_object.TiebreakRule;
-import com.se194093.be.tracks.entity.Track;
 import org.springframework.stereotype.Component;
 
 @Component
 public class RoundMapper {
 
-    public Round toEntity(CreateRoundRequest req, Track track) {
+    public Round toEntity(CreateRoundRequest req, Hackathon hackathon) {
+        boolean isFinal = Boolean.TRUE.equals(req.getIsFinal());
+        RoundType roundType = req.getRoundType() != null
+                ? req.getRoundType()
+                : (isFinal ? RoundType.FINAL : RoundType.PRELIMINARY);
+        LateSubmissionPolicy policy = req.getLateSubmissionPolicy() != null
+                ? req.getLateSubmissionPolicy()
+                : (isFinal ? LateSubmissionPolicy.HARD_LOCK : LateSubmissionPolicy.ALLOW_LATE_PENDING);
+
         return Round.builder()
-                .track(track)
+                .hackathon(hackathon)
                 .name(req.getName())
                 .sequenceOrder(req.getSequenceOrder())
+                .isFinal(isFinal)
+                .roundType(roundType)
+                .lateSubmissionPolicy(policy)
                 .submissionOpen(req.getSubmissionOpen())
                 .submissionDeadline(req.getSubmissionDeadline())
                 .codingDurationHours(req.getCodingDurationHours())
                 .problemStatementUrl(req.getProblemStatementUrl())
                 .problemReleasedAt(req.getProblemReleasedAt())
-                .topNAdvance(req.getTopNAdvance())
+                .topNAdvance(isFinal ? null : req.getTopNAdvance())
                 .wildcardEnabled(req.getWildcardEnabled() != null && req.getWildcardEnabled())
-                .minTeamsFinal(req.getMinTeamsFinal())
+                .minTeamsFinal(isFinal ? null : req.getMinTeamsFinal())
                 .tiebreakRule(req.getTiebreakRule() == null ? TiebreakRule.PENALTY_SCORE : req.getTiebreakRule())
                 .isActive(false)
                 .scoringLocked(false)
@@ -61,11 +74,16 @@ public class RoundMapper {
         if (e == null) {
             return null;
         }
+        Integer hackathonId = e.getHackathon() == null ? null : e.getHackathon().getId();
         return RoundResponse.builder()
                 .id(e.getId())
-                .trackId(e.getTrack() == null ? null : e.getTrack().getId())
+                .hackathonId(hackathonId)
+                .trackId(null)
                 .name(e.getName())
                 .sequenceOrder(e.getSequenceOrder())
+                .isFinal(e.getIsFinal())
+                .roundType(e.getRoundType())
+                .lateSubmissionPolicy(e.getLateSubmissionPolicy())
                 .submissionOpen(e.getSubmissionOpen())
                 .submissionDeadline(e.getSubmissionDeadline())
                 .codingDurationHours(e.getCodingDurationHours())

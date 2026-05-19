@@ -4,8 +4,11 @@ import com.se194093.be.common.audit.AuditAction;
 import com.se194093.be.common.audit.AuditService;
 import com.se194093.be.common.exception.ConflictException;
 import com.se194093.be.common.exception.ErrorCode;
+import com.se194093.be.common.exception.ResourceNotFoundException;
 import com.se194093.be.common.response.PageResponse;
 import com.se194093.be.common.security.CurrentUserAccessor;
+import com.se194093.be.hackathons.entity.Hackathon;
+import com.se194093.be.hackathons.repository.HackathonRepository;
 import com.se194093.be.invitations.entity.Invitation;
 import com.se194093.be.invitations.repository.InvitationRepository;
 import com.se194093.be.invitations.service.EmailService;
@@ -51,6 +54,7 @@ public class TempJudgeServiceImpl implements TempJudgeService {
     private final UserMapper userMapper;
     private final AuditService auditService;
     private final CurrentUserAccessor currentUserAccessor;
+    private final HackathonRepository hackathonRepository;
 
     @Override
     public TempJudgeResponse createTempJudge(CreateTempJudgeRequest req) {
@@ -65,6 +69,7 @@ public class TempJudgeServiceImpl implements TempJudgeService {
                 .role(UserRole.JUDGE)
                 .userType(UserType.EXTERNAL)
                 .isTempAccount(true)
+                .isDeptHead(false)
                 .status(UserStatus.APPROVED)
                 .institution(req.getInstitution())
                 .phone(req.getPhone())
@@ -74,9 +79,16 @@ public class TempJudgeServiceImpl implements TempJudgeService {
         User savedUser = userRepository.save(user);
 
         Integer invitedById = currentUserAccessor.currentUserId();
+        Hackathon hackathonRef = null;
+        if (req.getHackathonId() != null) {
+            hackathonRef = hackathonRepository.findById(req.getHackathonId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Hackathon", req.getHackathonId()));
+        }
+
         Invitation invitation = Invitation.builder()
                 .email(savedUser.getEmail())
                 .role(UserRole.JUDGE)
+                .hackathon(hackathonRef)
                 .invitedBy(invitedById == null ? null : User.builder().id(invitedById).build())
                 .token(generateToken())
                 .expiresAt(LocalDateTime.now().plusHours(INVITATION_EXPIRY_HOURS))

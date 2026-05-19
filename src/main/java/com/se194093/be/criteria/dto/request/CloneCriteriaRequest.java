@@ -17,8 +17,9 @@ import lombok.Setter;
 @Builder
 public class CloneCriteriaRequest {
 
-    @NotNull
     private Integer sourceRoundId;
+
+    private Integer sourceTrackId;
 
     /**
      * Nếu TRUE: xóa toàn bộ Criteria hiện tại của Round đích trước khi clone (block nếu có scores).

@@ -23,6 +23,8 @@ import com.se194093.be.criteria.service.WeightSummaryService;
 import com.se194093.be.rounds.entity.Round;
 import com.se194093.be.rounds.repository.RoundRepository;
 import com.se194093.be.scores.repository.ScorePlaceholderRepository;
+import com.se194093.be.tracks.entity.Track;
+import com.se194093.be.tracks.repository.TrackRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -33,11 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/**
- * FR-04 Criteria CRUD + batch + clone. Validate weight mức WARN MỀM (qua
- * {@link WeightSummaryService#warningIfNotOne}). Guard CRITERIA_HAS_SCORES (stub) cho
- * update/delete/clone replace.
- */
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -46,54 +43,105 @@ public class CriteriaServiceImpl implements CriteriaService {
 
     private final CriteriaRepository criteriaRepository;
     private final RoundRepository roundRepository;
+    private final TrackRepository trackRepository;
     private final CriteriaMapper criteriaMapper;
     private final AuditService auditService;
     private final WeightSummaryService weightSummaryService;
     private final ScorePlaceholderRepository scoreRepository;
 
     @Override
-    public CreateResult create(Integer roundId, CreateCriterionRequest req) {
-        Round round = roundRepository.findById(roundId)
-                .orElseThrow(() -> new ResourceNotFoundException("Round", roundId));
-
-        Criteria entity = criteriaMapper.toEntity(req, round);
-        Criteria saved = criteriaRepository.save(entity);
-
+    public CreateResult createForTrack(Integer trackId, CreateCriterionRequest req) {
+        Track track = trackRepository.findById(trackId)
+                .orElseThrow(() -> new ResourceNotFoundException("Track", trackId));
+        Criteria saved = criteriaRepository.save(criteriaMapper.toEntityForTrack(req, track));
         CriterionResponse response = criteriaMapper.toResponse(saved);
         auditService.log(AuditAction.CRITERIA_CREATE, "criteria", saved.getId(),
-                Map.of("roundId", roundId, "snapshot", response));
-        return new CreateResult(response, weightSummaryService.warningIfNotOne(roundId));
+                Map.of("trackId", trackId, "snapshot", response));
+        return new CreateResult(response, weightSummaryService.warningIfNotOneForTrack(trackId));
     }
 
     @Override
-    public BatchCreateResponse batchCreate(Integer roundId, BatchCreateCriteriaRequest req) {
-        Round round = roundRepository.findById(roundId)
-                .orElseThrow(() -> new ResourceNotFoundException("Round", roundId));
+    public CreateResult createForFinalRound(Integer finalRoundId, CreateCriterionRequest req) {
+        Round round = loadFinalRound(finalRoundId);
+        Criteria saved = criteriaRepository.save(criteriaMapper.toEntityForFinalRound(req, round));
+        CriterionResponse response = criteriaMapper.toResponse(saved);
+        auditService.log(AuditAction.CRITERIA_CREATE, "criteria", saved.getId(),
+                Map.of("roundId", finalRoundId, "snapshot", response));
+        return new CreateResult(response, weightSummaryService.warningIfNotOneForFinalRound(finalRoundId));
+    }
 
+    @Override
+    @Deprecated
+    public CreateResult create(Integer roundId, CreateCriterionRequest req) {
+        return createForFinalRound(roundId, req);
+    }
+
+    @Override
+    public BatchCreateResponse batchCreateForTrack(Integer trackId, BatchCreateCriteriaRequest req) {
+        Track track = trackRepository.findById(trackId)
+                .orElseThrow(() -> new ResourceNotFoundException("Track", trackId));
         List<Integer> createdIds = new ArrayList<>();
         for (CreateCriterionRequest item : req.getItems()) {
-            Criteria entity = criteriaMapper.toEntity(item, round);
-            Criteria saved = criteriaRepository.save(entity);
+            Criteria saved = criteriaRepository.save(criteriaMapper.toEntityForTrack(item, track));
             createdIds.add(saved.getId());
         }
         auditService.log(AuditAction.CRITERIA_CREATE, "criteria", null,
-                Map.of("roundId", roundId, "batch", true, "count", createdIds.size(),
-                       "createdIds", createdIds));
+                Map.of("trackId", trackId, "batch", true, "count", createdIds.size()));
         return BatchCreateResponse.builder()
                 .createdIds(createdIds)
-                .weightSummary(weightSummaryService.summary(roundId))
+                .weightSummary(weightSummaryService.summaryForTrack(trackId))
+                .build();
+    }
+
+    @Override
+    public BatchCreateResponse batchCreateForFinalRound(Integer finalRoundId, BatchCreateCriteriaRequest req) {
+        Round round = loadFinalRound(finalRoundId);
+        List<Integer> createdIds = new ArrayList<>();
+        for (CreateCriterionRequest item : req.getItems()) {
+            Criteria saved = criteriaRepository.save(criteriaMapper.toEntityForFinalRound(item, round));
+            createdIds.add(saved.getId());
+        }
+        auditService.log(AuditAction.CRITERIA_CREATE, "criteria", null,
+                Map.of("roundId", finalRoundId, "batch", true, "count", createdIds.size()));
+        return BatchCreateResponse.builder()
+                .createdIds(createdIds)
+                .weightSummary(weightSummaryService.summaryForFinalRound(finalRoundId))
+                .build();
+    }
+
+    @Override
+    @Deprecated
+    public BatchCreateResponse batchCreate(Integer roundId, BatchCreateCriteriaRequest req) {
+        return batchCreateForFinalRound(roundId, req);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CriteriaListResponse listByTrack(Integer trackId) {
+        List<CriterionResponse> items = criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(trackId)
+                .stream().map(criteriaMapper::toResponse).toList();
+        return CriteriaListResponse.builder()
+                .items(items)
+                .weightSummary(weightSummaryService.summaryForTrack(trackId))
                 .build();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public CriteriaListResponse listByRound(Integer roundId) {
-        List<CriterionResponse> items = criteriaRepository.findByRoundIdOrderByDisplayOrderAsc(roundId)
+    public CriteriaListResponse listByFinalRound(Integer finalRoundId) {
+        List<CriterionResponse> items = criteriaRepository.findByFinalRoundIdOrderByDisplayOrderAsc(finalRoundId)
                 .stream().map(criteriaMapper::toResponse).toList();
         return CriteriaListResponse.builder()
                 .items(items)
-                .weightSummary(weightSummaryService.summary(roundId))
+                .weightSummary(weightSummaryService.summaryForFinalRound(finalRoundId))
                 .build();
+    }
+
+    @Override
+    @Deprecated
+    @Transactional(readOnly = true)
+    public CriteriaListResponse listByRound(Integer roundId) {
+        return listByFinalRound(roundId);
     }
 
     @Override
@@ -112,18 +160,12 @@ public class CriteriaServiceImpl implements CriteriaService {
             throw new ConflictException(ErrorCode.CRITERIA_HAS_SCORES,
                     "Criterion đã có scores — không thể sửa");
         }
-        Integer roundId = c.getRound() == null ? null : c.getRound().getId();
-
         CriterionResponse before = criteriaMapper.toResponse(c);
         criteriaMapper.applyUpdate(c, req);
         Criteria saved = criteriaRepository.save(c);
         CriterionResponse after = criteriaMapper.toResponse(saved);
-
-        auditService.logBeforeAfter(AuditAction.CRITERIA_UPDATE, "criteria", saved.getId(),
-                before, after);
-        Optional<Warning> warn = (roundId == null) ? Optional.empty()
-                : weightSummaryService.warningIfNotOne(roundId);
-        return new UpdateResult(after, warn);
+        auditService.logBeforeAfter(AuditAction.CRITERIA_UPDATE, "criteria", saved.getId(), before, after);
+        return new UpdateResult(after, weightWarningForCriteria(saved));
     }
 
     @Override
@@ -141,56 +183,86 @@ public class CriteriaServiceImpl implements CriteriaService {
     }
 
     @Override
-    public CloneResponse cloneFromSource(Integer roundId, CloneCriteriaRequest req) {
-        if (roundId.equals(req.getSourceRoundId())) {
+    public CloneResponse cloneFromSourceForTrack(Integer trackId, CloneCriteriaRequest req) {
+        Track target = trackRepository.findById(trackId)
+                .orElseThrow(() -> new ResourceNotFoundException("Track", trackId));
+        if (req.getSourceTrackId() == null) {
             throw new BusinessRuleException(ErrorCode.CRITERIA_CLONE_SOURCE_EMPTY,
-                    "sourceRoundId phải khác roundId đích",
-                    Map.of("roundId", roundId));
+                    "sourceTrackId bắt buộc khi clone vào Track",
+                    Map.of("trackId", trackId));
         }
-        Round target = roundRepository.findById(roundId)
-                .orElseThrow(() -> new ResourceNotFoundException("Round", roundId));
-        roundRepository.findById(req.getSourceRoundId())
-                .orElseThrow(() -> new ResourceNotFoundException("Round (source)", req.getSourceRoundId()));
-
-        List<Criteria> sources = criteriaRepository
-                .findByRoundIdOrderByDisplayOrderAsc(req.getSourceRoundId());
+        List<Criteria> sources = criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(req.getSourceTrackId());
         if (sources.isEmpty()) {
             throw new BusinessRuleException(ErrorCode.CRITERIA_CLONE_SOURCE_EMPTY,
-                    "Round nguồn không có Criteria để clone",
-                    Map.of("sourceRoundId", req.getSourceRoundId()));
+                    "Track nguồn không có Criteria", Map.of("sourceTrackId", req.getSourceTrackId()));
         }
+        List<Integer> createdIds = saveClonesForTrack(sources, target);
+        return CloneResponse.builder()
+                .createdIds(createdIds)
+                .count(createdIds.size())
+                .weightSummary(weightSummaryService.summaryForTrack(trackId))
+                .build();
+    }
 
-        boolean replace = Boolean.TRUE.equals(req.getReplaceExisting());
-        if (replace) {
-            if (scoreRepository.countByRoundId(roundId) > 0) {
-                throw new ConflictException(ErrorCode.CRITERIA_HAS_SCORES,
-                        "Round đích đã có scores — không thể replace");
-            }
-            criteriaRepository.deleteByRoundId(roundId);
+    @Override
+    public CloneResponse cloneFromSourceForFinalRound(Integer finalRoundId, CloneCriteriaRequest req) {
+        Round target = loadFinalRound(finalRoundId);
+        List<Criteria> sources = criteriaRepository.findByFinalRoundIdOrderByDisplayOrderAsc(req.getSourceRoundId());
+        if (sources.isEmpty()) {
+            throw new BusinessRuleException(ErrorCode.CRITERIA_CLONE_SOURCE_EMPTY,
+                    "Round nguồn không có Criteria", Map.of("sourceRoundId", req.getSourceRoundId()));
         }
-
         List<Integer> createdIds = new ArrayList<>();
         for (Criteria src : sources) {
-            Criteria cloned = criteriaMapper.toClone(src, target);
-            Criteria saved = criteriaRepository.save(cloned);
+            Criteria saved = criteriaRepository.save(criteriaMapper.toCloneForFinalRound(src, target));
             createdIds.add(saved.getId());
         }
-        auditService.log(AuditAction.CRITERIA_CLONE, "criteria", null, Map.of(
-                "roundId",        roundId,
-                "sourceRoundId",  req.getSourceRoundId(),
-                "count",          createdIds.size(),
-                "replaceExisting", replace
-        ));
         return CloneResponse.builder()
                 .createdIds(createdIds)
                 .sourceRoundId(req.getSourceRoundId())
                 .count(createdIds.size())
-                .weightSummary(weightSummaryService.summary(roundId))
+                .weightSummary(weightSummaryService.summaryForFinalRound(finalRoundId))
                 .build();
+    }
+
+    @Override
+    @Deprecated
+    public CloneResponse cloneFromSource(Integer roundId, CloneCriteriaRequest req) {
+        return cloneFromSourceForFinalRound(roundId, req);
     }
 
     @Override
     public List<Warning> wrap(Optional<Warning> single) {
         return single.map(List::of).orElse(List.of());
+    }
+
+    private Round loadFinalRound(Integer roundId) {
+        Round round = roundRepository.findById(roundId)
+                .orElseThrow(() -> new ResourceNotFoundException("Round", roundId));
+        if (!Boolean.TRUE.equals(round.getIsFinal())) {
+            throw new BusinessRuleException(ErrorCode.ROUND_NOT_FINAL_FOR_CRITERIA,
+                    "Criteria qua round_id chỉ cho Round Chung kết (is_final=TRUE)",
+                    Map.of("roundId", roundId));
+        }
+        return round;
+    }
+
+    private List<Integer> saveClonesForTrack(List<Criteria> sources, Track target) {
+        List<Integer> createdIds = new ArrayList<>();
+        for (Criteria src : sources) {
+            Criteria saved = criteriaRepository.save(criteriaMapper.toCloneForTrack(src, target));
+            createdIds.add(saved.getId());
+        }
+        return createdIds;
+    }
+
+    private Optional<Warning> weightWarningForCriteria(Criteria c) {
+        if (c.getTrack() != null) {
+            return weightSummaryService.warningIfNotOneForTrack(c.getTrack().getId());
+        }
+        if (c.getRound() != null) {
+            return weightSummaryService.warningIfNotOneForFinalRound(c.getRound().getId());
+        }
+        return Optional.empty();
     }
 }

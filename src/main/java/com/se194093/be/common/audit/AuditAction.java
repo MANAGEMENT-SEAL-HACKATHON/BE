@@ -21,6 +21,7 @@ public final class AuditAction {
     public static final String TRACK_CREATE             = "TRACK_CREATE";
     public static final String TRACK_UPDATE             = "TRACK_UPDATE";
     public static final String TRACK_DELETE             = "TRACK_DELETE";
+    public static final String TRACK_TOPIC_UPDATE       = "TRACK_TOPIC_UPDATE";
 
     // ---------- FR-03 / FR-06B ROUND ----------
     public static final String ROUND_CREATE             = "ROUND_CREATE";
@@ -40,6 +41,7 @@ public final class AuditAction {
     // ---------- FR-05 PERSONNEL ----------
     public static final String TEMP_ACCOUNT_CREATE      = "TEMP_ACCOUNT_CREATE";
     public static final String INVITATION_RESEND        = "INVITATION_RESEND";
+    public static final String USER_DEPT_HEAD_SET       = "USER_DEPT_HEAD_SET";
     public static final String MENTOR_ASSIGNED          = "MENTOR_ASSIGNED";
     public static final String MENTOR_UNASSIGNED        = "MENTOR_UNASSIGNED";
     public static final String JUDGE_ASSIGNED           = "JUDGE_ASSIGNED";

@@ -28,12 +28,6 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import java.net.URI;
 import java.util.Map;
 
-/**
- * FR-04 — Criteria CRUD + batch + weight-summary + clone.
- *
- * <p>WARN mềm weight được gắn vào field {@code warnings} của {@link ApiResponse} thông qua
- * {@link CriteriaService.CreateResult#weightWarning()} / {@link CriteriaService.UpdateResult#weightWarning()}.
- */
 @RestController
 @RequiredArgsConstructor
 @CoordinatorOnly
@@ -42,12 +36,59 @@ public class CriteriaController {
     private final CriteriaService criteriaService;
     private final WeightSummaryService weightSummaryService;
 
+    // ---------- Track (Sơ loại) ----------
+    @PostMapping("/api/v1/tracks/{trackId}/criteria")
+    public ResponseEntity<ApiResponse<CriterionResponse>> createForTrack(
+            @PathVariable Integer trackId,
+            @Valid @RequestBody CreateCriterionRequest req
+    ) {
+        CriteriaService.CreateResult result = criteriaService.createForTrack(trackId, req);
+        URI location = ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path("/api/v1/criteria/{id}")
+                .buildAndExpand(result.criterion().getId())
+                .toUri();
+        return ResponseEntity.created(location).body(
+                ApiResponse.createdWithWarnings(result.criterion(), criteriaService.wrap(result.weightWarning()))
+        );
+    }
+
+    @PostMapping("/api/v1/tracks/{trackId}/criteria/batch")
+    public ResponseEntity<ApiResponse<BatchCreateResponse>> batchCreateForTrack(
+            @PathVariable Integer trackId,
+            @Valid @RequestBody BatchCreateCriteriaRequest req
+    ) {
+        return ResponseEntity.status(201).body(ApiResponse.created(
+                criteriaService.batchCreateForTrack(trackId, req)));
+    }
+
+    @GetMapping("/api/v1/tracks/{trackId}/criteria")
+    public ResponseEntity<ApiResponse<CriteriaListResponse>> listByTrack(@PathVariable Integer trackId) {
+        return ResponseEntity.ok(ApiResponse.ok(criteriaService.listByTrack(trackId)));
+    }
+
+    @GetMapping("/api/v1/tracks/{trackId}/criteria/weight-summary")
+    public ResponseEntity<ApiResponse<WeightSummaryResponse>> weightSummaryForTrack(
+            @PathVariable Integer trackId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(weightSummaryService.summaryForTrack(trackId)));
+    }
+
+    @PostMapping("/api/v1/tracks/{trackId}/criteria/clone")
+    public ResponseEntity<ApiResponse<CloneResponse>> cloneForTrack(
+            @PathVariable Integer trackId,
+            @Valid @RequestBody CloneCriteriaRequest req
+    ) {
+        return ResponseEntity.status(201).body(ApiResponse.created(
+                criteriaService.cloneFromSourceForTrack(trackId, req)));
+    }
+
+    // ---------- Round FINAL (Chung kết) ----------
     @PostMapping("/api/v1/rounds/{roundId}/criteria")
-    public ResponseEntity<ApiResponse<CriterionResponse>> create(
+    public ResponseEntity<ApiResponse<CriterionResponse>> createForFinalRound(
             @PathVariable Integer roundId,
             @Valid @RequestBody CreateCriterionRequest req
     ) {
-        CriteriaService.CreateResult result = criteriaService.create(roundId, req);
+        CriteriaService.CreateResult result = criteriaService.createForFinalRound(roundId, req);
         URI location = ServletUriComponentsBuilder.fromCurrentContextPath()
                 .path("/api/v1/criteria/{id}")
                 .buildAndExpand(result.criterion().getId())
@@ -58,22 +99,33 @@ public class CriteriaController {
     }
 
     @PostMapping("/api/v1/rounds/{roundId}/criteria/batch")
-    public ResponseEntity<ApiResponse<BatchCreateResponse>> batchCreate(
+    public ResponseEntity<ApiResponse<BatchCreateResponse>> batchCreateForFinalRound(
             @PathVariable Integer roundId,
             @Valid @RequestBody BatchCreateCriteriaRequest req
     ) {
-        BatchCreateResponse data = criteriaService.batchCreate(roundId, req);
-        return ResponseEntity.status(201).body(ApiResponse.created(data));
+        return ResponseEntity.status(201).body(ApiResponse.created(
+                criteriaService.batchCreateForFinalRound(roundId, req)));
     }
 
     @GetMapping("/api/v1/rounds/{roundId}/criteria")
-    public ResponseEntity<ApiResponse<CriteriaListResponse>> listByRound(@PathVariable Integer roundId) {
-        return ResponseEntity.ok(ApiResponse.ok(criteriaService.listByRound(roundId)));
+    public ResponseEntity<ApiResponse<CriteriaListResponse>> listByFinalRound(@PathVariable Integer roundId) {
+        return ResponseEntity.ok(ApiResponse.ok(criteriaService.listByFinalRound(roundId)));
     }
 
     @GetMapping("/api/v1/rounds/{roundId}/criteria/weight-summary")
-    public ResponseEntity<ApiResponse<WeightSummaryResponse>> weightSummary(@PathVariable Integer roundId) {
-        return ResponseEntity.ok(ApiResponse.ok(weightSummaryService.summary(roundId)));
+    public ResponseEntity<ApiResponse<WeightSummaryResponse>> weightSummaryForFinalRound(
+            @PathVariable Integer roundId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(weightSummaryService.summaryForFinalRound(roundId)));
+    }
+
+    @PostMapping("/api/v1/rounds/{roundId}/criteria/clone")
+    public ResponseEntity<ApiResponse<CloneResponse>> cloneForFinalRound(
+            @PathVariable Integer roundId,
+            @Valid @RequestBody CloneCriteriaRequest req
+    ) {
+        return ResponseEntity.status(201).body(ApiResponse.created(
+                criteriaService.cloneFromSourceForFinalRound(roundId, req)));
     }
 
     @GetMapping("/api/v1/criteria/{id}")
@@ -96,14 +148,5 @@ public class CriteriaController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> delete(@PathVariable Integer id) {
         Integer deletedId = criteriaService.delete(id);
         return ResponseEntity.ok(ApiResponse.ok(Map.of("deletedId", deletedId), "Deleted"));
-    }
-
-    @PostMapping("/api/v1/rounds/{roundId}/criteria/clone")
-    public ResponseEntity<ApiResponse<CloneResponse>> cloneFromSource(
-            @PathVariable Integer roundId,
-            @Valid @RequestBody CloneCriteriaRequest req
-    ) {
-        CloneResponse data = criteriaService.cloneFromSource(roundId, req);
-        return ResponseEntity.status(201).body(ApiResponse.created(data));
     }
 }

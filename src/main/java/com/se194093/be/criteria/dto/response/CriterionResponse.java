@@ -13,6 +13,7 @@ import lombok.Getter;
 public class CriterionResponse {
 
     private final Integer id;
+    private final Integer trackId;
     private final Integer roundId;
     private final Integer sourceCriteriaId;
     private final String name;

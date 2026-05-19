@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * FR-03 — Round CRUD controller. Activate (FR-06B) ở {@link RoundActivationController}.
+ * FR-02 Round CRUD. Activate ở {@link RoundActivationController}.
  */
 @RestController
 @RequiredArgsConstructor
@@ -33,8 +33,30 @@ public class RoundController {
 
     private final RoundService roundService;
 
+    @PostMapping("/api/v1/hackathons/{hackathonId}/rounds")
+    public ResponseEntity<ApiResponse<RoundResponse>> createByHackathon(
+            @PathVariable Integer hackathonId,
+            @Valid @RequestBody CreateRoundRequest req
+    ) {
+        RoundResponse data = roundService.createByHackathon(hackathonId, req);
+        URI location = ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path("/api/v1/rounds/{id}")
+                .buildAndExpand(data.getId())
+                .toUri();
+        return ResponseEntity.created(location).body(ApiResponse.created(data));
+    }
+
+    @GetMapping("/api/v1/hackathons/{hackathonId}/rounds")
+    public ResponseEntity<ApiResponse<List<RoundSummaryResponse>>> listByHackathon(
+            @PathVariable Integer hackathonId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(roundService.listByHackathon(hackathonId)));
+    }
+
+    /** @deprecated dùng {@link #createByHackathon} */
+    @Deprecated
     @PostMapping("/api/v1/tracks/{trackId}/rounds")
-    public ResponseEntity<ApiResponse<RoundResponse>> create(
+    public ResponseEntity<ApiResponse<RoundResponse>> createLegacy(
             @PathVariable Integer trackId,
             @Valid @RequestBody CreateRoundRequest req
     ) {
@@ -46,8 +68,12 @@ public class RoundController {
         return ResponseEntity.created(location).body(ApiResponse.created(data));
     }
 
+    /** @deprecated dùng {@link #listByHackathon} */
+    @Deprecated
     @GetMapping("/api/v1/tracks/{trackId}/rounds")
-    public ResponseEntity<ApiResponse<List<RoundSummaryResponse>>> listByTrack(@PathVariable Integer trackId) {
+    public ResponseEntity<ApiResponse<List<RoundSummaryResponse>>> listByTrackLegacy(
+            @PathVariable Integer trackId
+    ) {
         return ResponseEntity.ok(ApiResponse.ok(roundService.listByTrack(trackId)));
     }
 

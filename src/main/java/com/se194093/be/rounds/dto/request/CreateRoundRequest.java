@@ -1,5 +1,7 @@
 package com.se194093.be.rounds.dto.request;
 
+import com.se194093.be.rounds.value_object.LateSubmissionPolicy;
+import com.se194093.be.rounds.value_object.RoundType;
 import com.se194093.be.rounds.value_object.TiebreakRule;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -14,7 +16,7 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * FR-03 POST /api/v1/tracks/{trackId}/rounds
+ * FR-02 POST /api/v1/hackathons/{hackathonId}/rounds
  *
  * <p><b>KHÔNG validate tổng weight Criteria</b> tại đây — Criteria chưa tồn tại.
  *
@@ -39,6 +41,12 @@ public class CreateRoundRequest {
     @NotNull
     @Min(1)
     private Integer sequenceOrder;
+
+    private Boolean isFinal;
+
+    private RoundType roundType;
+
+    private LateSubmissionPolicy lateSubmissionPolicy;
 
     private LocalDateTime submissionOpen;
 

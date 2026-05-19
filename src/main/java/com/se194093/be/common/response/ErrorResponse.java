@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -34,6 +35,8 @@ public class ErrorResponse {
 
     private final boolean success;
     private final ErrorPayload error;
+    /** Gate ONGOING fail (mf01 §8.5) — song song với {@link ErrorPayload#details}. */
+    private final List<GateErrorItem> errors;
     private final String traceId;
     private final Instant timestamp;
 
@@ -61,6 +64,16 @@ public class ErrorResponse {
         private final String code;
         private final String message;
         private final int status;
+        private final Map<String, Object> details;
+    }
+
+    @Getter
+    @Builder
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class GateErrorItem {
+        private final String code;
+        private final String message;
         private final Map<String, Object> details;
     }
 }

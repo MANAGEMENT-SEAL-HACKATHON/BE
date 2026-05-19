@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * FR-02 POST /api/v1/hackathons/{hackathonId}/tracks
+ * FR-03 POST /api/v1/rounds/{roundId}/tracks
  *
  * <p>Cross-field validate {@code maxTeamSize >= minTeamSize} và {@code maxTeamsPerGroup <= maxTeams}
  * thực hiện ở service (422 nếu vi phạm) — không expression Bean Validation đơn giản.
@@ -28,6 +28,11 @@ public class CreateTrackRequest {
     private String name;
 
     private String description;
+
+    private String topic;
+
+    @Min(1)
+    private Integer sequenceOrder;
 
     @Min(1)
     private Integer maxTeams;

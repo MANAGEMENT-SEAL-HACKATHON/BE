@@ -5,14 +5,16 @@ import com.se194093.be.criteria.dto.request.UpdateCriterionRequest;
 import com.se194093.be.criteria.dto.response.CriterionResponse;
 import com.se194093.be.criteria.entity.Criteria;
 import com.se194093.be.rounds.entity.Round;
+import com.se194093.be.tracks.entity.Track;
 import org.springframework.stereotype.Component;
 
 @Component
 public class CriteriaMapper {
 
-    public Criteria toEntity(CreateCriterionRequest req, Round round) {
+    public Criteria toEntityForTrack(CreateCriterionRequest req, Track track) {
         return Criteria.builder()
-                .round(round)
+                .track(track)
+                .round(null)
                 .name(req.getName())
                 .type(req.getType())
                 .weight(req.getWeight())
@@ -23,8 +25,47 @@ public class CriteriaMapper {
                 .build();
     }
 
-    public Criteria toClone(Criteria source, Round targetRound) {
+    public Criteria toEntityForFinalRound(CreateCriterionRequest req, Round finalRound) {
         return Criteria.builder()
+                .track(null)
+                .round(finalRound)
+                .name(req.getName())
+                .type(req.getType())
+                .weight(req.getWeight())
+                .maxScore(req.getMaxScore())
+                .description(req.getDescription())
+                .rubricUrl(req.getRubricUrl())
+                .displayOrder(req.getDisplayOrder() == null ? 0 : req.getDisplayOrder())
+                .build();
+    }
+
+    /** @deprecated */
+    @Deprecated
+    public Criteria toEntity(CreateCriterionRequest req, Round round) {
+        if (Boolean.TRUE.equals(round.getIsFinal())) {
+            return toEntityForFinalRound(req, round);
+        }
+        throw new IllegalArgumentException("Round Sơ loại: dùng toEntityForTrack");
+    }
+
+    public Criteria toCloneForTrack(Criteria source, Track targetTrack) {
+        return Criteria.builder()
+                .track(targetTrack)
+                .round(null)
+                .sourceCriteria(source)
+                .name(source.getName())
+                .type(source.getType())
+                .weight(source.getWeight())
+                .maxScore(source.getMaxScore())
+                .description(source.getDescription())
+                .rubricUrl(source.getRubricUrl())
+                .displayOrder(source.getDisplayOrder())
+                .build();
+    }
+
+    public Criteria toCloneForFinalRound(Criteria source, Round targetRound) {
+        return Criteria.builder()
+                .track(null)
                 .round(targetRound)
                 .sourceCriteria(source)
                 .name(source.getName())
@@ -55,6 +96,7 @@ public class CriteriaMapper {
         }
         return CriterionResponse.builder()
                 .id(e.getId())
+                .trackId(e.getTrack() == null ? null : e.getTrack().getId())
                 .roundId(e.getRound() == null ? null : e.getRound().getId())
                 .sourceCriteriaId(e.getSourceCriteria() == null ? null : e.getSourceCriteria().getId())
                 .name(e.getName())

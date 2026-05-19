@@ -1,6 +1,7 @@
 package com.se194093.be.rounds.repository;
 
 import com.se194093.be.rounds.entity.Round;
+import com.se194093.be.rounds.value_object.RoundType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -13,29 +14,56 @@ import java.util.Optional;
 @Repository
 public interface RoundRepository extends JpaRepository<Round, Integer> {
 
-    List<Round> findByTrackIdOrderBySequenceOrderAsc(Integer trackId);
+    List<Round> findByHackathon_IdOrderBySequenceOrderAsc(Integer hackathonId);
 
-    Optional<Round> findByTrackIdAndIsActiveTrue(Integer trackId);
+    @Query("""
+            SELECT COALESCE(MAX(r.sequenceOrder), 0)
+              FROM Round r
+             WHERE r.hackathon.id = :hackathonId
+               AND r.isFinal = FALSE
+            """)
+    int maxSequenceOrderNonFinal(@Param("hackathonId") Integer hackathonId);
 
-    boolean existsByTrackIdAndIsActiveTrue(Integer trackId);
+    long countByHackathon_IdAndIsFinalTrue(Integer hackathonId);
 
-    long countByTrackId(Integer trackId);
+    List<Round> findByHackathon_IdAndRoundType(Integer hackathonId, RoundType roundType);
 
-    @Query("SELECT MAX(r.sequenceOrder) FROM Round r WHERE r.track.id = :trackId")
-    Integer findMaxSequenceByTrackId(@Param("trackId") Integer trackId);
+    @Query("""
+            SELECT r FROM Round r
+             WHERE r.hackathon.id = :hackathonId
+               AND r.isFinal = FALSE
+               AND r.roundType IN (
+                   com.se194093.be.rounds.value_object.RoundType.PRELIMINARY,
+                   com.se194093.be.rounds.value_object.RoundType.SEMIFINAL
+               )
+            """)
+    List<Round> findPreliminaryLikeByHackathonId(@Param("hackathonId") Integer hackathonId);
 
-    /**
-     * Khi activate Round mới — tắt cờ {@code is_active} của tất cả Round khác trong cùng Track
-     * (theo FR-06B step 6).
-     */
+    Optional<Round> findByHackathon_IdAndIsFinalTrue(Integer hackathonId);
+
+    /** @deprecated legacy — Track chỉ có 1 Round cha */
+    @Deprecated
+    @Query("""
+            SELECT r FROM Round r, Track t
+             WHERE t.id = :trackId AND t.round = r
+             ORDER BY r.sequenceOrder ASC
+            """)
+    List<Round> findByTrackIdOrderBySequenceOrderAsc(@Param("trackId") Integer trackId);
+
     @Modifying
     @Query("""
             UPDATE Round r
                SET r.isActive = FALSE
-             WHERE r.track.id = :trackId
+             WHERE r.hackathon.id = :hackathonId
                AND r.id <> :keepRoundId
                AND r.isActive = TRUE
             """)
-    int deactivateOtherRoundsInTrack(@Param("trackId") Integer trackId,
-                                     @Param("keepRoundId") Integer keepRoundId);
+    int deactivateOtherActiveRoundsInHackathon(@Param("hackathonId") Integer hackathonId,
+                                               @Param("keepRoundId") Integer keepRoundId);
+
+    /** @deprecated use {@link #deactivateOtherActiveRoundsInHackathon} */
+    @Deprecated
+    default int deactivateOtherRoundsInTrack(Integer trackId, Integer keepRoundId) {
+        return 0;
+    }
 }

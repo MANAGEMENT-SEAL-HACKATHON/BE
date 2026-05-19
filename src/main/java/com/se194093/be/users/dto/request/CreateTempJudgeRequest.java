@@ -42,4 +42,9 @@ public class CreateTempJudgeRequest {
 
     @Size(max = 30)
     private String phone;
+
+    /**
+     * Tuỳ chọn — gắn invitation với hackathon (MF-01 v3.1 ADD-R2).
+     */
+    private Integer hackathonId;
 }

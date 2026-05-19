@@ -1,6 +1,8 @@
 package com.se194093.be.rounds.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.se194093.be.rounds.value_object.LateSubmissionPolicy;
+import com.se194093.be.rounds.value_object.RoundType;
 import com.se194093.be.rounds.value_object.TiebreakRule;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,9 +17,15 @@ import java.time.LocalDateTime;
 public class RoundResponse {
 
     private final Integer id;
+    private final Integer hackathonId;
+    /** @deprecated v3 — Round không còn FK Track; luôn null */
+    @Deprecated
     private final Integer trackId;
     private final String name;
     private final Integer sequenceOrder;
+    private final Boolean isFinal;
+    private final RoundType roundType;
+    private final LateSubmissionPolicy lateSubmissionPolicy;
     private final LocalDateTime submissionOpen;
     private final LocalDateTime submissionDeadline;
     private final Integer codingDurationHours;

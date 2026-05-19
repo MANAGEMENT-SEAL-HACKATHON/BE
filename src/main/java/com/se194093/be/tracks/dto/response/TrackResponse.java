@@ -14,11 +14,14 @@ public class TrackResponse {
 
     private final Integer id;
     private final Integer hackathonId;
+    private final Integer roundId;
     private final String name;
     private final String description;
+    private final String topic;
     private final Integer maxTeams;
     private final Integer maxTeamsPerGroup;
     private final Integer minTeamSize;
     private final Integer maxTeamSize;
     private final TrackStatus status;
+    private final Integer sequenceOrder;
 }

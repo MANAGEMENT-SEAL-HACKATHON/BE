@@ -1,6 +1,6 @@
 package com.se194093.be.tracks.mapper;
 
-import com.se194093.be.hackathons.entity.Hackathon;
+import com.se194093.be.rounds.entity.Round;
 import com.se194093.be.tracks.dto.request.CreateTrackRequest;
 import com.se194093.be.tracks.dto.request.UpdateTrackRequest;
 import com.se194093.be.tracks.dto.response.TrackResponse;
@@ -12,22 +12,27 @@ import org.springframework.stereotype.Component;
 @Component
 public class TrackMapper {
 
-    public Track toEntity(CreateTrackRequest req, Hackathon hackathon) {
+    public Track toEntity(CreateTrackRequest req, Round round) {
         return Track.builder()
-                .hackathon(hackathon)
+                .round(round)
                 .name(req.getName())
                 .description(req.getDescription())
+                .topic(req.getTopic())
                 .maxTeams(req.getMaxTeams())
                 .maxTeamsPerGroup(req.getMaxTeamsPerGroup())
                 .minTeamSize(req.getMinTeamSize())
                 .maxTeamSize(req.getMaxTeamSize())
                 .status(TrackStatus.OPEN)
+                .sequenceOrder(req.getSequenceOrder() != null ? req.getSequenceOrder() : 1)
                 .build();
     }
 
     public void applyUpdate(Track entity, UpdateTrackRequest req) {
         entity.setName(req.getName());
         entity.setDescription(req.getDescription());
+        if (req.getTopic() != null) {
+            entity.setTopic(req.getTopic());
+        }
         entity.setMaxTeams(req.getMaxTeams());
         entity.setMaxTeamsPerGroup(req.getMaxTeamsPerGroup());
         entity.setMinTeamSize(req.getMinTeamSize());
@@ -41,16 +46,27 @@ public class TrackMapper {
         if (e == null) {
             return null;
         }
+        Integer hackathonId = null;
+        Integer roundId = null;
+        if (e.getRound() != null) {
+            roundId = e.getRound().getId();
+            if (e.getRound().getHackathon() != null) {
+                hackathonId = e.getRound().getHackathon().getId();
+            }
+        }
         return TrackResponse.builder()
                 .id(e.getId())
-                .hackathonId(e.getHackathon() == null ? null : e.getHackathon().getId())
+                .hackathonId(hackathonId)
+                .roundId(roundId)
                 .name(e.getName())
                 .description(e.getDescription())
+                .topic(e.getTopic())
                 .maxTeams(e.getMaxTeams())
                 .maxTeamsPerGroup(e.getMaxTeamsPerGroup())
                 .minTeamSize(e.getMinTeamSize())
                 .maxTeamSize(e.getMaxTeamSize())
                 .status(e.getStatus())
+                .sequenceOrder(e.getSequenceOrder())
                 .build();
     }
 
