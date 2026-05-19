@@ -8,6 +8,7 @@
 
 | Tài liệu | Mục đích |
 |----------|----------|
+| [mf01-gd1-qa-uat-manual.md](mf01-gd1-qa-uat-manual.md) | **QA/UAT GĐ1** — đánh giá %, findings, 64 TC happy/negative/edge, biểu mẫu Pass/Fail |
 | [mf01-gd1-test-happy-path.md](mf01-gd1-test-happy-path.md) | **Test happy path** — checklist, JSON mẫu, seed, biến Postman |
 | [mf01-gd1-doi-chieu.md](mf01-gd1-doi-chieu.md) | Business rules, FR, gate G1–G5, Implementation |
 | [mf01.md](mf01.md) | Spec normative đầy đủ |

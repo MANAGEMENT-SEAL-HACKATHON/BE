@@ -6,6 +6,7 @@
 
 | Tài liệu | Vai trò |
 |----------|---------|
+| [mf01-gd1-qa-uat-manual.md](mf01-gd1-qa-uat-manual.md) | QA audit, negative/edge TC, biểu mẫu UAT |
 | [mf01-gd1-quy-trinh-api.md](mf01-gd1-quy-trinh-api.md) | Mô tả API, ràng buộc nghiệp vụ |
 | [mf01.md](mf01.md) | Spec normative |
 | [Gd1SeedConstants.java](../../src/main/java/com/sealhackathon/api/config/seed/Gd1SeedConstants.java) | Slug / email seed |
