@@ -14,12 +14,6 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
 
-/**
- * OpenAPI 3 / Swagger UI — MF-01 GĐ1 (SpringDoc).
- *
- * <p>Auth: scheme {@code bearerAuth} mô tả JWT Coordinator (GĐ2). Hiện tại BE dùng stub
- * {@code StubCurrentUserAccessor} — Try it out không bắt buộc token.
- */
 @Configuration
 public class OpenApiConfig {
 
@@ -36,14 +30,18 @@ public class OpenApiConfig {
                         .version("0.0.1")
                         .description("""
                                 SEAL Hackathon Management System — Backend (MF-01 GĐ1).
-
+                                
                                 Kiến trúc: Hackathon → Round → Track.
                                 Runbook: docs/workflow/mf01-gd1-quy-trinh-api.md
                                 """)
                         .contact(new Contact().name("FPT SE Dept").email("coord@fpt.edu.vn"))
                         .license(new License().name("Internal")))
+                // Khai báo các Server URL
                 .servers(List.of(
-                        new Server().url("http://localhost:" + serverPort).description("Local")))
+                        new Server().url("/").description("Current Server (Auto-detect)"),
+                        new Server().url("https://seal-hackathon-api-a9ava3gneydve4bg.southeastasia-01.azurewebsites.net").description("Production (Azure)"),
+                        new Server().url("http://localhost:" + serverPort).description("Local")
+                ))
                 .components(new Components()
                         .addSecuritySchemes(BEARER_AUTH, new SecurityScheme()
                                 .type(SecurityScheme.Type.HTTP)
