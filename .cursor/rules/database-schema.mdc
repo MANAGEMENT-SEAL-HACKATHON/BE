@@ -1,0 +1,146 @@
+---
+description: SEAL Hackathon DB schema v3.0 (MySQL 8) - single source of truth cho entity JPA, repository, migration. Áp dụng cho mọi file entity, value_object, repository và mapper.
+globs:
+  - "src/main/java/com/se194093/be/**/entity/*.java"
+  - "src/main/java/com/se194093/be/**/value_object/*.java"
+  - "src/main/java/com/se194093/be/**/repository/*.java"
+  - "src/main/java/com/se194093/be/**/mapper/*.java"
+alwaysApply: false
+---
+
+# DB Schema v3.0 (MySQL 8) — Rule cho Entity / Repository / Mapper
+
+**Source of truth duy nhất**: [docs/db/schema-v3.0-mysql.md](mdc:docs/db/schema-v3.0-mysql.md)
+
+Mọi quyết định về cấu trúc bảng, FK, constraint, trigger, index, view PHẢI tham chiếu file trên. KHÔNG suy diễn từ tên file hoặc convention cũ.
+
+## 1. Kiến trúc DB v3.0
+
+```
+Hackathon
+   └── Round (hackathon_id NOT NULL)
+         ├── Track (round_id NOT NULL)          [nếu is_final = FALSE]
+         │     ├── Criteria (track_id)          [Sơ loại]
+         │     ├── Submission (track_id)         [Sơ loại]
+         │     └── JudgeAssignment (track_id)    [Sơ loại]
+         └── (KHÔNG có Track)                    [nếu is_final = TRUE]
+               ├── Criteria (round_id)           [Chung kết]
+               ├── Submission (round_id)         [Chung kết]
+               └── JudgeAssignment (round_id)    [FINAL_EXTERNAL]
+```
+
+## 2. Quick recap 11 Breaking Changes
+
+- **BC-01** `rounds`: FK `track_id` → `hackathon_id`. Thêm `is_final`, `round_type`, `late_submission_policy`. UNIQUE `(hackathon_id, sequence_order)`.
+- **BC-02** `tracks`: FK `hackathon_id` → `round_id`. Thêm `topic`, `sequence_order`. UNIQUE `(round_id, sequence_order)`.
+- **BC-03** `criteria`: XOR FK — `track_id` (Sơ loại) XOR `round_id` (Chung kết).
+- **BC-04** `team_round_tracks`: bảng mới, `registration_type ∈ {PREFERRED, ASSIGNED}`.
+- **BC-05** `teams`: bỏ `registration_track_id`, `assigned_track_id`, `assigned_group`. Thêm `hackathon_id`.
+- **BC-06** `submissions`: XOR FK như criteria. Status thêm `LATE_APPROVED`.
+- **BC-07** `judge_assignments`: XOR FK + `assignment_type` thêm `FINAL_EXTERNAL`.
+- **BC-08** `mentor_assignments`: giữ nguyên struct.
+- **BC-09** `events`: bỏ `TEAM_MEETING` khỏi enum `type`.
+- **BC-10** `wildcard_reviews`: thêm `track_id`.
+- **BC-11** Triggers DB-layer: 9 triggers chính ([5.1-5.9](mdc:docs/db/schema-v3.0-mysql.md)).
+
+## 3. JPA convention bắt buộc
+
+```java
+// PK SERIAL
+@Id
+@GeneratedValue(strategy = GenerationType.IDENTITY)
+private Integer id;
+
+// FK NOT NULL
+@ManyToOne(fetch = FetchType.LAZY)
+@JoinColumn(name = "hackathon_id", nullable = false)
+private Hackathon hackathon;
+
+// FK NULL (XOR pattern)
+@ManyToOne(fetch = FetchType.LAZY)
+@JoinColumn(name = "track_id")
+private Track track;   // nullable=true mặc định
+
+@ManyToOne(fetch = FetchType.LAZY)
+@JoinColumn(name = "round_id")
+private Round round;   // nullable=true mặc định
+
+// Enum VARCHAR(20)
+@Enumerated(EnumType.STRING)
+@Column(name = "status", nullable = false, length = 20)
+private MyStatus status;
+
+// JSON
+@JdbcTypeCode(SqlTypes.JSON)
+@Column(name = "detail", columnDefinition = "json")
+private tools.jackson.databind.JsonNode detail;
+
+// Timestamp NOT NULL DEFAULT NOW()
+@Column(name = "created_at", nullable = false)
+private LocalDateTime createdAt = LocalDateTime.now();
+
+// Timestamp ON UPDATE NOW()
+@PreUpdate
+public void preUpdate() { this.updatedAt = LocalDateTime.now(); }
+
+// Composite UNIQUE
+@Table(name = "...", uniqueConstraints = {
+    @UniqueConstraint(columnNames = {"hackathon_id", "sequence_order"})
+})
+```
+
+## 4. Pattern XOR FK trong entity
+
+Khi schema có XOR (criteria, submissions, judge_assignments):
+
+```java
+@ManyToOne(fetch = FetchType.LAZY)
+@JoinColumn(name = "track_id")  // nullable=true
+private Track track;
+
+@ManyToOne(fetch = FetchType.LAZY)
+@JoinColumn(name = "round_id")  // nullable=true
+private Round round;
+```
+
+KHÔNG validate XOR ở entity (`@PrePersist`) — trigger DB đã enforce. Service layer có thể kiểm tra trước khi save để feedback sớm hơn.
+
+KHÔNG khai báo generated UNIQUE column (`track_uk`, `round_uk`) trong entity — DB tự compute và tạo hidden index.
+
+## 5. Repository convention
+
+- Method tên gọi qua quan hệ entity mới. Ví dụ: `findByRoundHackathonId(Integer hackathonId)` thay cho `findByHackathonId` cũ.
+- Nếu muốn giữ tên cũ để service không phải đổi, dùng `@Query("...")` JPQL với JOIN explicit.
+- Nullable FK (XOR) — derived query Spring Data hiểu tự nhiên: `findByTrackIdOrRoundId(Integer trackId, Integer roundId)`.
+
+## 6. Trigger DB-layer — App-side handling
+
+Các trigger phía DB throw `SIGNAL SQLSTATE '45000'`:
+- `CONFLICT_SAME_TRACK` (Mentor↔Judge cùng track)
+- `INTERNAL_JUDGE_NOT_ALLOWED_IN_FINAL` (Chung kết phải 100% EXTERNAL)
+- `INVALID_FINAL_ROUND`, `INVALID_ASSIGNMENT_TYPE`, `MISSING_ROUND_ID`
+- `DESIGN_VIOLATION` (Track con trong Round FINAL, team_round_tracks vào Track FINAL)
+- `CROSS_HACKATHON_VIOLATION`
+- `LATE_PENDING_NOT_ALLOWED_IN_FINAL`
+
+Hibernate wrap thành `DataIntegrityViolationException`. `GlobalExceptionHandler` map sang HTTP 422 với `MESSAGE_TEXT` parse từ `SQLException.getMessage()`.
+
+## 7. Hành động khi sửa entity
+
+1. Đọc `docs/db/schema-v3.0-mysql.md` cho bảng tương ứng — copy đầy đủ field, độ dài, default, nullable.
+2. Bám sát [Quick recap §9](mdc:docs/db/schema-v3.0-mysql.md) nếu là 1 trong 11 BC.
+3. Áp convention §3.
+4. KHÔNG sửa business logic trong `service/impl/*` chỉ vì entity đổi — đó là phạm vi riêng.
+
+## 8. Hành động khi tạo entity mới
+
+Cấu trúc thư mục mỗi feature (package by feature):
+
+```
+com.se194093.be.<feature>/
+   ├── entity/<Name>.java
+   ├── value_object/<Enum>.java         (nếu có)
+   ├── repository/<Name>Repository.java (chỉ method built-in JpaRepository + finder cơ bản)
+   ├── mapper/<Name>Mapper.java         (nếu cần convert sang DTO)
+   └── service/, controller/, dto/      (KHÔNG tạo cho đến khi có business)
+```
