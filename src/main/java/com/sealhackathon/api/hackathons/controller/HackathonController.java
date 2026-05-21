@@ -4,6 +4,8 @@ import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.response.PageResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.sealhackathon.api.hackathons.dto.request.CreateHackathonRequest;
@@ -50,6 +52,7 @@ public class HackathonController {
     private final HackathonService hackathonService;
 
     @PostMapping
+    @Operation(summary = "Tạo hackathon mới", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<HackathonResponse>> create(@Valid @RequestBody CreateHackathonRequest req) {
         HackathonResponse data = hackathonService.create(req);
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
@@ -60,6 +63,7 @@ public class HackathonController {
     }
 
     @GetMapping
+    @Operation(summary = "Tìm kiếm và phân trang hackathon", description = "Các tham số truy vấn đều tùy chọn, nếu không cung cấp sẽ trả về tất cả hackathon.")
     public ResponseEntity<ApiResponse<PageResponse<HackathonSummaryResponse>>> search(
             @RequestParam(required = false) HackathonStatus status,
             @RequestParam(required = false) Integer year,
@@ -71,11 +75,13 @@ public class HackathonController {
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Lấy thông tin chi tiết hackathon theo ID", description = "Trả về lỗi 404 nếu không tìm thấy hackathon với ID đã cho.")
     public ResponseEntity<ApiResponse<HackathonResponse>> getById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.ok(hackathonService.getById(id)));
     }
 
     @PutMapping("/{id}")
+    @Operation(summary = "Cập nhật thông tin hackathon", description = "Chỉ coordinator mới có quyền thực hiện hành động này. Trả về lỗi 404 nếu không tìm thấy hackathon với ID đã cho.")
     public ResponseEntity<ApiResponse<HackathonResponse>> update(
             @PathVariable Integer id,
             @Valid @RequestBody UpdateHackathonRequest req
@@ -84,6 +90,7 @@ public class HackathonController {
     }
 
     @DeleteMapping("/{id}")
+    @Operation(summary = "Xóa hackathon", description = "Chỉ coordinator mới có quyền thực hiện hành động này. Trả về lỗi 404 nếu không tìm thấy hackathon với ID đã cho.")
     public ResponseEntity<ApiResponse<Map<String, Object>>> delete(@PathVariable Integer id) {
         Integer deletedId = hackathonService.delete(id);
         return ResponseEntity.status(HttpStatus.OK)

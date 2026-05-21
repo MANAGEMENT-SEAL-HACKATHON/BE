@@ -3,6 +3,7 @@ package com.sealhackathon.api.events.controller;
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.sealhackathon.api.events.dto.request.CreateEventRequest;
@@ -43,6 +44,7 @@ public class EventController {
     private final EventService eventService;
 
     @PostMapping("/api/v1/hackathons/{hackathonId}/events")
+    @Operation(summary = "Tạo event mới cho hackathon", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<EventResponse>> create(
             @PathVariable Integer hackathonId,
             @Valid @RequestBody CreateEventRequest req
@@ -58,6 +60,7 @@ public class EventController {
     }
 
     @GetMapping("/api/v1/hackathons/{hackathonId}/events")
+    @Operation(summary = "Danh sách event của hackathon", description = "Có thể lọc theo type, khoảng thời gian (from-to), và isPublic.")
     public ResponseEntity<ApiResponse<List<EventResponse>>> listByHackathon(
             @PathVariable Integer hackathonId,
             @RequestParam(required = false) EventType type,
@@ -71,11 +74,13 @@ public class EventController {
     }
 
     @GetMapping("/api/v1/events/{id}")
+    @Operation(summary = "Lấy thông tin chi tiết event theo ID", description = "Trả về lỗi 404 nếu không tìm thấy event với ID đã cho.")
     public ResponseEntity<ApiResponse<EventResponse>> getById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.ok(eventService.getById(id)));
     }
 
     @PutMapping("/api/v1/events/{id}")
+    @Operation(summary = "Cập nhật thông tin event", description = "Chỉ coordinator mới có quyền thực hiện hành động này. Trả về lỗi 404 nếu không tìm thấy event với ID đã cho.")
     public ResponseEntity<ApiResponse<EventResponse>> update(
             @PathVariable Integer id,
             @Valid @RequestBody UpdateEventRequest req
@@ -85,6 +90,7 @@ public class EventController {
     }
 
     @DeleteMapping("/api/v1/events/{id}")
+    @Operation(summary = "Xóa event", description = "Chỉ coordinator mới có quyền thực hiện hành động này. Trả về lỗi 404 nếu không tìm thấy event với ID đã cho.")
     public ResponseEntity<ApiResponse<Map<String, Object>>> delete(@PathVariable Integer id) {
         Integer deletedId = eventService.delete(id);
         return ResponseEntity.ok(ApiResponse.ok(Map.of("deletedId", deletedId), "Deleted"));

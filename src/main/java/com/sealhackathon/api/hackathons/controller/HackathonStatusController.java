@@ -3,6 +3,7 @@ package com.sealhackathon.api.hackathons.controller;
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.sealhackathon.api.hackathons.dto.request.ChangeHackathonStatusRequest;
@@ -40,6 +41,7 @@ public class HackathonStatusController {
     private final HackathonStatusService statusService;
 
     @GetMapping("/{id}/readiness")
+    @Operation(summary = "Kiểm tra readiness của hackathon trước khi đổi trạng thái", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<HackathonReadinessResponse>> readiness(
             @PathVariable Integer id,
             @RequestParam(required = false, defaultValue = "ONGOING") HackathonStatus target
@@ -48,6 +50,7 @@ public class HackathonStatusController {
     }
 
     @PatchMapping("/{id}/status")
+    @Operation(summary = "Đổi trạng thái hackathon", description = "Chỉ coordinator mới có quyền thực hiện hành động này. Trước khi đổi trạng thái, nên gọi endpoint readiness để kiểm tra xem hackathon đã đủ điều kiện chưa.")
     public ResponseEntity<ApiResponse<HackathonResponse>> changeStatus(
             @PathVariable Integer id,
             @Valid @RequestBody ChangeHackathonStatusRequest req

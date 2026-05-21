@@ -3,6 +3,7 @@ package com.sealhackathon.api.rounds.controller;
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.sealhackathon.api.rounds.dto.request.CreateRoundRequest;
@@ -39,6 +40,7 @@ public class RoundController {
     private final RoundService roundService;
 
     @PostMapping("/api/v1/hackathons/{hackathonId}/rounds")
+    @Operation(summary = "Tạo round mới cho hackathon", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<RoundResponse>> createByHackathon(
             @PathVariable Integer hackathonId,
             @Valid @RequestBody CreateRoundRequest req
@@ -52,6 +54,7 @@ public class RoundController {
     }
 
     @GetMapping("/api/v1/hackathons/{hackathonId}/rounds")
+    @Operation(summary = "Liệt kê các round của hackathon", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<List<RoundSummaryResponse>>> listByHackathon(
             @PathVariable Integer hackathonId
     ) {
@@ -59,11 +62,13 @@ public class RoundController {
     }
 
     @GetMapping("/api/v1/rounds/{id}")
+    @Operation(summary = "Xem chi tiết round", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<RoundResponse>> getById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.ok(roundService.getById(id)));
     }
 
     @PutMapping("/api/v1/rounds/{id}")
+    @Operation(summary = "Cập nhật round", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<RoundResponse>> update(
             @PathVariable Integer id,
             @Valid @RequestBody UpdateRoundRequest req
@@ -72,6 +77,7 @@ public class RoundController {
     }
 
     @DeleteMapping("/api/v1/rounds/{id}")
+    @Operation(summary = "Xóa round", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<Map<String, Object>>> delete(@PathVariable Integer id) {
         Integer deletedId = roundService.delete(id);
         return ResponseEntity.ok(ApiResponse.ok(Map.of("deletedId", deletedId), "Deleted"));

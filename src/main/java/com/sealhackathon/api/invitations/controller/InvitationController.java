@@ -3,6 +3,7 @@ package com.sealhackathon.api.invitations.controller;
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.sealhackathon.api.invitations.service.InvitationService;
@@ -28,6 +29,7 @@ public class InvitationController {
     private final InvitationService invitationService;
 
     @PostMapping("/{id}/resend")
+    @Operation(summary = "Resend invitation email cho judge khách mời", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<TempJudgeResponse.InvitationInfo>> resend(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.ok(invitationService.resend(id), "Invitation resent"));
     }

@@ -3,6 +3,7 @@ package com.sealhackathon.api.tracks.controller;
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.sealhackathon.api.tracks.dto.request.CreateTrackRequest;
@@ -50,6 +51,7 @@ public class TrackController {
     // ------- nested ROUTES -------
 
     @PostMapping("/api/v1/rounds/{roundId}/tracks")
+    @Operation(summary = "Tạo track mới cho round", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<TrackResponse>> createByRound(
             @PathVariable Integer roundId,
             @Valid @RequestBody CreateTrackRequest req
@@ -63,6 +65,7 @@ public class TrackController {
     }
 
     @GetMapping("/api/v1/rounds/{roundId}/tracks")
+    @Operation(summary = "Liệt kê các track của round", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<List<TrackSummaryResponse>>> listByRound(
             @PathVariable Integer roundId,
             @RequestParam(required = false) TrackStatus status
@@ -71,6 +74,7 @@ public class TrackController {
     }
 
     @GetMapping("/api/v1/hackathons/{hackathonId}/tracks")
+    @Operation(summary = "Liệt kê các track của hackathon", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<List<TrackSummaryResponse>>> listByHackathon(
             @PathVariable Integer hackathonId,
             @RequestParam(required = false) TrackStatus status
@@ -81,11 +85,13 @@ public class TrackController {
     // ------- single resource ROUTES -------
 
     @GetMapping("/api/v1/tracks/{id}")
+    @Operation(summary = "Xem chi tiết track", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<TrackResponse>> getById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.ok(trackService.getById(id)));
     }
 
     @PutMapping("/api/v1/tracks/{id}")
+    @Operation(summary = "Cập nhật track", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<TrackResponse>> update(
             @PathVariable Integer id,
             @Valid @RequestBody UpdateTrackRequest req
@@ -95,6 +101,7 @@ public class TrackController {
     }
 
     @DeleteMapping("/api/v1/tracks/{id}")
+    @Operation(summary = "Xóa track", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<Map<String, Object>>> delete(@PathVariable Integer id) {
         Integer deletedId = trackService.delete(id);
         return ResponseEntity.ok(ApiResponse.ok(Map.of("deletedId", deletedId), "Deleted"));

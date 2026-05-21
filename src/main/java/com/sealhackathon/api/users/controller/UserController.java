@@ -3,6 +3,7 @@ package com.sealhackathon.api.users.controller;
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.sealhackathon.api.users.dto.request.PatchUserRequest;
@@ -30,6 +31,7 @@ public class UserController {
     private final UserAdminService userAdminService;
 
     @PatchMapping("/{userId}")
+    @Operation(summary = "Cập nhật thông tin user (is_dept_head)", description = "Chỉ coordinator mới có quyền thực hiện hành động này. Hiện tại chỉ có cập nhật is_dept_head, các trường khác sẽ bị ignore nếu có gửi lên.")
     public ResponseEntity<ApiResponse<UserResponse>> patch(
             @PathVariable Integer userId,
             @RequestBody PatchUserRequest req

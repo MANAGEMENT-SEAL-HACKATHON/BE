@@ -4,6 +4,7 @@ import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.response.PageResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.sealhackathon.api.users.dto.request.CreateTempJudgeRequest;
@@ -37,6 +38,7 @@ public class TempJudgeController {
     private final TempJudgeService tempJudgeService;
 
     @PostMapping
+    @Operation(summary = "Tạo judge khách mời", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<TempJudgeResponse>> create(
             @Valid @RequestBody CreateTempJudgeRequest req
     ) {
@@ -44,6 +46,7 @@ public class TempJudgeController {
     }
 
     @GetMapping
+    @Operation(summary = "Tìm kiếm judge khách mời", description = "Chỉ coordinator mới có quyền thực hiện hành động này. Có thể tìm kiếm theo institution hoặc tên/email (q).")
     public ResponseEntity<ApiResponse<PageResponse<UserSummaryResponse>>> search(
             @RequestParam(required = false) String institution,
             @RequestParam(required = false) String q,
