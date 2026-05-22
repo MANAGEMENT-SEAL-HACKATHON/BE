@@ -228,6 +228,8 @@ public class CriteriaServiceImpl implements CriteriaService {
     public CloneResponse cloneFromSourceForTrack(Integer trackId, CloneCriteriaRequest req) {
         Track target = trackRepository.findById(trackId)
                 .orElseThrow(() -> new ResourceNotFoundException("Track", trackId));
+        rejectWrongCloneFieldsForTrack(req, trackId);
+        assertTrackScopeRound(target.getRound(), trackId, "trackId");
         if (req.getSourceTrackId() == null) {
             throw new BusinessRuleException(ErrorCode.CRITERIA_CLONE_SOURCE_EMPTY,
                     "sourceTrackId bắt buộc khi clone vào Track",
@@ -240,10 +242,13 @@ public class CriteriaServiceImpl implements CriteriaService {
         }
         Track sourceTrack = trackRepository.findById(req.getSourceTrackId())
                 .orElseThrow(() -> new ResourceNotFoundException("Track", req.getSourceTrackId()));
+        assertTrackScopeRound(sourceTrack.getRound(), req.getSourceTrackId(), "sourceTrackId");
         if (!sourceTrack.getRound().getId().equals(target.getRound().getId())) {
-            throw new BusinessRuleException(ErrorCode.CRITERIA_CLONE_SOURCE_EMPTY,
-                    "Track nguồn phải cùng vòng (round) với track đích",
-                    Map.of("trackId", trackId, "sourceTrackId", req.getSourceTrackId()));
+            throw new BusinessRuleException(ErrorCode.CRITERIA_CLONE_CROSS_SCOPE,
+                    "Clone Track chỉ trong cùng vòng Sơ loại/Bán kết. Không clone Chung kết ↔ Track",
+                    Map.of("trackId", trackId, "sourceTrackId", req.getSourceTrackId(),
+                            "targetRoundId", target.getRound().getId(),
+                            "sourceRoundId", sourceTrack.getRound().getId()));
         }
         List<Criteria> sources = criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(req.getSourceTrackId());
         if (sources.isEmpty()) {
@@ -269,6 +274,7 @@ public class CriteriaServiceImpl implements CriteriaService {
     @Override
     public CloneResponse cloneFromSourceForFinalRound(Integer finalRoundId, CloneCriteriaRequest req) {
         Round target = loadFinalRound(finalRoundId);
+        rejectWrongCloneFieldsForFinalRound(req, finalRoundId);
         if (req.getSourceRoundId() == null) {
             throw new BusinessRuleException(ErrorCode.CRITERIA_CLONE_SOURCE_EMPTY,
                     "sourceRoundId bắt buộc khi clone vào Round Chung kết",
@@ -282,19 +288,16 @@ public class CriteriaServiceImpl implements CriteriaService {
         Round sourceRound = roundRepository.findById(req.getSourceRoundId())
                 .orElseThrow(() -> new ResourceNotFoundException("Round", req.getSourceRoundId()));
         if (!Boolean.TRUE.equals(sourceRound.getIsFinal())) {
-            throw new BusinessRuleException(ErrorCode.CRITERIA_CLONE_SOURCE_EMPTY,
-                    "Round nguồn phải là Chung kết (is_final=TRUE)",
-                    Map.of("sourceRoundId", req.getSourceRoundId()));
+            throw new BusinessRuleException(ErrorCode.CRITERIA_CLONE_CROSS_SCOPE,
+                    "Clone Chung kết chỉ từ Round Chung kết khác. Criteria Sơ loại nằm trên Track — dùng POST /api/v1/tracks/{trackId}/criteria/clone",
+                    Map.of("sourceRoundId", req.getSourceRoundId(), "roundId", finalRoundId));
         }
-        if (!sourceRound.getHackathon().getId().equals(target.getHackathon().getId())) {
-            throw new BusinessRuleException(ErrorCode.CRITERIA_CLONE_SOURCE_EMPTY,
-                    "Round nguồn phải cùng hackathon với round đích",
-                    Map.of("roundId", finalRoundId, "sourceRoundId", req.getSourceRoundId()));
-        }
+        // Cho phép clone Chung kết ↔ Chung kết khác hackathon/kỳ (kế thừa template).
         List<Criteria> sources = criteriaRepository.findByFinalRoundIdOrderByDisplayOrderAsc(req.getSourceRoundId());
         if (sources.isEmpty()) {
             throw new BusinessRuleException(ErrorCode.CRITERIA_CLONE_SOURCE_EMPTY,
-                    "Round nguồn không có Criteria", Map.of("sourceRoundId", req.getSourceRoundId()));
+                    "Round Chung kết nguồn không có criteria (round_id, track_id=null)",
+                    Map.of("sourceRoundId", req.getSourceRoundId()));
         }
         guardFinalTargetEmptyOrReplaceExisting(finalRoundId, req);
         int deletedCount = replaceExistingForFinalRoundIfRequested(finalRoundId, req);
@@ -326,6 +329,30 @@ public class CriteriaServiceImpl implements CriteriaService {
     @Override
     public List<Warning> wrap(Optional<Warning> single) {
         return single.map(List::of).orElse(List.of());
+    }
+
+    private static void rejectWrongCloneFieldsForTrack(CloneCriteriaRequest req, Integer trackId) {
+        if (req.getSourceRoundId() != null) {
+            throw new BusinessRuleException(ErrorCode.CRITERIA_CLONE_CROSS_SCOPE,
+                    "Không clone Round Chung kết vào Track. Dùng POST /api/v1/rounds/{finalRoundId}/criteria/clone với sourceRoundId",
+                    Map.of("trackId", trackId, "sourceRoundId", req.getSourceRoundId()));
+        }
+    }
+
+    private static void rejectWrongCloneFieldsForFinalRound(CloneCriteriaRequest req, Integer finalRoundId) {
+        if (req.getSourceTrackId() != null) {
+            throw new BusinessRuleException(ErrorCode.CRITERIA_CLONE_CROSS_SCOPE,
+                    "Không clone Track vào Round Chung kết. Dùng POST /api/v1/tracks/{trackId}/criteria/clone với sourceTrackId",
+                    Map.of("roundId", finalRoundId, "sourceTrackId", req.getSourceTrackId()));
+        }
+    }
+
+    private static void assertTrackScopeRound(Round round, Integer refId, String refField) {
+        if (Boolean.TRUE.equals(round.getIsFinal())) {
+            throw new BusinessRuleException(ErrorCode.CRITERIA_CLONE_CROSS_SCOPE,
+                    "Track không thuộc vòng Chung kết — không dùng API clone Track cho round FINAL",
+                    Map.of(refField, refId, "roundId", round.getId()));
+        }
     }
 
     private Round loadFinalRound(Integer roundId) {

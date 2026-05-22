@@ -1,21 +1,30 @@
-# FE — Criteria clone & xóa/sửa độc lập
+# FE — Criteria clone (Track ↔ Chung kết)
 
-## Nghiệp vụ
+## Ma trận nghiệp vụ
 
-- Clone = **sao chép** sang track/round khác; **không** gắn `source_criteria_id` → xóa/sửa từng dòng trên bảng đích tự do.
-- Chuỗi: Bảng 1 → clone → Bảng 2 → clone → Bảng 3: mỗi bước chỉ đọc `criteria` **trên track nguồn** (`track_id` nguồn).
+| Nguồn → Đích | Cho phép? | API |
+|--------------|-----------|-----|
+| **Track → Track** (cùng vòng Sơ loại/Bán kết) | Có | `POST /api/v1/tracks/{trackĐích}/criteria/clone` + `sourceTrackId` |
+| **Chung kết → Chung kết** (cùng hoặc **khác** hackathon) | Có | `POST /api/v1/rounds/{finalRoundId}/criteria/clone` + `sourceRoundId` |
+| **Track → Chung kết** | **Không** | `422` `CRITERIA_CLONE_CROSS_SCOPE` |
+| **Chung kết → Track** | **Không** | `422` `CRITERIA_CLONE_CROSS_SCOPE` |
 
-## Dropdown nguồn clone (Track)
+Clone = **sao chép** (không gắn `source_criteria_id`) → xóa/sửa từng dòng độc lập trên đích.
+
+---
+
+## Track → Track
+
+### Dropdown nguồn
 
 ```http
 GET /api/v1/tracks/{targetTrackId}/criteria/clone-sources
 ```
 
-- `targetTrackId` = bảng **đích** (vd. Bảng 3).
-- Trả về mọi track **khác** trong **cùng round** có `criteriaCount > 0` (gồm Bảng 2 dù từng clone từ Bảng 1).
-- **Không** lọc theo `sourceCriteriaId`.
+- `targetTrackId` = bảng **đích** (vd. Track 3).
+- Trả về track **khác** trong **cùng round** có `criteriaCount > 0`.
 
-## Thực hiện clone
+### Clone
 
 ```http
 POST /api/v1/tracks/{targetTrackId}/criteria/clone
@@ -30,33 +39,56 @@ POST /api/v1/tracks/{targetTrackId}/criteria/clone
 
 | Field | Ghi chú |
 |--------|---------|
-| `sourceTrackId` | Bắt buộc; khác `targetTrackId`; cùng round |
-| `replaceExisting` | **Nên `true`** khi bảng đích đã có criteria (nếu không → 422 `CRITERIA_TARGET_HAS_EXISTING`) |
+| `sourceTrackId` | Bắt buộc; **không** gửi `sourceRoundId` |
+| `replaceExisting` | `true` nếu đích đã có criteria |
+
+**Lỗi thường gặp:** gọi `POST .../tracks/6/criteria/clone` trong khi `6` là **roundId** Chung kết → dùng API round bên dưới.
+
+---
+
+## Chung kết → Chung kết
+
+```http
+POST /api/v1/rounds/{finalRoundId}/criteria/clone
+```
+
+```json
+{
+  "sourceRoundId": 2,
+  "replaceExisting": true
+}
+```
+
+| Field | Ghi chú |
+|--------|---------|
+| `sourceRoundId` | Round **Chung kết** nguồn (`is_final=true`); **không** gửi `sourceTrackId` |
+| Hackathon | **Được** khác hackathon (kỳ trước → kỳ mới) |
+
+Nguồn phải có criteria gắn `round_id` (criteria Chung kết), không phải criteria trên Track Sơ loại.
+
+Kiểm tra trước clone: `GET /api/v1/rounds/{sourceRoundId}/criteria` → `items.length > 0`.
+
+---
 
 ## Xóa / sửa
 
 | Hành động | Chặn khi |
 |-----------|----------|
-| DELETE / PUT `/api/v1/criteria/{id}` | Đã có **scores** (`CRITERIA_HAS_SCORES`) |
-| DELETE | **Không** chặn vì track khác đã clone (dữ liệu độc lập) |
+| DELETE / PUT `/api/v1/criteria/{id}` | Đã có **scores** |
 
-## Lỗi thường gặp
+---
+
+## Mã lỗi
 
 | Code | Ý nghĩa |
 |------|---------|
-| `CRITERIA_TARGET_HAS_EXISTING` | Clone khi bảng đích đã có tiêu chí mà không `replaceExisting: true` |
-| `CRITERIA_CLONE_SOURCE_EMPTY` | Nguồn trống / trùng đích / khác round |
-| `CRITERIA_HAS_SCORES` | Đã chấm điểm — không xóa/sửa |
-| `DB_INTEGRITY_VIOLATION` | Dữ liệu cũ còn `source_criteria_id` — **restart BE** (chạy migration gỡ FK) |
+| `CRITERIA_CLONE_CROSS_SCOPE` | Track↔Chung kết, sai API, hoặc track khác vòng |
+| `CRITERIA_CLONE_SOURCE_EMPTY` | Thiếu nguồn / round CK nguồn trống criteria |
+| `CRITERIA_TARGET_HAS_EXISTING` | Đích đã có criteria, thiếu `replaceExisting: true` |
+| `CRITERIA_HAS_SCORES` | Đã chấm điểm |
+
+---
 
 ## Dev seed (`profile=dev`)
 
-Sau restart, hackathon `seal-spring-2026` có:
-
-- **Track 1 / 2** — đủ 5 criteria (độc lập, không `sourceCriteriaId`).
-- **Track 3** — *Track 3 — EV & Integration*, **chưa có criteria** → test `GET .../tracks/{track3Id}/criteria/clone-sources` (thấy Track 2) rồi `POST .../clone` với `sourceTrackId` = track 2.
-
-## Round Chung kết
-
-- Clone: `POST /api/v1/rounds/{finalRoundId}/criteria/clone` + `sourceRoundId` (khác round đích).
-- Chưa có `GET .../clone-sources` cho round — FE có thể list round FINAL khác qua API hackathon/rounds rồi `GET .../rounds/{id}/criteria` kiểm tra `items.length > 0`.
+Hackathon `seal-spring-2026`: Track 1/2 có criteria; Track 3 trống → test clone Track 2 → 3.

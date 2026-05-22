@@ -62,6 +62,7 @@ public final class ErrorCode {
     public static final String CRITERIA_HAS_CLONE_DEPENDENTS = "CRITERIA_HAS_CLONE_DEPENDENTS";
     public static final String CRITERIA_WEIGHT_RANGE    = "CRITERIA_WEIGHT_RANGE";
     public static final String CRITERIA_CLONE_SOURCE_EMPTY = "CRITERIA_CLONE_SOURCE_EMPTY";
+    public static final String CRITERIA_CLONE_CROSS_SCOPE = "CRITERIA_CLONE_CROSS_SCOPE";
     public static final String CRITERIA_TARGET_HAS_EXISTING = "CRITERIA_TARGET_HAS_EXISTING";
 
     // ---------- FR-06B ROUND ACTIVATE ----------
