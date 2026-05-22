@@ -18,6 +18,42 @@ public interface CriteriaRepository extends JpaRepository<Criteria, Integer> {
 
     long countByTrackId(Integer trackId);
 
+    /**
+     * Gỡ {@code source_criteria_id} giữa track/round khác nhau (clone độc lập — dùng repair seed dev).
+     */
+    @Modifying
+    @Transactional
+    @Query(value = """
+            UPDATE criteria c
+            INNER JOIN criteria src ON c.source_criteria_id = src.id
+               SET c.source_criteria_id = NULL
+             WHERE (c.track_id IS NOT NULL AND src.track_id IS NOT NULL AND c.track_id <> src.track_id)
+                OR (c.round_id IS NOT NULL AND src.round_id IS NOT NULL AND c.round_id <> src.round_id)
+                OR (c.track_id IS NOT NULL AND src.track_id IS NULL)
+                OR (c.track_id IS NULL AND src.track_id IS NOT NULL)
+                OR (c.round_id IS NOT NULL AND src.round_id IS NULL)
+                OR (c.round_id IS NULL AND src.round_id IS NOT NULL)
+            """, nativeQuery = true)
+    int unlinkCrossScopeSourceCriteria();
+
+    /** Trước DELETE — gỡ tham chiếu con (dữ liệu legacy còn {@code source_criteria_id}). */
+    @Modifying
+    @Query("UPDATE Criteria c SET c.sourceCriteria = null WHERE c.sourceCriteria.id = :id")
+    int clearSourceReferencing(@Param("id") Integer id);
+
+    /** Legacy: còn {@code source_criteria_id} trỏ sang track/round khác (sau migrate thường = 0). */
+    @Query("""
+            SELECT COUNT(c)
+              FROM Criteria c
+              JOIN c.sourceCriteria src
+             WHERE c.track.id = :trackId
+               AND (
+                    (src.track IS NOT NULL AND src.track.id <> :trackId)
+                 OR (src.round IS NOT NULL)
+               )
+            """)
+    long countLegacyCrossScopeSourceByTrackId(@Param("trackId") Integer trackId);
+
     @Query("""
             SELECT SUM(c.weight)
               FROM Criteria c

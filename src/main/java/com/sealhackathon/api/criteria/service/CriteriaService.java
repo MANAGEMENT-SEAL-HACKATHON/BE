@@ -7,6 +7,7 @@ import com.sealhackathon.api.criteria.dto.request.CreateCriterionRequest;
 import com.sealhackathon.api.criteria.dto.request.UpdateCriterionRequest;
 import com.sealhackathon.api.criteria.dto.response.BatchCreateResponse;
 import com.sealhackathon.api.criteria.dto.response.CloneResponse;
+import com.sealhackathon.api.criteria.dto.response.CriteriaCloneSourcesResponse;
 import com.sealhackathon.api.criteria.dto.response.CriteriaListResponse;
 import com.sealhackathon.api.criteria.dto.response.CriterionResponse;
 
@@ -46,6 +47,8 @@ public interface CriteriaService {
     UpdateResult update(Integer id, UpdateCriterionRequest req);
 
     Integer delete(Integer id);
+
+    CriteriaCloneSourcesResponse listCloneSourcesForTrack(Integer targetTrackId);
 
     CloneResponse cloneFromSourceForTrack(Integer trackId, CloneCriteriaRequest req);
 

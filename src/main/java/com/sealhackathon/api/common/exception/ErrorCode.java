@@ -59,8 +59,10 @@ public final class ErrorCode {
 
     // ---------- FR-04 CRITERIA ----------
     public static final String CRITERIA_HAS_SCORES      = "CRITERIA_HAS_SCORES";
+    public static final String CRITERIA_HAS_CLONE_DEPENDENTS = "CRITERIA_HAS_CLONE_DEPENDENTS";
     public static final String CRITERIA_WEIGHT_RANGE    = "CRITERIA_WEIGHT_RANGE";
     public static final String CRITERIA_CLONE_SOURCE_EMPTY = "CRITERIA_CLONE_SOURCE_EMPTY";
+    public static final String CRITERIA_TARGET_HAS_EXISTING = "CRITERIA_TARGET_HAS_EXISTING";
 
     // ---------- FR-06B ROUND ACTIVATE ----------
     public static final String ROUND_NO_CRITERIA        = "ROUND_NO_CRITERIA";

@@ -12,6 +12,7 @@ import com.sealhackathon.api.criteria.dto.request.CreateCriterionRequest;
 import com.sealhackathon.api.criteria.dto.request.UpdateCriterionRequest;
 import com.sealhackathon.api.criteria.dto.response.BatchCreateResponse;
 import com.sealhackathon.api.criteria.dto.response.CloneResponse;
+import com.sealhackathon.api.criteria.dto.response.CriteriaCloneSourcesResponse;
 import com.sealhackathon.api.criteria.dto.response.CriteriaListResponse;
 import com.sealhackathon.api.criteria.dto.response.CriterionResponse;
 import com.sealhackathon.api.criteria.dto.response.WeightSummaryResponse;
@@ -81,6 +82,15 @@ public class CriteriaController {
             @PathVariable Integer trackId
     ) {
         return ResponseEntity.ok(ApiResponse.ok(weightSummaryService.summaryForTrack(trackId)));
+    }
+
+    @GetMapping("/api/v1/tracks/{trackId}/criteria/clone-sources")
+    @Operation(summary = "Danh sách track có criteria để clone",
+            description = "Các track khác trong cùng round có ≥1 criterion (kể cả criterion clone từ track khác). "
+                    + "Dùng cho dropdown chọn nguồn khi POST .../criteria/clone.")
+    public ResponseEntity<ApiResponse<CriteriaCloneSourcesResponse>> listCloneSourcesForTrack(
+            @PathVariable Integer trackId) {
+        return ResponseEntity.ok(ApiResponse.ok(criteriaService.listCloneSourcesForTrack(trackId)));
     }
 
     @PostMapping("/api/v1/tracks/{trackId}/criteria/clone")

@@ -87,6 +87,35 @@ public class Gd1DataSeeder {
         }
     }
 
+    /**
+     * Repair criteria/track sau đổi clone (không FK chéo track) và bổ sung Track 3 demo trên ONGOING.
+     */
+    @Transactional
+    public void repairSeededCriteriaAndTracks() {
+        int unlinked = criteriaRepository.unlinkCrossScopeSourceCriteria();
+        if (unlinked > 0) {
+            log.info("[Gd1DataSeeder] Đã gỡ source_criteria_id chéo track/round cho {} criterion", unlinked);
+        }
+        int criteriaFilled = 0;
+        int track3Added = 0;
+        for (String slug : List.of(Gd1SeedConstants.SLUG_READY, Gd1SeedConstants.SLUG_ONGOING)) {
+            Optional<Hackathon> hackathon = hackathonRepository.findBySlug(slug);
+            if (hackathon.isEmpty()) {
+                continue;
+            }
+            criteriaFilled += ensureTrackCriteriaForHackathon(hackathon.get());
+            if (Gd1SeedConstants.SLUG_ONGOING.equals(slug)) {
+                track3Added += ensureCloneDemoTrack3(hackathon.get());
+            }
+        }
+        if (criteriaFilled > 0) {
+            log.info("[Gd1DataSeeder] Đã bổ sung criteria thiếu cho {} track", criteriaFilled);
+        }
+        if (track3Added > 0) {
+            log.info("[Gd1DataSeeder] Đã thêm Track 3 (clone demo) trên {}", Gd1SeedConstants.SLUG_ONGOING);
+        }
+    }
+
     @Transactional
     public SeedSummary seedAll() {
         SeedDates dates = computeDates();
@@ -100,12 +129,14 @@ public class Gd1DataSeeder {
                 "SEAL GĐ1 Ready (DRAFT)",
                 HackathonStatus.DRAFT,
                 false,
+                false,
                 users,
                 dates);
         FullHackathonSeed ongoing = seedFullHackathon(
                 Gd1SeedConstants.SLUG_ONGOING,
                 "SEAL Spring 2026",
                 HackathonStatus.ONGOING,
+                true,
                 true,
                 users,
                 dates);
@@ -282,10 +313,15 @@ public class Gd1DataSeeder {
     }
 
     private FullHackathonSeed seedFullHackathon(String slug, String name, HackathonStatus status,
-                                                boolean prelimActive, SeedUsers users, SeedDates dates) {
+                                                boolean prelimActive, boolean includeCloneDemoTrack3,
+                                                SeedUsers users, SeedDates dates) {
         if (hackathonRepository.existsBySlug(slug)) {
             Hackathon existing = hackathonRepository.findBySlug(slug).orElseThrow();
             repairRoundsForHackathon(existing, dates);
+            ensureTrackCriteriaForHackathon(existing);
+            if (includeCloneDemoTrack3) {
+                ensureCloneDemoTrack3(existing);
+            }
             log.info("[Gd1DataSeeder] Hackathon '{}' đã tồn tại (id={})", slug, existing.getId());
             return FullHackathonSeed.existing(existing);
         }
@@ -364,6 +400,21 @@ public class Gd1DataSeeder {
 
         seedTrackCriteria(track1);
         seedTrackCriteria(track2);
+        Track track3 = null;
+        if (includeCloneDemoTrack3) {
+            track3 = trackRepository.save(Track.builder()
+                    .round(prelim)
+                    .name(Gd1SeedConstants.TRACK3_CLONE_DEMO_NAME)
+                    .description("Bảng trống criteria — test POST clone từ Track 2")
+                    .topic("EV Charging & Integration")
+                    .maxTeams(8)
+                    .maxTeamsPerGroup(8)
+                    .minTeamSize(3)
+                    .maxTeamSize(5)
+                    .sequenceOrder(3)
+                    .status(TrackStatus.OPEN)
+                    .build());
+        }
         seedFinalCriteria(finalRound);
 
         User coord = users.coordinator();
@@ -388,7 +439,7 @@ public class Gd1DataSeeder {
 
         seedEvents(hackathon, coord, dates);
 
-        return new FullHackathonSeed(hackathon, prelim, finalRound, track1, track2);
+        return new FullHackathonSeed(hackathon, prelim, finalRound, track1, track2, track3);
     }
 
     private void saveJudgeAssignment(User judge, Track track, User assignedBy, LocalDateTime assignedAt) {
@@ -413,6 +464,7 @@ public class Gd1DataSeeder {
             criteriaRepository.save(Criteria.builder()
                     .track(track)
                     .round(null)
+                    .sourceCriteria(null)
                     .name(row.name())
                     .type(row.type())
                     .weight(row.weight())
@@ -433,6 +485,7 @@ public class Gd1DataSeeder {
             criteriaRepository.save(Criteria.builder()
                     .track(null)
                     .round(finalRound)
+                    .sourceCriteria(null)
                     .name(row.name())
                     .type(row.type())
                     .weight(row.weight())
@@ -471,6 +524,61 @@ public class Gd1DataSeeder {
                 .isPublic(true)
                 .createdBy(createdBy)
                 .build();
+    }
+
+    private int ensureTrackCriteriaForHackathon(Hackathon hackathon) {
+        int filled = 0;
+        for (Round round : roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathon.getId())) {
+            if (Boolean.TRUE.equals(round.getIsFinal())) {
+                if (criteriaRepository.countNormalByFinalRoundId(round.getId()) == 0) {
+                    seedFinalCriteria(round);
+                    filled++;
+                }
+                continue;
+            }
+            for (Track track : trackRepository.findByRoundIdOrderBySequenceOrderAsc(round.getId())) {
+                if (criteriaRepository.countByTrackId(track.getId()) == 0) {
+                    seedTrackCriteria(track);
+                    filled++;
+                }
+            }
+        }
+        return filled;
+    }
+
+    /**
+     * Track 3 không criteria — test {@code GET clone-sources} + {@code POST clone} từ Track 2.
+     */
+    private int ensureCloneDemoTrack3(Hackathon hackathon) {
+        Round prelim = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathon.getId()).stream()
+                .filter(r -> !Boolean.TRUE.equals(r.getIsFinal()))
+                .findFirst()
+                .orElse(null);
+        if (prelim == null) {
+            return 0;
+        }
+        boolean hasTrack3 = trackRepository.findByRoundIdOrderBySequenceOrderAsc(prelim.getId()).stream()
+                .anyMatch(t -> Gd1SeedConstants.TRACK3_CLONE_DEMO_NAME.equals(t.getName()));
+        if (hasTrack3) {
+            return 0;
+        }
+        int nextOrder = trackRepository.findByRoundIdOrderBySequenceOrderAsc(prelim.getId()).stream()
+                .mapToInt(Track::getSequenceOrder)
+                .max()
+                .orElse(0) + 1;
+        trackRepository.save(Track.builder()
+                .round(prelim)
+                .name(Gd1SeedConstants.TRACK3_CLONE_DEMO_NAME)
+                .description("Bảng trống criteria — test POST clone từ Track 2")
+                .topic("EV Charging & Integration")
+                .maxTeams(8)
+                .maxTeamsPerGroup(8)
+                .minTeamSize(3)
+                .maxTeamSize(5)
+                .sequenceOrder(nextOrder)
+                .status(TrackStatus.OPEN)
+                .build());
+        return 1;
     }
 
     private int repairRoundsForHackathon(Hackathon hackathon, SeedDates dates) {
@@ -523,7 +631,8 @@ public class Gd1DataSeeder {
                     - {} (id={}) DRAFT — readiness PASS → PATCH ONGOING
                     - {} (id={}) ONGOING — prelim id={} active={} examAt={}
                     - final examAt={}
-                  Tracks (ready): id={} / id={}
+                  Tracks ready: t1={} t2={}
+                  Track 3 clone demo (ongoing): id={}
                   Users: judge1={}, guest={}, mentor={}, pending={}
                 """,
                 coord.getId(), coord.getEmail(),
@@ -538,8 +647,9 @@ public class Gd1DataSeeder {
                         ? summary.ongoing().prelimRound().getExamAt() : "n/a",
                 summary.ongoing().finalRound() != null
                         ? summary.ongoing().finalRound().getExamAt() : "n/a",
-                summary.ready().track1().getId(),
-                summary.ready().track2().getId(),
+                summary.ready().track1() != null ? summary.ready().track1().getId() : "n/a",
+                summary.ready().track2() != null ? summary.ready().track2().getId() : "n/a",
+                summary.ongoing().track3() != null ? summary.ongoing().track3().getId() : "n/a",
                 summary.users().judge1().getId(),
                 summary.users().guestJudge().getId(),
                 summary.users().mentor().getId(),
@@ -595,10 +705,11 @@ public class Gd1DataSeeder {
             Round prelimRound,
             Round finalRound,
             Track track1,
-            Track track2) {
+            Track track2,
+            Track track3) {
 
         static FullHackathonSeed existing(Hackathon hackathon) {
-            return new FullHackathonSeed(hackathon, null, null, null, null);
+            return new FullHackathonSeed(hackathon, null, null, null, null, null);
         }
     }
 

@@ -42,7 +42,7 @@ public class Criteria {
     private Round round;
 
     /**
-     * Kế thừa criteria từ kỳ trước. FK tự tham chiếu.
+     * Tùy chọn — tham chiếu criterion gốc (cùng track/round). Clone từ track/round khác không set field này.
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "source_criteria_id")

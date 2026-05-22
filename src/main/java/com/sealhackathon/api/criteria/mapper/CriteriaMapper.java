@@ -48,11 +48,14 @@ public class CriteriaMapper {
         throw new IllegalArgumentException("Round Sơ loại: dùng toEntityForTrack");
     }
 
+    /**
+     * Sao chép nội dung sang track đích — không gắn {@code source_criteria_id} để từng dòng xóa/sửa độc lập.
+     */
     public Criteria toCloneForTrack(Criteria source, Track targetTrack) {
         return Criteria.builder()
                 .track(targetTrack)
                 .round(null)
-                .sourceCriteria(source)
+                .sourceCriteria(null)
                 .name(source.getName())
                 .type(source.getType())
                 .weight(source.getWeight())
@@ -67,7 +70,7 @@ public class CriteriaMapper {
         return Criteria.builder()
                 .track(null)
                 .round(targetRound)
-                .sourceCriteria(source)
+                .sourceCriteria(null)
                 .name(source.getName())
                 .type(source.getType())
                 .weight(source.getWeight())
