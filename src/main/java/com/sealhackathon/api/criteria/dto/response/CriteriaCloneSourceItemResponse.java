@@ -16,6 +16,8 @@ public class CriteriaCloneSourceItemResponse {
 
     private final Integer trackId;
     private final String trackName;
+    private final Integer hackathonId;
+    private final String hackathonName;
     private final Integer roundId;
     private final long criteriaCount;
     /** (legacy) true nếu còn {@code sourceCriteriaId} trỏ criterion track khác — sau migrate thường false. */

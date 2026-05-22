@@ -53,4 +53,16 @@ public interface TrackRepository extends JpaRepository<Track, Integer> {
              WHERE t.round.hackathon.id = :hackathonId
             """)
     boolean existsByHackathonId(@Param("hackathonId") Integer hackathonId);
+
+    /** Track có ≥1 criterion — dùng dropdown clone (mọi hackathon, trừ track đích). */
+    @Query("""
+            SELECT t FROM Track t
+             WHERE t.id <> :excludeTrackId
+               AND t.status <> com.sealhackathon.api.tracks.value_object.TrackStatus.CANCELLED
+               AND EXISTS (
+                    SELECT 1 FROM Criteria c WHERE c.track.id = t.id
+               )
+             ORDER BY t.round.hackathon.id, t.round.id, t.sequenceOrder
+            """)
+    List<Track> findWithCriteriaExcludingTrack(@Param("excludeTrackId") Integer excludeTrackId);
 }

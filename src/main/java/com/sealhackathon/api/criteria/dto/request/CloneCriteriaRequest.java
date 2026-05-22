@@ -22,8 +22,8 @@ public class CloneCriteriaRequest {
     private Integer sourceTrackId;
 
     /**
-     * Nếu TRUE: xóa toàn bộ Criteria hiện tại của Round đích trước khi clone (block nếu có scores).
-     * Mặc định FALSE — chỉ append vào danh sách hiện tại.
+     * {@code false} / không gửi (mặc định): <b>cộng dồn</b> — giữ criteria đích, thêm bản sao nguồn (displayOrder nối tiếp).
+     * {@code true}: <b>thay thế</b> — xóa hết criteria đích trước khi clone (chặn nếu đích đã có scores).
      */
     private Boolean replaceExisting;
 }

@@ -51,7 +51,7 @@ public class CriteriaMapper {
     /**
      * Sao chép nội dung sang track đích — không gắn {@code source_criteria_id} để từng dòng xóa/sửa độc lập.
      */
-    public Criteria toCloneForTrack(Criteria source, Track targetTrack) {
+    public Criteria toCloneForTrack(Criteria source, Track targetTrack, int displayOrder) {
         return Criteria.builder()
                 .track(targetTrack)
                 .round(null)
@@ -62,11 +62,11 @@ public class CriteriaMapper {
                 .maxScore(source.getMaxScore())
                 .description(source.getDescription())
                 .rubricUrl(source.getRubricUrl())
-                .displayOrder(source.getDisplayOrder())
+                .displayOrder(displayOrder)
                 .build();
     }
 
-    public Criteria toCloneForFinalRound(Criteria source, Round targetRound) {
+    public Criteria toCloneForFinalRound(Criteria source, Round targetRound, int displayOrder) {
         return Criteria.builder()
                 .track(null)
                 .round(targetRound)
@@ -77,7 +77,7 @@ public class CriteriaMapper {
                 .maxScore(source.getMaxScore())
                 .description(source.getDescription())
                 .rubricUrl(source.getRubricUrl())
-                .displayOrder(source.getDisplayOrder())
+                .displayOrder(displayOrder)
                 .build();
     }
 

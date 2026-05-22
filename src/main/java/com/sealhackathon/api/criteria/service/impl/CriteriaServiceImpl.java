@@ -27,7 +27,6 @@ import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.scores.repository.ScorePlaceholderRepository;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
-import com.sealhackathon.api.tracks.value_object.TrackStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,7 +35,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -197,25 +195,18 @@ public class CriteriaServiceImpl implements CriteriaService {
                 .orElseThrow(() -> new ResourceNotFoundException("Track", targetTrackId));
         Integer roundId = target.getRound().getId();
         List<CriteriaCloneSourceItemResponse> sources = trackRepository
-                .findByRoundIdOrderBySequenceOrderAsc(roundId)
+                .findWithCriteriaExcludingTrack(targetTrackId)
                 .stream()
-                .filter(t -> t.getStatus() != TrackStatus.CANCELLED)
-                .filter(t -> !t.getId().equals(targetTrackId))
-                .map(t -> {
-                    long count = criteriaRepository.countByTrackId(t.getId());
-                    if (count == 0) {
-                        return null;
-                    }
-                    return CriteriaCloneSourceItemResponse.builder()
-                            .trackId(t.getId())
-                            .trackName(t.getName())
-                            .roundId(roundId)
-                            .criteriaCount(count)
-                            .clonedFromAnotherTrack(
-                                    criteriaRepository.countLegacyCrossScopeSourceByTrackId(t.getId()) > 0)
-                            .build();
-                })
-                .filter(Objects::nonNull)
+                .map(t -> CriteriaCloneSourceItemResponse.builder()
+                        .trackId(t.getId())
+                        .trackName(t.getName())
+                        .hackathonId(t.getRound().getHackathon().getId())
+                        .hackathonName(t.getRound().getHackathon().getName())
+                        .roundId(t.getRound().getId())
+                        .criteriaCount(criteriaRepository.countByTrackId(t.getId()))
+                        .clonedFromAnotherTrack(
+                                criteriaRepository.countLegacyCrossScopeSourceByTrackId(t.getId()) > 0)
+                        .build())
                 .toList();
         return CriteriaCloneSourcesResponse.builder()
                 .targetTrackId(targetTrackId)
@@ -243,24 +234,18 @@ public class CriteriaServiceImpl implements CriteriaService {
         Track sourceTrack = trackRepository.findById(req.getSourceTrackId())
                 .orElseThrow(() -> new ResourceNotFoundException("Track", req.getSourceTrackId()));
         assertTrackScopeRound(sourceTrack.getRound(), req.getSourceTrackId(), "sourceTrackId");
-        if (!sourceTrack.getRound().getId().equals(target.getRound().getId())) {
-            throw new BusinessRuleException(ErrorCode.CRITERIA_CLONE_CROSS_SCOPE,
-                    "Clone Track chỉ trong cùng vòng Sơ loại/Bán kết. Không clone Chung kết ↔ Track",
-                    Map.of("trackId", trackId, "sourceTrackId", req.getSourceTrackId(),
-                            "targetRoundId", target.getRound().getId(),
-                            "sourceRoundId", sourceTrack.getRound().getId()));
-        }
         List<Criteria> sources = criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(req.getSourceTrackId());
         if (sources.isEmpty()) {
             throw new BusinessRuleException(ErrorCode.CRITERIA_CLONE_SOURCE_EMPTY,
                     "Track nguồn không có Criteria", Map.of("sourceTrackId", req.getSourceTrackId()));
         }
-        guardTargetEmptyOrReplaceExisting(trackId, req);
         int deletedCount = replaceExistingForTrackIfRequested(trackId, req);
         List<Integer> createdIds = saveClonesForTrack(sources, target);
         auditService.log(AuditAction.CRITERIA_CLONE, "criteria", trackId, Map.of(
                 "targetTrackId", trackId,
+                "targetHackathonId", target.getRound().getHackathon().getId(),
                 "sourceTrackId", req.getSourceTrackId(),
+                "sourceHackathonId", sourceTrack.getRound().getHackathon().getId(),
                 "replaceExisting", Boolean.TRUE.equals(req.getReplaceExisting()),
                 "deletedCount", deletedCount,
                 "clonedCount", createdIds.size()));
@@ -299,13 +284,8 @@ public class CriteriaServiceImpl implements CriteriaService {
                     "Round Chung kết nguồn không có criteria (round_id, track_id=null)",
                     Map.of("sourceRoundId", req.getSourceRoundId()));
         }
-        guardFinalTargetEmptyOrReplaceExisting(finalRoundId, req);
         int deletedCount = replaceExistingForFinalRoundIfRequested(finalRoundId, req);
-        List<Integer> createdIds = new ArrayList<>();
-        for (Criteria src : sources) {
-            Criteria saved = criteriaRepository.save(criteriaMapper.toCloneForFinalRound(src, target));
-            createdIds.add(saved.getId());
-        }
+        List<Integer> createdIds = saveClonesForFinalRound(sources, target);
         auditService.log(AuditAction.CRITERIA_CLONE, "criteria", finalRoundId, Map.of(
                 "targetRoundId", finalRoundId,
                 "sourceRoundId", req.getSourceRoundId(),
@@ -367,12 +347,39 @@ public class CriteriaServiceImpl implements CriteriaService {
     }
 
     private List<Integer> saveClonesForTrack(List<Criteria> sources, Track target) {
+        int displayOrder = nextDisplayOrderForTrack(target.getId());
         List<Integer> createdIds = new ArrayList<>();
         for (Criteria src : sources) {
-            Criteria saved = criteriaRepository.save(criteriaMapper.toCloneForTrack(src, target));
+            Criteria saved = criteriaRepository.save(
+                    criteriaMapper.toCloneForTrack(src, target, displayOrder++));
             createdIds.add(saved.getId());
         }
         return createdIds;
+    }
+
+    private List<Integer> saveClonesForFinalRound(List<Criteria> sources, Round targetRound) {
+        int displayOrder = nextDisplayOrderForFinalRound(targetRound.getId());
+        List<Integer> createdIds = new ArrayList<>();
+        for (Criteria src : sources) {
+            Criteria saved = criteriaRepository.save(
+                    criteriaMapper.toCloneForFinalRound(src, targetRound, displayOrder++));
+            createdIds.add(saved.getId());
+        }
+        return createdIds;
+    }
+
+    private int nextDisplayOrderForTrack(Integer trackId) {
+        return criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(trackId).stream()
+                .mapToInt(c -> c.getDisplayOrder() == null ? 0 : c.getDisplayOrder())
+                .max()
+                .orElse(-1) + 1;
+    }
+
+    private int nextDisplayOrderForFinalRound(Integer finalRoundId) {
+        return criteriaRepository.findByFinalRoundIdOrderByDisplayOrderAsc(finalRoundId).stream()
+                .mapToInt(c -> c.getDisplayOrder() == null ? 0 : c.getDisplayOrder())
+                .max()
+                .orElse(-1) + 1;
     }
 
     /**
@@ -395,28 +402,6 @@ public class CriteriaServiceImpl implements CriteriaService {
             criteriaRepository.delete(c);
         }
         return existing.size();
-    }
-
-    private void guardTargetEmptyOrReplaceExisting(Integer trackId, CloneCriteriaRequest req) {
-        if (Boolean.TRUE.equals(req.getReplaceExisting())) {
-            return;
-        }
-        if (criteriaRepository.countByTrackId(trackId) > 0) {
-            throw new BusinessRuleException(ErrorCode.CRITERIA_TARGET_HAS_EXISTING,
-                    "Track đích đã có criteria — đặt replaceExisting=true hoặc xóa thủ công trước khi clone",
-                    Map.of("trackId", trackId));
-        }
-    }
-
-    private void guardFinalTargetEmptyOrReplaceExisting(Integer finalRoundId, CloneCriteriaRequest req) {
-        if (Boolean.TRUE.equals(req.getReplaceExisting())) {
-            return;
-        }
-        if (!criteriaRepository.findByFinalRoundIdOrderByDisplayOrderAsc(finalRoundId).isEmpty()) {
-            throw new BusinessRuleException(ErrorCode.CRITERIA_TARGET_HAS_EXISTING,
-                    "Round đích đã có criteria — đặt replaceExisting=true hoặc xóa thủ công trước khi clone",
-                    Map.of("roundId", finalRoundId));
-        }
     }
 
     private int replaceExistingForFinalRoundIfRequested(Integer finalRoundId, CloneCriteriaRequest req) {
