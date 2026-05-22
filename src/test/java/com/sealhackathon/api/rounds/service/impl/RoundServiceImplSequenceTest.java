@@ -11,6 +11,7 @@ import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.notifications.service.NotificationService;
 import com.sealhackathon.api.rounds.dto.request.CreateRoundRequest;
+import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.mapper.RoundMapper;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.value_object.RoundType;
@@ -23,11 +24,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,14 +49,18 @@ class RoundServiceImplSequenceTest {
     private RoundServiceImpl roundService;
 
     @Test
-    void blocksFinalRoundWithSequenceNotAfterPreliminary() {
+    void blocksFinalRoundWhenExamNotAfterPreliminary() {
         Hackathon h = Hackathon.builder().id(1).status(HackathonStatus.DRAFT).build();
+        LocalDateTime prelimExam = LocalDateTime.now().plusDays(20);
         when(hackathonRepository.findById(1)).thenReturn(Optional.of(h));
-        when(roundRepository.maxSequenceOrderNonFinal(1)).thenReturn(1);
+        when(roundRepository.findPreliminaryLikeByHackathonId(1))
+                .thenReturn(List.of(Round.builder().id(10).build()));
+        when(roundRepository.countByHackathon_IdAndIsFinalTrue(1)).thenReturn(0L);
+        when(roundRepository.maxExamAtNonFinal(1)).thenReturn(Optional.of(prelimExam));
 
         CreateRoundRequest req = CreateRoundRequest.builder()
                 .name("Chung kết")
-                .sequenceOrder(1)
+                .examAt(prelimExam.minusDays(1))
                 .isFinal(true)
                 .roundType(RoundType.FINAL)
                 .submissionDeadline(LocalDateTime.now().plusDays(30))
@@ -63,6 +68,6 @@ class RoundServiceImplSequenceTest {
 
         BusinessRuleException ex = assertThrows(BusinessRuleException.class,
                 () -> roundService.createByHackathon(1, req));
-        assertEquals(ErrorCode.ROUND_FINAL_SEQUENCE_ORDER, ex.getCode());
+        assertEquals(ErrorCode.ROUND_FINAL_EXAM_ORDER, ex.getCode());
     }
 }

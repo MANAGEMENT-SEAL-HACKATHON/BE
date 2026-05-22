@@ -138,7 +138,7 @@ Content-Type: application/json
 ```json
 {
   "name": "Vòng Sơ loại",
-  "sequenceOrder": 1,
+  "examAt": "2026-06-10T08:00:00",
   "isFinal": false,
   "roundType": "PRELIMINARY",
   "submissionOpen": "2026-06-02T06:00:00",
@@ -159,7 +159,7 @@ Content-Type: application/json
 ```json
 {
   "name": "Vòng Chung kết",
-  "sequenceOrder": 2,
+  "examAt": "2026-07-05T08:00:00",
   "isFinal": true,
   "roundType": "FINAL",
   "submissionDeadline": "2026-07-12T23:59:59",

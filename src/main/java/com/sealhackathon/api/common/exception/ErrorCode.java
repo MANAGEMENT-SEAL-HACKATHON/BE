@@ -44,7 +44,14 @@ public final class ErrorCode {
 
     // ---------- FR-03 ROUND ----------
     public static final String ROUND_DEADLINE_INVALID   = "ROUND_DEADLINE_INVALID";
-    public static final String ROUND_FINAL_SEQUENCE_ORDER = "ROUND_FINAL_SEQUENCE_ORDER";
+    /** @deprecated dùng {@link #ROUND_FINAL_EXAM_ORDER} */
+    @Deprecated
+    public static final String ROUND_FINAL_SEQUENCE_ORDER = "ROUND_FINAL_EXAM_ORDER";
+    public static final String ROUND_FINAL_EXAM_ORDER     = "ROUND_FINAL_EXAM_ORDER";
+    public static final String ROUND_PRELIM_EXAM_ORDER    = "ROUND_PRELIM_EXAM_ORDER";
+    public static final String ROUND_DUPLICATE_FINAL      = "ROUND_DUPLICATE_FINAL";
+    public static final String ROUND_FINAL_REQUIRES_PRELIM = "ROUND_FINAL_REQUIRES_PRELIM";
+    public static final String ROUND_EXAM_BEFORE_SUBMISSION_OPEN = "ROUND_EXAM_BEFORE_SUBMISSION_OPEN";
     public static final String ROUND_HAS_CRITERIA       = "ROUND_HAS_CRITERIA";
     public static final String ROUND_FORCE_LOCK_REASON  = "ROUND_FORCE_LOCK_REASON";
     public static final String ROUND_HAS_SUBMISSIONS    = "ROUND_HAS_SUBMISSIONS";

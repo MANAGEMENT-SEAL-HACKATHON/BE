@@ -67,6 +67,26 @@ public class Gd1DataSeeder {
         return hackathonRepository.existsBySlug(Gd1SeedConstants.SLUG_ONGOING);
     }
 
+    /**
+     * Cập nhật round seed cũ (thiếu / sai {@code examAt}) sau khi bỏ {@code sequence_order}.
+     * Gọi mỗi lần start dev, idempotent.
+     */
+    @Transactional
+    public void repairSeededRoundsExamAt() {
+        SeedDates dates = computeDates();
+        int repaired = 0;
+        for (String slug : List.of(
+                Gd1SeedConstants.SLUG_READY,
+                Gd1SeedConstants.SLUG_ONGOING)) {
+            repaired += hackathonRepository.findBySlug(slug)
+                    .map(h -> repairRoundsForHackathon(h, dates))
+                    .orElse(0);
+        }
+        if (repaired > 0) {
+            log.info("[Gd1DataSeeder] Đã sửa examAt/submissionOpen cho {} round (seed cũ)", repaired);
+        }
+    }
+
     @Transactional
     public SeedSummary seedAll() {
         SeedDates dates = computeDates();
@@ -265,6 +285,7 @@ public class Gd1DataSeeder {
                                                 boolean prelimActive, SeedUsers users, SeedDates dates) {
         if (hackathonRepository.existsBySlug(slug)) {
             Hackathon existing = hackathonRepository.findBySlug(slug).orElseThrow();
+            repairRoundsForHackathon(existing, dates);
             log.info("[Gd1DataSeeder] Hackathon '{}' đã tồn tại (id={})", slug, existing.getId());
             return FullHackathonSeed.existing(existing);
         }
@@ -288,9 +309,10 @@ public class Gd1DataSeeder {
         Round prelim = roundRepository.save(Round.builder()
                 .hackathon(hackathon)
                 .name("Vòng Sơ loại")
-                .sequenceOrder(1)
+                .examAt(dates.prelimExamAt())
                 .isFinal(false)
                 .roundType(RoundType.PRELIMINARY)
+                .submissionOpen(dates.prelimSubmissionOpen())
                 .submissionDeadline(dates.prelimDeadline())
                 .codingDurationHours(7)
                 .lateSubmissionPolicy(LateSubmissionPolicy.ALLOW_LATE_PENDING)
@@ -304,7 +326,7 @@ public class Gd1DataSeeder {
         Round finalRound = roundRepository.save(Round.builder()
                 .hackathon(hackathon)
                 .name("Vòng Chung kết")
-                .sequenceOrder(2)
+                .examAt(dates.finalExamAt())
                 .isFinal(true)
                 .roundType(RoundType.FINAL)
                 .submissionDeadline(dates.finalDeadline())
@@ -451,6 +473,46 @@ public class Gd1DataSeeder {
                 .build();
     }
 
+    private int repairRoundsForHackathon(Hackathon hackathon, SeedDates dates) {
+        List<Round> rounds = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathon.getId());
+        if (rounds.isEmpty()) {
+            return 0;
+        }
+        Round finalRound = rounds.stream()
+                .filter(r -> Boolean.TRUE.equals(r.getIsFinal()))
+                .findFirst()
+                .orElse(null);
+        int count = 0;
+        for (Round round : rounds) {
+            boolean changed = false;
+            if (Boolean.TRUE.equals(round.getIsFinal())) {
+                if (round.getExamAt() == null || !round.getExamAt().equals(dates.finalExamAt())) {
+                    round.setExamAt(dates.finalExamAt());
+                    changed = true;
+                }
+            } else {
+                LocalDateTime targetExam = dates.prelimExamAt();
+                if (finalRound != null && finalRound.getExamAt() != null
+                        && !targetExam.isBefore(finalRound.getExamAt())) {
+                    targetExam = finalRound.getExamAt().minusHours(1);
+                }
+                if (round.getExamAt() == null || !round.getExamAt().equals(targetExam)) {
+                    round.setExamAt(targetExam);
+                    changed = true;
+                }
+                if (round.getSubmissionOpen() == null) {
+                    round.setSubmissionOpen(dates.prelimSubmissionOpen());
+                    changed = true;
+                }
+            }
+            if (changed) {
+                roundRepository.save(round);
+                count++;
+            }
+        }
+        return count;
+    }
+
     private void logSummary(SeedSummary summary) {
         User coord = summary.users().coordinator();
         log.info("""
@@ -459,7 +521,8 @@ public class Gd1DataSeeder {
                   Hackathons:
                     - {} (id={}) DRAFT — readiness FAIL
                     - {} (id={}) DRAFT — readiness PASS → PATCH ONGOING
-                    - {} (id={}) ONGOING — prelim round id={} isActive={}
+                    - {} (id={}) ONGOING — prelim id={} active={} examAt={}
+                    - final examAt={}
                   Tracks (ready): id={} / id={}
                   Users: judge1={}, guest={}, mentor={}, pending={}
                 """,
@@ -467,8 +530,14 @@ public class Gd1DataSeeder {
                 Gd1SeedConstants.SLUG_INCOMPLETE, summary.incomplete().getId(),
                 Gd1SeedConstants.SLUG_READY, summary.ready().hackathon().getId(),
                 Gd1SeedConstants.SLUG_ONGOING, summary.ongoing().hackathon().getId(),
-                summary.ongoing().prelimRound().getId(),
-                summary.ongoing().prelimRound().getIsActive(),
+                summary.ongoing().prelimRound() != null
+                        ? summary.ongoing().prelimRound().getId() : "n/a",
+                summary.ongoing().prelimRound() != null
+                        ? summary.ongoing().prelimRound().getIsActive() : false,
+                summary.ongoing().prelimRound() != null
+                        ? summary.ongoing().prelimRound().getExamAt() : "n/a",
+                summary.ongoing().finalRound() != null
+                        ? summary.ongoing().finalRound().getExamAt() : "n/a",
                 summary.ready().track1().getId(),
                 summary.ready().track2().getId(),
                 summary.users().judge1().getId(),
@@ -492,6 +561,21 @@ public class Gd1DataSeeder {
             LocalDateTime presentationEnd,
             LocalDateTime awardsStart,
             LocalDateTime awardsEnd) {
+
+        /** Ngày giờ thi sơ loại — trùng sự kiện PRESENTATION. */
+        LocalDateTime prelimExamAt() {
+            return presentationStart;
+        }
+
+        /** Ngày giờ thi chung kết — trùng sự kiện AWARDS. */
+        LocalDateTime finalExamAt() {
+            return awardsStart;
+        }
+
+        /** Mở nộp bài sơ loại — sau KICKOFF. */
+        LocalDateTime prelimSubmissionOpen() {
+            return kickoffEnd;
+        }
     }
 
     private record SeedChapters(Chapter hcm, Chapter hn, Chapter ext) {

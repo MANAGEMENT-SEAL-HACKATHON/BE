@@ -18,14 +18,7 @@ import java.time.LocalDateTime;
 /**
  * FR-02 POST /api/v1/hackathons/{hackathonId}/rounds
  *
- * <p><b>KHÔNG validate tổng weight Criteria</b> tại đây — Criteria chưa tồn tại.
- *
- * <p>Cross-field business validate:
- * <ul>
- *   <li>{@code submissionDeadline > submissionOpen} (nếu có) → 422 {@code ROUND_DEADLINE_INVALID}</li>
- *   <li>{@code submissionDeadline > NOW()} → 422 {@code ROUND_DEADLINE_INVALID}</li>
- *   <li>{@code forceLocked = true} → {@code forceLockReason} bắt buộc → 422 {@code ROUND_FORCE_LOCK_REASON}</li>
- * </ul>
+ * <p>Thứ tự vòng: {@link #examAt} (ngày giờ thi), không dùng sequenceOrder.
  */
 @Getter
 @Setter
@@ -38,9 +31,9 @@ public class CreateRoundRequest {
     @Size(max = 100)
     private String name;
 
+    /** Ngày giờ thi — bắt buộc; khác submissionOpen / submissionDeadline. */
     @NotNull
-    @Min(1)
-    private Integer sequenceOrder;
+    private LocalDateTime examAt;
 
     private Boolean isFinal;
 
@@ -60,9 +53,6 @@ public class CreateRoundRequest {
 
     private LocalDateTime problemReleasedAt;
 
-    /**
-     * Bắt buộc NOT NULL ở Round không phải cuối; NULL ở Round Chung kết. Validate nghiệp vụ — service phát warning.
-     */
     @Min(1)
     private Integer topNAdvance;
 

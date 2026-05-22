@@ -22,7 +22,7 @@ public class RoundResponse {
     @Deprecated
     private final Integer trackId;
     private final String name;
-    private final Integer sequenceOrder;
+    private final LocalDateTime examAt;
     private final Boolean isFinal;
     private final RoundType roundType;
     private final LateSubmissionPolicy lateSubmissionPolicy;

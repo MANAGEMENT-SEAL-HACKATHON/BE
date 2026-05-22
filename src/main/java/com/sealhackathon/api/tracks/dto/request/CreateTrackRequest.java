@@ -13,8 +13,11 @@ import lombok.Setter;
 /**
  * FR-03 POST /api/v1/rounds/{roundId}/tracks
  *
+ * <p>Các bảng đấu trong cùng vòng thi <b>song song</b>. {@code sequenceOrder} tùy chọn — không gửi
+ * thì BE tự gán {@code max(sequence_order)+1} trong round (không phải thứ tự thi giữa các vòng).
+ *
  * <p>Cross-field validate {@code maxTeamSize >= minTeamSize} và {@code maxTeamsPerGroup <= maxTeams}
- * thực hiện ở service (422 nếu vi phạm) — không expression Bean Validation đơn giản.
+ * thực hiện ở service (422 nếu vi phạm).
  */
 @Getter
 @Setter

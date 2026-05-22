@@ -21,15 +21,7 @@ import java.time.LocalDateTime;
  * <p>Xem chi tiết: {@code docs/db/schema-v3.0-mysql.md} §2 (rounds).
  */
 @Entity
-@Table(
-        name = "rounds",
-        uniqueConstraints = {
-                @UniqueConstraint(
-                        name = "uk_rounds_hackathon_sequence",
-                        columnNames = {"hackathon_id", "sequence_order"}
-                )
-        }
-)
+@Table(name = "rounds")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -52,8 +44,12 @@ public class Round {
     @Column(name = "name", nullable = false, length = 100)
     private String name;
 
-    @Column(name = "sequence_order", nullable = false)
-    private Integer sequenceOrder;
+    /**
+     * Ngày và giờ thi (dùng sắp xếp trình tự vòng trong hackathon; khác deadline nộp bài).
+     * DB có thể nullable tạm khi migrate; {@link com.sealhackathon.api.config.RoundExamAtSchemaMigration} backfill + NOT NULL.
+     */
+    @Column(name = "exam_at", nullable = true)
+    private LocalDateTime examAt;
 
     /**
      * [BC-01] TRUE = Round Chung kết — KHÔNG có Track con.

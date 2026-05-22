@@ -25,7 +25,7 @@ public class RoundSummaryResponse {
 
     private final Integer id;
     private final String name;
-    private final Integer sequenceOrder;
+    private final LocalDateTime examAt;
     private final LocalDateTime submissionDeadline;
     private final Boolean isActive;
     private final Boolean scoringLocked;

@@ -8,21 +8,22 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface RoundRepository extends JpaRepository<Round, Integer> {
 
-    List<Round> findByHackathon_IdOrderBySequenceOrderAsc(Integer hackathonId);
+    List<Round> findByHackathon_IdOrderByExamAtAsc(Integer hackathonId);
 
     @Query("""
-            SELECT COALESCE(MAX(r.sequenceOrder), 0)
+            SELECT MAX(r.examAt)
               FROM Round r
              WHERE r.hackathon.id = :hackathonId
                AND r.isFinal = FALSE
             """)
-    int maxSequenceOrderNonFinal(@Param("hackathonId") Integer hackathonId);
+    Optional<LocalDateTime> maxExamAtNonFinal(@Param("hackathonId") Integer hackathonId);
 
     long countByHackathon_IdAndIsFinalTrue(Integer hackathonId);
 
@@ -46,9 +47,9 @@ public interface RoundRepository extends JpaRepository<Round, Integer> {
     @Query("""
             SELECT r FROM Round r, Track t
              WHERE t.id = :trackId AND t.round = r
-             ORDER BY r.sequenceOrder ASC
+             ORDER BY r.examAt ASC
             """)
-    List<Round> findByTrackIdOrderBySequenceOrderAsc(@Param("trackId") Integer trackId);
+    List<Round> findByTrackIdOrderByExamAtAsc(@Param("trackId") Integer trackId);
 
     @Modifying
     @Query("""

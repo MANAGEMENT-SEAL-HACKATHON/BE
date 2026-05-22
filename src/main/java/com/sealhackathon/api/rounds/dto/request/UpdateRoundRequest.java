@@ -15,14 +15,6 @@ import java.time.LocalDateTime;
 
 /**
  * FR-03 PUT /api/v1/rounds/{id}
- *
- * <p>Lưu ý:
- * <ul>
- *   <li>KHÔNG nhận {@code trackId} — không cho phép di chuyển Round sang Track khác.</li>
- *   <li>KHÔNG nhận {@code isActive} — chỉ qua PATCH /activate (FR-06B).</li>
- *   <li>Cho phép sửa {@code scoringLocked = true} → audit {@code ROUND_LOCK}.</li>
- *   <li>{@code forceLocked = true} + {@code forceLockReason} rỗng → 422 {@code ROUND_FORCE_LOCK_REASON}.</li>
- * </ul>
  */
 @Getter
 @Setter
@@ -36,8 +28,7 @@ public class UpdateRoundRequest {
     private String name;
 
     @NotNull
-    @Min(1)
-    private Integer sequenceOrder;
+    private LocalDateTime examAt;
 
     private LocalDateTime submissionOpen;
 
@@ -61,9 +52,6 @@ public class UpdateRoundRequest {
 
     private TiebreakRule tiebreakRule;
 
-    /**
-     * Cho phép Coordinator lock chấm điểm thủ công ở MF-01.
-     */
     private Boolean scoringLocked;
 
     private Boolean forceLocked;

@@ -64,7 +64,8 @@ public class RoundServiceImpl implements RoundService {
         guardHackathonMutable(h);
         validateDeadline(req.getSubmissionOpen(), req.getSubmissionDeadline());
         validateRoundBusinessRules(req);
-        validateFinalSequenceOrder(hackathonId, req);
+        validateExamAtRules(hackathonId, req.getIsFinal(), req.getExamAt(),
+                req.getSubmissionOpen(), null);
 
         Round entity = roundMapper.toEntity(req, h);
         Round saved = roundRepository.save(entity);
@@ -81,7 +82,7 @@ public class RoundServiceImpl implements RoundService {
         if (!hackathonRepository.existsById(hackathonId)) {
             throw new ResourceNotFoundException("Hackathon", hackathonId);
         }
-        return roundRepository.findByHackathon_IdOrderBySequenceOrderAsc(hackathonId).stream()
+        return roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathonId).stream()
                 .map(this::toSummary)
                 .toList();
     }
@@ -102,6 +103,10 @@ public class RoundServiceImpl implements RoundService {
             guardHackathonMutable(r.getHackathon());
         }
         validateDeadline(req.getSubmissionOpen(), req.getSubmissionDeadline());
+        if (r.getHackathon() != null) {
+            validateExamAtRules(r.getHackathon().getId(), r.getIsFinal(), req.getExamAt(),
+                    req.getSubmissionOpen(), r.getId());
+        }
 
         if (Boolean.TRUE.equals(req.getForceLocked())
                 && (req.getForceLockReason() == null || req.getForceLockReason().isBlank())) {
@@ -188,19 +193,58 @@ public class RoundServiceImpl implements RoundService {
         }
     }
 
-    private void validateFinalSequenceOrder(Integer hackathonId, CreateRoundRequest req) {
-        if (!Boolean.TRUE.equals(req.getIsFinal()) || req.getSequenceOrder() == null) {
+    /**
+     * Thứ tự vòng theo {@code examAt}: sơ loại/bán kết trước chung kết; tách khỏi deadline nộp bài.
+     *
+     * @param excludeRoundId round đang sửa (bỏ qua khi so với final), null khi tạo mới
+     */
+    private void validateExamAtRules(Integer hackathonId, Boolean isFinal, LocalDateTime examAt,
+                                     LocalDateTime submissionOpen, Integer excludeRoundId) {
+        if (submissionOpen != null && examAt.isBefore(submissionOpen)) {
+            throw new BusinessRuleException(ErrorCode.ROUND_EXAM_BEFORE_SUBMISSION_OPEN,
+                    "Ngày thi (%s) phải >= thời điểm mở nộp bài (%s)"
+                            .formatted(examAt, submissionOpen),
+                    Map.of("examAt", examAt, "submissionOpen", submissionOpen));
+        }
+
+        if (Boolean.TRUE.equals(isFinal)) {
+            if (roundRepository.countByHackathon_IdAndIsFinalTrue(hackathonId) > 0
+                    && (excludeRoundId == null)) {
+                throw new ConflictException(ErrorCode.ROUND_DUPLICATE_FINAL,
+                        "Hackathon đã có Round Chung kết — mỗi kỳ chỉ 1 vòng final",
+                        Map.of("hackathonId", hackathonId));
+            }
+            if (roundRepository.findPreliminaryLikeByHackathonId(hackathonId).isEmpty()) {
+                throw new BusinessRuleException(ErrorCode.ROUND_FINAL_REQUIRES_PRELIM,
+                        "Tạo Round Chung kết yêu cầu đã có ít nhất một vòng Sơ loại/Bán kết",
+                        Map.of("hackathonId", hackathonId));
+            }
+            roundRepository.maxExamAtNonFinal(hackathonId).ifPresent(maxPrelimExam -> {
+                if (!examAt.isAfter(maxPrelimExam)) {
+                    throw new BusinessRuleException(ErrorCode.ROUND_FINAL_EXAM_ORDER,
+                            "Round Chung kết: ngày thi phải sau vòng Sơ loại (%s)"
+                                    .formatted(maxPrelimExam),
+                            Map.of("hackathonId", hackathonId,
+                                    "examAt", examAt,
+                                    "maxPreliminaryExamAt", maxPrelimExam));
+                }
+            });
             return;
         }
-        int maxPrelim = roundRepository.maxSequenceOrderNonFinal(hackathonId);
-        if (req.getSequenceOrder() <= maxPrelim) {
-            throw new BusinessRuleException(ErrorCode.ROUND_FINAL_SEQUENCE_ORDER,
-                    "Round Chung kết phải đến sau vòng Sơ loại (sequence_order > %d)"
-                            .formatted(maxPrelim),
-                    Map.of("hackathonId", hackathonId,
-                            "sequenceOrder", req.getSequenceOrder(),
-                            "maxPreliminarySequence", maxPrelim));
-        }
+
+        roundRepository.findByHackathon_IdAndIsFinalTrue(hackathonId)
+                .filter(fr -> excludeRoundId == null || !fr.getId().equals(excludeRoundId))
+                .ifPresent(finalRound -> {
+                    if (!examAt.isBefore(finalRound.getExamAt())) {
+                        throw new BusinessRuleException(ErrorCode.ROUND_PRELIM_EXAM_ORDER,
+                                "Vòng Sơ loại/Bán kết: ngày thi phải trước Chung kết (%s)"
+                                        .formatted(finalRound.getExamAt()),
+                                Map.of("hackathonId", hackathonId,
+                                        "examAt", examAt,
+                                        "finalExamAt", finalRound.getExamAt(),
+                                        "finalRoundId", finalRound.getId()));
+                    }
+                });
     }
 
     private void validateRoundBusinessRules(CreateRoundRequest req) {

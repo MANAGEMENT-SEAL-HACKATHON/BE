@@ -18,8 +18,7 @@ import java.util.List;
  *
  * <p>Warnings mềm (không block):
  * <ul>
- *   <li>{@code JUDGE_FINAL_ROUND_AT_PHASE1}: nếu {@code round.sequenceOrder ==
- *       max(sequenceOrder)} của Track (Round Chung kết).</li>
+ *   <li>{@code JUDGE_FINAL_ROUND_AT_PHASE1}: nếu gán Judge cho Round Chung kết ({@code isFinal}).</li>
  *   <li>{@code MENTOR_JUDGE_CONFLICT}: nếu user đang là Mentor của Track chứa Round này.</li>
  *   <li>{@code CONFLICT_CHECK_SKIPPED}: nếu {@code mentor_assignments} cho user này empty (audit).</li>
  * </ul>

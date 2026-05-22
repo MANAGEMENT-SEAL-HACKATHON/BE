@@ -12,13 +12,13 @@ import org.springframework.stereotype.Component;
 /**
  * Dev profile: seed MF-01 Giai đoạn 1 (chapters → users → hackathons → …).
  *
- * <p>Tham chiếu: {@code docs/workflow/mf01.md} §11.1, {@code docs/db/schema-v3.0-mysql.md} §6.
- * Hằng số Postman: {@link Gd1SeedConstants}.
+ * <p>Chạy sau {@link RoundExamAtSchemaMigration} (Order 0) để cột {@code rounds.exam_at} đã backfill NOT NULL.
+ * Tham chiếu: {@code docs/workflow/mf01.md} §11.1, {@code docs/api/fe-round-exam-at-migration.md}.
  */
 @Slf4j
 @Component
 @Profile("dev")
-@Order(1)
+@Order(2)
 @RequiredArgsConstructor
 public class DataInitializer implements CommandLineRunner {
 
@@ -26,8 +26,10 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        gd1DataSeeder.repairSeededRoundsExamAt();
+
         if (gd1DataSeeder.isAlreadySeeded()) {
-            log.info("[DataInitializer] Seed đã có (slug={}), bỏ qua.",
+            log.info("[DataInitializer] Seed đã có (slug={}), bỏ qua tạo mới.",
                     Gd1SeedConstants.SLUG_ONGOING);
             return;
         }
