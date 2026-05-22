@@ -1,8 +1,6 @@
 package com.sealhackathon.api.tracks.service.impl;
 
 import com.sealhackathon.api.common.audit.AuditService;
-import com.sealhackathon.api.common.exception.ConflictException;
-import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.events.repository.EventRepository;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
@@ -28,7 +26,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -75,7 +72,7 @@ class TrackServiceImplCreateSequenceTest {
     }
 
     @Test
-    void createByRound_withDuplicateSequenceOrder_throwsConflict() {
+    void createByRound_withTakenSequenceOrder_fallsBackToMaxPlusOne() {
         Hackathon hackathon = Hackathon.builder().id(1).status(HackathonStatus.DRAFT).build();
         Round round = Round.builder().id(10).hackathon(hackathon).isFinal(false).build();
         CreateTrackRequest req = CreateTrackRequest.builder()
@@ -84,14 +81,18 @@ class TrackServiceImplCreateSequenceTest {
                 .minTeamSize(1)
                 .maxTeamSize(5)
                 .build();
+        Track entity = Track.builder().round(round).sequenceOrder(2).build();
+        Track saved = Track.builder().id(99).round(round).sequenceOrder(2).build();
 
         when(roundRepository.findById(10)).thenReturn(Optional.of(round));
         when(trackRepository.existsByRoundIdAndSequenceOrder(10, 1)).thenReturn(true);
+        when(trackRepository.maxSequenceOrderByRoundId(10)).thenReturn(1);
+        when(trackMapper.toEntity(req, round, 2)).thenReturn(entity);
+        when(trackRepository.save(entity)).thenReturn(saved);
+        when(trackMapper.toResponse(saved)).thenReturn(TrackResponse.builder().id(99).sequenceOrder(2).build());
 
-        assertThatThrownBy(() -> trackService.createByRound(10, req))
-                .isInstanceOf(ConflictException.class)
-                .satisfies(ex -> assertThat(((ConflictException) ex).getCode())
-                        .isEqualTo(ErrorCode.TRACK_SEQUENCE_DUPLICATE));
+        assertThat(trackService.createByRound(10, req).getSequenceOrder()).isEqualTo(2);
+        verify(trackMapper).toEntity(req, round, 2);
     }
 
     @Test

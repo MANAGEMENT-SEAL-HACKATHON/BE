@@ -225,17 +225,17 @@ public class TrackServiceImpl implements TrackService {
     }
 
     /**
-     * Khi client không gửi {@code sequenceOrder} (UI Add Track), tự gán {@code max + 1}
-     * trong round — các bảng đấu song song, chỉ cần số bảng không trùng.
+     * Gán {@code sequence_order} cho bảng đấu song song trong round.
+     * Không gửi hoặc gửi số đã tồn tại (FE hay default {@code 1}) → {@code max + 1}.
      */
     private int resolveSequenceOrder(Integer roundId, Integer requested) {
+        int next = trackRepository.maxSequenceOrderByRoundId(roundId) + 1;
         if (requested == null) {
-            return trackRepository.maxSequenceOrderByRoundId(roundId) + 1;
+            return next;
         }
         if (trackRepository.existsByRoundIdAndSequenceOrder(roundId, requested)) {
-            throw new ConflictException(ErrorCode.TRACK_SEQUENCE_DUPLICATE,
-                    "Đã có Track với sequence_order=%d trong round này".formatted(requested),
-                    Map.of("roundId", roundId, "sequenceOrder", requested));
+            log.debug("sequenceOrder {} đã có trong round {} — gán {}", requested, roundId, next);
+            return next;
         }
         return requested;
     }
