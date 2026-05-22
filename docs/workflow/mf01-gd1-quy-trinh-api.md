@@ -10,7 +10,7 @@
 |----------|----------|
 | [mf01-gd1-qa-uat-manual.md](mf01-gd1-qa-uat-manual.md) | **QA/UAT GĐ1** — đánh giá %, findings, 64 TC happy/negative/edge, biểu mẫu Pass/Fail |
 | [mf01-gd1-test-happy-path.md](mf01-gd1-test-happy-path.md) | **Test happy path** — checklist, JSON mẫu, seed, biến Postman |
-| [mf01-gd1-doi-chieu.md](mf01-gd1-doi-chieu.md) | Business rules, FR, gate G1–G5, Implementation |
+| [mf01-gd1-timeline-events.md](mf01-gd1-timeline-events.md) | **Timeline & Events** — PDF Spring/Fall, validate 3 lớp, `examAt`, readiness |
 | [mf01.md](mf01.md) | Spec normative đầy đủ |
 | [Gd1SeedConstants.java](../../src/main/java/com/sealhackathon/api/config/seed/Gd1SeedConstants.java) | Slug / email seed dev |
 
@@ -79,6 +79,7 @@ flowchart LR
   "registrationEnd": "2026-04-01",
   "eventStart": "2026-04-11",
   "eventEnd": "2026-04-12",
+  "_comment": "Spring 2026 PDF: WS 9/4, KO 11/4, thi+trao 12/4"
   "wildcardEnabled": true,
   "individualRankingEnabled": false
 }
@@ -326,7 +327,8 @@ Tổng weight (không tính PENALTY) = **1.0** (±0.001) — gate cứng tại B
 
 ## Bước 6 — Lên lịch sự kiện
 
-**Mục đích:** WORKSHOP, KICKOFF, PRESENTATION, AWARDS. Gate G5 yêu cầu ≥1 **KICKOFF**.
+**Mục đích:** WORKSHOP, KICKOFF, PRESENTATION, AWARDS. Gate G5 yêu cầu ≥1 **KICKOFF**.  
+**Chi tiết timeline (PDF, 3 lớp, `examAt`, mã lỗi):** [mf01-gd1-timeline-events.md](mf01-gd1-timeline-events.md).
 
 ### API bắt buộc (happy path)
 
@@ -367,10 +369,12 @@ Tạo theo thứ tự thời gian (v3.1 — **block** nếu sai):
 
 ### Ràng buộc nhanh (Lớp 3 — block)
 
-- WORKSHOP trước KICKOFF
-- KICKOFF kết thúc trước PRESENTATION
-- PRESENTATION trước AWARDS  
-→ `422 EVENT_ORDER_VIOLATION`
+- WORKSHOP / KICKOFF / PRESENTATION / AWARDS: **bắt buộc `endsAt`**
+- WORKSHOP **kết thúc** trước KICKOFF **bắt đầu** (`workshop.endsAt < kickoff.startsAt`)
+- KICKOFF **kết thúc** trước PRESENTATION **bắt đầu**
+- PRESENTATION **kết thúc** trước AWARDS **bắt đầu**
+- `round.examAt`: sau KICKOFF; Sơ loại trong PRESENTATION; Chung kết trong AWARDS (inclusive)  
+→ `422 EVENT_ORDER_VIOLATION` / `EVENT_END_REQUIRED` / `ROUND_EXAM_*` / `EVENT_*_MISSING`
 
 ---
 

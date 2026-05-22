@@ -8,6 +8,7 @@ import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.criteria.service.WeightSummaryService;
+import com.sealhackathon.api.events.service.HackathonTimelineService;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
@@ -56,6 +57,7 @@ public class RoundServiceImpl implements RoundService {
     private final SubmissionPlaceholderRepository submissionRepository;
     private final JudgeAssignmentRepository judgeAssignmentRepository;
     private final NotificationService notificationService;
+    private final HackathonTimelineService hackathonTimelineService;
 
     @Override
     public RoundResponse createByHackathon(Integer hackathonId, CreateRoundRequest req) {
@@ -229,6 +231,7 @@ public class RoundServiceImpl implements RoundService {
                                     "maxPreliminaryExamAt", maxPrelimExam));
                 }
             });
+            hackathonTimelineService.validateRoundExamAt(hackathonId, true, examAt);
             return;
         }
 
@@ -245,6 +248,7 @@ public class RoundServiceImpl implements RoundService {
                                         "finalRoundId", finalRound.getId()));
                     }
                 });
+        hackathonTimelineService.validateRoundExamAt(hackathonId, false, examAt);
     }
 
     private void validateRoundBusinessRules(CreateRoundRequest req) {

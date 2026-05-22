@@ -44,8 +44,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Seed dữ liệu MF-01 Giai đoạn 1 theo {@code docs/workflow/mf01.md} §11.1
- * và mẫu {@code docs/db/schema-v3.0-mysql.md} §6.
+ * Seed dữ liệu MF-01 Giai đoạn 1 theo {@code docs/workflow/mf01-gd1-timeline-events.md}
+ * và {@code docs/workflow/mf01.md} §11.1; DDL {@code docs/db/schema-v3.0-mysql.md} §6.
  */
 @Slf4j
 @Component
@@ -154,28 +154,39 @@ public class Gd1DataSeeder {
         }
     }
 
+    /**
+     * Lịch kiểu Spring 2026 PDF: workshop trước khai mạc, ngày thi = eventEnd (eventStart + 1d).
+     * Fall 2025 tham chiếu: 29/10 WS → 1/11 KO → 2/11 thi+trao giải.
+     */
     private SeedDates computeDates() {
         LocalDate today = LocalDate.now();
         LocalDate eventStart = today.plusDays(14);
+        LocalDate eventEnd = eventStart.plusDays(1);
         LocalDate regStart = today;
-        LocalDate regEnd = eventStart.minusDays(1);
-        LocalDate eventEnd = eventStart.plusDays(45);
-        LocalDateTime now = LocalDateTime.now();
+        LocalDate regEnd = eventStart.minusDays(2);
+        LocalDateTime workshopStart = eventStart.minusDays(2).atTime(20, 0);
+        LocalDateTime workshopEnd = eventStart.minusDays(2).atTime(21, 30);
+        LocalDateTime kickoffStart = eventStart.atTime(14, 0);
+        LocalDateTime kickoffEnd = eventStart.atTime(17, 0);
+        LocalDateTime presentationStart = eventEnd.atTime(6, 0);
+        LocalDateTime presentationEnd = eventEnd.atTime(17, 0);
+        LocalDateTime awardsStart = eventEnd.atTime(17, 30);
+        LocalDateTime awardsEnd = eventEnd.atTime(19, 0);
         return new SeedDates(
                 regStart,
                 regEnd,
                 eventStart,
                 eventEnd,
-                now.plusDays(30),
-                now.plusDays(45),
-                eventStart.minusDays(5).atTime(20, 0),
-                eventStart.minusDays(5).atTime(21, 30),
-                eventStart.atTime(14, 0),
-                eventStart.atTime(17, 0),
-                now.plusDays(31).withHour(6).withMinute(0).withSecond(0).withNano(0),
-                now.plusDays(31).withHour(19).withMinute(0).withSecond(0).withNano(0),
-                eventEnd.minusDays(5).atTime(8, 0),
-                eventEnd.minusDays(5).atTime(18, 0));
+                presentationEnd.plusDays(7),
+                awardsEnd.plusDays(7),
+                workshopStart,
+                workshopEnd,
+                kickoffStart,
+                kickoffEnd,
+                presentationStart,
+                presentationEnd,
+                awardsStart,
+                awardsEnd);
     }
 
     private SeedChapters seedChapters() {
@@ -672,14 +683,14 @@ public class Gd1DataSeeder {
             LocalDateTime awardsStart,
             LocalDateTime awardsEnd) {
 
-        /** Ngày giờ thi sơ loại — trùng sự kiện PRESENTATION. */
+        /** Ngày giờ thi sơ loại — trong khung PRESENTATION (Spring: 12/4 sáng). */
         LocalDateTime prelimExamAt() {
-            return presentationStart;
+            return presentationStart.withHour(8).withMinute(0).withSecond(0).withNano(0);
         }
 
-        /** Ngày giờ thi chung kết — trùng sự kiện AWARDS. */
+        /** Ngày giờ thi chung kết — trong khung AWARDS (Spring: 12/4 chiều). */
         LocalDateTime finalExamAt() {
-            return awardsStart;
+            return awardsStart.plusMinutes(30);
         }
 
         /** Mở nộp bài sơ loại — sau KICKOFF. */

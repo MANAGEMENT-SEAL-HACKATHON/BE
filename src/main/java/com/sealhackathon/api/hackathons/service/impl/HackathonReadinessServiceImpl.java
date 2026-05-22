@@ -12,6 +12,8 @@ import com.sealhackathon.api.events.dto.request.CreateEventRequest;
 import com.sealhackathon.api.events.entity.Event;
 import com.sealhackathon.api.events.repository.EventRepository;
 import com.sealhackathon.api.events.service.EventScheduleValidator;
+import com.sealhackathon.api.events.service.HackathonTimelineService;
+import com.sealhackathon.api.events.support.EventTimeline;
 import com.sealhackathon.api.events.value_object.EventType;
 import com.sealhackathon.api.hackathons.dto.response.HackathonReadinessResponse;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
@@ -56,6 +58,7 @@ public class HackathonReadinessServiceImpl implements HackathonReadinessService 
     private final UserRepository userRepository;
     private final WeightSummaryService weightSummaryService;
     private final EventScheduleValidator eventScheduleValidator;
+    private final HackathonTimelineService hackathonTimelineService;
     private final AuditService auditService;
 
     @Override
@@ -171,7 +174,9 @@ public class HackathonReadinessServiceImpl implements HackathonReadinessService 
             }
         }
 
-        validateKickoffGate(h, hackathonId, blockers);
+        validateMilestoneEventsGate(h, hackathonId, blockers);
+        validateMilestoneEventsRequiredForRounds(hackathonId, preliminaryRounds, finalRound, blockers);
+        validateRoundsExamAtGate(hackathonId, blockers);
 
         summary.put("tracksCount", trackCount);
         summary.put("roundsCount", preliminaryRounds.size() + (int) finalCount);
@@ -183,25 +188,57 @@ public class HackathonReadinessServiceImpl implements HackathonReadinessService 
                 .getTotalElements());
     }
 
-    private void validateKickoffGate(Hackathon h, Integer hackathonId,
-                                     List<HackathonReadinessResponse.Blocker> blockers) {
-        List<Event> kickoffs = eventRepository.findByHackathonIdAndType(hackathonId, EventType.KICKOFF);
-        if (kickoffs.isEmpty()) {
+    private void validateMilestoneEventsGate(Hackathon h, Integer hackathonId,
+                                             List<HackathonReadinessResponse.Blocker> blockers) {
+        if (!eventRepository.existsByHackathonIdAndType(hackathonId, EventType.KICKOFF)) {
             blockers.add(blocker(ErrorCode.EVENT_KICKOFF_MISSING,
                     "Hackathon thiếu sự kiện KICKOFF",
                     Map.of("hackathonId", hackathonId)));
-            return;
         }
-        for (Event kickoff : kickoffs) {
-            try {
-                eventScheduleValidator.validateBlocking(h, toCreateRequest(kickoff), kickoff.getId());
-            } catch (BusinessRuleException ex) {
-                blockers.add(blocker(ex.getCode(),
-                        "KICKOFF #%d: %s".formatted(kickoff.getId(), ex.getMessage()),
-                        Map.of("eventId", kickoff.getId(),
-                                "hackathonId", hackathonId,
-                                "details", ex.getDetails() == null ? Map.of() : ex.getDetails())));
+        for (EventType type : EventTimeline.MILESTONE_TYPES) {
+            for (Event event : eventRepository.findByHackathonIdAndType(hackathonId, type)) {
+                try {
+                    eventScheduleValidator.validateBlocking(h, toCreateRequest(event), event.getId());
+                } catch (BusinessRuleException ex) {
+                    blockers.add(blocker(ex.getCode(),
+                            "%s #%d: %s".formatted(type.name(), event.getId(), ex.getMessage()),
+                            Map.of("eventId", event.getId(),
+                                    "eventType", type.name(),
+                                    "hackathonId", hackathonId,
+                                    "details", ex.getDetails() == null ? Map.of() : ex.getDetails())));
+                }
             }
+        }
+    }
+
+    private void validateMilestoneEventsRequiredForRounds(Integer hackathonId,
+                                                        List<Round> preliminaryRounds,
+                                                        Optional<Round> finalRound,
+                                                        List<HackathonReadinessResponse.Blocker> blockers) {
+        if (!preliminaryRounds.isEmpty()
+                && !eventRepository.existsByHackathonIdAndType(hackathonId, EventType.PRESENTATION)) {
+            blockers.add(blocker(ErrorCode.EVENT_PRESENTATION_MISSING,
+                    "Đã có Vòng Sơ loại — cần sự kiện PRESENTATION (ngày thi)",
+                    Map.of("hackathonId", hackathonId)));
+        }
+        if (finalRound.isPresent()
+                && !eventRepository.existsByHackathonIdAndType(hackathonId, EventType.AWARDS)) {
+            blockers.add(blocker(ErrorCode.EVENT_AWARDS_MISSING,
+                    "Đã có Round Chung kết — cần sự kiện AWARDS (lễ trao giải)",
+                    Map.of("hackathonId", hackathonId, "finalRoundId", finalRound.get().getId())));
+        }
+    }
+
+    private void validateRoundsExamAtGate(Integer hackathonId,
+                                          List<HackathonReadinessResponse.Blocker> blockers) {
+        for (BusinessRuleException ex : hackathonTimelineService.collectRoundExamAtViolations(hackathonId)) {
+            String code = ex.getCode();
+            if (ErrorCode.EVENT_PRESENTATION_MISSING.equals(code)
+                    || ErrorCode.EVENT_AWARDS_MISSING.equals(code)) {
+                continue;
+            }
+            blockers.add(blocker(code, ex.getMessage(),
+                    ex.getDetails() == null ? Map.of("hackathonId", hackathonId) : ex.getDetails()));
         }
     }
 

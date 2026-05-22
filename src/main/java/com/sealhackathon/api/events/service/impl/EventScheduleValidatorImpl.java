@@ -8,6 +8,7 @@ import com.sealhackathon.api.events.dto.request.UpdateEventRequest;
 import com.sealhackathon.api.events.entity.Event;
 import com.sealhackathon.api.events.repository.EventRepository;
 import com.sealhackathon.api.events.service.EventScheduleValidator;
+import com.sealhackathon.api.events.support.EventTimeline;
 import com.sealhackathon.api.events.value_object.EventType;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import lombok.RequiredArgsConstructor;
@@ -17,21 +18,17 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
- * FR-06 validator 3 lớp (MF-01 v3.1): Lớp 3a–3c BLOCK CỨNG; Lớp 3d warn mềm.
+ * FR-06 validator 3 lớp (MF-01): WORKSHOP có thể trước {@code event_start} (Fall/Spring PDF);
+ * milestone nối tiếp WORKSHOP → KICKOFF → PRESENTATION → AWARDS.
  */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class EventScheduleValidatorImpl implements EventScheduleValidator {
-
-    private static final Set<EventType> OVERLAP_BLOCKING_TYPES =
-            EnumSet.of(EventType.KICKOFF, EventType.AWARDS);
 
     private static final int END_BUFFER_DAYS = 1;
 
@@ -59,6 +56,13 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
 
         validateLocationOrMeetUrl(location, meetUrl);
 
+        if (EventTimeline.isMilestone(type) && endsAt == null) {
+            throw new BusinessRuleException(ErrorCode.EVENT_END_REQUIRED,
+                    "Sự kiện %s bắt buộc có endsAt — giai đoạn phải có thời điểm kết thúc"
+                            .formatted(type.name()),
+                    Map.of("type", type.name(), "startsAt", startsAt));
+        }
+
         if (endsAt != null && endsAt.isBefore(startsAt)) {
             throw new BusinessRuleException(ErrorCode.EVENT_END_BEFORE_START,
                     "endsAt (%s) phải >= startsAt (%s)".formatted(endsAt, startsAt),
@@ -67,14 +71,57 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
 
         LocalDate eventStart = h.getEventStart();
         LocalDate eventEnd = h.getEventEnd();
-        LocalDateTime effectiveEnd = (endsAt != null) ? endsAt : startsAt;
-        if (eventStart != null && startsAt.toLocalDate().isBefore(eventStart)) {
+        LocalDate registrationStart = h.getRegistrationStart();
+        LocalDateTime effectiveEnd = EventTimeline.effectiveEnd(startsAt, endsAt);
+
+        validateHackathonDateWindow(type, startsAt, effectiveEnd, eventStart, eventEnd,
+                registrationStart, endsAt);
+
+        int ex = (excludeEventId == null) ? 0 : excludeEventId;
+        if (EventTimeline.isMilestone(type)) {
+            validateSingleMilestonePerType(h.getId(), type, excludeEventId);
+            List<Event> overlaps = eventRepository.findOverlapping(
+                    h.getId(), type, startsAt, effectiveEnd, ex);
+            if (!overlaps.isEmpty()) {
+                List<Integer> ids = overlaps.stream().map(Event::getId).toList();
+                throw new BusinessRuleException(ErrorCode.EVENT_OVERLAP,
+                        "Event type %s đã tồn tại trong khung giờ này (%d trùng)"
+                                .formatted(type, ids.size()),
+                        Map.of("conflictIds", ids, "type", type.name(),
+                                "startsAt", startsAt, "endsAt", effectiveEnd));
+            }
+            validateOtherDoesNotOverlapMilestone(h.getId(), startsAt, effectiveEnd, ex);
+        } else if (type == EventType.OTHER) {
+            validateMilestoneDoesNotOverlapOther(h.getId(), startsAt, effectiveEnd, ex);
+        }
+
+        validateLayer3Ordering(h.getId(), type, startsAt, effectiveEnd, excludeEventId);
+    }
+
+    /**
+     * Lớp 1 — WORKSHOP: từ {@code registrationStart}, có thể trước {@code event_start} (9/4 trước 11/4).
+     * Các milestone khác: {@code startsAt >= event_start}.
+     */
+    private void validateHackathonDateWindow(EventType type, LocalDateTime startsAt,
+                                             LocalDateTime effectiveEnd,
+                                             LocalDate eventStart, LocalDate eventEnd,
+                                             LocalDate registrationStart, LocalDateTime endsAt) {
+        if (type == EventType.WORKSHOP) {
+            if (registrationStart != null && startsAt.toLocalDate().isBefore(registrationStart)) {
+                throw new BusinessRuleException(ErrorCode.EVENT_OUT_OF_HACKATHON,
+                        "Workshop startsAt (%s) trước registrationStart (%s)"
+                                .formatted(startsAt.toLocalDate(), registrationStart),
+                        Map.of("registrationStart", registrationStart,
+                                "startsAt", startsAt, "endsAt", endsAt));
+            }
+        } else if (eventStart != null && startsAt.toLocalDate().isBefore(eventStart)) {
             throw new BusinessRuleException(ErrorCode.EVENT_OUT_OF_HACKATHON,
                     "Event startsAt (%s) trước Hackathon eventStart (%s)"
                             .formatted(startsAt.toLocalDate(), eventStart),
                     Map.of("eventStart", eventStart, "eventEnd", eventEnd,
-                            "startsAt", startsAt, "endsAt", endsAt));
+                            "startsAt", startsAt, "endsAt", endsAt, "type", type.name()));
         }
+
         if (eventEnd != null) {
             LocalDate cap = eventEnd.plusDays(END_BUFFER_DAYS);
             if (effectiveEnd.toLocalDate().isAfter(cap)) {
@@ -86,22 +133,60 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
                                 "bufferDays", END_BUFFER_DAYS, "effectiveEnd", effectiveEnd));
             }
         }
+    }
 
-        if (OVERLAP_BLOCKING_TYPES.contains(type)) {
-            int ex = (excludeEventId == null) ? 0 : excludeEventId;
-            List<Event> overlaps = eventRepository.findOverlapping(
-                    h.getId(), type, startsAt, effectiveEnd, ex);
-            if (!overlaps.isEmpty()) {
-                List<Integer> ids = overlaps.stream().map(Event::getId).toList();
-                throw new BusinessRuleException(ErrorCode.EVENT_OVERLAP,
-                        "Event type %s đã tồn tại trong khung giờ này (%d trùng)"
-                                .formatted(type, ids.size()),
-                        Map.of("conflictIds", ids, "type", type.name(),
-                                "startsAt", startsAt, "endsAt", effectiveEnd));
+    private void validateSingleMilestonePerType(Integer hackathonId, EventType type, Integer excludeEventId) {
+        int ex = (excludeEventId == null) ? 0 : excludeEventId;
+        for (Event existing : eventRepository.findByHackathonIdAndType(hackathonId, type)) {
+            if (!existing.getId().equals(ex)) {
+                throw new BusinessRuleException(ErrorCode.EVENT_MILESTONE_DUPLICATE,
+                        "Mỗi hackathon chỉ có một sự kiện type=%s (đã có id=%d)"
+                                .formatted(type.name(), existing.getId()),
+                        Map.of("type", type.name(), "existingEventId", existing.getId(),
+                                "hackathonId", hackathonId));
             }
         }
+    }
 
-        validateLayer3Ordering(h.getId(), type, startsAt, endsAt, excludeEventId);
+    private void validateOtherDoesNotOverlapMilestone(Integer hackathonId,
+                                                      LocalDateTime startsAt,
+                                                      LocalDateTime effectiveEnd,
+                                                      int excludeId) {
+        List<Event> others = eventRepository.findOtherOverlapping(
+                hackathonId, startsAt, effectiveEnd, excludeId);
+        if (!others.isEmpty()) {
+            throw milestoneConflictException("Khung giờ milestone trùng sự kiện OTHER (id=%d)"
+                            .formatted(others.get(0).getId()),
+                    others.stream().map(Event::getId).toList(),
+                    startsAt, effectiveEnd);
+        }
+    }
+
+    private void validateMilestoneDoesNotOverlapOther(Integer hackathonId,
+                                                        LocalDateTime startsAt,
+                                                        LocalDateTime effectiveEnd,
+                                                        int excludeId) {
+        List<Event> milestones = eventRepository.findMilestoneOverlapping(
+                hackathonId, EventTimeline.MILESTONE_TYPES, startsAt, effectiveEnd, excludeId);
+        if (!milestones.isEmpty()) {
+            Event hit = milestones.get(0);
+            throw milestoneConflictException(
+                    "Sự kiện OTHER trùng khung milestone %s (id=%d)"
+                            .formatted(hit.getType().name(), hit.getId()),
+                    List.of(hit.getId()),
+                    startsAt, effectiveEnd);
+        }
+    }
+
+    private static BusinessRuleException milestoneConflictException(String message,
+                                                                    List<Integer> conflictIds,
+                                                                    LocalDateTime startsAt,
+                                                                    LocalDateTime effectiveEnd) {
+        return new BusinessRuleException(ErrorCode.EVENT_CONFLICTS_WITH_MILESTONE,
+                message,
+                Map.of("conflictIds", conflictIds,
+                        "startsAt", startsAt,
+                        "endsAt", effectiveEnd));
     }
 
     private void validateLocationOrMeetUrl(String location, String meetUrl) {
@@ -114,74 +199,62 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
         }
     }
 
-    /**
-     * Lớp 3a–3c — BLOCK khi vi phạm thứ tự WORKSHOP &lt; KICKOFF &lt; PRESENTATION &lt; AWARDS.
-     */
-    private void validateLayer3Ordering(Integer hackathonId, EventType type,
-                                      LocalDateTime startsAt, LocalDateTime endsAt,
+    private void validateLayer3Ordering(Integer hackathonId, EventType newType,
+                                      LocalDateTime newStartsAt, LocalDateTime newEffectiveEnd,
                                       Integer excludeEventId) {
+        if (!EventTimeline.isMilestone(newType)) {
+            return;
+        }
         int ex = (excludeEventId == null) ? 0 : excludeEventId;
+        int newOrder = EventTimeline.phaseOrder(newType);
 
-        switch (type) {
-            case WORKSHOP -> {
-                for (Event kickoff : eventRepository.findByHackathonIdAndType(hackathonId, EventType.KICKOFF)) {
-                    if (kickoff.getId().equals(ex)) {
-                        continue;
+        for (EventType existingType : EventTimeline.MILESTONE_TYPES) {
+            for (Event existing : eventRepository.findByHackathonIdAndType(hackathonId, existingType)) {
+                if (existing.getId().equals(ex) || existing.getStartsAt() == null) {
+                    continue;
+                }
+                LocalDateTime existingEnd = EventTimeline.effectiveEnd(existing);
+                int existingOrder = EventTimeline.phaseOrder(existingType);
+
+                if (newOrder < existingOrder) {
+                    if (!newEffectiveEnd.isBefore(existing.getStartsAt())) {
+                        throw orderViolation(earlierMustEndBeforeLater(newType, existingType),
+                                Map.of("type", newType.name(),
+                                        "effectiveEnd", newEffectiveEnd,
+                                        "laterType", existingType.name(),
+                                        "laterStartsAt", existing.getStartsAt(),
+                                        "existingEventId", existing.getId()));
                     }
-                    if (!startsAt.isBefore(kickoff.getStartsAt())) {
-                        throw orderViolation("Workshop phải diễn ra trước Khai mạc",
-                                Map.of("type", "WORKSHOP", "kickoffId", kickoff.getId(),
-                                        "kickoffStartsAt", kickoff.getStartsAt(), "startsAt", startsAt));
+                } else if (newOrder > existingOrder) {
+                    if (!existingEnd.isBefore(newStartsAt)) {
+                        throw orderViolation(earlierMustEndBeforeLater(existingType, newType),
+                                Map.of("type", newType.name(),
+                                        "startsAt", newStartsAt,
+                                        "earlierType", existingType.name(),
+                                        "earlierEffectiveEnd", existingEnd,
+                                        "existingEventId", existing.getId()));
                     }
                 }
             }
-            case KICKOFF -> {
-                for (Event workshop : eventRepository.findByHackathonIdAndType(hackathonId, EventType.WORKSHOP)) {
-                    if (workshop.getId().equals(ex)) {
-                        continue;
-                    }
-                    if (!workshop.getStartsAt().isBefore(startsAt)) {
-                        throw orderViolation("Workshop phải diễn ra trước Khai mạc",
-                                Map.of("type", "KICKOFF", "workshopId", workshop.getId(),
-                                        "workshopStartsAt", workshop.getStartsAt(), "startsAt", startsAt));
-                    }
-                }
-            }
-            case PRESENTATION -> {
-                List<Event> kickoffs = eventRepository.findLatestByType(hackathonId, EventType.KICKOFF);
-                for (Event kickoff : kickoffs) {
-                    if (kickoff.getId().equals(ex)) {
-                        continue;
-                    }
-                    LocalDateTime kickoffEnd = kickoff.getEndsAt() != null
-                            ? kickoff.getEndsAt() : kickoff.getStartsAt();
-                    if (kickoffEnd != null && !kickoffEnd.isBefore(startsAt)) {
-                        throw orderViolation("Khai mạc phải kết thúc trước Ngày thi",
-                                Map.of("type", "PRESENTATION", "kickoffId", kickoff.getId(),
-                                        "kickoffEnd", kickoffEnd, "startsAt", startsAt));
-                    }
-                }
-            }
-            case AWARDS -> {
-                List<Event> presentations = eventRepository.findByHackathonIdAndType(
-                        hackathonId, EventType.PRESENTATION);
-                for (Event pres : presentations) {
-                    if (pres.getId().equals(ex)) {
-                        continue;
-                    }
-                    LocalDateTime presStart = pres.getStartsAt();
-                    if (presStart != null && !presStart.isBefore(startsAt)) {
-                        throw orderViolation("Ngày thi phải trước Lễ trao giải",
-                                Map.of("type", "AWARDS", "presentationId", pres.getId(),
-                                        "presentationStartsAt", presStart, "startsAt", startsAt));
-                    }
-                }
-            }
-            default -> { /* OTHER — no ordering */ }
         }
-        if (endsAt != null) {
-            /* endsAt used in layer 1; ordering uses startsAt per spec */
-        }
+    }
+
+    private static String earlierMustEndBeforeLater(EventType earlier, EventType later) {
+        return switch (earlier) {
+            case WORKSHOP -> switch (later) {
+                case KICKOFF -> "Workshop phải kết thúc trước Khai mạc";
+                case PRESENTATION -> "Workshop phải kết thúc trước Ngày thi";
+                case AWARDS -> "Workshop phải kết thúc trước Lễ trao giải";
+                default -> "Workshop phải kết thúc trước giai đoạn sau";
+            };
+            case KICKOFF -> switch (later) {
+                case PRESENTATION -> "Khai mạc phải kết thúc trước Ngày thi";
+                case AWARDS -> "Khai mạc phải kết thúc trước Lễ trao giải";
+                default -> "Khai mạc phải kết thúc trước giai đoạn sau";
+            };
+            case PRESENTATION -> "Ngày thi phải kết thúc trước Lễ trao giải";
+            default -> "%s phải kết thúc trước %s".formatted(earlier, later);
+        };
     }
 
     private static BusinessRuleException orderViolation(String message, Map<String, Object> details) {
@@ -198,7 +271,6 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
         return computeWarningsLayer3dOnly(hackathon, req.getType(), req.getStartsAt());
     }
 
-    /** Lớp 3d — KICKOFF trong [event_start, event_start+1d]. */
     private List<Warning> computeWarningsLayer3dOnly(Hackathon h, EventType type,
                                                      LocalDateTime startsAt) {
         List<Warning> warnings = new ArrayList<>();

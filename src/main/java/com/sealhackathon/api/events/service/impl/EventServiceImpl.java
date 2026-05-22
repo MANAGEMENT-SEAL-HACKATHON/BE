@@ -13,6 +13,8 @@ import com.sealhackathon.api.events.mapper.EventMapper;
 import com.sealhackathon.api.events.repository.EventRepository;
 import com.sealhackathon.api.events.service.EventScheduleValidator;
 import com.sealhackathon.api.events.service.EventService;
+import com.sealhackathon.api.events.service.HackathonTimelineService;
+import com.sealhackathon.api.events.support.EventTimeline;
 import com.sealhackathon.api.events.value_object.EventType;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
@@ -46,6 +48,7 @@ public class EventServiceImpl implements EventService {
     private final EventMapper eventMapper;
     private final AuditService auditService;
     private final EventScheduleValidator scheduleValidator;
+    private final HackathonTimelineService hackathonTimelineService;
     private final NotificationService notificationService;
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
@@ -76,6 +79,9 @@ public class EventServiceImpl implements EventService {
         }
         if (Boolean.TRUE.equals(saved.getIsPublic())) {
             fanoutReminder(saved);
+        }
+        if (EventTimeline.isMilestone(saved.getType())) {
+            hackathonTimelineService.assertAllRoundsExamAtValid(hackathonId);
         }
         return new CreateResult(response, warnings);
     }
@@ -129,6 +135,9 @@ public class EventServiceImpl implements EventService {
         if (Boolean.TRUE.equals(saved.getIsPublic()) && !saved.getStartsAt().equals(prevStart)) {
             fanoutReminder(saved);
         }
+        if (EventTimeline.isMilestone(saved.getType())) {
+            hackathonTimelineService.assertAllRoundsExamAtValid(h.getId());
+        }
         return new UpdateResult(after, warnings);
     }
 
@@ -137,6 +146,8 @@ public class EventServiceImpl implements EventService {
         Event e = eventRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Event", id));
         EventResponse snapshot = eventMapper.toResponse(e);
+        Integer hackathonId = e.getHackathon().getId();
+        boolean wasMilestone = EventTimeline.isMilestone(e.getType());
 
         List<Notification> stale = notificationRepository.findByReferenceTypeAndReferenceId("events", id);
         if (!stale.isEmpty()) {
@@ -146,6 +157,9 @@ public class EventServiceImpl implements EventService {
 
         auditService.log(AuditAction.EVENT_DELETE, "events", id,
                 Map.of("snapshot", snapshot, "notificationCleanup", stale.size()));
+        if (wasMilestone) {
+            hackathonTimelineService.assertAllRoundsExamAtValid(hackathonId);
+        }
         return id;
     }
 

@@ -6,6 +6,7 @@ import com.sealhackathon.api.common.exception.ConflictException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.criteria.service.WeightSummaryService;
+import com.sealhackathon.api.events.service.HackathonTimelineService;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
@@ -32,6 +33,8 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -49,6 +52,7 @@ class RoundServiceImplExamValidationTest {
     @Mock private SubmissionPlaceholderRepository submissionRepository;
     @Mock private JudgeAssignmentRepository judgeAssignmentRepository;
     @Mock private NotificationService notificationService;
+    @Mock private HackathonTimelineService hackathonTimelineService;
 
     @InjectMocks
     private RoundServiceImpl roundService;
@@ -125,6 +129,23 @@ class RoundServiceImplExamValidationTest {
         BusinessRuleException ex = assertThrows(BusinessRuleException.class,
                 () -> roundService.createByHackathon(1, req));
         assertEquals(ErrorCode.ROUND_EXAM_BEFORE_SUBMISSION_OPEN, ex.getCode());
+    }
+
+    @Test
+    void createPreliminary_delegatesTimelineValidation() {
+        mockHackathon();
+        LocalDateTime examAt = LocalDateTime.of(2026, 4, 12, 8, 0);
+        doThrow(new BusinessRuleException(ErrorCode.ROUND_EXAM_BEFORE_KICKOFF, "kickoff", null))
+                .when(hackathonTimelineService).validateRoundExamAt(1, false, examAt);
+
+        CreateRoundRequest req = CreateRoundRequest.builder()
+                .name("Sơ loại")
+                .examAt(examAt)
+                .submissionDeadline(DEADLINE)
+                .build();
+
+        assertThrows(BusinessRuleException.class, () -> roundService.createByHackathon(1, req));
+        verify(hackathonTimelineService).validateRoundExamAt(1, false, examAt);
     }
 
     @Test

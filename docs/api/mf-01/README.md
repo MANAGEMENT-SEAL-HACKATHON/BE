@@ -16,7 +16,7 @@ Bật mọi profile (SpringDoc 3.x). Auth JWT mô tả trong UI (`bearerAuth`); 
 > **Nguồn chính khi implement / test API:**
 > - [Quy trình API GĐ1 (7 bước)](../../workflow/mf01-gd1-quy-trinh-api.md)
 > - [Spec nghiệp vụ MF-01](../../workflow/mf01.md) §10
-> - [Đối chiếu + Implementation](../../workflow/mf01-gd1-doi-chieu.md)
+> - [Timeline & Events GĐ1](../../workflow/mf01-gd1-timeline-events.md)
 
 Thư mục này giữ **chi tiết request/validation** theo từng FR (conventions, security, từng module). Round và Track **không** có file riêng — xem runbook **Bước 2–3**.
 
@@ -30,7 +30,7 @@ Thư mục này giữ **chi tiết request/validation** theo từng FR (conventi
 | [fr-04-criteria.md](./fr-04-criteria.md) | FR-04 Criteria (track + round FINAL) |
 | [fr-05-personnel.md](./fr-05-personnel.md) | FR-05 Mentor / Judge / temp judge |
 | [fr-06-status.md](./fr-06-status.md) | FR-07 readiness + PATCH status |
-| [fr-06a-events.md](./fr-06a-events.md) | FR-06 Events |
+| [fr-06a-events.md](./fr-06a-events.md) | FR-06 Events → [timeline đầy đủ](../../workflow/mf01-gd1-timeline-events.md) |
 | [fr-06b-activate.md](./fr-06b-activate.md) | FR-07B activate round |
 
 ## FR-02 Round & FR-03 Track

@@ -11,7 +11,7 @@
 |----------|---------|
 | [mf01-gd1-quy-trinh-api.md](mf01-gd1-quy-trinh-api.md) | Runbook API, ràng buộc |
 | [mf01-gd1-test-happy-path.md](mf01-gd1-test-happy-path.md) | Happy path chi tiết (Luồng A/B) |
-| [mf01-gd1-doi-chieu.md](mf01-gd1-doi-chieu.md) | Đối chiếu FR & implementation |
+| [mf01-gd1-timeline-events.md](mf01-gd1-timeline-events.md) | Timeline & Events (validate, `examAt`) |
 | [mf01.md](mf01.md) | Spec normative |
 | [Gd1SeedConstants.java](../../src/main/java/com/sealhackathon/api/config/seed/Gd1SeedConstants.java) | Slug / email seed |
 
@@ -50,7 +50,7 @@
 | QA-04 | Thiếu TC cross-track mentor/judge | TC-GD1-H11 |
 | QA-05 | CONFLICT_SAME_TRACK khó test qua API GĐ1 (1 role/user) | TC-GD1-N10a/b |
 | QA-06 | resend invitation, clone criteria, PUT locked | TC-GD1-E01–E06 |
-| QA-07 | doi-chieu §14.1 legacy route | Cập nhật riêng nếu cần |
+| QA-07 | Legacy route (đã gỡ trong code) | Xem [mf01.md](mf01.md) §10 |
 
 ### 2.3 P2 — Sau UAT
 

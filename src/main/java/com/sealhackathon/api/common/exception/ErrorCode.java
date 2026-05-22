@@ -87,9 +87,22 @@ public final class ErrorCode {
     public static final String EVENT_OUT_OF_HACKATHON   = "EVENT_OUT_OF_HACKATHON";
     public static final String EVENT_OVERLAP            = "EVENT_OVERLAP";
     public static final String EVENT_END_BEFORE_START   = "EVENT_END_BEFORE_START";
+    public static final String EVENT_END_REQUIRED       = "EVENT_END_REQUIRED";
     public static final String EVENT_KICKOFF_MISSING    = "EVENT_KICKOFF_MISSING";
+    public static final String EVENT_PRESENTATION_MISSING = "EVENT_PRESENTATION_MISSING";
+    public static final String EVENT_AWARDS_MISSING       = "EVENT_AWARDS_MISSING";
     public static final String EVENT_ORDER_VIOLATION    = "EVENT_ORDER_VIOLATION";
     public static final String EVENT_LOCATION_REQUIRED  = "EVENT_LOCATION_REQUIRED";
+    public static final String EVENT_MILESTONE_DUPLICATE = "EVENT_MILESTONE_DUPLICATE";
+    public static final String EVENT_CONFLICTS_WITH_MILESTONE = "EVENT_CONFLICTS_WITH_MILESTONE";
+
+    // ---------- FR-03 ROUND examAt vs events ----------
+    public static final String ROUND_EXAM_BEFORE_KICKOFF       = "ROUND_EXAM_BEFORE_KICKOFF";
+    public static final String ROUND_EXAM_OUTSIDE_PRESENTATION = "ROUND_EXAM_OUTSIDE_PRESENTATION";
+    /** @deprecated dùng {@link #ROUND_EXAM_OUTSIDE_AWARDS} */
+    @Deprecated
+    public static final String ROUND_EXAM_ON_OR_AFTER_AWARDS   = "ROUND_EXAM_OUTSIDE_AWARDS";
+    public static final String ROUND_EXAM_OUTSIDE_AWARDS       = "ROUND_EXAM_OUTSIDE_AWARDS";
 
     // ---------- FR-07 READINESS (G1–G5) ----------
     public static final String MISSING_PRELIMINARY_ROUND = "MISSING_PRELIMINARY_ROUND";

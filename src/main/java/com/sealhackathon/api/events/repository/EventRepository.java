@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -63,4 +64,37 @@ public interface EventRepository extends JpaRepository<Event, Integer> {
     List<Event> findInRange(@Param("hackathonId") Integer hackathonId,
                             @Param("from") LocalDateTime from,
                             @Param("to") LocalDateTime to);
+
+    /** OTHER chồng khung giờ milestone (Spring/Fall — tránh lịch phụ đè workshop/kickoff/thi). */
+    @Query("""
+            SELECT e FROM Event e
+            WHERE e.hackathon.id = :hackathonId
+              AND e.type = com.sealhackathon.api.events.value_object.EventType.OTHER
+              AND e.id <> :excludeId
+              AND (
+                   (e.endsAt IS NULL AND e.startsAt < :endsAt AND e.startsAt >= :startsAt)
+                OR (e.endsAt IS NOT NULL AND e.startsAt < :endsAt AND e.endsAt > :startsAt)
+              )
+            """)
+    List<Event> findOtherOverlapping(@Param("hackathonId") Integer hackathonId,
+                                     @Param("startsAt") LocalDateTime startsAt,
+                                     @Param("endsAt") LocalDateTime endsAt,
+                                     @Param("excludeId") Integer excludeId);
+
+    /** OTHER chồng milestone — kiểm tra đối xứng khi tạo/sửa OTHER. */
+    @Query("""
+            SELECT e FROM Event e
+            WHERE e.hackathon.id = :hackathonId
+              AND e.type IN :milestoneTypes
+              AND e.id <> :excludeId
+              AND (
+                   (e.endsAt IS NULL AND e.startsAt < :endsAt AND e.startsAt >= :startsAt)
+                OR (e.endsAt IS NOT NULL AND e.startsAt < :endsAt AND e.endsAt > :startsAt)
+              )
+            """)
+    List<Event> findMilestoneOverlapping(@Param("hackathonId") Integer hackathonId,
+                                         @Param("milestoneTypes") Collection<EventType> milestoneTypes,
+                                         @Param("startsAt") LocalDateTime startsAt,
+                                         @Param("endsAt") LocalDateTime endsAt,
+                                         @Param("excludeId") Integer excludeId);
 }
