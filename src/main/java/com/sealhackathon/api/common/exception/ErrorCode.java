@@ -40,6 +40,7 @@ public final class ErrorCode {
     public static final String TRACK_NOT_CANCELLED      = "TRACK_NOT_CANCELLED";
     public static final String TRACK_HAS_CRITERIA       = "TRACK_HAS_CRITERIA";
     public static final String TRACK_CANCEL_HAS_TEAMS     = "TRACK_CANCEL_HAS_TEAMS";
+    public static final String TRACK_SEQUENCE_DUPLICATE   = "TRACK_SEQUENCE_DUPLICATE";
 
     // ---------- FR-03 ROUND ----------
     public static final String ROUND_DEADLINE_INVALID   = "ROUND_DEADLINE_INVALID";

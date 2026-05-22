@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class TrackMapper {
 
-    public Track toEntity(CreateTrackRequest req, Round round) {
+    public Track toEntity(CreateTrackRequest req, Round round, int sequenceOrder) {
         return Track.builder()
                 .round(round)
                 .name(req.getName())
@@ -23,7 +23,7 @@ public class TrackMapper {
                 .minTeamSize(req.getMinTeamSize())
                 .maxTeamSize(req.getMaxTeamSize())
                 .status(TrackStatus.OPEN)
-                .sequenceOrder(req.getSequenceOrder() != null ? req.getSequenceOrder() : 1)
+                .sequenceOrder(sequenceOrder)
                 .build();
     }
 

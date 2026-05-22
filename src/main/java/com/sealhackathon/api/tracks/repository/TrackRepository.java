@@ -16,6 +16,15 @@ public interface TrackRepository extends JpaRepository<Track, Integer> {
 
     long countByRoundId(Integer roundId);
 
+    boolean existsByRoundIdAndSequenceOrder(Integer roundId, Integer sequenceOrder);
+
+    @Query("""
+            SELECT COALESCE(MAX(t.sequenceOrder), 0)
+              FROM Track t
+             WHERE t.round.id = :roundId
+            """)
+    int maxSequenceOrderByRoundId(@Param("roundId") Integer roundId);
+
     @Query("""
             SELECT t FROM Track t
              WHERE t.round.hackathon.id = :hackathonId

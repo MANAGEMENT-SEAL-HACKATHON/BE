@@ -74,7 +74,8 @@ public class TrackServiceImpl implements TrackService {
         validateSizes(req.getMinTeamSize(), req.getMaxTeamSize(),
                 req.getMaxTeamsPerGroup(), req.getMaxTeams());
 
-        Track entity = trackMapper.toEntity(req, round);
+        int sequenceOrder = resolveSequenceOrder(roundId, req.getSequenceOrder());
+        Track entity = trackMapper.toEntity(req, round, sequenceOrder);
         Track saved = trackRepository.save(entity);
 
         TrackResponse response = trackMapper.toResponse(saved);
@@ -221,6 +222,22 @@ public class TrackServiceImpl implements TrackService {
                     "Chưa có sự kiện KICKOFF — topic Track chỉ cập nhật sau Khai mạc (bốc thăm)",
                     Map.of("trackId", track.getId(), "hackathonId", hackathon.getId()));
         }
+    }
+
+    /**
+     * Khi client không gửi {@code sequenceOrder} (UI Add Track), tự gán {@code max + 1}
+     * trong round — các bảng đấu song song, chỉ cần số bảng không trùng.
+     */
+    private int resolveSequenceOrder(Integer roundId, Integer requested) {
+        if (requested == null) {
+            return trackRepository.maxSequenceOrderByRoundId(roundId) + 1;
+        }
+        if (trackRepository.existsByRoundIdAndSequenceOrder(roundId, requested)) {
+            throw new ConflictException(ErrorCode.TRACK_SEQUENCE_DUPLICATE,
+                    "Đã có Track với sequence_order=%d trong round này".formatted(requested),
+                    Map.of("roundId", roundId, "sequenceOrder", requested));
+        }
+        return requested;
     }
 
     private void validateSizes(Integer minTeamSize, Integer maxTeamSize,
