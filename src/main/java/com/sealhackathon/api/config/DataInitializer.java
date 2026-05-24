@@ -15,8 +15,8 @@ import org.springframework.stereotype.Component;
  * <p>Thứ tự startup: {@link RoundExamAtSchemaMigration} (0) → {@link CriteriaCloneSourceUnlinkMigration} (1)
  * → DataInitializer (2).
  *
- * <p>Mỗi lần start: repair {@code examAt}, repair criteria/track seed (gỡ {@code source_criteria_id} cũ,
- * bổ sung Track 3 trống trên {@code seal-spring-2026} để test clone 2→3).
+ * <p>Mỗi lần start: repair timeline (đăng ký 24/05–05/06, WS 06/06, KO 07/06, thi 10/06),
+ * repair criteria/track seed (gỡ {@code source_criteria_id} cũ, bổ sung Track 3 trống để test clone 2→3).
  *
  * <p>Tham chiếu: {@code docs/workflow/mf01.md} §11.1, {@code docs/api/fe-round-exam-at-migration.md},
  * {@code docs/api/fe-criteria-clone.md}.
@@ -32,7 +32,7 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        gd1DataSeeder.repairSeededRoundsExamAt();
+        gd1DataSeeder.repairSeededTimeline();
         gd1DataSeeder.repairSeededCriteriaAndTracks();
 
         if (gd1DataSeeder.isAlreadySeeded()) {

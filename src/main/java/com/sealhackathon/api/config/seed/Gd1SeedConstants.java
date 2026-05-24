@@ -12,6 +12,12 @@ package com.sealhackathon.api.config.seed;
  *   <li>{@link #SLUG_ONGOING} — ONGOING, prelim active; có Track 3 (chưa criteria) để test clone 2→3</li>
  * </ul>
  *
+ * <h3>Lịch seed (2026)</h3>
+ * <ul>
+ *   <li>Đăng ký: 24/05 – 05/06</li>
+ *   <li>WORKSHOP: 06/06 · KICKOFF: 07/06 · Thi + AWARDS: 10/06</li>
+ * </ul>
+ *
  * <h3>Users (email)</h3>
  * <ul>
  *   <li>{@link #EMAIL_COORDINATOR} — id=1 trên DB trống; khớp {@code StubCurrentUserAccessor}</li>

@@ -22,7 +22,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -126,6 +125,7 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
         }
 
         validateLayer3Ordering(h.getId(), type, startsAt, effectiveEnd, excludeEventId);
+        validateWorkshopKickoffDifferentDays(h.getId(), type, startsAt, effectiveEnd, excludeEventId);
     }
 
     /**
@@ -271,28 +271,57 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
         return new BusinessRuleException(ErrorCode.EVENT_ORDER_VIOLATION, message, details);
     }
 
+    /**
+     * WORKSHOP và KICKOFF phải ở hai ngày lịch khác nhau (không cùng calendar day).
+     */
+    private void validateWorkshopKickoffDifferentDays(Integer hackathonId, EventType newType,
+                                                      LocalDateTime newStartsAt,
+                                                      LocalDateTime newEffectiveEnd,
+                                                      Integer excludeEventId) {
+        if (newType != EventType.WORKSHOP && newType != EventType.KICKOFF) {
+            return;
+        }
+        int ex = (excludeEventId == null) ? 0 : excludeEventId;
+
+        if (newType == EventType.KICKOFF) {
+            for (Event ws : eventRepository.findByHackathonIdAndType(hackathonId, EventType.WORKSHOP)) {
+                if (ws.getId().equals(ex) || ws.getStartsAt() == null) {
+                    continue;
+                }
+                LocalDate wsEndDay = EventTimeline.effectiveEnd(ws).toLocalDate();
+                if (!newStartsAt.toLocalDate().isAfter(wsEndDay)) {
+                    throw orderViolation(
+                            "Workshop và Khai mạc phải diễn ra ở hai ngày khác nhau",
+                            Map.of("type", "KICKOFF",
+                                    "startsAt", newStartsAt,
+                                    "workshopEffectiveEnd", EventTimeline.effectiveEnd(ws),
+                                    "workshopEventId", ws.getId()));
+                }
+            }
+        } else {
+            for (Event ko : eventRepository.findByHackathonIdAndType(hackathonId, EventType.KICKOFF)) {
+                if (ko.getId().equals(ex) || ko.getStartsAt() == null) {
+                    continue;
+                }
+                if (!newEffectiveEnd.toLocalDate().isBefore(ko.getStartsAt().toLocalDate())) {
+                    throw orderViolation(
+                            "Workshop và Khai mạc phải diễn ra ở hai ngày khác nhau",
+                            Map.of("type", "WORKSHOP",
+                                    "effectiveEnd", newEffectiveEnd,
+                                    "kickoffStartsAt", ko.getStartsAt(),
+                                    "kickoffEventId", ko.getId()));
+                }
+            }
+        }
+    }
+
     @Override
     public List<Warning> computeLayer3Warnings(Hackathon hackathon, CreateEventRequest req) {
-        return computeWarningsLayer3dOnly(hackathon, req.getType(), req.getStartsAt());
+        return List.of();
     }
 
     @Override
     public List<Warning> computeLayer3Warnings(Hackathon hackathon, UpdateEventRequest req) {
-        return computeWarningsLayer3dOnly(hackathon, req.getType(), req.getStartsAt());
-    }
-
-    private List<Warning> computeWarningsLayer3dOnly(Hackathon h, EventType type,
-                                                     LocalDateTime startsAt) {
-        List<Warning> warnings = new ArrayList<>();
-        if (h == null || type != EventType.KICKOFF || startsAt == null) {
-            return warnings;
-        }
-        if (h.getEventStart() != null && !startsAt.toLocalDate().equals(h.getEventStart())) {
-            warnings.add(Warning.of("EVENT_ORDER_INVALID",
-                    "KICKOFF nên đúng ngày eventStart",
-                    Map.of("type", "KICKOFF", "eventStart", h.getEventStart(),
-                            "startsAt", startsAt)));
-        }
-        return warnings;
+        return List.of();
     }
 }

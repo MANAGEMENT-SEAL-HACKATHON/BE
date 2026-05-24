@@ -52,6 +52,8 @@ public final class ErrorCode {
     public static final String ROUND_DUPLICATE_FINAL      = "ROUND_DUPLICATE_FINAL";
     public static final String ROUND_FINAL_REQUIRES_PRELIM = "ROUND_FINAL_REQUIRES_PRELIM";
     public static final String ROUND_EXAM_BEFORE_SUBMISSION_OPEN = "ROUND_EXAM_BEFORE_SUBMISSION_OPEN";
+    public static final String ROUND_PRELIM_DEADLINE_AFTER_FINAL_EXAM = "ROUND_PRELIM_DEADLINE_AFTER_FINAL_EXAM";
+    public static final String ROUND_FINAL_DEADLINE_AFTER_AWARDS = "ROUND_FINAL_DEADLINE_AFTER_AWARDS";
     public static final String ROUND_HAS_CRITERIA       = "ROUND_HAS_CRITERIA";
     public static final String ROUND_FORCE_LOCK_REASON  = "ROUND_FORCE_LOCK_REASON";
     public static final String ROUND_HAS_SUBMISSIONS    = "ROUND_HAS_SUBMISSIONS";

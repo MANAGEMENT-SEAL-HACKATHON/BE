@@ -90,7 +90,7 @@ class EventScheduleValidatorImplTest {
     void blocksMilestoneWithoutEndsAt() {
         CreateEventRequest req = CreateEventRequest.builder()
                 .title("KO").type(EventType.KICKOFF).location("Hall")
-                .startsAt(LocalDateTime.of(2026, 4, 11, 14, 0))
+                .startsAt(LocalDateTime.of(2026, 4, 10, 14, 0))
                 .build();
 
         assertEquals(ErrorCode.EVENT_END_REQUIRED,
@@ -128,33 +128,42 @@ class EventScheduleValidatorImplTest {
     // ------------ KICKOFF ------------
 
     @Test
-    void kickoff_onEventStartDay_isAllowed() {
+    void kickoff_inGapBeforeEventStart_isAllowed() {
         assertDoesNotThrow(() -> validator.validateBlocking(hackathon,
-                kickoff(LocalDateTime.of(2026, 4, 11, 14, 0),
-                        LocalDateTime.of(2026, 4, 11, 17, 0)), 0));
+                kickoff(LocalDateTime.of(2026, 4, 10, 14, 0),
+                        LocalDateTime.of(2026, 4, 10, 17, 0)), 0));
     }
 
     @Test
-    void kickoff_notOnEventStart_isBlocked() {
+    void kickoff_onEventStartDay_isBlocked() {
         assertEquals(ErrorCode.EVENT_OUT_OF_HACKATHON,
                 assertThrows(BusinessRuleException.class,
                         () -> validator.validateBlocking(hackathon,
-                                kickoff(LocalDateTime.of(2026, 4, 12, 9, 0),
-                                        LocalDateTime.of(2026, 4, 12, 11, 0)), 0)).getCode());
+                                kickoff(LocalDateTime.of(2026, 4, 11, 14, 0),
+                                        LocalDateTime.of(2026, 4, 11, 17, 0)), 0)).getCode());
+    }
+
+    @Test
+    void kickoff_onOrBeforeRegistrationEnd_isBlocked() {
+        assertEquals(ErrorCode.EVENT_OUT_OF_HACKATHON,
+                assertThrows(BusinessRuleException.class,
+                        () -> validator.validateBlocking(hackathon,
+                                kickoff(LocalDateTime.of(2026, 4, 8, 14, 0),
+                                        LocalDateTime.of(2026, 4, 8, 17, 0)), 0)).getCode());
     }
 
     @Test
     void blocksDuplicateKickoff() {
         when(eventRepository.findByHackathonIdAndType(1, EventType.KICKOFF))
                 .thenReturn(List.of(kickoffEvent(10,
-                        LocalDateTime.of(2026, 4, 11, 14, 0),
-                        LocalDateTime.of(2026, 4, 11, 17, 0))));
+                        LocalDateTime.of(2026, 4, 10, 14, 0),
+                        LocalDateTime.of(2026, 4, 10, 17, 0))));
 
         assertEquals(ErrorCode.EVENT_MILESTONE_DUPLICATE,
                 assertThrows(BusinessRuleException.class,
                         () -> validator.validateBlocking(hackathon,
-                                kickoff(LocalDateTime.of(2026, 4, 11, 14, 0),
-                                        LocalDateTime.of(2026, 4, 11, 17, 0)), 0)).getCode());
+                                kickoff(LocalDateTime.of(2026, 4, 10, 14, 0),
+                                        LocalDateTime.of(2026, 4, 10, 17, 0)), 0)).getCode());
     }
 
     // ------------ AWARDS ------------
@@ -227,33 +236,34 @@ class EventScheduleValidatorImplTest {
                         .endsAt(LocalDateTime.of(2026, 4, 12, 19, 0)).build()));
 
         assertDoesNotThrow(() -> validator.validateBlocking(hackathon,
-                kickoff(LocalDateTime.of(2026, 4, 11, 14, 0),
-                        LocalDateTime.of(2026, 4, 11, 17, 0)), 0));
+                kickoff(LocalDateTime.of(2026, 4, 10, 14, 0),
+                        LocalDateTime.of(2026, 4, 10, 17, 0)), 0));
     }
 
     @Test
-    void kickoff_afterAwardsStart_layer3_blocked() {
-        // One-day hackathon: eventStart == eventEnd = 12/4 — KICKOFF valid layer 1 (on eventStart)
-        Hackathon oneDayH = Hackathon.builder()
-                .id(1)
-                .registrationStart(LocalDate.of(2026, 4, 1))
-                .registrationEnd(LocalDate.of(2026, 4, 10))
-                .eventStart(LocalDate.of(2026, 4, 12))
-                .eventEnd(LocalDate.of(2026, 4, 12))
-                .build();
+    void workshopAndKickoff_sameCalendarDay_blocked() {
+        when(eventRepository.findByHackathonIdAndType(1, EventType.WORKSHOP))
+                .thenReturn(List.of(Event.builder().id(5).type(EventType.WORKSHOP)
+                        .startsAt(LocalDateTime.of(2026, 4, 9, 20, 0))
+                        .endsAt(LocalDateTime.of(2026, 4, 9, 21, 30)).build()));
 
-        // AWARDS already exists: 12/4 10:00-11:00
-        when(eventRepository.findByHackathonIdAndType(1, EventType.AWARDS))
-                .thenReturn(List.of(Event.builder().id(20).type(EventType.AWARDS)
-                        .startsAt(LocalDateTime.of(2026, 4, 12, 10, 0))
-                        .endsAt(LocalDateTime.of(2026, 4, 12, 11, 0)).build()));
-
-        // KICKOFF on eventStart but ends AFTER AWARDS.startsAt → Layer 3 violation
         assertEquals(ErrorCode.EVENT_ORDER_VIOLATION,
                 assertThrows(BusinessRuleException.class,
-                        () -> validator.validateBlocking(oneDayH,
-                                kickoff(LocalDateTime.of(2026, 4, 12, 9, 0),
-                                        LocalDateTime.of(2026, 4, 12, 10, 30)), 0)).getCode());
+                        () -> validator.validateBlocking(hackathon,
+                                kickoff(LocalDateTime.of(2026, 4, 9, 14, 0),
+                                        LocalDateTime.of(2026, 4, 9, 17, 0)), 0)).getCode());
+    }
+
+    @Test
+    void workshopAndKickoff_differentDays_passes() {
+        when(eventRepository.findByHackathonIdAndType(1, EventType.WORKSHOP))
+                .thenReturn(List.of(Event.builder().id(5).type(EventType.WORKSHOP)
+                        .startsAt(LocalDateTime.of(2026, 4, 9, 20, 0))
+                        .endsAt(LocalDateTime.of(2026, 4, 9, 21, 30)).build()));
+
+        assertDoesNotThrow(() -> validator.validateBlocking(hackathon,
+                kickoff(LocalDateTime.of(2026, 4, 10, 14, 0),
+                        LocalDateTime.of(2026, 4, 10, 17, 0)), 0));
     }
 
     // ------------ LAYER 2 overlap OTHER ↔ milestone ------------
@@ -268,8 +278,8 @@ class EventScheduleValidatorImplTest {
         assertEquals(ErrorCode.EVENT_CONFLICTS_WITH_MILESTONE,
                 assertThrows(BusinessRuleException.class,
                         () -> validator.validateBlocking(hackathon,
-                                kickoff(LocalDateTime.of(2026, 4, 11, 14, 0),
-                                        LocalDateTime.of(2026, 4, 11, 17, 0)), 0)).getCode());
+                                kickoff(LocalDateTime.of(2026, 4, 10, 14, 0),
+                                        LocalDateTime.of(2026, 4, 10, 17, 0)), 0)).getCode());
     }
 
     @Test
@@ -277,8 +287,8 @@ class EventScheduleValidatorImplTest {
         when(eventRepository.findMilestoneOverlapping(
                 eq(1), eq(EventTimeline.MILESTONE_TYPES), any(), any(), eq(0)))
                 .thenReturn(List.of(kickoffEvent(10,
-                        LocalDateTime.of(2026, 4, 11, 14, 0),
-                        LocalDateTime.of(2026, 4, 11, 17, 0))));
+                        LocalDateTime.of(2026, 4, 10, 14, 0),
+                        LocalDateTime.of(2026, 4, 10, 17, 0))));
 
         CreateEventRequest req = CreateEventRequest.builder()
                 .title("Họp phụ").type(EventType.OTHER).location("Room")

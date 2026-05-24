@@ -31,7 +31,7 @@ public class CreateRoundRequest {
     @Size(max = 100)
     private String name;
 
-    /** Ngày giờ thi — bắt buộc; khác submissionOpen / submissionDeadline. */
+    /** Ngày giờ thi — bắt buộc; phải trước {@code submissionOpen}. */
     @NotNull
     private LocalDateTime examAt;
 

@@ -14,9 +14,7 @@ import java.util.List;
  *   <li><b>Lớp 1</b> — block 422 {@code EVENT_OUT_OF_HACKATHON}</li>
  *   <li><b>Lớp 2</b> — block 422 {@code EVENT_OVERLAP} (KICKOFF/AWARDS)</li>
  *   <li><b>Lớp 3</b> — block 422 {@code EVENT_ORDER_VIOLATION} / {@code EVENT_END_REQUIRED}:
- *       WORKSHOP → KICKOFF → PRESENTATION → AWARDS — mỗi giai đoạn phải có {@code endsAt}
- *       và kết thúc trước khi giai đoạn sau bắt đầu</li>
- *   <li><b>Lớp 3d</b> — warn mềm: KICKOFF trong [event_start, event_start+1d]</li>
+ *       WORKSHOP → KICKOFF → AWARDS; WORKSHOP và KICKOFF phải ở hai ngày khác nhau</li>
  *   <li><b>FIX-R10</b> — block 422 {@code EVENT_LOCATION_REQUIRED}: ít nhất location hoặc meetUrl</li>
  * </ul>
  */

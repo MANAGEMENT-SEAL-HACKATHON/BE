@@ -67,24 +67,48 @@ public class Gd1DataSeeder {
         return hackathonRepository.existsBySlug(Gd1SeedConstants.SLUG_ONGOING);
     }
 
+    private static final List<String> SEED_HACKATHON_SLUGS = List.of(
+            Gd1SeedConstants.SLUG_INCOMPLETE,
+            Gd1SeedConstants.SLUG_READY,
+            Gd1SeedConstants.SLUG_ONGOING);
+
     /**
-     * Cập nhật round seed cũ (thiếu / sai {@code examAt}) sau khi bỏ {@code sequence_order}.
+     * Đồng bộ lịch seed mẫu 24/05–10/06/2026 lên DB dev đã tồn tại (hackathon, events, rounds).
      * Gọi mỗi lần start dev, idempotent.
      */
     @Transactional
-    public void repairSeededRoundsExamAt() {
+    public void repairSeededTimeline() {
         SeedDates dates = computeDates();
-        int repaired = 0;
-        for (String slug : List.of(
-                Gd1SeedConstants.SLUG_READY,
-                Gd1SeedConstants.SLUG_ONGOING)) {
-            repaired += hackathonRepository.findBySlug(slug)
-                    .map(h -> repairRoundsForHackathon(h, dates))
-                    .orElse(0);
+        int hackathons = 0;
+        int events = 0;
+        int rounds = 0;
+        for (String slug : SEED_HACKATHON_SLUGS) {
+            Optional<Hackathon> maybe = hackathonRepository.findBySlug(slug);
+            if (maybe.isEmpty()) {
+                continue;
+            }
+            Hackathon h = maybe.get();
+            if (repairHackathonCalendar(h, dates)) {
+                hackathons++;
+            }
+            if (!Gd1SeedConstants.SLUG_INCOMPLETE.equals(slug)) {
+                events += ensureOrRepairEvents(h, dates);
+                rounds += repairRoundsForHackathon(h, dates);
+            }
         }
-        if (repaired > 0) {
-            log.info("[Gd1DataSeeder] Đã sửa examAt/submissionOpen cho {} round (seed cũ)", repaired);
+        if (hackathons > 0 || events > 0 || rounds > 0) {
+            log.info("""
+                    [Gd1DataSeeder] Repair timeline SEAL 2026 (reg 24/05–05/06, WS 06/06, KO 07/06, thi 10/06):
+                      hackathons={}, events={}, rounds={}""",
+                    hackathons, events, rounds);
         }
+    }
+
+    /** @deprecated dùng {@link #repairSeededTimeline()} */
+    @Deprecated
+    @Transactional
+    public void repairSeededRoundsExamAt() {
+        repairSeededTimeline();
     }
 
     /**
@@ -155,28 +179,28 @@ public class Gd1DataSeeder {
     }
 
     /**
-     * Lịch kiểu Spring 2026 PDF: workshop trước khai mạc, ngày thi = eventEnd (eventStart + 1d).
-     * Fall 2025 tham chiếu: 29/10 WS → 1/11 KO → 2/11 thi+trao giải.
+     * Lịch mẫu SEAL 2026 GĐ1: đăng ký 24/05–05/06, WS 06/06, KO 07/06, thi+trao giải 10/06.
      */
     private SeedDates computeDates() {
-        LocalDate today = LocalDate.now();
-        LocalDate eventStart = today.plusDays(14);
-        LocalDate eventEnd = eventStart.plusDays(1);
-        LocalDate regStart = today;
-        LocalDate regEnd = eventStart.minusDays(2);
-        LocalDateTime workshopStart = eventStart.minusDays(2).atTime(20, 0);
-        LocalDateTime workshopEnd = eventStart.minusDays(2).atTime(21, 30);
-        LocalDateTime kickoffStart = eventStart.atTime(14, 0);
-        LocalDateTime kickoffEnd = eventStart.atTime(17, 0);
+        LocalDate regStart = LocalDate.of(2026, 5, 24);
+        LocalDate regEnd = LocalDate.of(2026, 6, 5);
+        LocalDate eventStart = LocalDate.of(2026, 6, 10);
+        LocalDate eventEnd = eventStart;
+        LocalDateTime workshopStart = LocalDate.of(2026, 6, 6).atTime(20, 0);
+        LocalDateTime workshopEnd = LocalDate.of(2026, 6, 6).atTime(21, 30);
+        LocalDateTime kickoffStart = LocalDate.of(2026, 6, 7).atTime(14, 0);
+        LocalDateTime kickoffEnd = LocalDate.of(2026, 6, 7).atTime(17, 0);
         LocalDateTime awardsStart = eventEnd.atTime(17, 30);
         LocalDateTime awardsEnd = eventEnd.atTime(19, 0);
+        LocalDateTime prelimDeadline = eventStart.atTime(11, 30);
+        LocalDateTime finalDeadline = eventStart.atTime(16, 30);
         return new SeedDates(
                 regStart,
                 regEnd,
                 eventStart,
                 eventEnd,
-                eventEnd.atTime(17, 0).plusDays(7),
-                awardsEnd.plusDays(7),
+                prelimDeadline,
+                finalDeadline,
                 workshopStart,
                 workshopEnd,
                 kickoffStart,
@@ -324,6 +348,8 @@ public class Gd1DataSeeder {
                                                 SeedUsers users, SeedDates dates) {
         if (hackathonRepository.existsBySlug(slug)) {
             Hackathon existing = hackathonRepository.findBySlug(slug).orElseThrow();
+            repairHackathonCalendar(existing, dates);
+            ensureOrRepairEvents(existing, dates);
             repairRoundsForHackathon(existing, dates);
             ensureTrackCriteriaForHackathon(existing);
             if (includeCloneDemoTrack3) {
@@ -372,6 +398,7 @@ public class Gd1DataSeeder {
                 .examAt(dates.finalExamAt())
                 .isFinal(true)
                 .roundType(RoundType.FINAL)
+                .submissionOpen(dates.finalSubmissionOpen())
                 .submissionDeadline(dates.finalDeadline())
                 .lateSubmissionPolicy(LateSubmissionPolicy.HARD_LOCK)
                 .wildcardEnabled(false)
@@ -585,6 +612,107 @@ public class Gd1DataSeeder {
         return 1;
     }
 
+    private boolean repairHackathonCalendar(Hackathon hackathon, SeedDates dates) {
+        boolean changed = false;
+        if (!dates.regStart().equals(hackathon.getRegistrationStart())) {
+            hackathon.setRegistrationStart(dates.regStart());
+            changed = true;
+        }
+        if (!dates.regEnd().equals(hackathon.getRegistrationEnd())) {
+            hackathon.setRegistrationEnd(dates.regEnd());
+            changed = true;
+        }
+        if (!dates.eventStart().equals(hackathon.getEventStart())) {
+            hackathon.setEventStart(dates.eventStart());
+            changed = true;
+        }
+        if (!dates.eventEnd().equals(hackathon.getEventEnd())) {
+            hackathon.setEventEnd(dates.eventEnd());
+            changed = true;
+        }
+        if (hackathon.getYear() == null || hackathon.getYear() != dates.eventStart().getYear()) {
+            hackathon.setYear(dates.eventStart().getYear());
+            changed = true;
+        }
+        if (changed) {
+            hackathonRepository.save(hackathon);
+        }
+        return changed;
+    }
+
+    /**
+     * Cập nhật milestone đã có; tạo đủ 3 loại nếu hackathon full seed thiếu event.
+     */
+    private int ensureOrRepairEvents(Hackathon hackathon, SeedDates dates) {
+        int updated = repairEventsForHackathon(hackathon, dates);
+        boolean hasWorkshop = !eventRepository
+                .findByHackathonIdAndType(hackathon.getId(), EventType.WORKSHOP).isEmpty();
+        boolean hasKickoff = !eventRepository
+                .findByHackathonIdAndType(hackathon.getId(), EventType.KICKOFF).isEmpty();
+        boolean hasAwards = !eventRepository
+                .findByHackathonIdAndType(hackathon.getId(), EventType.AWARDS).isEmpty();
+        if (!hasWorkshop || !hasKickoff || !hasAwards) {
+            User createdBy = hackathon.getCreatedBy();
+            if (createdBy == null) {
+                return updated;
+            }
+            if (!hasWorkshop) {
+                eventRepository.save(event(hackathon, createdBy,
+                        "Workshop: RAG & AI Agent Fundamentals",
+                        EventType.WORKSHOP, "Online (Teams)",
+                        dates.workshopStart(), dates.workshopEnd()));
+                updated++;
+            }
+            if (!hasKickoff) {
+                eventRepository.save(event(hackathon, createdBy,
+                        "Lễ Khai mạc & Bốc thăm chia Track",
+                        EventType.KICKOFF, "FPT HCM — Hội trường A",
+                        dates.kickoffStart(), dates.kickoffEnd()));
+                updated++;
+            }
+            if (!hasAwards) {
+                eventRepository.save(event(hackathon, createdBy,
+                        "Vòng Chung kết & Trao giải",
+                        EventType.AWARDS, "FPT HCM — Hội trường A",
+                        dates.awardsStart(), dates.awardsEnd()));
+                updated++;
+            }
+        }
+        return updated;
+    }
+
+    private int repairEventsForHackathon(Hackathon hackathon, SeedDates dates) {
+        int count = 0;
+        count += repairEventIfPresent(hackathon, EventType.WORKSHOP,
+                dates.workshopStart(), dates.workshopEnd());
+        count += repairEventIfPresent(hackathon, EventType.KICKOFF,
+                dates.kickoffStart(), dates.kickoffEnd());
+        count += repairEventIfPresent(hackathon, EventType.AWARDS,
+                dates.awardsStart(), dates.awardsEnd());
+        return count;
+    }
+
+    private int repairEventIfPresent(Hackathon hackathon, EventType type,
+                                     LocalDateTime startsAt, LocalDateTime endsAt) {
+        int count = 0;
+        for (Event event : eventRepository.findByHackathonIdAndType(hackathon.getId(), type)) {
+            boolean changed = false;
+            if (!startsAt.equals(event.getStartsAt())) {
+                event.setStartsAt(startsAt);
+                changed = true;
+            }
+            if (!endsAt.equals(event.getEndsAt())) {
+                event.setEndsAt(endsAt);
+                changed = true;
+            }
+            if (changed) {
+                eventRepository.save(event);
+                count++;
+            }
+        }
+        return count;
+    }
+
     private int repairRoundsForHackathon(Hackathon hackathon, SeedDates dates) {
         List<Round> rounds = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathon.getId());
         if (rounds.isEmpty()) {
@@ -602,6 +730,16 @@ public class Gd1DataSeeder {
                     round.setExamAt(dates.finalExamAt());
                     changed = true;
                 }
+                if (round.getSubmissionOpen() == null
+                        || !round.getSubmissionOpen().equals(dates.finalSubmissionOpen())) {
+                    round.setSubmissionOpen(dates.finalSubmissionOpen());
+                    changed = true;
+                }
+                if (round.getSubmissionDeadline() == null
+                        || !round.getSubmissionDeadline().equals(dates.finalDeadline())) {
+                    round.setSubmissionDeadline(dates.finalDeadline());
+                    changed = true;
+                }
             } else {
                 LocalDateTime targetExam = dates.prelimExamAt();
                 if (finalRound != null && finalRound.getExamAt() != null
@@ -612,8 +750,14 @@ public class Gd1DataSeeder {
                     round.setExamAt(targetExam);
                     changed = true;
                 }
-                if (round.getSubmissionOpen() == null) {
+                if (round.getSubmissionOpen() == null
+                        || !round.getSubmissionOpen().equals(dates.prelimSubmissionOpen())) {
                     round.setSubmissionOpen(dates.prelimSubmissionOpen());
+                    changed = true;
+                }
+                if (round.getSubmissionDeadline() == null
+                        || !round.getSubmissionDeadline().equals(dates.prelimDeadline())) {
+                    round.setSubmissionDeadline(dates.prelimDeadline());
                     changed = true;
                 }
             }
@@ -679,14 +823,18 @@ public class Gd1DataSeeder {
             return eventStart.atTime(8, 0);
         }
 
-        /** Ngày giờ thi chung kết — trong khung AWARDS (Spring: 12/4 chiều). */
+        /** Ngày giờ thi chung kết — cùng ngày thi, sau sơ loại. */
         LocalDateTime finalExamAt() {
-            return awardsStart.plusMinutes(30);
+            return eventStart.atTime(13, 0);
         }
 
-        /** Mở nộp bài sơ loại — sau KICKOFF. */
+        /** Mở nộp bài sơ loại — sau examAt sơ loại. */
         LocalDateTime prelimSubmissionOpen() {
-            return kickoffEnd;
+            return eventStart.atTime(9, 0);
+        }
+
+        LocalDateTime finalSubmissionOpen() {
+            return eventStart.atTime(14, 0);
         }
     }
 

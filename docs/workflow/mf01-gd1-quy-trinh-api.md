@@ -217,6 +217,8 @@ Lặp lại với `sequenceOrder: 2` cho Track 2 (nếu cần).
 
 **Mục đích:** Tiêu chí chấm điểm — **XOR**: Sơ loại gắn `track_id`, Chung kết gắn `round_id` (FINAL).
 
+> **Chung kết không có Track con** — tạo criteria qua `POST /rounds/{finalRoundId}/criteria`, **không** qua `/tracks/...`. Round Sơ loại trong `GET /rounds` có `criteriaCount=0` vì criteria nằm trên từng Track.
+
 ### API bắt buộc (happy path)
 
 **Cho mỗi Track Sơ loại:**

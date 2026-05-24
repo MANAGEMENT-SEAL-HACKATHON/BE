@@ -8,7 +8,10 @@ import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.criteria.service.WeightSummaryService;
+import com.sealhackathon.api.events.repository.EventRepository;
 import com.sealhackathon.api.events.service.HackathonTimelineService;
+import com.sealhackathon.api.events.value_object.EventType;
+import com.sealhackathon.api.events.entity.Event;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
@@ -60,6 +63,7 @@ public class RoundServiceImpl implements RoundService {
     private final JudgeAssignmentRepository judgeAssignmentRepository;
     private final NotificationService notificationService;
     private final HackathonTimelineService hackathonTimelineService;
+    private final EventRepository eventRepository;
 
     @Override
     public RoundResponse createByHackathon(Integer hackathonId, CreateRoundRequest req) {
@@ -71,6 +75,8 @@ public class RoundServiceImpl implements RoundService {
         validateRoundTypeUnique(hackathonId, req, null);
         validateExamAtRules(hackathonId, req.getIsFinal(), req.getExamAt(),
                 req.getSubmissionOpen(), null);
+        validateRoundDeadlineOrdering(hackathonId, req.getIsFinal(), req.getExamAt(),
+                req.getSubmissionDeadline(), null);
 
         Round entity = roundMapper.toEntity(req, h);
         Round saved = roundRepository.save(entity);
@@ -111,6 +117,8 @@ public class RoundServiceImpl implements RoundService {
         if (r.getHackathon() != null) {
             validateExamAtRules(r.getHackathon().getId(), r.getIsFinal(), req.getExamAt(),
                     req.getSubmissionOpen(), r.getId());
+            validateRoundDeadlineOrdering(r.getHackathon().getId(), r.getIsFinal(), req.getExamAt(),
+                    req.getSubmissionDeadline(), r.getId());
         }
 
         if (Boolean.TRUE.equals(req.getForceLocked())
@@ -221,9 +229,9 @@ public class RoundServiceImpl implements RoundService {
      */
     private void validateExamAtRules(Integer hackathonId, Boolean isFinal, LocalDateTime examAt,
                                      LocalDateTime submissionOpen, Integer excludeRoundId) {
-        if (submissionOpen != null && examAt.isBefore(submissionOpen)) {
+        if (submissionOpen != null && !examAt.isBefore(submissionOpen)) {
             throw new BusinessRuleException(ErrorCode.ROUND_EXAM_BEFORE_SUBMISSION_OPEN,
-                    "Ngày thi (%s) phải >= thời điểm mở nộp bài (%s)"
+                    "Ngày thi (%s) phải trước thời điểm mở nộp bài (%s)"
                             .formatted(examAt, submissionOpen),
                     Map.of("examAt", examAt, "submissionOpen", submissionOpen));
         }
@@ -326,6 +334,47 @@ public class RoundServiceImpl implements RoundService {
                         Map.of());
             }
         }
+    }
+
+    private void validateRoundDeadlineOrdering(Integer hackathonId, Boolean isFinal,
+                                               LocalDateTime examAt, LocalDateTime submissionDeadline,
+                                               Integer excludeRoundId) {
+        if (submissionDeadline == null) {
+            return;
+        }
+
+        if (Boolean.TRUE.equals(isFinal)) {
+            eventRepository.findByHackathonIdAndType(hackathonId, EventType.AWARDS).stream()
+                    .map(Event::getStartsAt)
+                    .filter(java.util.Objects::nonNull)
+                    .min(LocalDateTime::compareTo)
+                    .ifPresent(awardsStart -> {
+                        if (!submissionDeadline.isBefore(awardsStart)) {
+                            throw new BusinessRuleException(ErrorCode.ROUND_FINAL_DEADLINE_AFTER_AWARDS,
+                                    "Hạn nộp Chung kết (%s) phải trước Lễ trao giải (%s)"
+                                            .formatted(submissionDeadline, awardsStart),
+                                    Map.of("hackathonId", hackathonId,
+                                            "submissionDeadline", submissionDeadline,
+                                            "awardsStartsAt", awardsStart));
+                        }
+                    });
+            return;
+        }
+
+        roundRepository.findByHackathon_IdAndIsFinalTrue(hackathonId)
+                .filter(fr -> excludeRoundId == null || !fr.getId().equals(excludeRoundId))
+                .ifPresent(finalRound -> {
+                    if (finalRound.getExamAt() != null
+                            && !submissionDeadline.isBefore(finalRound.getExamAt())) {
+                        throw new BusinessRuleException(ErrorCode.ROUND_PRELIM_DEADLINE_AFTER_FINAL_EXAM,
+                                "Hạn nộp Sơ loại (%s) phải trước ngày thi Chung kết (%s)"
+                                        .formatted(submissionDeadline, finalRound.getExamAt()),
+                                Map.of("hackathonId", hackathonId,
+                                        "submissionDeadline", submissionDeadline,
+                                        "finalExamAt", finalRound.getExamAt(),
+                                        "finalRoundId", finalRound.getId()));
+                    }
+                });
     }
 
     private void validateDeadline(LocalDateTime open, LocalDateTime deadline) {

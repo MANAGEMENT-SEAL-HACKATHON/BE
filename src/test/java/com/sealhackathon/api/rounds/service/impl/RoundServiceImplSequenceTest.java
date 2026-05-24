@@ -5,6 +5,8 @@ import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.criteria.service.WeightSummaryService;
+import com.sealhackathon.api.events.repository.EventRepository;
+import com.sealhackathon.api.events.service.HackathonTimelineService;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
@@ -22,8 +24,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -32,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class RoundServiceImplSequenceTest {
 
     @Mock private RoundRepository roundRepository;
@@ -44,6 +50,8 @@ class RoundServiceImplSequenceTest {
     @Mock private SubmissionPlaceholderRepository submissionRepository;
     @Mock private JudgeAssignmentRepository judgeAssignmentRepository;
     @Mock private NotificationService notificationService;
+    @Mock private HackathonTimelineService hackathonTimelineService;
+    @Mock private EventRepository eventRepository;
 
     @InjectMocks
     private RoundServiceImpl roundService;
@@ -57,6 +65,8 @@ class RoundServiceImplSequenceTest {
                 .thenReturn(List.of(Round.builder().id(10).build()));
         when(roundRepository.countByHackathon_IdAndIsFinalTrue(1)).thenReturn(0L);
         when(roundRepository.maxExamAtNonFinal(1)).thenReturn(Optional.of(prelimExam));
+        when(eventRepository.findByHackathonIdAndType(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any())).thenReturn(Collections.emptyList());
 
         CreateRoundRequest req = CreateRoundRequest.builder()
                 .name("Chung kết")
