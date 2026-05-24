@@ -80,7 +80,7 @@ public class EventServiceImpl implements EventService {
         if (Boolean.TRUE.equals(saved.getIsPublic())) {
             fanoutReminder(saved);
         }
-        if (EventTimeline.isMilestone(saved.getType())) {
+        if (saved.getType() == EventType.KICKOFF) {
             hackathonTimelineService.assertAllRoundsExamAtValid(hackathonId);
         }
         return new CreateResult(response, warnings);
@@ -135,7 +135,7 @@ public class EventServiceImpl implements EventService {
         if (Boolean.TRUE.equals(saved.getIsPublic()) && !saved.getStartsAt().equals(prevStart)) {
             fanoutReminder(saved);
         }
-        if (EventTimeline.isMilestone(saved.getType())) {
+        if (saved.getType() == EventType.KICKOFF) {
             hackathonTimelineService.assertAllRoundsExamAtValid(h.getId());
         }
         return new UpdateResult(after, warnings);
@@ -157,7 +157,9 @@ public class EventServiceImpl implements EventService {
 
         auditService.log(AuditAction.EVENT_DELETE, "events", id,
                 Map.of("snapshot", snapshot, "notificationCleanup", stale.size()));
-        if (wasMilestone) {
+        // Chỉ revalidate round khi xóa KICKOFF — đây là event duy nhất còn ràng buộc với round.examAt.
+        // AWARDS và WORKSHOP không có ràng buộc chéo với round.examAt nên không cần revalidate.
+        if (e.getType() == EventType.KICKOFF) {
             hackathonTimelineService.assertAllRoundsExamAtValid(hackathonId);
         }
         return id;

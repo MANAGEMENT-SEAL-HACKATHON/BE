@@ -2,7 +2,6 @@ package com.sealhackathon.api.events.service.impl;
 
 import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ErrorCode;
-import com.sealhackathon.api.events.entity.Event;
 import com.sealhackathon.api.events.repository.EventRepository;
 import com.sealhackathon.api.events.service.HackathonTimelineService;
 import com.sealhackathon.api.events.support.EventTimeline;
@@ -34,7 +33,7 @@ public class HackathonTimelineServiceImpl implements HackathonTimelineService {
         if (examAt == null) {
             return;
         }
-        validateExamAtAgainstEvents(hackathonId, isFinal, examAt);
+        validateExamAt(hackathonId, examAt);
     }
 
     @Override
@@ -45,9 +44,7 @@ public class HackathonTimelineServiceImpl implements HackathonTimelineService {
                 continue;
             }
             try {
-                validateExamAtAgainstEvents(hackathonId,
-                        Boolean.TRUE.equals(round.getIsFinal()),
-                        round.getExamAt());
+                validateExamAt(hackathonId, round.getExamAt());
             } catch (BusinessRuleException ex) {
                 violations.add(wrapRoundContext(ex, round));
             }
@@ -76,7 +73,14 @@ public class HackathonTimelineServiceImpl implements HackathonTimelineService {
                 details);
     }
 
-    private void validateExamAtAgainstEvents(Integer hackathonId, boolean isFinal, LocalDateTime examAt) {
+    /**
+     * Validate examAt chỉ theo 2 quy tắc:
+     * 1. examAt > KICKOFF.endsAt (nếu KICKOFF tồn tại)
+     * 2. examAt ∈ [eventStart, eventEnd] (nếu Hackathon tồn tại)
+     *
+     * Không so với PRESENTATION hay AWARDS — Event không kiểm soát validation Round.
+     */
+    private void validateExamAt(Integer hackathonId, LocalDateTime examAt) {
         eventRepository.findLatestByType(hackathonId, EventType.KICKOFF).stream()
                 .map(EventTimeline::effectiveEnd)
                 .max(LocalDateTime::compareTo)
@@ -91,35 +95,8 @@ public class HackathonTimelineServiceImpl implements HackathonTimelineService {
                     }
                 });
 
-        // FR-06A v3.2 — examAt phải nằm trong khung [eventStart, eventEnd] (inclusive ngày).
         Optional<Hackathon> maybeHackathon = hackathonRepository.findById(hackathonId);
         maybeHackathon.ifPresent(h -> assertExamAtWithinEventWindow(h, examAt));
-
-        if (isFinal) {
-            // EVENT_AWARDS_MISSING không check ở đây — đây là gate readiness (HackathonReadinessServiceImpl).
-            // Check ở đây gây circular-delete: xóa AWARDS → assertAllRoundsExamAtValid → EVENT_AWARDS_MISSING → rollback.
-            List<Event> awardsEvents = eventRepository.findByHackathonIdAndType(
-                    hackathonId, EventType.AWARDS);
-            for (Event awards : awardsEvents) {
-                LocalDateTime awardsStart = awards.getStartsAt();
-                if (awardsStart == null) {
-                    continue;
-                }
-                if (!examAt.isBefore(awardsStart)) {
-                    throw new BusinessRuleException(ErrorCode.ROUND_EXAM_OUTSIDE_AWARDS,
-                            "Ngày thi Chung kết (%s) phải TRƯỚC Lễ trao giải bắt đầu (%s)"
-                                    .formatted(examAt, awardsStart),
-                            Map.of("hackathonId", hackathonId,
-                                    "examAt", examAt,
-                                    "awardsStartsAt", awardsStart,
-                                    "awardsEventId", awards.getId()));
-                }
-            }
-            return;
-        }
-
-        // Event và Round đồng cấp — không ràng buộc examAt với PRESENTATION.
-        // examAt chỉ cần nằm trong [eventStart, eventEnd] (đã check ở trên).
     }
 
     private static void assertExamAtWithinEventWindow(Hackathon h, LocalDateTime examAt) {

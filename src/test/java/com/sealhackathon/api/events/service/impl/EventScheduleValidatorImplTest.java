@@ -197,15 +197,14 @@ class EventScheduleValidatorImplTest {
     }
 
     @Test
-    void presentation_beforeEventStart_isBlocked() {
+    void presentation_beforeEventStart_isAllowed() {
+        // PRESENTATION hoàn toàn không có validation — coordinator tự quản lý
         CreateEventRequest req = CreateEventRequest.builder()
                 .title("Thuyết trình").type(EventType.PRESENTATION).location("Hall")
                 .startsAt(LocalDateTime.of(2026, 4, 10, 8, 0))
                 .endsAt(LocalDateTime.of(2026, 4, 10, 12, 0))
                 .build();
-        assertEquals(ErrorCode.EVENT_OUT_OF_HACKATHON,
-                assertThrows(BusinessRuleException.class,
-                        () -> validator.validateBlocking(hackathon, req, 0)).getCode());
+        assertDoesNotThrow(() -> validator.validateBlocking(hackathon, req, 0));
     }
 
     @Test

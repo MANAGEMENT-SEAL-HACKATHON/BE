@@ -55,9 +55,7 @@ class HackathonTimelineServiceImplTest {
                 .build();
 
         when(hackathonRepository.findById(HACKATHON_ID)).thenReturn(Optional.of(hackathon));
-        when(eventRepository.findByHackathonIdAndType(HACKATHON_ID, EventType.KICKOFF))
-                .thenReturn(Collections.emptyList());
-        when(eventRepository.findByHackathonIdAndType(HACKATHON_ID, EventType.AWARDS))
+        when(eventRepository.findLatestByType(HACKATHON_ID, EventType.KICKOFF))
                 .thenReturn(Collections.emptyList());
         when(roundRepository.findByHackathon_IdOrderByExamAtAsc(HACKATHON_ID))
                 .thenReturn(Collections.emptyList());
@@ -117,31 +115,28 @@ class HackathonTimelineServiceImplTest {
                 service.validateRoundExamAt(HACKATHON_ID, false, LocalDateTime.of(2026, 4, 11, 10, 0)));
     }
 
-    // ------------ AWARDS does NOT block examAt (circular-delete fix) ------------
+    // ------------ AWARDS không còn ràng buộc examAt (circular-delete fix + full decouple) ------------
 
     @Test
     void finalRound_noAwards_passes() {
-        // Xóa AWARDS → Awards list empty → không throw EVENT_AWARDS_MISSING
+        // Xóa AWARDS → không còn throw EVENT_AWARDS_MISSING hay ROUND_EXAM_OUTSIDE_AWARDS
         assertDoesNotThrow(() ->
                 service.validateRoundExamAt(HACKATHON_ID, true, LocalDateTime.of(2026, 4, 12, 9, 0)));
     }
 
     @Test
-    void finalRound_examBeforeAwards_passes() {
-        mockAwards(LocalDateTime.of(2026, 4, 12, 17, 30), LocalDateTime.of(2026, 4, 12, 19, 0));
-
+    void finalRound_examAfterAwardsStart_stillPasses() {
+        // AWARDS không còn kiểm soát examAt — examAt sau AWARDS.startsAt vẫn hợp lệ
         assertDoesNotThrow(() ->
-                service.validateRoundExamAt(HACKATHON_ID, true, LocalDateTime.of(2026, 4, 12, 10, 0)));
+                service.validateRoundExamAt(HACKATHON_ID, true, LocalDateTime.of(2026, 4, 12, 18, 0)));
     }
 
     @Test
-    void finalRound_examAfterAwardsStart_blocked() {
-        mockAwards(LocalDateTime.of(2026, 4, 12, 17, 30), LocalDateTime.of(2026, 4, 12, 19, 0));
+    void prelimRound_examAfterKickoff_noAwards_passes() {
+        mockKickoff(LocalDateTime.of(2026, 4, 11, 14, 0), LocalDateTime.of(2026, 4, 11, 17, 0));
 
-        assertEquals(ErrorCode.ROUND_EXAM_OUTSIDE_AWARDS,
-                assertThrows(BusinessRuleException.class, () ->
-                        service.validateRoundExamAt(HACKATHON_ID, true,
-                                LocalDateTime.of(2026, 4, 12, 18, 0))).getCode());
+        assertDoesNotThrow(() ->
+                service.validateRoundExamAt(HACKATHON_ID, false, LocalDateTime.of(2026, 4, 12, 9, 0)));
     }
 
     // ------------ collectViolations ------------
@@ -186,9 +181,4 @@ class HackathonTimelineServiceImplTest {
                         .startsAt(start).endsAt(end).build()));
     }
 
-    private void mockAwards(LocalDateTime start, LocalDateTime end) {
-        when(eventRepository.findByHackathonIdAndType(HACKATHON_ID, EventType.AWARDS))
-                .thenReturn(List.of(Event.builder().id(2).type(EventType.AWARDS)
-                        .startsAt(start).endsAt(end).build()));
-    }
 }

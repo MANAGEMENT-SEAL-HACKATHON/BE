@@ -92,12 +92,18 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
 
         LocalDateTime effectiveEnd = EventTimeline.effectiveEnd(startsAt, endsAt);
 
+        // PRESENTATION: không còn trong milestone chain và không cần validate thêm.
+        // Coordinator tự chịu trách nhiệm quản lý loại sự kiện này.
+        if (type == EventType.PRESENTATION) {
+            return;
+        }
+
         // Lớp 1 — window theo từng loại (dispatcher)
         EventWindowRule rule = windowRules.get(type);
         if (rule != null) {
             rule.check(h, startsAt, effectiveEnd, excludeEventId);
         } else {
-            // PRESENTATION và OTHER: chỉ check nằm trong [eventStart, eventEnd]
+            // OTHER: chỉ check nằm trong [eventStart, eventEnd]
             validateWithinHackathon(h, startsAt, effectiveEnd, type);
         }
 
