@@ -152,7 +152,7 @@ flowchart LR
 | GET | `/api/v1/hackathons/{hackathonId}/rounds` | List rounds theo thứ tự |
 | GET | `/api/v1/rounds/{id}` | Chi tiết một round |
 | PUT | `/api/v1/rounds/{id}` | Cập nhật deadline, lock chấm điểm, … |
-| DELETE | `/api/v1/rounds/{id}` | Xóa — không khi đang `isActive` / có submission / có criteria |
+| DELETE | `/api/v1/rounds/{id}` | Xóa — không khi `isActive` hoặc có submission; nếu không active → tự xóa Criteria con rồi xóa Round |
 
 Response list round gồm `trackCount` (số track con; 0 nếu FINAL), `criteriaCount`, `currentWeightTotal`.
 

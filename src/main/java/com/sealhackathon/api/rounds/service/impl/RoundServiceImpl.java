@@ -25,6 +25,7 @@ import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.service.RoundService;
 import com.sealhackathon.api.rounds.value_object.LateSubmissionPolicy;
 import com.sealhackathon.api.rounds.value_object.RoundType;
+import com.sealhackathon.api.scores.repository.ScorePlaceholderRepository;
 import com.sealhackathon.api.submissions.repository.SubmissionPlaceholderRepository;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import lombok.RequiredArgsConstructor;
@@ -55,6 +56,7 @@ public class RoundServiceImpl implements RoundService {
     private final AuditService auditService;
     private final WeightSummaryService weightSummaryService;
     private final SubmissionPlaceholderRepository submissionRepository;
+    private final ScorePlaceholderRepository scoreRepository;
     private final JudgeAssignmentRepository judgeAssignmentRepository;
     private final NotificationService notificationService;
     private final HackathonTimelineService hackathonTimelineService;
@@ -151,10 +153,21 @@ public class RoundServiceImpl implements RoundService {
             throw new ConflictException(ErrorCode.ROUND_HAS_SUBMISSIONS,
                     "Round đã có submission — không thể xóa");
         }
-        if (criteriaRepository.countByRoundIdOrTracksInRound(id) > 0) {
-            throw new ConflictException(ErrorCode.ROUND_HAS_CRITERIA,
-                    "Round đã có Criteria — không thể xóa",
-                    Map.of("roundId", id));
+        long criteriaCount = criteriaRepository.countAllLinkedToRoundNative(id);
+        if (criteriaCount > 0) {
+            if (scoreRepository.countByRoundId(id) > 0) {
+                throw new ConflictException(ErrorCode.ROUND_HAS_CRITERIA,
+                        "Round đã có Criteria đã được chấm điểm — không thể xóa",
+                        Map.of("roundId", id, "criteriaCount", criteriaCount));
+            }
+            // Round không active + chưa có submission → cascade xóa Criteria (native — JPQL có thể miss rows).
+            int deleted = criteriaRepository.deleteAllLinkedToRoundNative(id);
+            if (criteriaRepository.countAllLinkedToRoundNative(id) > 0) {
+                throw new ConflictException(ErrorCode.ROUND_HAS_CRITERIA,
+                        "Không xóa hết Criteria của Round (đã xóa %d/%d) — thử lại hoặc xóa thủ công"
+                                .formatted(deleted, criteriaCount),
+                        Map.of("roundId", id, "criteriaCount", criteriaCount, "deleted", deleted));
+            }
         }
 
         RoundResponse snapshot = roundMapper.toResponse(r);
@@ -166,8 +179,13 @@ public class RoundServiceImpl implements RoundService {
                     "rounds", id);
         }
         roundRepository.delete(r);
-        auditService.log(AuditAction.ROUND_DELETE, "rounds", id,
-                Map.of("snapshot", snapshot, "judgeCount", judges.size()));
+        Map<String, Object> deleteDetails = new java.util.LinkedHashMap<>();
+        deleteDetails.put("snapshot", snapshot);
+        deleteDetails.put("judgeCount", judges.size());
+        if (criteriaCount > 0) {
+            deleteDetails.put("criteriaCascadeDeleted", criteriaCount);
+        }
+        auditService.log(AuditAction.ROUND_DELETE, "rounds", id, deleteDetails);
         return id;
     }
 

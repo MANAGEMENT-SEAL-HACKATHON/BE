@@ -104,7 +104,17 @@ public interface CriteriaRepository extends JpaRepository<Criteria, Integer> {
             """)
     long countByRoundIdOrTracksInRound(@Param("roundId") Integer roundId);
 
-    @Modifying
+    /** Native count — khớp FK DB (criteria.round_id hoặc track thuộc round). */
+    @Query(value = """
+            SELECT COUNT(*)
+              FROM criteria c
+              LEFT JOIN tracks t ON c.track_id = t.id
+             WHERE c.round_id = :roundId
+                OR t.round_id = :roundId
+            """, nativeQuery = true)
+    long countAllLinkedToRoundNative(@Param("roundId") Integer roundId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Transactional
     @Query("""
             DELETE FROM Criteria c
@@ -112,4 +122,15 @@ public interface CriteriaRepository extends JpaRepository<Criteria, Integer> {
                 OR c.track.round.id = :roundId
             """)
     void deleteByRoundId(@Param("roundId") Integer roundId);
+
+    /** Native delete — khớp FK DB; JPQL deleteByRoundId có thể không xóa khi round_id set trực tiếp. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Transactional
+    @Query(value = """
+            DELETE c FROM criteria c
+              LEFT JOIN tracks t ON c.track_id = t.id
+             WHERE c.round_id = :roundId
+                OR t.round_id = :roundId
+            """, nativeQuery = true)
+    int deleteAllLinkedToRoundNative(@Param("roundId") Integer roundId);
 }

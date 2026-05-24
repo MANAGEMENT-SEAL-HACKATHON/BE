@@ -147,7 +147,6 @@ public class EventServiceImpl implements EventService {
                 .orElseThrow(() -> new ResourceNotFoundException("Event", id));
         EventResponse snapshot = eventMapper.toResponse(e);
         Integer hackathonId = e.getHackathon().getId();
-        boolean wasMilestone = EventTimeline.isMilestone(e.getType());
 
         List<Notification> stale = notificationRepository.findByReferenceTypeAndReferenceId("events", id);
         if (!stale.isEmpty()) {
