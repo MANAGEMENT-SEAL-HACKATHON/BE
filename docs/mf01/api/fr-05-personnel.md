@@ -23,7 +23,20 @@
 
 ---
 
-# FR-05a — Tạo tài khoản Judge khách mời + Invitation
+# FR-05a — Tạo tài khoản Judge khách mời
+
+> Chi tiết: [02-invitations.md](../../mf02/02-invitations.md). Mời đội (FR-12) — backlog.
+
+| Hạng mục | Giá trị |
+|----------|---------|
+| Ai tạo | **Coordinator** only |
+| TTL invitation | **3 ngày** (72h) |
+| Tài khoản | `APPROVED`, `is_temp_account=true`, `must_change_password=true` |
+| Email | Email login + **MK tạm** + link `{frontend}/login` |
+| Sau login | FE redirect đổi MK → `POST /auth/change-password` |
+| Hết hạn invitation | Login → `401 INVITATION_EXPIRED` — Coordinator resend (trong cửa sổ 48h trước KICKOFF) |
+| Vòng đời TK | Sau `event_end` → `401 TEMP_JUDGE_HACKATHON_ENDED` (login/refresh) |
+| Hackathon | `hackathonId` **bắt buộc** khi tạo judge khách |
 
 ## 1. POST `/api/v1/users/temp-judges`
 
@@ -33,7 +46,8 @@
   "fullName":    "Mr. Pham Duc Nhi",
   "email":       "nhi.pham@google.com",
   "institution": "Google Vietnam",
-  "phone":       "+84 ..."
+  "phone":       "+84 ...",
+  "hackathonId": 1
 }
 ```
 
@@ -50,27 +64,51 @@
 @Transactional
 createTempJudge(req, coordinatorId):
   if userRepo.existsByEmail(req.email): throw 409 USER_EMAIL_TAKEN
+  tempPassword = generateReadableTempPassword()   // gửi 1 lần trong email
   user = User.builder()
             .fullName(req.fullName).email(req.email)
+            .passwordHash(bcrypt(tempPassword))
             .role(JUDGE).userType(EXTERNAL).isTempAccount(true)
             .status(APPROVED)            // Coordinator approve trực tiếp, KHÔNG qua PENDING
             .institution(req.institution).phone(req.phone)
+            .mustChangePassword(true)    // spec — field backlog nếu chưa có cột
             .build()
   userRepo.save(user)
 
   token = UUID-based 64-char random
   invitation = Invitation.builder()
                  .email(user.email).role(JUDGE).invitedBy(coordinatorRef)
-                 .token(token).expiresAt(NOW + 48h)
+                 .token(token).expiresAt(NOW + 3 days)   // 72h — spec product
                  .build()
   invitationRepo.save(invitation)
 
-  emailService.sendInvitation(user.email, token, expiresAt)        # interface stub — Dev triển khai sau
+  emailService.sendGuestJudgeInvitation(
+      user.email, fullName, tempPassword,
+      loginUrl = frontend + "/login",
+      expiresAt)
 
   audit.log(TEMP_ACCOUNT_CREATE, "users", user.id,
             {invitationId: invitation.id, institution: user.institution})
-  return mapper.toResponse(user, invitation)
+  return mapper.toResponse(user, invitation)   // KHÔNG trả tempPassword trong API
 ```
+
+### Đăng nhập & đổi mật khẩu
+
+```
+POST /api/v1/auth/login
+  → mustChangePassword: true (judge khách)
+  → nếu invitation JUDGE hết hạn: 401 INVITATION_EXPIRED
+
+POST /api/v1/auth/change-password  (Bearer)
+  { "currentPassword": "...", "newPassword": "..." }
+  → must_change_password = false
+  → invitations.accepted_at = NOW (JUDGE pending)
+```
+
+### Vòng đời sau sự kiện (spec)
+
+- Job hoặc rule thủ công: sau `hackathons.event_end`, khóa đăng nhập judge `is_temp_account=true` (hoặc `status` → inactive).
+- Chi tiết triển khai: backlog MF-02 / GĐ4.
 
 ### Response 201
 ```json
@@ -104,11 +142,19 @@ Response paged — kèm trạng thái invitation (`pendingAccept`, `accepted`, `
 
 ## 3. POST `/api/v1/invitations/{id}/resend`
 
+**Chỉ** invitation `role=JUDGE`. Regenerate MK tạm + email + gia hạn 72h.
+
 ### Logic
 - 404 nếu invitation không tồn tại.
+- 422 nếu `role=STUDENT` (mời tham gia cuộc thi — không resend qua đây).
 - 409 `INVITATION_ALREADY_ACCEPTED` nếu `accepted_at IS NOT NULL`.
-- Regenerate `token` và set `expires_at = NOW + 48h`.
-- Gửi email lại.
+- 422 `INVITATION_STILL_VALID` nếu token chưa hết hạn (giữ hành vi hiện tại).
+- 422 `INVITATION_HACKATHON_REQUIRED` nếu invitation không gắn hackathon.
+- 422 `EVENT_KICKOFF_NOT_FOUND` nếu chưa có KICKOFF hoặc thiếu `starts_at`.
+- 422 `INVITATION_RESEND_AFTER_KICKOFF_CUTOFF` nếu trong vòng 48h trước KICKOFF hoặc sau khi KICKOFF đã bắt đầu.
+- 422 `TEMP_JUDGE_HACKATHON_ENDED` nếu hackathon đã qua `event_end`.
+- Regenerate `token` và set `expires_at = NOW + 3 days` (72h).
+- Gửi email lại (kèm MK tạm mới nếu policy yêu cầu rotate).
 - Audit `INVITATION_RESEND`.
 
 ### Response 200
@@ -246,6 +292,5 @@ List Round mà Judge đã được phân công (xuyên Hackathon).
 7. DELETE assignment → 200 + notification gửi user.
 
 ## Email contract (interface `EmailService`)
-- `sendInvitation(email, token, expiresAt)` — async preferable; lưu `email_sent_at` (nếu thêm cột) hoặc audit log.
-- Body template: link `${frontend.url}/invitations/accept?token={token}`, expires_in 48h.
-- Không gửi password plaintext.
+
+`sendGuestJudgeInvitation` / `resendGuestJudgeInvitation` — email đăng nhập, **MK tạm**, link `${frontend.url}/login`, hết hạn **3 ngày**.

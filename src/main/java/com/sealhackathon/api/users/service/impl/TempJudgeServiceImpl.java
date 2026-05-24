@@ -1,5 +1,6 @@
 package com.sealhackathon.api.users.service.impl;
 
+import com.sealhackathon.api.auth.util.TempPasswordGenerator;
 import com.sealhackathon.api.common.audit.AuditAction;
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.ConflictException;
@@ -7,11 +8,15 @@ import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
 import com.sealhackathon.api.common.response.PageResponse;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
+import com.sealhackathon.api.config.AppProperties;
+import com.sealhackathon.api.config.FrontendUrls;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
+import com.sealhackathon.api.invitations.InvitationConstants;
 import com.sealhackathon.api.invitations.entity.Invitation;
 import com.sealhackathon.api.invitations.repository.InvitationRepository;
 import com.sealhackathon.api.invitations.service.EmailService;
+import com.sealhackathon.api.invitations.service.GuestJudgeLifecycleService;
 import com.sealhackathon.api.users.dto.request.CreateTempJudgeRequest;
 import com.sealhackathon.api.users.dto.response.TempJudgeResponse;
 import com.sealhackathon.api.users.dto.response.UserSummaryResponse;
@@ -26,6 +31,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,16 +42,12 @@ import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * FR-05a Temp Judge service. Tạo user APPROVED + Invitation token 64-char, gửi mail stub.
- */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 @Transactional
 public class TempJudgeServiceImpl implements TempJudgeService {
 
-    private static final int INVITATION_EXPIRY_HOURS = 48;
     private static final SecureRandom RNG = new SecureRandom();
 
     private final UserRepository userRepository;
@@ -55,6 +57,9 @@ public class TempJudgeServiceImpl implements TempJudgeService {
     private final AuditService auditService;
     private final CurrentUserAccessor currentUserAccessor;
     private final HackathonRepository hackathonRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final AppProperties appProperties;
+    private final GuestJudgeLifecycleService guestJudgeLifecycleService;
 
     @Override
     public TempJudgeResponse createTempJudge(CreateTempJudgeRequest req) {
@@ -63,27 +68,31 @@ public class TempJudgeServiceImpl implements TempJudgeService {
                     "Email đã được sử dụng: " + req.getEmail());
         }
 
+        LocalDateTime now = LocalDateTime.now();
+        String tempPassword = TempPasswordGenerator.generate();
+
         User user = User.builder()
                 .fullName(req.getFullName())
                 .email(req.getEmail())
+                .passwordHash(passwordEncoder.encode(tempPassword))
                 .role(UserRole.JUDGE)
                 .userType(UserType.EXTERNAL)
                 .isTempAccount(true)
                 .isDeptHead(false)
+                .mustChangePassword(true)
                 .status(UserStatus.APPROVED)
                 .institution(req.getInstitution())
                 .phone(req.getPhone())
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
+                .emailVerifiedAt(now)
+                .createdAt(now)
+                .updatedAt(now)
                 .build();
         User savedUser = userRepository.save(user);
 
         Integer invitedById = currentUserAccessor.currentUserId();
-        Hackathon hackathonRef = null;
-        if (req.getHackathonId() != null) {
-            hackathonRef = hackathonRepository.findById(req.getHackathonId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Hackathon", req.getHackathonId()));
-        }
+        Hackathon hackathonRef = hackathonRepository.findById(req.getHackathonId())
+                .orElseThrow(() -> new ResourceNotFoundException("Hackathon", req.getHackathonId()));
+        guestJudgeLifecycleService.assertHackathonNotEnded(hackathonRef);
 
         Invitation invitation = Invitation.builder()
                 .email(savedUser.getEmail())
@@ -91,25 +100,25 @@ public class TempJudgeServiceImpl implements TempJudgeService {
                 .hackathon(hackathonRef)
                 .invitedBy(invitedById == null ? null : User.builder().id(invitedById).build())
                 .token(generateToken())
-                .expiresAt(LocalDateTime.now().plusHours(INVITATION_EXPIRY_HOURS))
-                .createdAt(LocalDateTime.now())
+                .expiresAt(now.plusHours(InvitationConstants.INVITATION_EXPIRY_HOURS))
+                .createdAt(now)
                 .build();
         Invitation savedInv = invitationRepository.save(invitation);
 
+        String loginUrl = FrontendUrls.loginUrl(appProperties);
         boolean tokenSent = true;
         try {
-            emailService.sendInvitation(savedUser.getEmail(), savedUser.getFullName(),
-                    savedInv.getToken(), savedInv.getExpiresAt());
+            emailService.sendGuestJudgeInvitation(savedUser.getEmail(), savedUser.getFullName(),
+                    tempPassword, loginUrl, savedInv.getExpiresAt());
         } catch (RuntimeException ex) {
-            log.warn("[TempJudge] sendInvitation failed for {}: {}", savedUser.getEmail(), ex.getMessage());
+            log.warn("[TempJudge] sendGuestJudgeInvitation failed for {}: {}", savedUser.getEmail(), ex.getMessage());
             tokenSent = false;
         }
 
         auditService.log(AuditAction.TEMP_ACCOUNT_CREATE, "users", savedUser.getId(), Map.of(
                 "invitationId", savedInv.getId(),
-                "institution",  req.getInstitution(),
-                "tokenSent",    tokenSent
-        ));
+                "institution", req.getInstitution(),
+                "tokenSent", tokenSent));
         return userMapper.toTempJudgeResponse(savedUser, savedInv, tokenSent);
     }
 

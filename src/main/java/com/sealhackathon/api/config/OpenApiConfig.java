@@ -32,7 +32,7 @@ public class OpenApiConfig {
                                 SEAL Hackathon Management System — Backend (MF-01 GĐ1).
                                 
                                 Kiến trúc: Hackathon → Round → Track.
-                                Runbook: docs/workflow/mf01-gd1-quy-trinh-api.md
+                                Runbook: docs/mf01/04-quy-trinh-van-hanh.md
                                 """)
                         .contact(new Contact().name("FPT SE Dept").email("coord@fpt.edu.vn"))
                         .license(new License().name("Internal")))
