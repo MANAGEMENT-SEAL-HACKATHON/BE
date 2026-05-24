@@ -2,6 +2,7 @@ package com.sealhackathon.api.events.support;
 
 import com.sealhackathon.api.events.entity.Event;
 import com.sealhackathon.api.events.value_object.EventType;
+import com.sealhackathon.api.hackathons.entity.Hackathon;
 
 import java.time.LocalDateTime;
 import java.util.EnumSet;
@@ -42,5 +43,16 @@ public final class EventTimeline {
 
     public static boolean isMilestone(EventType type) {
         return type != null && MILESTONE_TYPES.contains(type);
+    }
+
+    /**
+     * Hackathon "1 ngày" khi {@code eventStart == eventEnd} (mặc định Spring 2026 dạng Day1+Day2 → 2 ngày).
+     * Trả {@code false} nếu thiếu 1 trong 2 mốc.
+     */
+    public static boolean isOneDayHackathon(Hackathon h) {
+        if (h == null || h.getEventStart() == null || h.getEventEnd() == null) {
+            return false;
+        }
+        return h.getEventStart().equals(h.getEventEnd());
     }
 }

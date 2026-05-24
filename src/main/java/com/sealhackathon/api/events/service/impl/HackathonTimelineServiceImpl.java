@@ -7,15 +7,19 @@ import com.sealhackathon.api.events.repository.EventRepository;
 import com.sealhackathon.api.events.service.HackathonTimelineService;
 import com.sealhackathon.api.events.support.EventTimeline;
 import com.sealhackathon.api.events.value_object.EventType;
+import com.sealhackathon.api.hackathons.entity.Hackathon;
+import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +27,7 @@ public class HackathonTimelineServiceImpl implements HackathonTimelineService {
 
     private final EventRepository eventRepository;
     private final RoundRepository roundRepository;
+    private final HackathonRepository hackathonRepository;
 
     @Override
     public void validateRoundExamAt(Integer hackathonId, boolean isFinal, LocalDateTime examAt) {
@@ -86,6 +91,10 @@ public class HackathonTimelineServiceImpl implements HackathonTimelineService {
                     }
                 });
 
+        // FR-06A v3.2 — examAt phải nằm trong khung [eventStart, eventEnd] (inclusive ngày).
+        Optional<Hackathon> maybeHackathon = hackathonRepository.findById(hackathonId);
+        maybeHackathon.ifPresent(h -> assertExamAtWithinEventWindow(h, examAt));
+
         if (isFinal) {
             List<Event> awardsEvents = eventRepository.findByHackathonIdAndType(
                     hackathonId, EventType.AWARDS);
@@ -94,33 +103,32 @@ public class HackathonTimelineServiceImpl implements HackathonTimelineService {
                         "Round Chung kết cần sự kiện AWARDS — tạo lễ trao giải trước khi đặt examAt",
                         Map.of("hackathonId", hackathonId, "examAt", examAt));
             }
+            // FR-06A v3.2 — Final.examAt phải xảy ra TRƯỚC AWARDS.startsAt
+            // (đảo so với rule cũ "phải trong khung AWARDS"). Lý do: AWARDS giờ đứng cuối timeline,
+            // sau khi đã thi xong; xem AwardsWindowRule.
             for (Event awards : awardsEvents) {
                 LocalDateTime awardsStart = awards.getStartsAt();
                 if (awardsStart == null) {
                     continue;
                 }
-                LocalDateTime awardsEnd = EventTimeline.effectiveEnd(awards);
-                if (examAt.isBefore(awardsStart) || examAt.isAfter(awardsEnd)) {
+                if (!examAt.isBefore(awardsStart)) {
                     throw new BusinessRuleException(ErrorCode.ROUND_EXAM_OUTSIDE_AWARDS,
-                            "Ngày thi Chung kết (%s) phải trong khung Lễ trao giải (%s – %s)"
-                                    .formatted(examAt, awardsStart, awardsEnd),
+                            "Ngày thi Chung kết (%s) phải TRƯỚC Lễ trao giải bắt đầu (%s)"
+                                    .formatted(examAt, awardsStart),
                             Map.of("hackathonId", hackathonId,
                                     "examAt", examAt,
                                     "awardsStartsAt", awardsStart,
-                                    "awardsEndsAt", awardsEnd,
                                     "awardsEventId", awards.getId()));
                 }
             }
             return;
         }
 
+        // FR-06A v3.2 — PRESENTATION optional cho Sơ loại.
+        // Nếu BTC chưa tạo PRESENTATION thì examAt vẫn hợp lệ miễn là nằm trong [eventStart, eventEnd].
+        // Khi có PRESENTATION → examAt phải nằm trong khung PRESENTATION.
         List<Event> presentationEvents = eventRepository.findByHackathonIdAndType(
                 hackathonId, EventType.PRESENTATION);
-        if (presentationEvents.isEmpty()) {
-            throw new BusinessRuleException(ErrorCode.EVENT_PRESENTATION_MISSING,
-                    "Round Sơ loại cần sự kiện PRESENTATION — tạo ngày thi trước khi đặt examAt",
-                    Map.of("hackathonId", hackathonId, "examAt", examAt));
-        }
         for (Event presentation : presentationEvents) {
             LocalDateTime presStart = presentation.getStartsAt();
             LocalDateTime presEnd = EventTimeline.effectiveEnd(presentation);
@@ -137,6 +145,26 @@ public class HackathonTimelineServiceImpl implements HackathonTimelineService {
                                 "presentationEndsAt", presEnd,
                                 "presentationEventId", presentation.getId()));
             }
+        }
+    }
+
+    private static void assertExamAtWithinEventWindow(Hackathon h, LocalDateTime examAt) {
+        LocalDate eventStart = h.getEventStart();
+        LocalDate eventEnd = h.getEventEnd();
+        LocalDate examDate = examAt.toLocalDate();
+        if (eventStart != null && examDate.isBefore(eventStart)) {
+            throw new BusinessRuleException(ErrorCode.EVENT_OUT_OF_HACKATHON,
+                    "Ngày thi (%s) trước eventStart (%s)".formatted(examDate, eventStart),
+                    Map.of("hackathonId", h.getId(),
+                            "examAt", examAt,
+                            "eventStart", eventStart));
+        }
+        if (eventEnd != null && examDate.isAfter(eventEnd)) {
+            throw new BusinessRuleException(ErrorCode.EVENT_OUT_OF_HACKATHON,
+                    "Ngày thi (%s) sau eventEnd (%s)".formatted(examDate, eventEnd),
+                    Map.of("hackathonId", h.getId(),
+                            "examAt", examAt,
+                            "eventEnd", eventEnd));
         }
     }
 }

@@ -66,6 +66,7 @@ public class RoundServiceImpl implements RoundService {
         guardHackathonMutable(h);
         validateDeadline(req.getSubmissionOpen(), req.getSubmissionDeadline());
         validateRoundBusinessRules(req);
+        validateRoundTypeUnique(hackathonId, req, null);
         validateExamAtRules(hackathonId, req.getIsFinal(), req.getExamAt(),
                 req.getSubmissionOpen(), null);
 
@@ -249,6 +250,38 @@ public class RoundServiceImpl implements RoundService {
                     }
                 });
         hackathonTimelineService.validateRoundExamAt(hackathonId, false, examAt);
+    }
+
+    /**
+     * FR-06A v3.2 — mỗi Hackathon chỉ có 1 Round mỗi {@link RoundType}.
+     * Áp dụng cho cả PRELIMINARY/SEMIFINAL/FINAL. Khi update không đổi roundType nên chỉ chặn ở create.
+     *
+     * <p>Lưu ý: rule cho FINAL đã được {@code ROUND_DUPLICATE_FINAL} chặn cứng;
+     * method này tổng quát hoá cho 2 type còn lại.
+     */
+    private void validateRoundTypeUnique(Integer hackathonId, CreateRoundRequest req, Integer excludeRoundId) {
+        RoundType effective = resolveRoundType(req);
+        if (effective == null) {
+            return;
+        }
+        List<Round> existing = roundRepository.findByHackathon_IdAndRoundType(hackathonId, effective);
+        boolean duplicate = existing.stream()
+                .anyMatch(r -> excludeRoundId == null || !r.getId().equals(excludeRoundId));
+        if (duplicate) {
+            throw new ConflictException(ErrorCode.ROUND_TYPE_DUPLICATE,
+                    "Hackathon đã có Round loại %s — mỗi loại chỉ tạo 1 lần (Sơ loại / Bán kết / Chung kết)"
+                            .formatted(effective.name()),
+                    Map.of("hackathonId", hackathonId,
+                            "roundType", effective.name(),
+                            "existingRoundIds", existing.stream().map(Round::getId).toList()));
+        }
+    }
+
+    private static RoundType resolveRoundType(CreateRoundRequest req) {
+        if (req.getRoundType() != null) {
+            return req.getRoundType();
+        }
+        return Boolean.TRUE.equals(req.getIsFinal()) ? RoundType.FINAL : RoundType.PRELIMINARY;
     }
 
     private void validateRoundBusinessRules(CreateRoundRequest req) {

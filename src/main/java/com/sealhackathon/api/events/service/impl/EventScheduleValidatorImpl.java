@@ -8,9 +8,15 @@ import com.sealhackathon.api.events.dto.request.UpdateEventRequest;
 import com.sealhackathon.api.events.entity.Event;
 import com.sealhackathon.api.events.repository.EventRepository;
 import com.sealhackathon.api.events.service.EventScheduleValidator;
+import com.sealhackathon.api.events.service.impl.window.AwardsWindowRule;
+import com.sealhackathon.api.events.service.impl.window.EventWindowRule;
+import com.sealhackathon.api.events.service.impl.window.KickoffWindowRule;
+import com.sealhackathon.api.events.service.impl.window.PresentationWindowRule;
+import com.sealhackathon.api.events.service.impl.window.WorkshopWindowRule;
 import com.sealhackathon.api.events.support.EventTimeline;
 import com.sealhackathon.api.events.value_object.EventType;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -18,21 +24,42 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * FR-06 validator 3 lớp (MF-01): WORKSHOP có thể trước {@code event_start} (Fall/Spring PDF);
- * milestone nối tiếp WORKSHOP → KICKOFF → PRESENTATION → AWARDS.
+ * FR-06A validator 3 lớp.
+ *
+ * <p>Lớp 1 (window theo từng loại) tách thành các rule trong subpackage
+ * {@code events.service.impl.window} để tránh gom logic vào một method khổng lồ —
+ * vốn dễ gây sai timeline khi sửa (xem các TC đã FAIL: TC-02, TC-06, TC-12, TC-13,
+ * TC-20, TC-26, TC-28).
+ *
+ * <p>Lớp 2 (overlap milestone vs OTHER) và Lớp 3 (ordering theo phase) giữ nguyên
+ * trong file này.
  */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class EventScheduleValidatorImpl implements EventScheduleValidator {
 
-    private static final int END_BUFFER_DAYS = 1;
-
     private final EventRepository eventRepository;
+    private final WorkshopWindowRule workshopRule;
+    private final KickoffWindowRule kickoffRule;
+    private final PresentationWindowRule presentationRule;
+    private final AwardsWindowRule awardsRule;
+
+    private final EnumMap<EventType, EventWindowRule> windowRules =
+            new EnumMap<>(EventType.class);
+
+    @PostConstruct
+    void initRules() {
+        windowRules.put(EventType.WORKSHOP, workshopRule);
+        windowRules.put(EventType.KICKOFF, kickoffRule);
+        windowRules.put(EventType.PRESENTATION, presentationRule);
+        windowRules.put(EventType.AWARDS, awardsRule);
+    }
 
     @Override
     public void validateBlocking(Hackathon hackathon, CreateEventRequest req, Integer excludeEventId) {
@@ -69,13 +96,15 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
                     Map.of("startsAt", startsAt, "endsAt", endsAt));
         }
 
-        LocalDate eventStart = h.getEventStart();
-        LocalDate eventEnd = h.getEventEnd();
-        LocalDate registrationStart = h.getRegistrationStart();
         LocalDateTime effectiveEnd = EventTimeline.effectiveEnd(startsAt, endsAt);
 
-        validateHackathonDateWindow(type, startsAt, effectiveEnd, eventStart, eventEnd,
-                registrationStart, endsAt);
+        // Lớp 1 — window theo từng loại (dispatcher)
+        EventWindowRule rule = windowRules.get(type);
+        if (rule != null) {
+            rule.check(h, startsAt, effectiveEnd, excludeEventId);
+        } else if (type == EventType.OTHER) {
+            validateOtherWithinHackathon(h, startsAt, effectiveEnd);
+        }
 
         int ex = (excludeEventId == null) ? 0 : excludeEventId;
         if (EventTimeline.isMilestone(type)) {
@@ -99,39 +128,25 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
     }
 
     /**
-     * Lớp 1 — WORKSHOP: từ {@code registrationStart}, có thể trước {@code event_start} (9/4 trước 11/4).
-     * Các milestone khác: {@code startsAt >= event_start}.
+     * OTHER không có rule riêng — chỉ giữ guard "trong khung Hackathon"
+     * ([eventStart, eventEnd]) cũ, không buffer.
      */
-    private void validateHackathonDateWindow(EventType type, LocalDateTime startsAt,
-                                             LocalDateTime effectiveEnd,
-                                             LocalDate eventStart, LocalDate eventEnd,
-                                             LocalDate registrationStart, LocalDateTime endsAt) {
-        if (type == EventType.WORKSHOP) {
-            if (registrationStart != null && startsAt.toLocalDate().isBefore(registrationStart)) {
-                throw new BusinessRuleException(ErrorCode.EVENT_OUT_OF_HACKATHON,
-                        "Workshop startsAt (%s) trước registrationStart (%s)"
-                                .formatted(startsAt.toLocalDate(), registrationStart),
-                        Map.of("registrationStart", registrationStart,
-                                "startsAt", startsAt, "endsAt", endsAt));
-            }
-        } else if (eventStart != null && startsAt.toLocalDate().isBefore(eventStart)) {
+    private void validateOtherWithinHackathon(Hackathon h, LocalDateTime startsAt,
+                                              LocalDateTime effectiveEnd) {
+        LocalDate eventStart = h.getEventStart();
+        LocalDate eventEnd = h.getEventEnd();
+        if (eventStart != null && startsAt.toLocalDate().isBefore(eventStart)) {
             throw new BusinessRuleException(ErrorCode.EVENT_OUT_OF_HACKATHON,
-                    "Event startsAt (%s) trước Hackathon eventStart (%s)"
+                    "Event OTHER startsAt (%s) trước eventStart (%s)"
                             .formatted(startsAt.toLocalDate(), eventStart),
-                    Map.of("eventStart", eventStart, "eventEnd", eventEnd,
-                            "startsAt", startsAt, "endsAt", endsAt, "type", type.name()));
+                    Map.of("eventStart", eventStart, "startsAt", startsAt));
         }
-
-        if (eventEnd != null) {
-            LocalDate cap = eventEnd.plusDays(END_BUFFER_DAYS);
-            if (effectiveEnd.toLocalDate().isAfter(cap)) {
-                throw new BusinessRuleException(ErrorCode.EVENT_OUT_OF_HACKATHON,
-                        "Event %s (%s) sau khung Hackathon eventEnd+%dd (%s)"
-                                .formatted(endsAt != null ? "endsAt" : "startsAt",
-                                        effectiveEnd, END_BUFFER_DAYS, cap),
-                        Map.of("eventStart", eventStart, "eventEnd", eventEnd,
-                                "bufferDays", END_BUFFER_DAYS, "effectiveEnd", effectiveEnd));
-            }
+        if (eventEnd != null && effectiveEnd != null
+                && effectiveEnd.toLocalDate().isAfter(eventEnd)) {
+            throw new BusinessRuleException(ErrorCode.EVENT_OUT_OF_HACKATHON,
+                    "Event OTHER kết thúc (%s) sau eventEnd (%s)"
+                            .formatted(effectiveEnd, eventEnd),
+                    Map.of("eventEnd", eventEnd, "effectiveEnd", effectiveEnd));
         }
     }
 
@@ -243,16 +258,16 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
         return switch (earlier) {
             case WORKSHOP -> switch (later) {
                 case KICKOFF -> "Workshop phải kết thúc trước Khai mạc";
-                case PRESENTATION -> "Workshop phải kết thúc trước Ngày thi";
+                case PRESENTATION -> "Workshop phải kết thúc trước Ngày thuyết trình";
                 case AWARDS -> "Workshop phải kết thúc trước Lễ trao giải";
                 default -> "Workshop phải kết thúc trước giai đoạn sau";
             };
             case KICKOFF -> switch (later) {
-                case PRESENTATION -> "Khai mạc phải kết thúc trước Ngày thi";
+                case PRESENTATION -> "Khai mạc phải kết thúc trước Ngày thuyết trình";
                 case AWARDS -> "Khai mạc phải kết thúc trước Lễ trao giải";
                 default -> "Khai mạc phải kết thúc trước giai đoạn sau";
             };
-            case PRESENTATION -> "Ngày thi phải kết thúc trước Lễ trao giải";
+            case PRESENTATION -> "Ngày thuyết trình phải kết thúc trước Lễ trao giải";
             default -> "%s phải kết thúc trước %s".formatted(earlier, later);
         };
     }
@@ -277,15 +292,11 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
         if (h == null || type != EventType.KICKOFF || startsAt == null) {
             return warnings;
         }
-        if (h.getEventStart() != null) {
-            LocalDate cap = h.getEventStart().plusDays(1);
-            if (startsAt.toLocalDate().isBefore(h.getEventStart())
-                    || startsAt.toLocalDate().isAfter(cap)) {
-                warnings.add(Warning.of("EVENT_ORDER_INVALID",
-                        "KICKOFF nên trong [eventStart, eventStart+1d]",
-                        Map.of("type", "KICKOFF", "eventStart", h.getEventStart(),
-                                "startsAt", startsAt)));
-            }
+        if (h.getEventStart() != null && !startsAt.toLocalDate().equals(h.getEventStart())) {
+            warnings.add(Warning.of("EVENT_ORDER_INVALID",
+                    "KICKOFF nên đúng ngày eventStart",
+                    Map.of("type", "KICKOFF", "eventStart", h.getEventStart(),
+                            "startsAt", startsAt)));
         }
         return warnings;
     }

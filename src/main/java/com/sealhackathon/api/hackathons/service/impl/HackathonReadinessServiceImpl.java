@@ -215,12 +215,8 @@ public class HackathonReadinessServiceImpl implements HackathonReadinessService 
                                                         List<Round> preliminaryRounds,
                                                         Optional<Round> finalRound,
                                                         List<HackathonReadinessResponse.Blocker> blockers) {
-        if (!preliminaryRounds.isEmpty()
-                && !eventRepository.existsByHackathonIdAndType(hackathonId, EventType.PRESENTATION)) {
-            blockers.add(blocker(ErrorCode.EVENT_PRESENTATION_MISSING,
-                    "Đã có Vòng Sơ loại — cần sự kiện PRESENTATION (ngày thi)",
-                    Map.of("hackathonId", hackathonId)));
-        }
+        // FR-06A v3.2 — PRESENTATION là tuỳ chọn cho cả Sơ loại và Chung kết
+        // (không còn block readiness vì thiếu PRESENTATION).
         if (finalRound.isPresent()
                 && !eventRepository.existsByHackathonIdAndType(hackathonId, EventType.AWARDS)) {
             blockers.add(blocker(ErrorCode.EVENT_AWARDS_MISSING,

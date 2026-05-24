@@ -95,6 +95,10 @@ public final class ErrorCode {
     public static final String EVENT_LOCATION_REQUIRED  = "EVENT_LOCATION_REQUIRED";
     public static final String EVENT_MILESTONE_DUPLICATE = "EVENT_MILESTONE_DUPLICATE";
     public static final String EVENT_CONFLICTS_WITH_MILESTONE = "EVENT_CONFLICTS_WITH_MILESTONE";
+    public static final String AWARDS_NEEDS_COMPETITION       = "AWARDS_NEEDS_COMPETITION";
+    public static final String AWARDS_BEFORE_COMPETITION_END  = "AWARDS_BEFORE_COMPETITION_END";
+    public static final String PRESENTATION_BEFORE_FINAL_EXAM = "PRESENTATION_BEFORE_FINAL_EXAM";
+    public static final String ROUND_TYPE_DUPLICATE           = "ROUND_TYPE_DUPLICATE";
 
     // ---------- FR-03 ROUND examAt vs events ----------
     public static final String ROUND_EXAM_BEFORE_KICKOFF       = "ROUND_EXAM_BEFORE_KICKOFF";
