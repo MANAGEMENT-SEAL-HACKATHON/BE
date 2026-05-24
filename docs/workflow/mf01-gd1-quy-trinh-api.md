@@ -327,19 +327,20 @@ Tổng weight (không tính PENALTY) = **1.0** (±0.001) — gate cứng tại B
 
 ## Bước 6 — Lên lịch sự kiện
 
-**Mục đích:** WORKSHOP, KICKOFF, PRESENTATION, AWARDS. Gate G5 yêu cầu ≥1 **KICKOFF**.  
+**Mục đích:** WORKSHOP, KICKOFF, AWARDS (milestone). Gate G5 yêu cầu ≥1 **KICKOFF**.  
 **Chi tiết timeline (PDF, 3 lớp, `examAt`, mã lỗi):** [mf01-gd1-timeline-events.md](mf01-gd1-timeline-events.md).
 
 ### API bắt buộc (happy path)
 
-Tạo theo thứ tự thời gian (v3.1 — **block** nếu sai):
+Tạo milestone theo thứ tự thời gian (v3.3 — **block** nếu sai):
 
 | Thứ tự | Type | Method | Path |
 |--------|------|--------|------|
 | 1 | WORKSHOP | **POST** | `/api/v1/hackathons/{hackathonId}/events` |
 | 2 | KICKOFF | **POST** | `/api/v1/hackathons/{hackathonId}/events` |
-| 3 | PRESENTATION | **POST** | `/api/v1/hackathons/{hackathonId}/events` |
-| 4 | AWARDS | **POST** | `/api/v1/hackathons/{hackathonId}/events` |
+| 3 | AWARDS | **POST** | `/api/v1/hackathons/{hackathonId}/events` |
+
+PRESENTATION (tùy chọn — không phải milestone, không ràng buộc thứ tự, trong `[eventStart, eventEnd]`).
 
 **Body gợi ý (mỗi event):**
 
@@ -369,12 +370,11 @@ Tạo theo thứ tự thời gian (v3.1 — **block** nếu sai):
 
 ### Ràng buộc nhanh (Lớp 3 — block)
 
-- WORKSHOP / KICKOFF / PRESENTATION / AWARDS: **bắt buộc `endsAt`**
+- WORKSHOP / KICKOFF / AWARDS: **bắt buộc `endsAt`** (milestone)
 - WORKSHOP **kết thúc** trước KICKOFF **bắt đầu** (`workshop.endsAt < kickoff.startsAt`)
-- KICKOFF **kết thúc** trước PRESENTATION **bắt đầu**
-- PRESENTATION **kết thúc** trước AWARDS **bắt đầu**
-- `round.examAt`: sau KICKOFF; Sơ loại trong PRESENTATION; Chung kết trong AWARDS (inclusive)  
-→ `422 EVENT_ORDER_VIOLATION` / `EVENT_END_REQUIRED` / `ROUND_EXAM_*` / `EVENT_*_MISSING`
+- KICKOFF **kết thúc** trước AWARDS **bắt đầu**
+- `round.examAt`: sau `KICKOFF.endsAt`; trong `[eventStart, eventEnd]`; CK trước `AWARDS.startsAt` (nếu AWARDS đã tạo)
+→ `422 EVENT_ORDER_VIOLATION` / `EVENT_END_REQUIRED` / `ROUND_EXAM_*` / `EVENT_AWARDS_MISSING`
 
 ---
 
@@ -434,7 +434,7 @@ Thứ tự tối thiểu sau khi có `hackathonId`, `prelimRoundId`, `finalRound
 5. `POST /rounds/{finalId}/criteria` — tổng weight=1
 6. `POST /users/temp-judges` (tuỳ chọn)
 7. `POST /mentor-assignments`, `POST /judge-assignments` (tuỳ chọn cho gate; mentor thiếu = warning)
-8. `POST /hackathons/{id}/events` ×4 (WORKSHOP → KICKOFF → PRESENTATION → AWARDS)
+8. `POST /hackathons/{id}/events` ×3 (WORKSHOP → KICKOFF → AWARDS)
 9. `GET /hackathons/{id}/readiness?target=ONGOING`
 10. `PATCH /hackathons/{id}/status` `{ "status": "ONGOING" }`
 

@@ -96,16 +96,10 @@ public class HackathonTimelineServiceImpl implements HackathonTimelineService {
         maybeHackathon.ifPresent(h -> assertExamAtWithinEventWindow(h, examAt));
 
         if (isFinal) {
+            // EVENT_AWARDS_MISSING không check ở đây — đây là gate readiness (HackathonReadinessServiceImpl).
+            // Check ở đây gây circular-delete: xóa AWARDS → assertAllRoundsExamAtValid → EVENT_AWARDS_MISSING → rollback.
             List<Event> awardsEvents = eventRepository.findByHackathonIdAndType(
                     hackathonId, EventType.AWARDS);
-            if (awardsEvents.isEmpty()) {
-                throw new BusinessRuleException(ErrorCode.EVENT_AWARDS_MISSING,
-                        "Round Chung kết cần sự kiện AWARDS — tạo lễ trao giải trước khi đặt examAt",
-                        Map.of("hackathonId", hackathonId, "examAt", examAt));
-            }
-            // FR-06A v3.2 — Final.examAt phải xảy ra TRƯỚC AWARDS.startsAt
-            // (đảo so với rule cũ "phải trong khung AWARDS"). Lý do: AWARDS giờ đứng cuối timeline,
-            // sau khi đã thi xong; xem AwardsWindowRule.
             for (Event awards : awardsEvents) {
                 LocalDateTime awardsStart = awards.getStartsAt();
                 if (awardsStart == null) {
@@ -124,28 +118,8 @@ public class HackathonTimelineServiceImpl implements HackathonTimelineService {
             return;
         }
 
-        // FR-06A v3.2 — PRESENTATION optional cho Sơ loại.
-        // Nếu BTC chưa tạo PRESENTATION thì examAt vẫn hợp lệ miễn là nằm trong [eventStart, eventEnd].
-        // Khi có PRESENTATION → examAt phải nằm trong khung PRESENTATION.
-        List<Event> presentationEvents = eventRepository.findByHackathonIdAndType(
-                hackathonId, EventType.PRESENTATION);
-        for (Event presentation : presentationEvents) {
-            LocalDateTime presStart = presentation.getStartsAt();
-            LocalDateTime presEnd = EventTimeline.effectiveEnd(presentation);
-            if (presStart == null) {
-                continue;
-            }
-            if (examAt.isBefore(presStart) || examAt.isAfter(presEnd)) {
-                throw new BusinessRuleException(ErrorCode.ROUND_EXAM_OUTSIDE_PRESENTATION,
-                        "Ngày thi Sơ loại (%s) phải trong khung Ngày thi (%s – %s)"
-                                .formatted(examAt, presStart, presEnd),
-                        Map.of("hackathonId", hackathonId,
-                                "examAt", examAt,
-                                "presentationStartsAt", presStart,
-                                "presentationEndsAt", presEnd,
-                                "presentationEventId", presentation.getId()));
-            }
-        }
+        // Event và Round đồng cấp — không ràng buộc examAt với PRESENTATION.
+        // examAt chỉ cần nằm trong [eventStart, eventEnd] (đã check ở trên).
     }
 
     private static void assertExamAtWithinEventWindow(Hackathon h, LocalDateTime examAt) {

@@ -168,8 +168,6 @@ public class Gd1DataSeeder {
         LocalDateTime workshopEnd = eventStart.minusDays(2).atTime(21, 30);
         LocalDateTime kickoffStart = eventStart.atTime(14, 0);
         LocalDateTime kickoffEnd = eventStart.atTime(17, 0);
-        LocalDateTime presentationStart = eventEnd.atTime(6, 0);
-        LocalDateTime presentationEnd = eventEnd.atTime(17, 0);
         LocalDateTime awardsStart = eventEnd.atTime(17, 30);
         LocalDateTime awardsEnd = eventEnd.atTime(19, 0);
         return new SeedDates(
@@ -177,14 +175,12 @@ public class Gd1DataSeeder {
                 regEnd,
                 eventStart,
                 eventEnd,
-                presentationEnd.plusDays(7),
+                eventEnd.atTime(17, 0).plusDays(7),
                 awardsEnd.plusDays(7),
                 workshopStart,
                 workshopEnd,
                 kickoffStart,
                 kickoffEnd,
-                presentationStart,
-                presentationEnd,
                 awardsStart,
                 awardsEnd);
     }
@@ -514,9 +510,6 @@ public class Gd1DataSeeder {
         events.add(event(hackathon, createdBy, "Lễ Khai mạc & Bốc thăm chia Track",
                 EventType.KICKOFF, "FPT HCM — Hội trường A",
                 dates.kickoffStart(), dates.kickoffEnd()));
-        events.add(event(hackathon, createdBy, "Ngày thi Sơ loại & Thuyết trình",
-                EventType.PRESENTATION, "FPT HCM — Hội trường B",
-                dates.presentationStart(), dates.presentationEnd()));
         events.add(event(hackathon, createdBy, "Vòng Chung kết & Trao giải",
                 EventType.AWARDS, "FPT HCM — Hội trường A",
                 dates.awardsStart(), dates.awardsEnd()));
@@ -678,14 +671,12 @@ public class Gd1DataSeeder {
             LocalDateTime workshopEnd,
             LocalDateTime kickoffStart,
             LocalDateTime kickoffEnd,
-            LocalDateTime presentationStart,
-            LocalDateTime presentationEnd,
             LocalDateTime awardsStart,
             LocalDateTime awardsEnd) {
 
-        /** Ngày giờ thi sơ loại — trong khung PRESENTATION (Spring: 12/4 sáng). */
+        /** Ngày giờ thi sơ loại — đầu ngày eventStart. */
         LocalDateTime prelimExamAt() {
-            return presentationStart.withHour(8).withMinute(0).withSecond(0).withNano(0);
+            return eventStart.atTime(8, 0);
         }
 
         /** Ngày giờ thi chung kết — trong khung AWARDS (Spring: 12/4 chiều). */

@@ -11,7 +11,6 @@ import com.sealhackathon.api.events.service.EventScheduleValidator;
 import com.sealhackathon.api.events.service.impl.window.AwardsWindowRule;
 import com.sealhackathon.api.events.service.impl.window.EventWindowRule;
 import com.sealhackathon.api.events.service.impl.window.KickoffWindowRule;
-import com.sealhackathon.api.events.service.impl.window.PresentationWindowRule;
 import com.sealhackathon.api.events.service.impl.window.WorkshopWindowRule;
 import com.sealhackathon.api.events.support.EventTimeline;
 import com.sealhackathon.api.events.value_object.EventType;
@@ -31,13 +30,10 @@ import java.util.Map;
 /**
  * FR-06A validator 3 lớp.
  *
- * <p>Lớp 1 (window theo từng loại) tách thành các rule trong subpackage
- * {@code events.service.impl.window} để tránh gom logic vào một method khổng lồ —
- * vốn dễ gây sai timeline khi sửa (xem các TC đã FAIL: TC-02, TC-06, TC-12, TC-13,
- * TC-20, TC-26, TC-28).
+ * <p>Milestone: WORKSHOP → KICKOFF → AWARDS. PRESENTATION không còn là milestone —
+ * validate như event phụ (OTHER) trong [eventStart, eventEnd].
  *
- * <p>Lớp 2 (overlap milestone vs OTHER) và Lớp 3 (ordering theo phase) giữ nguyên
- * trong file này.
+ * <p>Hackathon → Round → Track/Criteria. Event thuộc Hackathon, không ràng buộc chéo validation với Round qua validator này.
  */
 @Service
 @Slf4j
@@ -47,7 +43,6 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
     private final EventRepository eventRepository;
     private final WorkshopWindowRule workshopRule;
     private final KickoffWindowRule kickoffRule;
-    private final PresentationWindowRule presentationRule;
     private final AwardsWindowRule awardsRule;
 
     private final EnumMap<EventType, EventWindowRule> windowRules =
@@ -57,7 +52,6 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
     void initRules() {
         windowRules.put(EventType.WORKSHOP, workshopRule);
         windowRules.put(EventType.KICKOFF, kickoffRule);
-        windowRules.put(EventType.PRESENTATION, presentationRule);
         windowRules.put(EventType.AWARDS, awardsRule);
     }
 
@@ -102,8 +96,9 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
         EventWindowRule rule = windowRules.get(type);
         if (rule != null) {
             rule.check(h, startsAt, effectiveEnd, excludeEventId);
-        } else if (type == EventType.OTHER) {
-            validateOtherWithinHackathon(h, startsAt, effectiveEnd);
+        } else {
+            // PRESENTATION và OTHER: chỉ check nằm trong [eventStart, eventEnd]
+            validateWithinHackathon(h, startsAt, effectiveEnd, type);
         }
 
         int ex = (excludeEventId == null) ? 0 : excludeEventId;
@@ -120,7 +115,7 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
                                 "startsAt", startsAt, "endsAt", effectiveEnd));
             }
             validateOtherDoesNotOverlapMilestone(h.getId(), startsAt, effectiveEnd, ex);
-        } else if (type == EventType.OTHER) {
+        } else {
             validateMilestoneDoesNotOverlapOther(h.getId(), startsAt, effectiveEnd, ex);
         }
 
@@ -128,25 +123,25 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
     }
 
     /**
-     * OTHER không có rule riêng — chỉ giữ guard "trong khung Hackathon"
-     * ([eventStart, eventEnd]) cũ, không buffer.
+     * Check sự kiện nằm trong khung Hackathon [eventStart, eventEnd].
+     * Dùng cho PRESENTATION và OTHER (không có rule riêng).
      */
-    private void validateOtherWithinHackathon(Hackathon h, LocalDateTime startsAt,
-                                              LocalDateTime effectiveEnd) {
+    private void validateWithinHackathon(Hackathon h, LocalDateTime startsAt,
+                                         LocalDateTime effectiveEnd, EventType type) {
         LocalDate eventStart = h.getEventStart();
         LocalDate eventEnd = h.getEventEnd();
         if (eventStart != null && startsAt.toLocalDate().isBefore(eventStart)) {
             throw new BusinessRuleException(ErrorCode.EVENT_OUT_OF_HACKATHON,
-                    "Event OTHER startsAt (%s) trước eventStart (%s)"
-                            .formatted(startsAt.toLocalDate(), eventStart),
-                    Map.of("eventStart", eventStart, "startsAt", startsAt));
+                    "Event %s startsAt (%s) trước eventStart (%s)"
+                            .formatted(type.name(), startsAt.toLocalDate(), eventStart),
+                    Map.of("eventStart", eventStart, "startsAt", startsAt, "type", type.name()));
         }
         if (eventEnd != null && effectiveEnd != null
                 && effectiveEnd.toLocalDate().isAfter(eventEnd)) {
             throw new BusinessRuleException(ErrorCode.EVENT_OUT_OF_HACKATHON,
-                    "Event OTHER kết thúc (%s) sau eventEnd (%s)"
-                            .formatted(effectiveEnd, eventEnd),
-                    Map.of("eventEnd", eventEnd, "effectiveEnd", effectiveEnd));
+                    "Event %s kết thúc (%s) sau eventEnd (%s)"
+                            .formatted(type.name(), effectiveEnd, eventEnd),
+                    Map.of("eventEnd", eventEnd, "effectiveEnd", effectiveEnd, "type", type.name()));
         }
     }
 
@@ -178,15 +173,15 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
     }
 
     private void validateMilestoneDoesNotOverlapOther(Integer hackathonId,
-                                                        LocalDateTime startsAt,
-                                                        LocalDateTime effectiveEnd,
-                                                        int excludeId) {
+                                                      LocalDateTime startsAt,
+                                                      LocalDateTime effectiveEnd,
+                                                      int excludeId) {
         List<Event> milestones = eventRepository.findMilestoneOverlapping(
                 hackathonId, EventTimeline.MILESTONE_TYPES, startsAt, effectiveEnd, excludeId);
         if (!milestones.isEmpty()) {
             Event hit = milestones.get(0);
             throw milestoneConflictException(
-                    "Sự kiện OTHER trùng khung milestone %s (id=%d)"
+                    "Sự kiện trùng khung milestone %s (id=%d)"
                             .formatted(hit.getType().name(), hit.getId()),
                     List.of(hit.getId()),
                     startsAt, effectiveEnd);
@@ -215,8 +210,8 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
     }
 
     private void validateLayer3Ordering(Integer hackathonId, EventType newType,
-                                      LocalDateTime newStartsAt, LocalDateTime newEffectiveEnd,
-                                      Integer excludeEventId) {
+                                        LocalDateTime newStartsAt, LocalDateTime newEffectiveEnd,
+                                        Integer excludeEventId) {
         if (!EventTimeline.isMilestone(newType)) {
             return;
         }
@@ -258,16 +253,10 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
         return switch (earlier) {
             case WORKSHOP -> switch (later) {
                 case KICKOFF -> "Workshop phải kết thúc trước Khai mạc";
-                case PRESENTATION -> "Workshop phải kết thúc trước Ngày thuyết trình";
                 case AWARDS -> "Workshop phải kết thúc trước Lễ trao giải";
                 default -> "Workshop phải kết thúc trước giai đoạn sau";
             };
-            case KICKOFF -> switch (later) {
-                case PRESENTATION -> "Khai mạc phải kết thúc trước Ngày thuyết trình";
-                case AWARDS -> "Khai mạc phải kết thúc trước Lễ trao giải";
-                default -> "Khai mạc phải kết thúc trước giai đoạn sau";
-            };
-            case PRESENTATION -> "Ngày thuyết trình phải kết thúc trước Lễ trao giải";
+            case KICKOFF -> "Khai mạc phải kết thúc trước Lễ trao giải";
             default -> "%s phải kết thúc trước %s".formatted(earlier, later);
         };
     }

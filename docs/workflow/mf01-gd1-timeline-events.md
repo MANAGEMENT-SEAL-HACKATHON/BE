@@ -8,19 +8,24 @@
 
 ## 0. Giải thích thuật ngữ (đọc trước §3–§4)
 
-Trong BE có **hai lớp** dữ liệu thời gian: **Event** (lịch công khai) và **Round** (vòng thi). Rule timeline **khóa cho khớp nhau**.
+Trong BE có **hai lớp** dữ liệu thời gian: **Event** (lịch công khai) và **Round** (vòng thi).
 
-### 0.1 Event `type` — không phải “slide thuyết trình”
+Cấu trúc domain:
+- **Hackathon** → cha của **Round**; **Round** → cha của **Track / Criteria**
+- **Event** thuộc về Hackathon (tham chiếu hackathon_id), được tạo dựa trên lịch của hackathon, round, track
+- Không có ràng buộc validation chéo Event↔Round: Event không kiểm soát `examAt` của Round và ngược lại
+
+### 0.1 Event `type` — không phải "slide thuyết trình"
 
 | `type` (enum DB) | Hiểu trong SEAL FPT | Ví dụ Spring 2026 |
 |------------------|---------------------|-------------------|
 | `WORKSHOP` | Buổi workshop trước mùa | 9/4 20:00–21:30 |
 | `KICKOFF` | **Khai mạc** (bốc thăm track, họp đội) | 11/4 14:00–17:00 |
-| **`PRESENTATION`** | **Ngày thi** — khung giờ thi / thuyết trình **sơ loại** (một event trên lịch) | 12/4 06:00–17:00 |
-| `AWARDS` | **Lễ trao giải** (buổi chung kết + trao giải) | 12/4 17:30–19:00 |
+| `PRESENTATION` | Sự kiện phụ — coordinator có thể dùng để ghi lịch trình bày. **Không còn là milestone.** | Tùy — trong `[eventStart, eventEnd]` |
+| `AWARDS` | **Lễ trao giải** (milestone — đúng ngày `eventEnd`) | 12/4 17:30–19:00 |
 | `OTHER` | Sự kiện phụ (họp mentor, …) — không thay milestone | Tùy coordinator |
 
-> **`PRESENTATION`** = tên kỹ thuật trong code/API. Trên UI nên hiển thị **“Ngày thi”** cho coordinator. **Không** bắt buộc là buổi chỉ pitch PowerPoint.
+> `PRESENTATION` giữ nguyên trong enum/DB (không breaking). Không còn là milestone, không bắt `endsAt`, không 1-per-hackathon, không thứ tự Layer 3.
 
 ### 0.2 Round — vòng thi (FR-03)
 
@@ -28,7 +33,7 @@ Trong BE có **hai lớp** dữ liệu thời gian: **Event** (lịch công khai
 |-----------|--------------|---------|
 | **Round sơ loại** | `round.isFinal = false` (PRELIMINARY / SEMIFINAL) | Thường 1 round; có **track** con |
 | **CK (Chung kết)** | `round.isFinal = true` | **Đúng 1** round CK mỗi hackathon |
-| **`examAt`** | `round.examAt` (bắt buộc) | **Một mốc thời gian** — “khi nào thi / chấm vòng này” |
+| **`examAt`** | `round.examAt` (bắt buộc) | **Một mốc thời gian** — "khi nào thi / chấm vòng này" |
 
 **CK** = **Chung kết** (tiếng Việt), **không** phải `EventType`. CK là **Round**, không tạo bằng `POST .../events`.
 
@@ -37,33 +42,27 @@ Trong BE có **hai lớp** dữ liệu thời gian: **Event** (lịch công khai
 ```text
 Event (lịch)                    Round (vòng thi)
 ────────────                    ────────────────
-WORKSHOP                       (mọi loại) examAt > KICKOFF.endsAt
+WORKSHOP                        (mọi loại) examAt > KICKOFF.endsAt
 KICKOFF                                    examAt ∈ [eventStart, eventEnd]
-Round.examAt  ───────────────►  Sơ loại / CK — diễn ra trong khung Hackathon
-PRESENTATION (optional)        Sơ loại: nếu tạo → examAt ∈ [PRESENTATION.start, PRESENTATION.end]
-                               CK: PRESENTATION đứng SAU CK.examAt
-AWARDS (eventEnd day)          startsAt > max(PRESENTATION.endsAt, mọi Round.examAt)
-                               CK.examAt < AWARDS.startsAt
+AWARDS (ngày eventEnd)         CK.examAt < AWARDS.startsAt  (nếu AWARDS đã tạo)
 ```
 
-- **PRESENTATION optional** ở cả Sơ loại lẫn Chung kết — không còn block readiness vì thiếu PRESENTATION (chỉ block khi `examAt` rơi ngoài khung nếu BTC đã tạo PRESENTATION).
-- **Có round CK** → readiness bắt **phải có** event `AWARDS` → `EVENT_AWARDS_MISSING` nếu thiếu.
+- **Không** so `examAt` với `PRESENTATION` — PRESENTATION là sự kiện phụ, không kiểm soát Round.
+- **Có round CK** → readiness bắt **phải có** event `AWARDS` → `EVENT_AWARDS_MISSING` nếu thiếu (chỉ gate ONGOING, không block delete).
 - **`examAt` lệch khung Hackathon** → `EVENT_OUT_OF_HACKATHON`.
-- **`examAt` lệch khung PRESENTATION** (nếu PRESENTATION tồn tại với Sơ loại) → `ROUND_EXAM_OUTSIDE_PRESENTATION`.
-- **CK.examAt ≥ AWARDS.startsAt** → `ROUND_EXAM_OUTSIDE_AWARDS` (semantic mới: examAt phải xảy ra **trước** Lễ trao giải).
+- **CK.examAt ≥ AWARDS.startsAt** (khi AWARDS đã tạo) → `ROUND_EXAM_OUTSIDE_AWARDS`.
 
 Mọi vòng: `examAt` phải **sau** `KICKOFF.endsAt` → `ROUND_EXAM_BEFORE_KICKOFF`.
 
-### 0.4 Ví dụ đủ 4 event + 2 round (Spring 2026)
+### 0.4 Ví dụ đủ 3 milestone event + 2 round (Spring 2026)
 
 | Thứ tự | Event | Round |
 |--------|-------|-------|
 | 1 | WORKSHOP 9/4 | — |
 | 2 | KICKOFF 11/4 | — |
-| 3 | PRESENTATION 12/4 06:00–17:00 | Sơ loại `examAt` = 12/4 **08:00** |
-| 4 | AWARDS 12/4 17:30–19:00 | CK `examAt` = 12/4 **17:30** (trong buổi lễ) |
+| 3 | AWARDS 12/4 17:30–19:00 | Sơ loại `examAt` = 12/4 **08:00** · CK `examAt` = 12/4 **10:00** |
 
-Spring: **hai event cùng ngày 12/4** — PRESENTATION **kết thúc** (17:00) trước AWARDS **bắt đầu** (17:30).
+Spring: **1 ngày thi (12/4)** — cả hai round exam diễn ra trước AWARDS (17:30).
 
 ---
 
@@ -73,7 +72,6 @@ Spring: **hai event cùng ngày 12/4** — PRESENTATION **kết thúc** (17:00) 
 |-----------|-----------|-------------|
 | WORKSHOP | 29/10 19:30–21:30 | 9/4 20:00–21:30 |
 | KICKOFF | 1/11 14:00–17:00 | 11/4 14:00–17:00 |
-| PRESENTATION (ngày thi) | 2/11 06:00–21:00 | 12/4 06:00–17:00 |
 | AWARDS | 2/11 ~17:00–18:00 | 12/4 17:30–19:00 |
 
 **Quy ước `hackathons`:**
@@ -83,11 +81,9 @@ Spring: **hai event cùng ngày 12/4** — PRESENTATION **kết thúc** (17:00) 
 | `event_start` | Ngày **khai mạc** |
 | `event_end` | Ngày **thi / trao giải** (Spring: `event_start + 1` ngày) |
 
-WORKSHOP **được** đặt trước `event_start`. PRESENTATION phải **kết thúc** trước AWARDS **bắt đầu** (Spring: 17:00 → 17:30).
-
 ---
 
-## 2. Validate event — 3 lớp (v3.2 strict windows)
+## 2. Validate event — 3 lớp (v3.3)
 
 Lớp 1 tách theo từng loại — mỗi rule trong `events/service/impl/window/`:
 
@@ -95,58 +91,52 @@ Lớp 1 tách theo từng loại — mỗi rule trong `events/service/impl/windo
 |-----|------|---------|------|
 | 1   | WORKSHOP | `registrationEnd < date < eventStart` (exclusive cả hai đầu) | `EVENT_OUT_OF_HACKATHON` |
 | 1   | KICKOFF | `date == eventStart` (đúng ngày khai mạc) | `EVENT_OUT_OF_HACKATHON` |
-| 1   | PRESENTATION | `date ∈ [eventStart, eventEnd]`; nếu CK có `examAt` → `startsAt > Final.examAt` | `EVENT_OUT_OF_HACKATHON`, `PRESENTATION_BEFORE_FINAL_EXAM` |
-| 1   | AWARDS | `date == eventEnd`; cần ≥1 PRESENTATION/Round.examAt; `startsAt > max(PRESENTATION.endsAt, mọi Round.examAt)` | `EVENT_OUT_OF_HACKATHON`, `AWARDS_NEEDS_COMPETITION`, `AWARDS_BEFORE_COMPETITION_END` |
-| 1   | OTHER | Trong `[eventStart, eventEnd]` | `EVENT_OUT_OF_HACKATHON` |
-| 2   | * | Tối đa **1** milestone / type | `EVENT_MILESTONE_DUPLICATE` |
-| 2b  | * | OTHER ↔ milestone không chồng giờ (hai chiều) | `EVENT_CONFLICTS_WITH_MILESTONE` |
-| 3   | * | WS → KO → PRESENTATION → AWARDS (`endsAt` trước `startsAt` giai đoạn sau) | `EVENT_ORDER_VIOLATION`, `EVENT_END_REQUIRED` |
+| 1   | AWARDS | `date == eventEnd`; `effectiveEnd.date ≤ eventEnd` | `EVENT_OUT_OF_HACKATHON` |
+| 1   | PRESENTATION / OTHER | Trong `[eventStart, eventEnd]` | `EVENT_OUT_OF_HACKATHON` |
+| 2   | * | Tối đa **1** milestone / type (WORKSHOP, KICKOFF, AWARDS) | `EVENT_MILESTONE_DUPLICATE` |
+| 2b  | * | OTHER/PRESENTATION ↔ milestone không chồng giờ (hai chiều) | `EVENT_CONFLICTS_WITH_MILESTONE` |
+| 3   | * | `WORKSHOP → KICKOFF → AWARDS` (`endsAt` trước `startsAt` giai đoạn sau) | `EVENT_ORDER_VIOLATION`, `EVENT_END_REQUIRED` |
 | 3d  | * | Gợi ý KICKOFF đúng `eventStart` | WARN `EVENT_ORDER_INVALID` |
 
-Milestone **bắt buộc `endsAt`**. Cần `location` hoặc `meetUrl`.
+Milestone (WORKSHOP, KICKOFF, AWARDS) **bắt buộc `endsAt`**. Cần `location` hoặc `meetUrl`.
 
-**Round uniqueness (FR-03 v3.2):** Mỗi `roundType` (PRELIMINARY / SEMIFINAL / FINAL) chỉ tạo **1 lần** mỗi Hackathon — `ROUND_TYPE_DUPLICATE` (FINAL còn alias `ROUND_DUPLICATE_FINAL`).
+**Round uniqueness (FR-03):** Mỗi `roundType` (PRELIMINARY / SEMIFINAL / FINAL) chỉ tạo **1 lần** mỗi Hackathon — `ROUND_TYPE_DUPLICATE`.
 
 ---
 
-## 3. `round.examAt` (FR-03 v3.2)
-
-*(Thuật ngữ: §0 — PRESENTATION = ngày thi; CK = round `isFinal=true`.)*
+## 3. `round.examAt` (FR-03 v3.3)
 
 | Vòng | Quy tắc | Code |
 |------|---------|------|
 | Mọi vòng | Sau `KICKOFF.endsAt` | `ROUND_EXAM_BEFORE_KICKOFF` |
 | Mọi vòng | `examAt.toLocalDate() ∈ [eventStart, eventEnd]` | `EVENT_OUT_OF_HACKATHON` |
-| Sơ loại + có PRESENTATION | Trong `[PRESENTATION.start, PRESENTATION.end]` | `ROUND_EXAM_OUTSIDE_PRESENTATION` |
-| Chung kết (CK) | **Trước** `AWARDS.startsAt` (semantic mới — AWARDS đứng cuối timeline) | `ROUND_EXAM_OUTSIDE_AWARDS` |
+| Chung kết (CK) | **Trước** `AWARDS.startsAt` (nếu AWARDS đã tạo) | `ROUND_EXAM_OUTSIDE_AWARDS` |
 
-- **PRESENTATION optional** ở cả Sơ loại + Chung kết — không còn `EVENT_PRESENTATION_MISSING`.
-- Có **round CK** → vẫn phải có event **`AWARDS`** (`EVENT_AWARDS_MISSING`).
+- **PRESENTATION không ràng buộc `examAt`** — sự kiện phụ, không kiểm soát vòng thi.
+- Có **round CK** → vẫn phải có event **`AWARDS`** (`EVENT_AWARDS_MISSING`) khi chuyển trạng thái readiness — **không** block khi delete AWARDS.
 - **PUT/DELETE** milestone → revalidate mọi round (`HackathonTimelineService`).
 
 ---
 
-## 4. Readiness ONGOING (gate sự kiện) — v3.2
-
-*(Ý “có round X → bắt event Y”: §0.3.)*
+## 4. Readiness ONGOING (gate sự kiện) — v3.3
 
 | Điều kiện | Code |
 |-----------|------|
 | ≥1 KICKOFF hợp lệ | `EVENT_KICKOFF_MISSING` |
-| Có **round CK** → phải có event **AWARDS** (lễ trao giải) | `EVENT_AWARDS_MISSING` (một lần) |
-| Mọi milestone đã tạo pass validator 3 lớp | `EVENT_*` / `EVENT_ORDER_*` / `AWARDS_*` / `PRESENTATION_BEFORE_FINAL_EXAM` |
-| `examAt` lệch khung (không trùng blocker thiếu event ở trên) | `ROUND_EXAM_*` / `EVENT_OUT_OF_HACKATHON` |
+| Có **round CK** → phải có event **AWARDS** (lễ trao giải) | `EVENT_AWARDS_MISSING` |
+| Mọi milestone đã tạo pass validator 3 lớp | `EVENT_*` / `EVENT_ORDER_*` |
+| `examAt` lệch khung | `ROUND_EXAM_*` / `EVENT_OUT_OF_HACKATHON` |
 | Round trùng `roundType` | `ROUND_TYPE_DUPLICATE` |
 
-> **Đã bỏ:** gate `EVENT_PRESENTATION_MISSING` cho readiness — PRESENTATION optional.
+> **Đã bỏ:** gate `EVENT_PRESENTATION_MISSING` — PRESENTATION không còn là milestone.
 
 ---
 
 ## 5. API & JSON mẫu (Spring 2026)
 
-**Thứ tự POST** (block nếu sai thứ tự):
+**Thứ tự POST milestone** (block nếu sai thứ tự):
 
-1. WORKSHOP → 2. KICKOFF → 3. PRESENTATION → 4. AWARDS  
+1. WORKSHOP → 2. KICKOFF → 3. AWARDS
 
 `POST /api/v1/hackathons/{hackathonId}/events`
 
@@ -161,18 +151,20 @@ Milestone **bắt buộc `endsAt`**. Cần `location` hoặc `meetUrl`.
 ```
 
 ```json
-{ "title": "Ngày thi Sơ loại", "type": "PRESENTATION", "location": "Hội trường",
-  "startsAt": "2026-04-12T06:00:00", "endsAt": "2026-04-12T17:00:00", "isPublic": true }
-```
-
-```json
 { "title": "Lễ trao giải", "type": "AWARDS", "location": "Hội trường",
   "startsAt": "2026-04-12T17:30:00", "endsAt": "2026-04-12T19:00:00", "isPublic": true }
 ```
 
-**Gợi ý `examAt`:** sơ loại `2026-04-12T08:00:00`; chung kết `2026-04-12T17:30:00`.
+PRESENTATION (tùy chọn — bất kỳ lúc nào trong `[eventStart, eventEnd]`):
 
-**Seed dev:** `seal-gd1-ready`, `seal-spring-2026` — `Gd1DataSeeder` căn theo `eventStart`/`eventEnd` tương tự.
+```json
+{ "title": "Thuyết trình Sơ loại", "type": "PRESENTATION", "location": "Hội trường",
+  "startsAt": "2026-04-12T08:00:00", "endsAt": "2026-04-12T12:00:00", "isPublic": true }
+```
+
+**Gợi ý `examAt`:** sơ loại `2026-04-12T08:00:00`; chung kết `2026-04-12T10:00:00`.
+
+**Seed dev:** `seal-gd1-ready`, `seal-spring-2026` — `Gd1DataSeeder` căn theo `eventStart`/`eventEnd`.
 
 ---
 
@@ -193,4 +185,4 @@ mvn test -Dtest=EventScheduleValidatorImplTest,HackathonTimelineServiceImplTest,
 | [schema-v3.0-mysql.md](../db/schema-v3.0-mysql.md) | DDL |
 | [fr-06a-events.md](../api/mf-01/fr-06a-events.md) | Index ngắn → trỏ về file này |
 
-*Cập nhật v3.2: window per-type tách rule (`events/service/impl/window/`); PRESENTATION optional; AWARDS strict (`AWARDS_NEEDS_COMPETITION` / `AWARDS_BEFORE_COMPETITION_END` / `PRESENTATION_BEFORE_FINAL_EXAM`); Round unique theo `roundType` (`ROUND_TYPE_DUPLICATE`).*
+*Cập nhật v3.3: PRESENTATION bỏ khỏi milestone chain; AWARDS chỉ validate theo `eventEnd`; fix circular-delete AWARDS↔Final round; Layer 3 = 3 milestone (WORKSHOP → KICKOFF → AWARDS); Round uniqueness giữ nguyên.*

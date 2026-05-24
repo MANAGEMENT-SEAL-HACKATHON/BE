@@ -14,7 +14,6 @@ public final class EventTimeline {
     public static final Set<EventType> MILESTONE_TYPES = EnumSet.of(
             EventType.WORKSHOP,
             EventType.KICKOFF,
-            EventType.PRESENTATION,
             EventType.AWARDS);
 
     private EventTimeline() {
@@ -35,8 +34,7 @@ public final class EventTimeline {
         return switch (type) {
             case WORKSHOP -> 0;
             case KICKOFF -> 1;
-            case PRESENTATION -> 2;
-            case AWARDS -> 3;
+            case AWARDS -> 2;
             default -> -1;
         };
     }
