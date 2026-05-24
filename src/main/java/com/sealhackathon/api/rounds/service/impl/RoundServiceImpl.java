@@ -76,7 +76,7 @@ public class RoundServiceImpl implements RoundService {
         validateExamAtRules(hackathonId, req.getIsFinal(), req.getExamAt(),
                 req.getSubmissionOpen(), null);
         validateRoundDeadlineOrdering(hackathonId, req.getIsFinal(), req.getExamAt(),
-                req.getSubmissionDeadline(), null);
+                req.getSubmissionOpen(), req.getSubmissionDeadline(), null);
 
         Round entity = roundMapper.toEntity(req, h);
         Round saved = roundRepository.save(entity);
@@ -118,7 +118,7 @@ public class RoundServiceImpl implements RoundService {
             validateExamAtRules(r.getHackathon().getId(), r.getIsFinal(), req.getExamAt(),
                     req.getSubmissionOpen(), r.getId());
             validateRoundDeadlineOrdering(r.getHackathon().getId(), r.getIsFinal(), req.getExamAt(),
-                    req.getSubmissionDeadline(), r.getId());
+                    req.getSubmissionOpen(), req.getSubmissionDeadline(), r.getId());
         }
 
         if (Boolean.TRUE.equals(req.getForceLocked())
@@ -337,7 +337,8 @@ public class RoundServiceImpl implements RoundService {
     }
 
     private void validateRoundDeadlineOrdering(Integer hackathonId, Boolean isFinal,
-                                               LocalDateTime examAt, LocalDateTime submissionDeadline,
+                                               LocalDateTime examAt, LocalDateTime submissionOpen,
+                                               LocalDateTime submissionDeadline,
                                                Integer excludeRoundId) {
         if (submissionDeadline == null) {
             return;

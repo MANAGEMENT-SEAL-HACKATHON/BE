@@ -15,6 +15,8 @@ import com.sealhackathon.api.events.service.impl.window.WorkshopWindowRule;
 import com.sealhackathon.api.events.support.EventTimeline;
 import com.sealhackathon.api.events.value_object.EventType;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
+import com.sealhackathon.api.rounds.entity.Round;
+import com.sealhackathon.api.rounds.repository.RoundRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +42,7 @@ import java.util.Map;
 public class EventScheduleValidatorImpl implements EventScheduleValidator {
 
     private final EventRepository eventRepository;
+    private final RoundRepository roundRepository;
     private final WorkshopWindowRule workshopRule;
     private final KickoffWindowRule kickoffRule;
     private final AwardsWindowRule awardsRule;
@@ -126,6 +129,29 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
 
         validateLayer3Ordering(h.getId(), type, startsAt, effectiveEnd, excludeEventId);
         validateWorkshopKickoffDifferentDays(h.getId(), type, startsAt, effectiveEnd, excludeEventId);
+        validateAwardsAfterFinalSubmissionDeadline(h, type, startsAt);
+    }
+
+    /**
+     * Lễ trao giải bắt đầu sau hạn nộp bài vòng Chung kết (khi round CK đã có deadline).
+     */
+    private void validateAwardsAfterFinalSubmissionDeadline(Hackathon h, EventType type,
+                                                           LocalDateTime awardsStartsAt) {
+        if (h == null || type != EventType.AWARDS || awardsStartsAt == null) {
+            return;
+        }
+        roundRepository.findByHackathon_IdAndIsFinalTrue(h.getId()).ifPresent(finalRound -> {
+            LocalDateTime finalDeadline = finalRound.getSubmissionDeadline();
+            if (finalDeadline != null && !awardsStartsAt.isAfter(finalDeadline)) {
+                throw new BusinessRuleException(ErrorCode.AWARDS_BEFORE_FINAL_DEADLINE,
+                        "Lễ trao giải (%s) phải bắt đầu sau hạn nộp Chung kết (%s)"
+                                .formatted(awardsStartsAt, finalDeadline),
+                        Map.of("hackathonId", h.getId(),
+                                "awardsStartsAt", awardsStartsAt,
+                                "finalSubmissionDeadline", finalDeadline,
+                                "finalRoundId", finalRound.getId()));
+            }
+        });
     }
 
     /**

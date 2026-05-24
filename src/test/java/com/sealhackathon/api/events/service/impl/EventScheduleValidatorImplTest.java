@@ -11,6 +11,8 @@ import com.sealhackathon.api.events.service.impl.window.WorkshopWindowRule;
 import com.sealhackathon.api.events.support.EventTimeline;
 import com.sealhackathon.api.events.value_object.EventType;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
+import com.sealhackathon.api.rounds.entity.Round;
+import com.sealhackathon.api.rounds.repository.RoundRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,6 +25,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -40,6 +43,7 @@ import static org.mockito.Mockito.when;
 class EventScheduleValidatorImplTest {
 
     @Mock private EventRepository eventRepository;
+    @Mock private RoundRepository roundRepository;
 
     private EventScheduleValidatorImpl validator;
     private Hackathon hackathon;
@@ -49,7 +53,7 @@ class EventScheduleValidatorImplTest {
         WorkshopWindowRule workshop = new WorkshopWindowRule();
         KickoffWindowRule kickoff = new KickoffWindowRule();
         AwardsWindowRule awards = new AwardsWindowRule();
-        validator = new EventScheduleValidatorImpl(eventRepository, workshop, kickoff, awards);
+        validator = new EventScheduleValidatorImpl(eventRepository, roundRepository, workshop, kickoff, awards);
         validator.initRules();
 
         hackathon = Hackathon.builder()
@@ -170,9 +174,36 @@ class EventScheduleValidatorImplTest {
 
     @Test
     void awards_onEventEnd_isAllowed() {
+        when(roundRepository.findByHackathon_IdAndIsFinalTrue(1))
+                .thenReturn(Optional.of(Round.builder()
+                        .id(99)
+                        .submissionDeadline(LocalDateTime.of(2026, 4, 12, 16, 30))
+                        .build()));
         assertDoesNotThrow(() -> validator.validateBlocking(hackathon,
                 awards(LocalDateTime.of(2026, 4, 12, 17, 30),
                         LocalDateTime.of(2026, 4, 12, 19, 0)), 0));
+    }
+
+    @Test
+    void awards_beforeFinalSubmissionDeadline_isBlocked() {
+        when(roundRepository.findByHackathon_IdAndIsFinalTrue(1))
+                .thenReturn(Optional.of(Round.builder()
+                        .id(99)
+                        .submissionDeadline(LocalDateTime.of(2026, 6, 10, 16, 30))
+                        .build()));
+        Hackathon h = Hackathon.builder()
+                .id(1)
+                .registrationStart(LocalDate.of(2026, 5, 24))
+                .registrationEnd(LocalDate.of(2026, 6, 5))
+                .eventStart(LocalDate.of(2026, 6, 10))
+                .eventEnd(LocalDate.of(2026, 6, 10))
+                .build();
+
+        assertEquals(ErrorCode.AWARDS_BEFORE_FINAL_DEADLINE,
+                assertThrows(BusinessRuleException.class,
+                        () -> validator.validateBlocking(h,
+                                awards(LocalDateTime.of(2026, 6, 10, 10, 0),
+                                        LocalDateTime.of(2026, 6, 10, 11, 0)), 0)).getCode());
     }
 
     @Test

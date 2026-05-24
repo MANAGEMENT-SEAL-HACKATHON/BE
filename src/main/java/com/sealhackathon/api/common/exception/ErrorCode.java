@@ -99,6 +99,8 @@ public final class ErrorCode {
     public static final String EVENT_CONFLICTS_WITH_MILESTONE = "EVENT_CONFLICTS_WITH_MILESTONE";
     public static final String AWARDS_NEEDS_COMPETITION       = "AWARDS_NEEDS_COMPETITION";
     public static final String AWARDS_BEFORE_COMPETITION_END  = "AWARDS_BEFORE_COMPETITION_END";
+    /** AWARDS.startsAt phải sau round Chung kết submissionDeadline */
+    public static final String AWARDS_BEFORE_FINAL_DEADLINE   = "AWARDS_BEFORE_FINAL_DEADLINE";
     public static final String PRESENTATION_BEFORE_FINAL_EXAM = "PRESENTATION_BEFORE_FINAL_EXAM";
     public static final String ROUND_TYPE_DUPLICATE           = "ROUND_TYPE_DUPLICATE";
 

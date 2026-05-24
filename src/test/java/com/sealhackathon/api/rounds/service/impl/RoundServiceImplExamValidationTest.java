@@ -15,6 +15,7 @@ import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentReposit
 import com.sealhackathon.api.notifications.service.NotificationService;
 import com.sealhackathon.api.rounds.dto.request.CreateRoundRequest;
 import com.sealhackathon.api.rounds.dto.request.UpdateRoundRequest;
+import com.sealhackathon.api.rounds.dto.response.RoundResponse;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.mapper.RoundMapper;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
@@ -34,6 +35,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -194,6 +196,35 @@ class RoundServiceImplExamValidationTest {
         BusinessRuleException ex = assertThrows(BusinessRuleException.class,
                 () -> roundService.createByHackathon(1, req));
         assertEquals(ErrorCode.ROUND_PRELIM_DEADLINE_AFTER_FINAL_EXAM, ex.getCode());
+    }
+
+    @Test
+    void createFinal_blocksWhenAwardsStartsBeforeSubmissionDeadline() {
+        mockHackathon();
+        LocalDateTime day = LocalDateTime.of(2026, 6, 10, 0, 0);
+        when(roundRepository.findPreliminaryLikeByHackathonId(1))
+                .thenReturn(List.of(Round.builder().id(10).build()));
+        when(roundRepository.countByHackathon_IdAndIsFinalTrue(1)).thenReturn(0L);
+        when(roundRepository.maxExamAtNonFinal(1))
+                .thenReturn(Optional.of(day.withHour(8)));
+        when(eventRepository.findByHackathonIdAndType(eq(1), any()))
+                .thenReturn(List.of(com.sealhackathon.api.events.entity.Event.builder()
+                        .startsAt(day.withHour(10))
+                        .endsAt(day.withHour(11))
+                        .build()));
+
+        CreateRoundRequest req = CreateRoundRequest.builder()
+                .name("Chung kết")
+                .examAt(day.withHour(13))
+                .submissionOpen(day.withHour(14))
+                .submissionDeadline(day.withHour(16).withMinute(30))
+                .isFinal(true)
+                .roundType(RoundType.FINAL)
+                .build();
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class,
+                () -> roundService.createByHackathon(1, req));
+        assertEquals(ErrorCode.ROUND_FINAL_DEADLINE_AFTER_AWARDS, ex.getCode());
     }
 
     @Test
