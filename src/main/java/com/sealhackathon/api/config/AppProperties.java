@@ -17,5 +17,5 @@ public class AppProperties {
     /**
      * URL gốc frontend — dùng trong link mời tham gia / đăng ký.
      */
-    private String frontendUrl = "https://seal-hackathon-fe.vercel.app";
+    private String frontendUrl = "http://localhost:5173";
 }

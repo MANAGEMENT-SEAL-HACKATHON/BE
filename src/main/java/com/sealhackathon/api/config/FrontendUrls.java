@@ -14,7 +14,7 @@ public final class FrontendUrls {
 
     private static String trimTrailingSlash(String url) {
         if (url == null || url.isBlank()) {
-            return "https://seal-hackathon-fe.vercel.app";
+            return "http://localhost:5173";
         }
         String trimmed = url.trim();
         while (trimmed.endsWith("/")) {
