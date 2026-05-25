@@ -91,6 +91,7 @@ Xem [common/exception/ErrorCode.java](../../../src/main/java/com/sealhackathon/a
 | `ROUND_DEADLINE_INVALID` | 422 | submission_deadline < submission_open hoặc < NOW |
 | `ROUND_FORCE_LOCK_REASON` | 422 | force_locked=TRUE thiếu reason |
 | `ROUND_HAS_SUBMISSIONS` | 409 | Xóa Round còn submission |
+| `ROUND_HAS_CRITERIA` | 409 | Xóa Round đã có **điểm chấm** (không dùng cho “còn criterion cấu hình”) |
 | `ROUND_NO_CRITERIA` | 422 | Activate Round chưa có Criteria |
 | `ROUND_WEIGHT_NOT_ONE` | 422 | Activate Round / Gate ONGOING có tổng weight ≠ 1.0 |
 | `CRITERIA_HAS_SCORES` | 409 | Sửa/xóa Criteria đã có scores |

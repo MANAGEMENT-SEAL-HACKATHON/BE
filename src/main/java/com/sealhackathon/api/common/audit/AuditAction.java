@@ -63,6 +63,23 @@ public final class AuditAction {
     public static final String EVENT_UPDATE             = "EVENT_UPDATE";
     public static final String EVENT_DELETE             = "EVENT_DELETE";
 
+    // ---------- MF-02 GĐ2 TEAMS ----------
+    public static final String TEAM_CREATE              = "TEAM_CREATE";
+    public static final String TEAM_APPROVE             = "TEAM_APPROVE";
+    public static final String TEAM_REJECT              = "TEAM_REJECT";
+    public static final String TEAM_DISBAND             = "TEAM_DISBAND";
+    public static final String TEAM_LOCKED              = "TEAM_LOCKED";
+    public static final String LEADER_TRANSFERRED       = "LEADER_TRANSFERRED";
+    public static final String MEMBER_INVITED           = "MEMBER_INVITED";
+    public static final String MEMBER_INVITE_CANCELLED  = "MEMBER_INVITE_CANCELLED";
+    public static final String MEMBER_ACCEPTED          = "MEMBER_ACCEPTED";
+    public static final String MEMBER_REJECTED          = "MEMBER_REJECTED";
+    public static final String MEMBER_LEFT              = "MEMBER_LEFT";
+    public static final String TEAM_TRACK_ASSIGNED      = "TEAM_TRACK_ASSIGNED";
+    public static final String TEAM_TRACK_CHANGED       = "TEAM_TRACK_CHANGED";
+    public static final String MENTOR_TEAM_ASSIGNED     = "MENTOR_TEAM_ASSIGNED";
+    public static final String MENTOR_TEAM_UNASSIGNED   = "MENTOR_TEAM_UNASSIGNED";
+
     // ---------- WARNINGS ----------
     public static final String WARNING_CONFLICT_CHECK_SKIPPED = "WARNING_CONFLICT_CHECK_SKIPPED";
     public static final String WARNING_EVENT_ORDER            = "WARNING_EVENT_ORDER";

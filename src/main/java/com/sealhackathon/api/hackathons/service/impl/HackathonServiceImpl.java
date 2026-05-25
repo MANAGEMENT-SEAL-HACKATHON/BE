@@ -19,6 +19,7 @@ import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.service.HackathonService;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.hackathons.value_object.Season;
+import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.users.entity.User;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +49,7 @@ public class HackathonServiceImpl implements HackathonService {
     private final AuditService auditService;
     private final CurrentUserAccessor currentUserAccessor;
     private final TrackRepository trackRepository;
+    private final RoundRepository roundRepository;
     private final EventRepository eventRepository;
 
     @Override
@@ -138,9 +140,11 @@ public class HackathonServiceImpl implements HackathonService {
             throw new ConflictException(ErrorCode.HACKATHON_NOT_DRAFT,
                     "Chỉ được xóa Hackathon khi status=DRAFT (hiện %s)".formatted(h.getStatus()));
         }
-        if (trackRepository.existsByHackathonId(id) || eventRepository.existsByHackathonId(id)) {
+        if (trackRepository.existsByHackathonId(id)
+                || roundRepository.existsByHackathon_Id(id)
+                || eventRepository.existsByHackathonId(id)) {
             throw new ConflictException(ErrorCode.HACKATHON_HAS_CHILDREN,
-                    "Hackathon còn Track/Event con — không thể xóa");
+                    "Hackathon còn Round/Track/Event con — không thể xóa");
         }
 
         HackathonResponse snapshot = hackathonMapper.toResponse(h);

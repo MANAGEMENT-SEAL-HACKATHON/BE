@@ -17,6 +17,8 @@ public interface RoundRepository extends JpaRepository<Round, Integer> {
 
     List<Round> findByHackathon_IdOrderByExamAtAsc(Integer hackathonId);
 
+    boolean existsByHackathon_Id(Integer hackathonId);
+
     @Query("""
             SELECT MAX(r.examAt)
               FROM Round r

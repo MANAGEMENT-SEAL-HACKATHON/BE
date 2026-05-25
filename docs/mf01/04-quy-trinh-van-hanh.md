@@ -131,7 +131,7 @@
 | GET | `/api/v1/hackathons/{hackathonId}/rounds` | List rounds theo thứ tự |
 | GET | `/api/v1/rounds/{id}` | Chi tiết một round |
 | PUT | `/api/v1/rounds/{id}` | Cập nhật deadline, lock chấm điểm, … |
-| DELETE | `/api/v1/rounds/{id}` | Xóa — không khi đang `isActive` / có submission / có criteria |
+| DELETE | `/api/v1/rounds/{id}` | Xóa — không khi `isActive`, có **submission**, hoặc đã **chấm điểm**. Criteria/Judge/Track cấu hình (chưa chấm) được cascade — không chặn chỉ vì còn bản ghi FK |
 
 Response list round gồm `trackCount` (số track con; 0 nếu FINAL), `criteriaCount`, `currentWeightTotal`.
 

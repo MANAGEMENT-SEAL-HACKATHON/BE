@@ -17,7 +17,13 @@ import java.time.LocalDateTime;
  * mở rộng được cho nhiều mùa và nhiều Round.
  */
 @Entity
-@Table(name = "teams")
+@Table(
+        name = "teams",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_teams_name_hackathon",
+                columnNames = {"team_name", "hackathon_id"}
+        )
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -33,7 +39,7 @@ public class Team {
     @JoinColumn(name = "hackathon_id", nullable = false)
     private Hackathon hackathon;
 
-    @Column(name = "team_name", nullable = false, length = 200, unique = true)
+    @Column(name = "team_name", nullable = false, length = 200)
     private String teamName;
 
     @ManyToOne(fetch = FetchType.LAZY)

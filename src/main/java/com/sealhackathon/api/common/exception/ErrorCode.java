@@ -157,4 +157,39 @@ public final class ErrorCode {
     public static final String FINAL_JUDGE_CANNOT_BE_MENTOR         = "FINAL_JUDGE_CANNOT_BE_MENTOR";
     public static final String ROUND_NOT_FINAL_FOR_CRITERIA         = "ROUND_NOT_FINAL_FOR_CRITERIA";
     public static final String JUDGE_FINAL_AT_PHASE1                  = "JUDGE_FINAL_AT_PHASE1";
+
+    // ---------- MF-02 GĐ2 TEAMS (FR-11 … FR-13C) — dùng khi implement logic ----------
+    public static final String TEAM_NAME_DUPLICATE                    = "TEAM_NAME_DUPLICATE";
+    public static final String HACKATHON_NOT_ONGOING                    = "HACKATHON_NOT_ONGOING";
+    public static final String REGISTRATION_CLOSED                      = "REGISTRATION_CLOSED";
+    public static final String TEAM_LEADER_NOT_APPROVED               = "TEAM_LEADER_NOT_APPROVED";
+    public static final String TEAM_LEADER_INVALID_ROLE                 = "TEAM_LEADER_INVALID_ROLE";
+    public static final String USER_IN_ANOTHER_TEAM                     = "USER_IN_ANOTHER_TEAM";
+    public static final String TEAM_LOCKED                              = "TEAM_LOCKED";
+    public static final String NEW_LEADER_NOT_MEMBER                    = "NEW_LEADER_NOT_MEMBER";
+    public static final String NEW_LEADER_NOT_APPROVED                  = "NEW_LEADER_NOT_APPROVED";
+    public static final String TEAM_ALREADY_ACTIVE                      = "TEAM_ALREADY_ACTIVE";
+    public static final String TEAM_HAS_MENTOR_CANNOT_DISBAND           = "TEAM_HAS_MENTOR_CANNOT_DISBAND";
+    public static final String TEAM_INVALID_MEMBER_COUNT                = "TEAM_INVALID_MEMBER_COUNT";
+    public static final String TEAM_NOT_ACTIVE                          = "TEAM_NOT_ACTIVE";
+    public static final String TEAM_NOT_LOCKED                          = "TEAM_NOT_LOCKED";
+    public static final String TEAM_ALREADY_IN_TRACK_THIS_ROUND         = "TEAM_ALREADY_IN_TRACK_THIS_ROUND";
+    public static final String TEAM_ROUND_PARTICIPATION_MISSING         = "TEAM_ROUND_PARTICIPATION_MISSING";
+    public static final String TRACK_CLOSED                             = "TRACK_CLOSED";
+    public static final String TRACK_GROUP_FULL                         = "TRACK_GROUP_FULL";
+    public static final String ROUND_ALREADY_ACTIVE                     = "ROUND_ALREADY_ACTIVE";
+    public static final String TEAM_ALREADY_HAS_MENTOR_IN_ROUND         = "TEAM_ALREADY_HAS_MENTOR_IN_ROUND";
+    public static final String INVALID_MENTOR_FOR_TEAM                  = "INVALID_MENTOR_FOR_TEAM";
+    public static final String MENTOR_ASSIGNMENT_NOT_FOR_FINAL_ROUND      = "MENTOR_ASSIGNMENT_NOT_FOR_FINAL_ROUND";
+    public static final String TEAM_NOT_IN_ROUND                        = "TEAM_NOT_IN_ROUND";
+    public static final String MENTOR_TEAM_CROSS_HACKATHON              = "MENTOR_TEAM_CROSS_HACKATHON";
+    public static final String LEADER_CANNOT_LEAVE_TEAM                 = "LEADER_CANNOT_LEAVE_TEAM";
+    public static final String DUPLICATE_PENDING_INVITATION             = "DUPLICATE_PENDING_INVITATION";
+    public static final String ROUND_HAS_SCORES                         = "ROUND_HAS_SCORES";
+    public static final String CANNOT_DELETE_ACCEPTED_MEMBER            = "CANNOT_DELETE_ACCEPTED_MEMBER";
+    public static final String TEAM_ALREADY_PARTICIPATES_IN_ROUND       = "TEAM_ALREADY_PARTICIPATES_IN_ROUND";
+    public static final String TEAM_MEMBER_FULL                         = "TEAM_MEMBER_FULL";
+    public static final String INVITEE_NOT_APPROVED                     = "INVITEE_NOT_APPROVED";
+    public static final String INVITEE_INVALID_ROLE                     = "INVITEE_INVALID_ROLE";
+    public static final String NOT_IMPLEMENTED                          = "NOT_IMPLEMENTED";
 }

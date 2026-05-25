@@ -9,9 +9,12 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.sealhackathon.api.hackathons.dto.request.CreateHackathonRequest;
+import com.sealhackathon.api.hackathons.dto.request.HackathonLotteryRequest;
 import com.sealhackathon.api.hackathons.dto.request.UpdateHackathonRequest;
+import com.sealhackathon.api.hackathons.dto.response.HackathonLotteryResponse;
 import com.sealhackathon.api.hackathons.dto.response.HackathonResponse;
 import com.sealhackathon.api.hackathons.dto.response.HackathonSummaryResponse;
+import com.sealhackathon.api.hackathons.service.HackathonLotteryService;
 import com.sealhackathon.api.hackathons.service.HackathonService;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.hackathons.value_object.Season;
@@ -23,6 +26,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -50,6 +54,7 @@ import java.util.Map;
 public class HackathonController {
 
     private final HackathonService hackathonService;
+    private final HackathonLotteryService hackathonLotteryService;
 
     @PostMapping
     @Operation(summary = "Tạo hackathon mới", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
@@ -95,5 +100,14 @@ public class HackathonController {
         Integer deletedId = hackathonService.delete(id);
         return ResponseEntity.status(HttpStatus.OK)
                 .body(ApiResponse.ok(Map.of("deletedId", deletedId), "Deleted"));
+    }
+
+    @PatchMapping("/{hackathonId}/lottery")
+    @Operation(summary = "FR-13B — Bốc thăm Track (batch)")
+    public ResponseEntity<ApiResponse<HackathonLotteryResponse>> lottery(
+            @PathVariable Integer hackathonId,
+            @Valid @RequestBody HackathonLotteryRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                hackathonLotteryService.runLottery(hackathonId, req)));
     }
 }

@@ -223,6 +223,18 @@ public class GlobalExceptionHandler {
         };
     }
 
+    @ExceptionHandler(UnsupportedOperationException.class)
+    public ResponseEntity<ErrorResponse> handleNotImplemented(
+            UnsupportedOperationException ex, HttpServletRequest req) {
+        String traceId = traceId();
+        log.debug("[{}] {} {} -> 501: {}", traceId, req.getMethod(), req.getRequestURI(), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).body(
+                ErrorResponse.of(
+                        ErrorCode.NOT_IMPLEMENTED,
+                        "API đã có khung; logic nghiệp vụ chưa implement (TODO)",
+                        HttpStatus.NOT_IMPLEMENTED.value()));
+    }
+
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})
     public ResponseEntity<ErrorResponse> handleMalformed(Exception ex, HttpServletRequest req) {
         String traceId = traceId();

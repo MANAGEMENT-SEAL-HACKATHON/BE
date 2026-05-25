@@ -3,6 +3,7 @@ package com.sealhackathon.api.judge_assignments.repository;
 import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
 import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -19,6 +20,14 @@ public interface JudgeAssignmentRepository extends JpaRepository<JudgeAssignment
     List<JudgeAssignment> findByRoundId(Integer roundId);
 
     List<JudgeAssignment> findByTrackId(Integer trackId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM JudgeAssignment ja WHERE ja.round.id = :roundId")
+    void deleteByRoundId(@Param("roundId") Integer roundId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM JudgeAssignment ja WHERE ja.track.id = :trackId")
+    void deleteByTrackId(@Param("trackId") Integer trackId);
 
     List<JudgeAssignment> findByJudgeId(Integer judgeId);
 

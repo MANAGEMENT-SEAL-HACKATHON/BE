@@ -19,7 +19,8 @@ import com.sealhackathon.api.mentor_assignments.repository.MentorAssignmentRepos
 import com.sealhackathon.api.notifications.service.NotificationService;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
-import com.sealhackathon.api.teams.repository.TeamPlaceholderRepository;
+import com.sealhackathon.api.teams.repository.TeamRepository;
+import com.sealhackathon.api.teams.value_object.TeamStatus;
 import com.sealhackathon.api.tracks.dto.request.CreateTrackRequest;
 import com.sealhackathon.api.tracks.dto.request.UpdateTrackRequest;
 import com.sealhackathon.api.tracks.dto.response.TrackResponse;
@@ -48,12 +49,15 @@ public class TrackServiceImpl implements TrackService {
     private static final Set<HackathonStatus> MUTABLE_PARENT = EnumSet.of(
             HackathonStatus.DRAFT, HackathonStatus.ONGOING);
 
+    private static final Set<TeamStatus> ACTIVE_OR_PENDING_TEAM = EnumSet.of(
+            TeamStatus.PENDING, TeamStatus.ACTIVE);
+
     private final TrackRepository trackRepository;
     private final HackathonRepository hackathonRepository;
     private final RoundRepository roundRepository;
     private final TrackMapper trackMapper;
     private final AuditService auditService;
-    private final TeamPlaceholderRepository teamRepository;
+    private final TeamRepository teamRepository;
     private final MentorAssignmentRepository mentorAssignmentRepository;
     private final JudgeAssignmentRepository judgeAssignmentRepository;
     private final NotificationService notificationService;
@@ -131,7 +135,7 @@ public class TrackServiceImpl implements TrackService {
         TrackResponse before = trackMapper.toResponse(t);
         TrackStatus oldStatus = t.getStatus();
         if (req.getStatus() == TrackStatus.CANCELLED && oldStatus != TrackStatus.CANCELLED) {
-            long activeTeams = teamRepository.countActiveByTrackId(id);
+            long activeTeams = teamRepository.countActiveByTrackId(id, ACTIVE_OR_PENDING_TEAM);
             if (activeTeams > 0) {
                 throw new BusinessRuleException(ErrorCode.TRACK_CANCEL_HAS_TEAMS,
                         "Không thể hủy Track khi còn đội được phân công",
@@ -165,7 +169,7 @@ public class TrackServiceImpl implements TrackService {
             throw new ConflictException(ErrorCode.TRACK_HACKATHON_LOCKED,
                     "Không thể xóa Track khi Hackathon ở status %s".formatted(parent.getStatus()));
         }
-        if (teamRepository.countActiveByTrackId(id) > 0) {
+        if (teamRepository.countActiveByTrackId(id, ACTIVE_OR_PENDING_TEAM) > 0) {
             throw new ConflictException(ErrorCode.TRACK_HAS_TEAMS,
                     "Track còn team đang đăng ký",
                     Map.of("trackId", id));
@@ -191,6 +195,10 @@ public class TrackServiceImpl implements TrackService {
                     "Bạn không còn là Judge của Track này do Track bị xóa.",
                     "tracks", id);
         }
+        if (!judges.isEmpty()) {
+            judgeAssignmentRepository.deleteByTrackId(id);
+        }
+        // Criteria: DB fk_criteria_track ON DELETE CASCADE — không chặn xóa Track vì còn criterion cấu hình.
         trackRepository.delete(t);
         auditService.log(AuditAction.TRACK_DELETE, "tracks", id,
                 Map.of("snapshot", snapshot, "mentorCount", mentors.size(), "judgeCount", judges.size()));

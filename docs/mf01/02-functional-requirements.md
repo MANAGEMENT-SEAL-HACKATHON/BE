@@ -130,7 +130,7 @@ top_n_advance = NULL khi is_final=TRUE	App	422 nếu set top_n_advance cho Round
 late_submission_policy='HARD_LOCK' bắt buộc với round_type='FINAL'	App	Warn hoặc auto-set khi Coordinator tạo Round FINAL
 submission_deadline > submission_open (nếu có) và > NOW()	App	422 nếu sai thứ tự timestamp
 force_lock_reason NOT NULL khi force_locked=TRUE	App	422 nếu thiếu lý do force-lock
-Không xóa Round khi có submissions hoặc criteria liên quan	App	409 Conflict
+Không xóa Round khi có submissions hoặc đã chấm điểm (scores)	App	409 Conflict. Criteria cấu hình chưa chấm → cascade (DB + native delete), không chặn
 Không xóa Round khi is_active=TRUE	App	409 Conflict
 3.4 Thực tế 2 mùa — Cấu hình Round
 Mùa	Round Sơ loại	Round Chung kết

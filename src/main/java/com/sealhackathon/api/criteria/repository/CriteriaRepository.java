@@ -114,6 +114,22 @@ public interface CriteriaRepository extends JpaRepository<Criteria, Integer> {
             """, nativeQuery = true)
     long countAllLinkedToRoundNative(@Param("roundId") Integer roundId);
 
+    /**
+     * Gỡ {@code source_criteria_id} trỏ vào criterion thuộc round (trước bulk DELETE).
+     * DB đã có ON DELETE SET NULL — bước này tránh edge-case Hibernate/native delete lệch.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Transactional
+    @Query(value = """
+            UPDATE criteria c
+            INNER JOIN criteria src ON c.source_criteria_id = src.id
+            LEFT JOIN tracks t ON src.track_id = t.id
+               SET c.source_criteria_id = NULL
+             WHERE src.round_id = :roundId
+                OR t.round_id = :roundId
+            """, nativeQuery = true)
+    int unlinkSourceReferencingRound(@Param("roundId") Integer roundId);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Transactional
     @Query("""

@@ -161,22 +161,15 @@ public class RoundServiceImpl implements RoundService {
             throw new ConflictException(ErrorCode.ROUND_HAS_SUBMISSIONS,
                     "Round đã có submission — không thể xóa");
         }
-        long criteriaCount = criteriaRepository.countAllLinkedToRoundNative(id);
-        if (criteriaCount > 0) {
-            if (scoreRepository.countByRoundId(id) > 0) {
-                throw new ConflictException(ErrorCode.ROUND_HAS_CRITERIA,
-                        "Round đã có Criteria đã được chấm điểm — không thể xóa",
-                        Map.of("roundId", id, "criteriaCount", criteriaCount));
-            }
-            // Round không active + chưa có submission → cascade xóa Criteria (native — JPQL có thể miss rows).
-            int deleted = criteriaRepository.deleteAllLinkedToRoundNative(id);
-            if (criteriaRepository.countAllLinkedToRoundNative(id) > 0) {
-                throw new ConflictException(ErrorCode.ROUND_HAS_CRITERIA,
-                        "Không xóa hết Criteria của Round (đã xóa %d/%d) — thử lại hoặc xóa thủ công"
-                                .formatted(deleted, criteriaCount),
-                        Map.of("roundId", id, "criteriaCount", criteriaCount, "deleted", deleted));
-            }
+        // Chỉ chặn khi đã có điểm chấm thật — không chặn vì còn bản ghi Criteria cấu hình (chưa chấm).
+        if (scoreRepository.countByRoundId(id) > 0) {
+            throw new ConflictException(ErrorCode.ROUND_HAS_CRITERIA,
+                    "Round đã có điểm chấm — không thể xóa",
+                    Map.of("roundId", id));
         }
+
+        long criteriaCount = criteriaRepository.countAllLinkedToRoundNative(id);
+        long trackCount = trackRepository.countByRoundId(id);
 
         RoundResponse snapshot = roundMapper.toResponse(r);
         List<JudgeAssignment> judges = judgeAssignmentRepository.findByRoundId(id);
@@ -186,12 +179,31 @@ public class RoundServiceImpl implements RoundService {
                     "Bạn không còn là Judge của Round này do Round bị xóa.",
                     "rounds", id);
         }
+
+        // Best-effort: Criteria/Judge gắn round (DB ON DELETE CASCADE vẫn dọn phần còn lại).
+        if (criteriaCount > 0) {
+            criteriaRepository.unlinkSourceReferencingRound(id);
+            int deleted = criteriaRepository.deleteAllLinkedToRoundNative(id);
+            long remaining = criteriaRepository.countAllLinkedToRoundNative(id);
+            if (remaining > 0) {
+                log.warn(
+                        "Round {}: còn {} criteria sau native delete (đã xóa {}). Tiếp tục xóa round — FK CASCADE.",
+                        id, remaining, deleted);
+            }
+        }
+        if (!judges.isEmpty()) {
+            judgeAssignmentRepository.deleteByRoundId(id);
+        }
+
         roundRepository.delete(r);
         Map<String, Object> deleteDetails = new java.util.LinkedHashMap<>();
         deleteDetails.put("snapshot", snapshot);
         deleteDetails.put("judgeCount", judges.size());
         if (criteriaCount > 0) {
             deleteDetails.put("criteriaCascadeDeleted", criteriaCount);
+        }
+        if (trackCount > 0) {
+            deleteDetails.put("tracksCascadeDeleted", trackCount);
         }
         auditService.log(AuditAction.ROUND_DELETE, "rounds", id, deleteDetails);
         return id;
