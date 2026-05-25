@@ -1,14 +1,17 @@
-# MF-01 — Security Contract (chưa wire SecurityFilterChain)
+# MF-01 — Security Contract (**đã wire** MF-02 JWT)
 
 ## 1. Phạm vi
 
-MF-01 thiết kế authorization annotation **theo spec**, nhưng KHÔNG cấu hình `SecurityFilterChain` trong scope phase này. Module Auth (do team khác làm sau) sẽ:
-1. Cấu hình `SecurityFilterChain` (HTTP filter, CORS, CSRF disable for stateless).
-2. Triển khai JWT filter giải mã token và set `Authentication` vào `SecurityContextHolder`.
-3. Bật `@EnableMethodSecurity` để kích hoạt `@PreAuthorize`.
-4. Cung cấp impl `CurrentUserAccessor` đọc principal từ `SecurityContextHolder`.
+**MF-02 (GĐ2)** đã triển khai:
 
-Trước khi Auth module ra mắt, mọi endpoint ở MF-01 **mở** ở runtime (vì chưa có filter), nhưng đã **đánh dấu** ý định kiểm soát bằng meta-annotation `@CoordinatorOnly`.
+1. `SecurityFilterChain` stateless + CORS + CSRF off (`SecurityConfig`).
+2. `JwtAuthenticationFilter` → `SealAuthentication` / `CurrentUserStub` trong `SecurityContextHolder`.
+3. `@EnableMethodSecurity` + `@CoordinatorOnly` / `@ApprovedOnly` (`@PreAuthorize`).
+4. `JwtCurrentUserAccessor` (`security.jwt.enabled=true`, mặc định).
+
+Runbook đầy đủ: **[01-auth-users.md](../../mf02/01-auth-users.md)**.
+
+Dev tắt JWT: `security.jwt.enabled=false` → `StubCurrentUserAccessor` + `DevStubAuthenticationFilter`.
 
 ## 2. Coordinator quyền CỐ ĐỊNH
 
@@ -44,26 +47,10 @@ Mapping → [`CurrentUserStub`](../../../src/main/java/com/sealhackathon/api/com
 File: [common/security/CoordinatorOnly.java](../../../src/main/java/com/sealhackathon/api/common/security/CoordinatorOnly.java).
 
 ### 4.1 Trạng thái hiện tại
-Pure marker annotation — chỉ document intent. Không enforce gì ở runtime.
 
-### 4.2 Cách Auth module nâng cấp
+`@PreAuthorize("hasRole('COORDINATOR') and authentication.principal.status.name() == 'APPROVED'")` — enforce runtime.
 
-Chỉ cần đổi thân annotation, KHÔNG cần sửa từng controller:
-
-```java
-@Target({ElementType.METHOD, ElementType.TYPE})
-@Retention(RetentionPolicy.RUNTIME)
-@org.springframework.security.access.prepost.PreAuthorize(
-    "hasRole('COORDINATOR') and authentication.principal.status == 'APPROVED'"
-)
-public @interface CoordinatorOnly {}
-```
-
-Sau đó thêm dependency `spring-boot-starter-security` + cấu hình:
-```java
-@EnableMethodSecurity
-public class SecurityConfig { ... }
-```
+Profile `@ApprovedOnly`: mọi role nhưng `status=APPROVED` (vd `GET /users/me`).
 
 ## 5. Cách lấy current user trong Service
 

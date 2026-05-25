@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component;
  * <p>Mỗi lần start: repair timeline (đăng ký 24/05–05/06, WS 06/06, KO 07/06, thi 10/06),
  * repair criteria/track seed (gỡ {@code source_criteria_id} cũ, bổ sung Track 3 trống để test clone 2→3).
  *
- * <p>Tham chiếu: {@code docs/workflow/mf01.md} §11.1, {@code docs/api/fe-round-exam-at-migration.md},
+ * <p>Tham chiếu: {@code docs/mf01/02-functional-requirements.md} §11.1, {@code docs/api/fe-round-exam-at-migration.md},
  * {@code docs/api/fe-criteria-clone.md}.
  */
 @Slf4j
@@ -34,6 +34,7 @@ public class DataInitializer implements CommandLineRunner {
     public void run(String... args) {
         gd1DataSeeder.repairSeededTimeline();
         gd1DataSeeder.repairSeededCriteriaAndTracks();
+        gd1DataSeeder.repairDevUserPasswords();
 
         if (gd1DataSeeder.isAlreadySeeded()) {
             log.info("[DataInitializer] Seed đã có (slug={}), bỏ qua tạo mới.",

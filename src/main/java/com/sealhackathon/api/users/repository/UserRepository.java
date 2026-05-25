@@ -3,6 +3,7 @@ package com.sealhackathon.api.users.repository;
 import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.value_object.UserRole;
 import com.sealhackathon.api.users.value_object.UserStatus;
+import com.sealhackathon.api.users.value_object.UserType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -18,6 +19,8 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     Optional<User> findByEmail(String email);
 
     boolean existsByEmail(String email);
+
+    boolean existsByStudentCode(String studentCode);
 
     Page<User> findByRoleAndStatus(UserRole role, UserStatus status, Pageable pageable);
 
@@ -46,4 +49,21 @@ public interface UserRepository extends JpaRepository<User, Integer> {
      * Lấy mọi user theo status — dùng cho fan-out notification HACKATHON_OPEN khi DRAFT→ONGOING.
      */
     java.util.List<User> findAllByStatus(UserStatus status);
+
+    java.util.List<User> findByStatusAndUserTypeAndEmailVerifiedAtIsNotNull(
+            UserStatus status, com.sealhackathon.api.users.value_object.UserType userType);
+
+    @Query("""
+            SELECT u FROM User u
+            WHERE (:status IS NULL OR u.status = :status)
+              AND (:role IS NULL OR u.role = :role)
+              AND (:userType IS NULL OR u.userType = :userType)
+              AND (:q IS NULL OR :q = '' OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :q, '%'))
+                   OR LOWER(u.email) LIKE LOWER(CONCAT('%', :q, '%')))
+            """)
+    Page<User> searchAdmin(@Param("status") UserStatus status,
+                           @Param("role") UserRole role,
+                           @Param("userType") UserType userType,
+                           @Param("q") String q,
+                           Pageable pageable);
 }

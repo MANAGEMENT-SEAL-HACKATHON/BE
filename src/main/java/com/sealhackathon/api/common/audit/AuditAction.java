@@ -38,9 +38,20 @@ public final class AuditAction {
     public static final String CRITERIA_UPDATE          = "CRITERIA_UPDATE";
     public static final String CRITERIA_DELETE          = "CRITERIA_DELETE";
 
+    // ---------- MF-02 AUTH / ACCOUNT ----------
+    public static final String ACCOUNT_REGISTER           = "ACCOUNT_REGISTER";
+    public static final String ACCOUNT_APPROVE            = "ACCOUNT_APPROVE";
+    public static final String ACCOUNT_REJECT             = "ACCOUNT_REJECT";
+    public static final String ACCOUNT_STATUS_OVERRIDE    = "ACCOUNT_STATUS_OVERRIDE";
+    public static final String ACCOUNT_EMAIL_VERIFIED     = "ACCOUNT_EMAIL_VERIFIED";
+    public static final String ACCOUNT_LOGIN              = "ACCOUNT_LOGIN";
+    public static final String ACCOUNT_LOGOUT             = "ACCOUNT_LOGOUT";
+    public static final String ACCOUNT_PASSWORD_CHANGED   = "ACCOUNT_PASSWORD_CHANGED";
+
     // ---------- FR-05 PERSONNEL ----------
     public static final String TEMP_ACCOUNT_CREATE      = "TEMP_ACCOUNT_CREATE";
     public static final String INVITATION_RESEND        = "INVITATION_RESEND";
+    public static final String INVITATION_CREATE        = "INVITATION_CREATE";
     public static final String USER_DEPT_HEAD_SET       = "USER_DEPT_HEAD_SET";
     public static final String MENTOR_ASSIGNED          = "MENTOR_ASSIGNED";
     public static final String MENTOR_UNASSIGNED        = "MENTOR_UNASSIGNED";

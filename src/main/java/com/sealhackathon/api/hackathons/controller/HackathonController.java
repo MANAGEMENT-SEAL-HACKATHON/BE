@@ -38,7 +38,7 @@ import java.util.Map;
 /**
  * FR-01 — REST controller cho Hackathon CRUD.
  *
- * <p>Spec: {@code docs/api/mf-01/fr-01-hackathons.md}.
+ * <p>Spec: {@code docs/mf01/api/fr-01-hackathons.md}.
  * <p>State transition (FR-06) ở {@link HackathonStatusController}.
  */
 @Tag(name = "Hackathon", description = "FR-01 — CRUD hackathon")

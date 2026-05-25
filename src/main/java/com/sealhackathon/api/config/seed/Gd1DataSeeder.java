@@ -34,6 +34,7 @@ import com.sealhackathon.api.users.value_object.UserType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,8 +45,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Seed dữ liệu MF-01 Giai đoạn 1 theo {@code docs/workflow/mf01-gd1-timeline-events.md}
- * và {@code docs/workflow/mf01.md} §11.1; DDL {@code docs/db/schema-v3.0-mysql.md} §6.
+ * Seed dữ liệu MF-01 Giai đoạn 1 theo {@code docs/mf01/04-quy-trinh-van-hanh.md} (Timeline & Events)
+ * và {@code docs/mf01/02-functional-requirements.md} §11.1; DDL {@code docs/db/schema-v3.0-mysql.md} §6.
  */
 @Slf4j
 @Component
@@ -62,6 +63,7 @@ public class Gd1DataSeeder {
     private final MentorAssignmentRepository mentorAssignmentRepository;
     private final JudgeAssignmentRepository judgeAssignmentRepository;
     private final EventRepository eventRepository;
+    private final PasswordEncoder passwordEncoder;
 
     public boolean isAlreadySeeded() {
         return hackathonRepository.existsBySlug(Gd1SeedConstants.SLUG_ONGOING);
@@ -145,6 +147,7 @@ public class Gd1DataSeeder {
         SeedDates dates = computeDates();
         SeedChapters chapters = seedChapters();
         SeedUsers users = seedUsers(chapters);
+        logDevLoginCredentials();
         verifyCoordinatorId(users.coordinator());
 
         Hackathon incomplete = seedIncompleteHackathon(users.coordinator(), dates);
@@ -300,17 +303,61 @@ public class Gd1DataSeeder {
         return new SeedUsers(coordinator, judge1, judge2, guestJudge, mentor, pendingJudge);
     }
 
+    /**
+     * Repair user seed cũ (password placeholder) → bcrypt dev; log bảng login mỗi lần start dev.
+     */
+    @Transactional
+    public void repairDevUserPasswords() {
+        for (String email : Gd1SeedConstants.seedEmails()) {
+            String plain = Gd1SeedConstants.devPasswordFor(email);
+            if (plain == null) {
+                continue;
+            }
+            userRepository.findByEmail(email).ifPresent(user -> {
+                if (needsDevPasswordRepair(user.getPasswordHash())) {
+                    applyDevPassword(user, plain, "repair");
+                } else if (user.getStatus() == UserStatus.APPROVED && user.getEmailVerifiedAt() == null) {
+                    user.setEmailVerifiedAt(LocalDateTime.now());
+                    user.setUpdatedAt(LocalDateTime.now());
+                    userRepository.save(user);
+                }
+            });
+        }
+        logDevLoginCredentials();
+    }
+
+    private static boolean needsDevPasswordRepair(String passwordHash) {
+        return passwordHash == null
+                || Gd1SeedConstants.PASSWORD_PLACEHOLDER.equals(passwordHash)
+                || !passwordHash.startsWith("$2");
+    }
+
     private User upsertUser(String email, String fullName, UserRole role, UserType userType,
                             UserStatus status, Chapter chapter, boolean temp, boolean deptHead) {
+        String plainPassword = Gd1SeedConstants.devPasswordFor(email);
+        if (plainPassword == null) {
+            throw new IllegalStateException("Chưa cấu hình dev password cho email seed: " + email);
+        }
         Optional<User> existing = userRepository.findByEmail(email);
         if (existing.isPresent()) {
-            return existing.get();
+            User user = existing.get();
+            if (needsDevPasswordRepair(user.getPasswordHash())) {
+                applyDevPassword(user, plainPassword, "upsert");
+            } else if (user.getStatus() == UserStatus.APPROVED && user.getEmailVerifiedAt() == null) {
+                user.setEmailVerifiedAt(LocalDateTime.now());
+                user.setUpdatedAt(LocalDateTime.now());
+                userRepository.save(user);
+            }
+            return user;
         }
         LocalDateTime now = LocalDateTime.now();
+        String passwordHash = encodeAndLogPassword(email, plainPassword, "insert");
+        boolean verified = status == UserStatus.APPROVED;
         return userRepository.save(User.builder()
                 .email(email)
                 .fullName(fullName)
-                .passwordHash(Gd1SeedConstants.PASSWORD_PLACEHOLDER)
+                .passwordHash(passwordHash)
+                .emailVerifiedAt(verified ? now : null)
                 .role(role)
                 .userType(userType)
                 .status(status)
@@ -320,6 +367,43 @@ public class Gd1DataSeeder {
                 .createdAt(now)
                 .updatedAt(now)
                 .build());
+    }
+
+    private void applyDevPassword(User user, String plainPassword, String action) {
+        String hash = encodeAndLogPassword(user.getEmail(), plainPassword, action);
+        user.setPasswordHash(hash);
+        user.setMustChangePassword(false);
+        if (user.getStatus() == UserStatus.APPROVED && user.getEmailVerifiedAt() == null) {
+            user.setEmailVerifiedAt(LocalDateTime.now());
+        }
+        user.setUpdatedAt(LocalDateTime.now());
+        userRepository.save(user);
+    }
+
+    private String encodeAndLogPassword(String email, String plainPassword, String action) {
+        String hash = passwordEncoder.encode(plainPassword);
+        log.info("[Gd1DataSeeder] {} | email={} | Password={} | passwordHash={}",
+                action, email, plainPassword, hash);
+        return hash;
+    }
+
+    private void logDevLoginCredentials() {
+        log.info("""
+                [Gd1DataSeeder] ========== Dev login (MF-02, profile dev) ==========
+                  {}  Password: {}
+                  {}  Password: {}
+                  {}  Password: {}
+                  {}  Password: {}
+                  {}  Password: {}
+                  {}  Password: {}  (status PENDING — login 401 cho đến khi duyệt)
+                ================================================================
+                """,
+                Gd1SeedConstants.EMAIL_COORDINATOR, Gd1SeedConstants.DEV_COORDINATOR_PASSWORD,
+                Gd1SeedConstants.EMAIL_JUDGE1, Gd1SeedConstants.DEV_JUDGE_PASSWORD,
+                Gd1SeedConstants.EMAIL_JUDGE2, Gd1SeedConstants.DEV_JUDGE_PASSWORD,
+                Gd1SeedConstants.EMAIL_GUEST_JUDGE, Gd1SeedConstants.DEV_GUEST_JUDGE_PASSWORD,
+                Gd1SeedConstants.EMAIL_MENTOR, Gd1SeedConstants.DEV_MENTOR_PASSWORD,
+                Gd1SeedConstants.EMAIL_PENDING_JUDGE, Gd1SeedConstants.DEV_PENDING_JUDGE_PASSWORD);
     }
 
     private Hackathon seedIncompleteHackathon(User coordinator, SeedDates dates) {

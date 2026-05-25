@@ -11,7 +11,8 @@
 | [mf01-gd1-qa-uat-manual.md](mf01-gd1-qa-uat-manual.md) | **QA/UAT GĐ1** — đánh giá %, findings, 64 TC happy/negative/edge, biểu mẫu Pass/Fail |
 | [mf01-gd1-test-happy-path.md](mf01-gd1-test-happy-path.md) | **Test happy path** — checklist, JSON mẫu, seed, biến Postman |
 | [mf01-gd1-timeline-events.md](mf01-gd1-timeline-events.md) | **Timeline & Events** — PDF Spring/Fall, validate 3 lớp, `examAt`, readiness |
-| [mf01.md](mf01.md) | Spec normative đầy đủ |
+| [../mf01/README.md](../mf01/README.md) | Spec normative đầy đủ (đã chuyển khỏi `mf01.md`) |
+| [../mf02/01-auth-users.md](../mf02/01-auth-users.md) | Login / register / JWT (MF-02) |
 | [Gd1SeedConstants.java](../../src/main/java/com/sealhackathon/api/config/seed/Gd1SeedConstants.java) | Slug / email seed dev |
 
 ---
@@ -24,7 +25,7 @@
 | **Swagger UI** | http://localhost:8080/swagger-ui.html · OpenAPI: `/v3/api-docs` |
 | Prefix | `/api/v1` |
 | Profile dev | `spring.profiles.active=dev` → `Gd1DataSeeder` tạo dữ liệu mẫu |
-| Auth (hiện tại) | **Stub** — mọi endpoint `@CoordinatorOnly` coi user **id=1** là Coordinator |
+| Auth | JWT (MF-02): `Authorization: Bearer` — xem [../mf02/01-auth-users.md](../mf02/01-auth-users.md). Dev: `security.jwt.enabled=false` → stub user **id=1** |
 | Coordinator seed | `coord@fpt.edu.vn` (phải là user id=1 trên DB trống) |
 | Response envelope | `{ "success": true, "data": ..., "message": "..." }` — lỗi: `error.code`, `errors[]` |
 

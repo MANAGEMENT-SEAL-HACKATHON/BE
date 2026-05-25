@@ -3,10 +3,11 @@ package com.sealhackathon.api.common.security;
 import com.sealhackathon.api.users.value_object.UserRole;
 import com.sealhackathon.api.users.value_object.UserStatus;
 import com.sealhackathon.api.users.value_object.UserType;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * Stub impl cho {@link CurrentUserAccessor} trong scope MF-01 — TRƯỚC khi module Auth được wire.
+ * Stub impl cho {@link CurrentUserAccessor} khi {@code security.jwt.enabled=false}.
  *
  * <p>Luôn trả về Coordinator (id=1) giả để các service mutation có giá trị {@code created_by} /
  * {@code assigned_by} hợp lệ khi dev test thủ công.
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Component;
  * bằng impl Auth là Spring tự pick.
  */
 @Component
+@ConditionalOnProperty(name = "security.jwt.enabled", havingValue = "false")
 public class StubCurrentUserAccessor implements CurrentUserAccessor {
 
     private static final Integer STUB_COORDINATOR_ID = 1;

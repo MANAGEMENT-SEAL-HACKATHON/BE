@@ -62,6 +62,13 @@ public class User {
     @Column(name = "is_dept_head", nullable = false)
     private Boolean isDeptHead = false;
 
+    /**
+     * Judge khách: bắt buộc đổi MK sau lần đăng nhập đầu (hoặc sau resend).
+     */
+    @Builder.Default
+    @Column(name = "must_change_password", nullable = false)
+    private Boolean mustChangePassword = false;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private UserStatus status = UserStatus.PENDING;

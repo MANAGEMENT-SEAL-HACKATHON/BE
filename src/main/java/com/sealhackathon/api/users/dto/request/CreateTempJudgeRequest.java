@@ -2,6 +2,7 @@ package com.sealhackathon.api.users.dto.request;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -43,8 +44,7 @@ public class CreateTempJudgeRequest {
     @Size(max = 30)
     private String phone;
 
-    /**
-     * Tuỳ chọn — gắn invitation với hackathon (MF-01 v3.1 ADD-R2).
-     */
+    /** Bắt buộc — gắn invitation với hackathon (resend / vòng đời sau event_end). */
+    @NotNull
     private Integer hackathonId;
 }

@@ -22,8 +22,29 @@ public final class ErrorCode {
     public static final String VALIDATION_FAILED        = "VALIDATION_FAILED";
     public static final String RESOURCE_NOT_FOUND       = "RESOURCE_NOT_FOUND";
     public static final String FORBIDDEN                = "FORBIDDEN";
+    public static final String UNAUTHORIZED               = "UNAUTHORIZED";
     public static final String INTERNAL_ERROR           = "INTERNAL_ERROR";
     public static final String INVALID_STATE            = "INVALID_STATE";
+
+    // ---------- MF-02 AUTH / ACCOUNT ----------
+    public static final String INVALID_CREDENTIALS      = "INVALID_CREDENTIALS";
+    public static final String ACCOUNT_DUPLICATE_EMAIL    = "ACCOUNT_DUPLICATE_EMAIL";
+    public static final String INVITATION_REQUIRED        = "INVITATION_REQUIRED";
+    public static final String INVITATION_TOKEN_INVALID = "TOKEN_INVALID";
+    public static final String INVITATION_TOKEN_EXPIRED = "TOKEN_EXPIRED";
+    public static final String INVITATION_TOKEN_USED     = "TOKEN_USED";
+    public static final String ACCOUNT_PENDING_NOT_ALLOWED_LOGIN = "ACCOUNT_PENDING";
+    public static final String ACCOUNT_REJECTED_NOT_ALLOWED_LOGIN = "REJECTED_NOT_ALLOWED_LOGIN";
+    public static final String INSTITUTION_REQUIRED     = "INSTITUTION_REQUIRED";
+    public static final String INVALID_CHAPTER          = "INVALID_CHAPTER";
+    public static final String STUDENT_CODE_REQUIRED    = "STUDENT_CODE_REQUIRED";
+    public static final String STUDENT_CODE_DUPLICATE   = "STUDENT_CODE_DUPLICATE";
+    public static final String INVITATION_PENDING_EXISTS = "INVITATION_PENDING_EXISTS";
+    public static final String USER_TYPE_LOCKED         = "USER_TYPE_LOCKED";
+    public static final String REJECTION_REASON_REQUIRED = "REJECTION_REASON_REQUIRED";
+    public static final String INVALID_STATUS_TRANSITION = "INVALID_STATUS_TRANSITION";
+    public static final String REFRESH_TOKEN_INVALID    = "REFRESH_TOKEN_INVALID";
+    public static final String EMAIL_VERIFY_TOKEN_INVALID = "EMAIL_VERIFY_TOKEN_INVALID";
 
     // ---------- FR-01 HACKATHON ----------
     public static final String HACKATHON_DUPLICATE      = "HACKATHON_DUPLICATE";
@@ -78,6 +99,12 @@ public final class ErrorCode {
     public static final String INVITATION_NOT_FOUND     = "INVITATION_NOT_FOUND";
     public static final String INVITATION_ALREADY_ACCEPTED = "INVITATION_ALREADY_ACCEPTED";
     public static final String INVITATION_STILL_VALID     = "INVITATION_STILL_VALID";
+    public static final String INVITATION_EXPIRED         = "INVITATION_EXPIRED";
+    public static final String INVITATION_HACKATHON_REQUIRED = "INVITATION_HACKATHON_REQUIRED";
+    public static final String INVITATION_RESEND_AFTER_KICKOFF_CUTOFF = "INVITATION_RESEND_AFTER_KICKOFF_CUTOFF";
+    public static final String TEMP_JUDGE_HACKATHON_ENDED = "TEMP_JUDGE_HACKATHON_ENDED";
+    public static final String PASSWORD_MISMATCH          = "PASSWORD_MISMATCH";
+    public static final String NEW_PASSWORD_SAME_AS_CURRENT = "NEW_PASSWORD_SAME_AS_CURRENT";
     public static final String MENTOR_ASSIGN_DUPLICATE  = "MENTOR_ASSIGN_DUPLICATE";
     public static final String JUDGE_ASSIGN_DUPLICATE   = "JUDGE_ASSIGN_DUPLICATE";
 
@@ -91,6 +118,7 @@ public final class ErrorCode {
     public static final String EVENT_END_BEFORE_START   = "EVENT_END_BEFORE_START";
     public static final String EVENT_END_REQUIRED       = "EVENT_END_REQUIRED";
     public static final String EVENT_KICKOFF_MISSING    = "EVENT_KICKOFF_MISSING";
+    public static final String EVENT_KICKOFF_NOT_FOUND  = "EVENT_KICKOFF_NOT_FOUND";
     public static final String EVENT_PRESENTATION_MISSING = "EVENT_PRESENTATION_MISSING";
     public static final String EVENT_AWARDS_MISSING       = "EVENT_AWARDS_MISSING";
     public static final String EVENT_ORDER_VIOLATION    = "EVENT_ORDER_VIOLATION";
