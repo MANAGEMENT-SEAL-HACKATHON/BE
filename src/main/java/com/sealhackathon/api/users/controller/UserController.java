@@ -43,15 +43,20 @@ public class UserController {
     private final UserAdminService userAdminService;
 
     @GetMapping
-    @Operation(summary = "Danh sách user (filter status/role/userType/q)")
+    @Operation(summary = "Danh sách user (filter status/role/userType/q)",
+            description = "role=MENTOR hoặc JUDGE (mặc định) → trả cả pool MENTOR+JUDGE cho dropdown phân công. "
+                    + "accountRoleExact=true → lọc đúng users.role. Phân công Judge/Mentor lưu ở bảng assignment, "
+                    + "không thêm cột role thứ hai trên users.")
     public ResponseEntity<ApiResponse<PageResponse<UserSummaryResponse>>> list(
             @RequestParam(required = false) UserStatus status,
             @RequestParam(required = false) UserRole role,
+            @RequestParam(required = false) Boolean personnelOnly,
+            @RequestParam(required = false) Boolean accountRoleExact,
             @RequestParam(required = false) UserType userType,
             @RequestParam(required = false) String q,
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.ok(
-                userAdminService.listUsers(status, role, userType, q, pageable)));
+                userAdminService.listUsers(status, role, personnelOnly, accountRoleExact, userType, q, pageable)));
     }
 
     @GetMapping("/{userId}")

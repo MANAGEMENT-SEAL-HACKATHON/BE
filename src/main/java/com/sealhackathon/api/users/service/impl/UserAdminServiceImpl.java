@@ -17,6 +17,7 @@ import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.mapper.UserResponseMapper;
 import com.sealhackathon.api.users.repository.UserRepository;
 import com.sealhackathon.api.users.service.UserAdminService;
+import com.sealhackathon.api.users.support.PersonnelAssignmentRules;
 import com.sealhackathon.api.users.value_object.UserRole;
 import com.sealhackathon.api.users.value_object.UserStatus;
 import com.sealhackathon.api.users.value_object.UserType;
@@ -68,9 +69,14 @@ public class UserAdminServiceImpl implements UserAdminService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<UserSummaryResponse> listUsers(UserStatus status, UserRole role, UserType userType,
-                                                       String q, Pageable pageable) {
-        Page<User> page = userRepository.searchAdmin(status, role, userType, q, pageable);
+    public PageResponse<UserSummaryResponse> listUsers(UserStatus status, UserRole role, Boolean personnelOnly,
+                                                       Boolean accountRoleExact, UserType userType, String q,
+                                                       Pageable pageable) {
+        boolean expandPool = PersonnelAssignmentRules.shouldExpandPersonnelPool(
+                role, personnelOnly, accountRoleExact);
+        UserRole roleParam = expandPool ? null : role;
+        Boolean personnelParam = expandPool ? Boolean.TRUE : personnelOnly;
+        Page<User> page = userRepository.searchAdmin(status, roleParam, personnelParam, userType, q, pageable);
         return PageResponse.from(page, page.getContent().stream()
                 .map(userResponseMapper::toSummary)
                 .toList());

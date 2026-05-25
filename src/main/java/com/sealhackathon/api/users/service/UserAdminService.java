@@ -18,8 +18,9 @@ public interface UserAdminService {
 
     UserDetailResponse patchMe(PatchMeRequest req);
 
-    PageResponse<UserSummaryResponse> listUsers(UserStatus status, UserRole role, UserType userType,
-                                                  String q, Pageable pageable);
+    PageResponse<UserSummaryResponse> listUsers(UserStatus status, UserRole role, Boolean personnelOnly,
+                                                       Boolean accountRoleExact, UserType userType, String q,
+                                                       Pageable pageable);
 
     UserDetailResponse getUser(Integer userId);
 

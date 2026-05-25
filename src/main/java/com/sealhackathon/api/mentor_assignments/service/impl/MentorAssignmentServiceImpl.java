@@ -24,7 +24,7 @@ import com.sealhackathon.api.tracks.support.TrackRoundRules;
 import com.sealhackathon.api.tracks.value_object.TrackStatus;
 import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
-import com.sealhackathon.api.users.value_object.UserRole;
+import com.sealhackathon.api.users.support.PersonnelAssignmentRules;
 import com.sealhackathon.api.users.value_object.UserStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,7 +39,7 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * FR-05b Mentor assignment — conflict Mentor↔Judge BLOCK 422 (mf01 §6, §10).
+ * FR-05b Mentor assignment — user MENTOR hoặc JUDGE; cấm Mentor+Judge cùng track (§14 cross-track OK).
  */
 @Service
 @Slf4j
@@ -63,16 +63,7 @@ public class MentorAssignmentServiceImpl implements MentorAssignmentService {
     public CreateResult assign(CreateMentorAssignmentRequest req) {
         User mentor = userRepository.findById(req.getMentorId())
                 .orElseThrow(() -> new ResourceNotFoundException("User (mentor)", req.getMentorId()));
-        if (mentor.getRole() != UserRole.MENTOR) {
-            throw new BusinessRuleException(ErrorCode.USER_INVALID_ROLE,
-                    "User #%d không có role MENTOR (hiện %s)".formatted(mentor.getId(), mentor.getRole()),
-                    Map.of("userId", mentor.getId(), "role", mentor.getRole()));
-        }
-        if (mentor.getStatus() != UserStatus.APPROVED) {
-            throw new BusinessRuleException(ErrorCode.USER_NOT_APPROVED,
-                    "User #%d chưa APPROVED (hiện %s)".formatted(mentor.getId(), mentor.getStatus()),
-                    Map.of("userId", mentor.getId(), "status", mentor.getStatus()));
-        }
+        PersonnelAssignmentRules.requireApprovedPersonnel(mentor, "Mentor");
 
         Track track = trackRepository.findById(req.getTrackId())
                 .orElseThrow(() -> new ResourceNotFoundException("Track", req.getTrackId()));

@@ -57,12 +57,16 @@ public interface UserRepository extends JpaRepository<User, Integer> {
             SELECT u FROM User u
             WHERE (:status IS NULL OR u.status = :status)
               AND (:role IS NULL OR u.role = :role)
+              AND (:personnelOnly IS NULL OR :personnelOnly = FALSE
+                   OR u.role IN (com.sealhackathon.api.users.value_object.UserRole.MENTOR,
+                                 com.sealhackathon.api.users.value_object.UserRole.JUDGE))
               AND (:userType IS NULL OR u.userType = :userType)
               AND (:q IS NULL OR :q = '' OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :q, '%'))
                    OR LOWER(u.email) LIKE LOWER(CONCAT('%', :q, '%')))
             """)
     Page<User> searchAdmin(@Param("status") UserStatus status,
                            @Param("role") UserRole role,
+                           @Param("personnelOnly") Boolean personnelOnly,
                            @Param("userType") UserType userType,
                            @Param("q") String q,
                            Pageable pageable);

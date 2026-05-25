@@ -176,7 +176,8 @@ Response paged — kèm trạng thái invitation (`pendingAccept`, `accepted`, `
 ### Validation
 | Rule | Error |
 |---|---|
-| Mentor exists & role=MENTOR & status=APPROVED | 422 `USER_INVALID_ROLE` / `USER_NOT_APPROVED` |
+| User exists & role IN (MENTOR, JUDGE) & status=APPROVED | 422 `USER_INVALID_ROLE` / `USER_NOT_APPROVED` |
+| Không Mentor+Judge **cùng track** | 422 `CONFLICT_SAME_TRACK` |
 | Track exists | 404 |
 | Track.hackathon.status IN (DRAFT, ONGOING) | 409 `TRACK_HACKATHON_LOCKED` |
 | UNIQUE(mentor_id, track_id) | 409 `MENTOR_ASSIGN_DUPLICATE` |
@@ -243,7 +244,8 @@ List Track mà 1 Mentor đang phụ trách (xuyên Hackathon hay 1 Hackathon).
 ### Validation
 | Rule | Error |
 |---|---|
-| Judge exists & role=JUDGE & status=APPROVED | 422 `USER_INVALID_ROLE` / `USER_NOT_APPROVED` |
+| User exists & role IN (MENTOR, JUDGE) & status=APPROVED | 422 `USER_INVALID_ROLE` / `USER_NOT_APPROVED` |
+| Không Mentor+Judge **cùng track** | 422 `CONFLICT_SAME_TRACK` |
 | Round exists | 404 |
 | UNIQUE(judge_id, round_id) | 409 `JUDGE_ASSIGN_DUPLICATE` |
 

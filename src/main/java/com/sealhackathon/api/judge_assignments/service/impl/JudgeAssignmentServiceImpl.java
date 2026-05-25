@@ -23,7 +23,7 @@ import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.tracks.support.TrackRoundRules;
 import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
-import com.sealhackathon.api.users.value_object.UserRole;
+import com.sealhackathon.api.users.support.PersonnelAssignmentRules;
 import com.sealhackathon.api.users.value_object.UserStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +34,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * FR-05c — user MENTOR hoặc JUDGE có thể là Judge track; cấm Judge+Mentor cùng track.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -52,7 +55,7 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
 
     @Override
     public CreateResult assign(CreateJudgeAssignmentRequest req) {
-        User judge = loadApprovedJudge(req.getJudgeId());
+        User judge = loadApprovedPersonnel(req.getJudgeId());
         JudgeAssignmentType assignType = req.getAssignmentType() != null
                 ? req.getAssignmentType() : JudgeAssignmentType.NORMAL;
 
@@ -151,20 +154,11 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
         return id;
     }
 
-    private User loadApprovedJudge(Integer judgeId) {
-        User judge = userRepository.findById(judgeId)
-                .orElseThrow(() -> new ResourceNotFoundException("User (judge)", judgeId));
-        if (judge.getRole() != UserRole.JUDGE) {
-            throw new BusinessRuleException(ErrorCode.USER_INVALID_ROLE,
-                    "User #%d không có role JUDGE".formatted(judge.getId()),
-                    Map.of("userId", judge.getId(), "role", judge.getRole()));
-        }
-        if (judge.getStatus() != UserStatus.APPROVED) {
-            throw new BusinessRuleException(ErrorCode.USER_NOT_APPROVED,
-                    "User #%d chưa APPROVED".formatted(judge.getId()),
-                    Map.of("userId", judge.getId(), "status", judge.getStatus()));
-        }
-        return judge;
+    private User loadApprovedPersonnel(Integer userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User (judge)", userId));
+        PersonnelAssignmentRules.requireApprovedPersonnel(user, "Judge");
+        return user;
     }
 
     private JudgeAssignment saveAssignment(User judge, Track track, Round round,

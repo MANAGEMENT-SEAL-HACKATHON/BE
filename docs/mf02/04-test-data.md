@@ -230,7 +230,18 @@ GET {{baseUrl}}/api/v1/users?status=PENDING&role=STUDENT&q=student.internal
 Authorization: Bearer {{accessToken}}
 ```
 
-Query tùy chọn: `status`, `role`, `userType`, `q`, `page`, `size`.
+Query tùy chọn: `status`, `role`, `userType`, `q`, `page`, `size`, `personnelOnly`, `accountRoleExact`.
+
+**Dropdown phân Mentor / Judge (cùng pool — hiển thị cả MENTOR và JUDGE):**
+
+```http
+GET {{baseUrl}}/api/v1/users?status=APPROVED&role=MENTOR
+Authorization: Bearer {{accessToken}}
+```
+
+Hoặc `personnelOnly=true` (tương đương). Chỉ lọc đúng `users.role=MENTOR` khi thêm `accountRoleExact=true`.
+
+**DB:** `users.role` = 1 vai trò tài khoản; vai trò thực tế khi phân công nằm ở `mentor_assignments` / `judge_assignments` (cùng `user_id`, khác `track_id`, cùng `round` qua `tracks.round_id`). **Cấm cùng `track_id`** (`CONFLICT_SAME_TRACK`).
 
 ---
 
