@@ -50,6 +50,11 @@ public class RoundServiceImpl implements RoundService {
 
     private static final Set<HackathonStatus> MUTABLE_PARENT = EnumSet.of(
             HackathonStatus.DRAFT, HackathonStatus.ONGOING);
+    /**
+     * Theo rule vận hành: nếu đóng đăng ký ngày 05/06 thì sơ loại bắt đầu sớm nhất 10/06.
+     * Tức là examAt của vòng không-final phải >= registrationEnd + 5 ngày.
+     */
+    private static final int MIN_DAYS_FROM_REG_END_TO_PRELIM_EXAM = 5;
 
     private final RoundRepository roundRepository;
     private final HackathonRepository hackathonRepository;
@@ -71,7 +76,10 @@ public class RoundServiceImpl implements RoundService {
                 .orElseThrow(() -> new ResourceNotFoundException("Hackathon", hackathonId));
         guardHackathonMutable(h);
         validateDeadline(req.getSubmissionOpen(), req.getSubmissionDeadline());
+        validateSubmissionWindowByCodingDuration(req.getExamAt(), req.getCodingDurationHours(),
+                req.getSubmissionOpen(), req.getSubmissionDeadline());
         validateRoundBusinessRules(req);
+        validatePreliminaryEarliestExamDate(h, req.getIsFinal(), req.getExamAt());
         validateRoundTypeUnique(hackathonId, req, null);
         validateExamAtRules(hackathonId, req.getIsFinal(), req.getExamAt(),
                 req.getSubmissionOpen(), null);
@@ -114,7 +122,10 @@ public class RoundServiceImpl implements RoundService {
             guardHackathonMutable(r.getHackathon());
         }
         validateDeadline(req.getSubmissionOpen(), req.getSubmissionDeadline());
+        validateSubmissionWindowByCodingDuration(req.getExamAt(), req.getCodingDurationHours(),
+                req.getSubmissionOpen(), req.getSubmissionDeadline());
         if (r.getHackathon() != null) {
+            validatePreliminaryEarliestExamDate(r.getHackathon(), r.getIsFinal(), req.getExamAt());
             validateExamAtRules(r.getHackathon().getId(), r.getIsFinal(), req.getExamAt(),
                     req.getSubmissionOpen(), r.getId());
             validateRoundDeadlineOrdering(r.getHackathon().getId(), r.getIsFinal(), req.getExamAt(),
@@ -260,16 +271,54 @@ public class RoundServiceImpl implements RoundService {
                         "Tạo Round Chung kết yêu cầu đã có ít nhất một vòng Sơ loại/Bán kết",
                         Map.of("hackathonId", hackathonId));
             }
-            roundRepository.maxExamAtNonFinal(hackathonId).ifPresent(maxPrelimExam -> {
-                if (!examAt.isAfter(maxPrelimExam)) {
-                    throw new BusinessRuleException(ErrorCode.ROUND_FINAL_EXAM_ORDER,
-                            "Round Chung kết: ngày thi phải sau vòng Sơ loại (%s)"
-                                    .formatted(maxPrelimExam),
-                            Map.of("hackathonId", hackathonId,
-                                    "examAt", examAt,
-                                    "maxPreliminaryExamAt", maxPrelimExam));
-                }
-            });
+            List<Round> prelimLikeRounds = roundRepository.findPreliminaryLikeByHackathonId(hackathonId);
+            java.util.Optional<Round> latestPrelimOpt = prelimLikeRounds.stream()
+                    .filter(pr -> pr.getExamAt() != null)
+                    .max(java.util.Comparator.comparing(Round::getExamAt));
+            latestPrelimOpt.ifPresent(latestPrelim -> {
+                        LocalDateTime latestPrelimExam = latestPrelim.getExamAt();
+                        int codingHours = latestPrelim.getCodingDurationHours() == null
+                                ? 0 : Math.max(0, latestPrelim.getCodingDurationHours());
+                        LocalDateTime requiredFinalExamStart = latestPrelimExam.plusHours(codingHours);
+
+                        // Nếu prelim có codingDurationHours thì cho phép final bắt đầu ngay lúc prelim kết thúc.
+                        if (codingHours > 0) {
+                            if (examAt.isBefore(requiredFinalExamStart)) {
+                                throw new BusinessRuleException(ErrorCode.ROUND_FINAL_EXAM_ORDER,
+                                        "Round Chung kết: ngày thi phải từ thời điểm vòng Sơ loại kết thúc (%s)"
+                                                .formatted(requiredFinalExamStart),
+                                        Map.of("hackathonId", hackathonId,
+                                                "examAt", examAt,
+                                                "latestPreliminaryExamAt", latestPrelimExam,
+                                                "latestPreliminaryCodingHours", codingHours,
+                                                "requiredFinalExamStart", requiredFinalExamStart,
+                                                "latestPreliminaryRoundId", latestPrelim.getId()));
+                            }
+                        } else if (!examAt.isAfter(latestPrelimExam)) {
+                            // Giữ hành vi cũ khi chưa khai báo thời lượng sơ loại.
+                            throw new BusinessRuleException(ErrorCode.ROUND_FINAL_EXAM_ORDER,
+                                    "Round Chung kết: ngày thi phải sau vòng Sơ loại (%s)"
+                                            .formatted(latestPrelimExam),
+                                    Map.of("hackathonId", hackathonId,
+                                            "examAt", examAt,
+                                            "maxPreliminaryExamAt", latestPrelimExam,
+                                            "latestPreliminaryRoundId", latestPrelim.getId()));
+                        }
+                    });
+            boolean validatedByDetailedPrelim = latestPrelimOpt.isPresent();
+            if (!validatedByDetailedPrelim) {
+                // Backward-compatible fallback cho dữ liệu/test chỉ mock maxExamAtNonFinal.
+                roundRepository.maxExamAtNonFinal(hackathonId).ifPresent(maxPrelimExam -> {
+                    if (!examAt.isAfter(maxPrelimExam)) {
+                        throw new BusinessRuleException(ErrorCode.ROUND_FINAL_EXAM_ORDER,
+                                "Round Chung kết: ngày thi phải sau vòng Sơ loại (%s)"
+                                        .formatted(maxPrelimExam),
+                                Map.of("hackathonId", hackathonId,
+                                        "examAt", examAt,
+                                        "maxPreliminaryExamAt", maxPrelimExam));
+                    }
+                });
+            }
             hackathonTimelineService.validateRoundExamAt(hackathonId, true, examAt);
             return;
         }
@@ -288,6 +337,31 @@ public class RoundServiceImpl implements RoundService {
                     }
                 });
         hackathonTimelineService.validateRoundExamAt(hackathonId, false, examAt);
+    }
+
+    private void validatePreliminaryEarliestExamDate(Hackathon hackathon, Boolean isFinal,
+                                                     LocalDateTime examAt) {
+        if (hackathon == null || examAt == null || Boolean.TRUE.equals(isFinal)) {
+            return;
+        }
+        if (hackathon.getRegistrationEnd() == null) {
+            return;
+        }
+
+        java.time.LocalDate minPrelimExamDate = hackathon.getRegistrationEnd()
+                .plusDays(MIN_DAYS_FROM_REG_END_TO_PRELIM_EXAM);
+        if (examAt.toLocalDate().isBefore(minPrelimExamDate)) {
+            throw new BusinessRuleException(ErrorCode.ROUND_PRELIM_EXAM_ORDER,
+                    "Vòng Sơ loại/Bán kết: ngày thi phải từ %s (registrationEnd %s + %d ngày)"
+                            .formatted(minPrelimExamDate, hackathon.getRegistrationEnd(),
+                                    MIN_DAYS_FROM_REG_END_TO_PRELIM_EXAM),
+                    Map.of("hackathonId", hackathon.getId(),
+                            "registrationEnd", hackathon.getRegistrationEnd(),
+                            "minPreliminaryExamDate", minPrelimExamDate,
+                            "examAt", examAt,
+                            "minDaysAfterRegistrationEnd",
+                            MIN_DAYS_FROM_REG_END_TO_PRELIM_EXAM));
+        }
     }
 
     /**
@@ -403,6 +477,41 @@ public class RoundServiceImpl implements RoundService {
             throw new BusinessRuleException(ErrorCode.ROUND_DEADLINE_INVALID,
                     "submissionDeadline (%s) phải > hiện tại".formatted(deadline),
                     Map.of("submissionDeadline", deadline, "now", LocalDateTime.now()));
+        }
+    }
+
+    private void validateSubmissionWindowByCodingDuration(LocalDateTime examAt, Integer codingDurationHours,
+                                                          LocalDateTime submissionOpen,
+                                                          LocalDateTime submissionDeadline) {
+        if (examAt == null || codingDurationHours == null || codingDurationHours <= 0) {
+            return;
+        }
+        if (submissionDeadline == null) {
+            return;
+        }
+
+        LocalDateTime expectedDeadline = examAt.plusHours(codingDurationHours);
+        long totalMinutes = codingDurationHours * 60L;
+        long openOffsetMinutes = (totalMinutes * 2L) / 3L;
+        LocalDateTime expectedSubmissionOpen = examAt.plusMinutes(openOffsetMinutes);
+
+        if (!submissionDeadline.equals(expectedDeadline)) {
+            throw new BusinessRuleException(ErrorCode.ROUND_DEADLINE_INVALID,
+                    "Với codingDurationHours=%d, submissionDeadline phải bằng examAt + duration (%s)"
+                            .formatted(codingDurationHours, expectedDeadline),
+                    Map.of("examAt", examAt,
+                            "codingDurationHours", codingDurationHours,
+                            "expectedSubmissionDeadline", expectedDeadline,
+                            "submissionDeadline", submissionDeadline));
+        }
+        if (submissionOpen == null || !submissionOpen.equals(expectedSubmissionOpen)) {
+            throw new BusinessRuleException(ErrorCode.ROUND_DEADLINE_INVALID,
+                    "Với codingDurationHours=%d, submissionOpen phải bằng examAt + 2/3 duration (%s)"
+                            .formatted(codingDurationHours, expectedSubmissionOpen),
+                    Map.of("examAt", examAt,
+                            "codingDurationHours", codingDurationHours,
+                            "expectedSubmissionOpen", expectedSubmissionOpen,
+                            "submissionOpen", submissionOpen));
         }
     }
 }
