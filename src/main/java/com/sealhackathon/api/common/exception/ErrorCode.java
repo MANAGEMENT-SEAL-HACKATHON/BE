@@ -51,6 +51,8 @@ public final class ErrorCode {
     public static final String HACKATHON_DATE_RANGE     = "HACKATHON_DATE_RANGE";
     public static final String HACKATHON_NOT_DRAFT      = "HACKATHON_NOT_DRAFT";
     public static final String HACKATHON_HAS_CHILDREN   = "HACKATHON_HAS_CHILDREN";
+    /** Hackathon FINISHED — read-only archive; mọi mutation con bị chặn. */
+    public static final String HACKATHON_ARCHIVED       = "HACKATHON_ARCHIVED";
 
     // ---------- FR-02 TRACK ----------
     public static final String TRACK_HAS_TEAMS          = "TRACK_HAS_TEAMS";

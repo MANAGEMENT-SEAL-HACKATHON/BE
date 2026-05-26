@@ -11,6 +11,7 @@ import com.sealhackathon.api.events.repository.EventRepository;
 import com.sealhackathon.api.events.value_object.EventType;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
+import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
@@ -63,6 +64,7 @@ public class TrackServiceImpl implements TrackService {
     private final NotificationService notificationService;
     private final EventRepository eventRepository;
     private final CriteriaRepository criteriaRepository;
+    private final HackathonArchiveGuard archiveGuard;
 
     @Override
     public TrackResponse createByRound(Integer roundId, CreateTrackRequest req) {
@@ -165,10 +167,7 @@ public class TrackServiceImpl implements TrackService {
         Track t = trackRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Track", id));
         Hackathon parent = t.getRound() != null ? t.getRound().getHackathon() : null;
-        if (parent != null && !MUTABLE_PARENT.contains(parent.getStatus())) {
-            throw new ConflictException(ErrorCode.TRACK_HACKATHON_LOCKED,
-                    "Không thể xóa Track khi Hackathon ở status %s".formatted(parent.getStatus()));
-        }
+        guardParentStatus(parent);
         if (teamRepository.countActiveByTrackId(id, ACTIVE_OR_PENDING_TEAM) > 0) {
             throw new ConflictException(ErrorCode.TRACK_HAS_TEAMS,
                     "Track còn team đang đăng ký",
@@ -206,6 +205,7 @@ public class TrackServiceImpl implements TrackService {
     }
 
     private void guardParentStatus(Hackathon h) {
+        archiveGuard.assertNotArchived(h);
         if (h == null || !MUTABLE_PARENT.contains(h.getStatus())) {
             throw new ConflictException(ErrorCode.TRACK_HACKATHON_LOCKED,
                     "Hackathon đang %s — không cho thao tác Track".formatted(

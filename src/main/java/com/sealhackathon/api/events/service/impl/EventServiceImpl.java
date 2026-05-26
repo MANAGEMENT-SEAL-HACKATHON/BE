@@ -18,6 +18,7 @@ import com.sealhackathon.api.events.support.EventTimeline;
 import com.sealhackathon.api.events.value_object.EventType;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
+import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
 import com.sealhackathon.api.notifications.entity.Notification;
 import com.sealhackathon.api.notifications.repository.NotificationRepository;
 import com.sealhackathon.api.notifications.service.NotificationService;
@@ -53,11 +54,13 @@ public class EventServiceImpl implements EventService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final CurrentUserAccessor currentUserAccessor;
+    private final HackathonArchiveGuard archiveGuard;
 
     @Override
     public CreateResult create(Integer hackathonId, CreateEventRequest req) {
         Hackathon h = hackathonRepository.findById(hackathonId)
                 .orElseThrow(() -> new ResourceNotFoundException("Hackathon", hackathonId));
+        archiveGuard.assertNotArchived(h);
 
         scheduleValidator.validateBlocking(h, req, 0);
         List<Warning> warnings = scheduleValidator.computeLayer3Warnings(h, req);
@@ -117,6 +120,7 @@ public class EventServiceImpl implements EventService {
         Event e = eventRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Event", id));
         Hackathon h = e.getHackathon();
+        archiveGuard.assertNotArchived(h);
         scheduleValidator.validateBlocking(h, req, id);
         List<Warning> warnings = scheduleValidator.computeLayer3Warnings(h, req);
 
@@ -145,6 +149,7 @@ public class EventServiceImpl implements EventService {
     public Integer delete(Integer id) {
         Event e = eventRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Event", id));
+        archiveGuard.assertNotArchived(e.getHackathon());
         EventResponse snapshot = eventMapper.toResponse(e);
         Integer hackathonId = e.getHackathon().getId();
 

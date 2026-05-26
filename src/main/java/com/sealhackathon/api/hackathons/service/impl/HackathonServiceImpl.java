@@ -17,6 +17,7 @@ import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.mapper.HackathonMapper;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.service.HackathonService;
+import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.hackathons.value_object.Season;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
@@ -51,6 +52,7 @@ public class HackathonServiceImpl implements HackathonService {
     private final TrackRepository trackRepository;
     private final RoundRepository roundRepository;
     private final EventRepository eventRepository;
+    private final HackathonArchiveGuard archiveGuard;
 
     @Override
     public HackathonResponse create(CreateHackathonRequest req) {
@@ -103,6 +105,7 @@ public class HackathonServiceImpl implements HackathonService {
     public HackathonResponse update(Integer id, UpdateHackathonRequest req) {
         Hackathon h = hackathonRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Hackathon", id));
+        archiveGuard.assertNotArchived(h);
         if (h.getStatus() != HackathonStatus.DRAFT) {
             throw new ConflictException(ErrorCode.HACKATHON_NOT_DRAFT,
                     "Chỉ được sửa Hackathon khi status=DRAFT (hiện %s)".formatted(h.getStatus()));
@@ -136,6 +139,7 @@ public class HackathonServiceImpl implements HackathonService {
     public Integer delete(Integer id) {
         Hackathon h = hackathonRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Hackathon", id));
+        archiveGuard.assertNotArchived(h);
         if (h.getStatus() != HackathonStatus.DRAFT) {
             throw new ConflictException(ErrorCode.HACKATHON_NOT_DRAFT,
                     "Chỉ được xóa Hackathon khi status=DRAFT (hiện %s)".formatted(h.getStatus()));

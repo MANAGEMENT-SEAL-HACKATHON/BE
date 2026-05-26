@@ -14,6 +14,7 @@ import com.sealhackathon.api.events.value_object.EventType;
 import com.sealhackathon.api.events.entity.Event;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
+import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
@@ -69,6 +70,7 @@ public class RoundServiceImpl implements RoundService {
     private final NotificationService notificationService;
     private final HackathonTimelineService hackathonTimelineService;
     private final EventRepository eventRepository;
+    private final HackathonArchiveGuard archiveGuard;
 
     @Override
     public RoundResponse createByHackathon(Integer hackathonId, CreateRoundRequest req) {
@@ -163,6 +165,7 @@ public class RoundServiceImpl implements RoundService {
     public Integer delete(Integer id) {
         Round r = roundRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Round", id));
+        guardHackathonMutable(r.getHackathon());
         if (Boolean.TRUE.equals(r.getIsActive())) {
             throw new ConflictException(ErrorCode.ROUND_ANOTHER_ACTIVE,
                     "Round đang active — vui lòng deactivate trước khi xóa",
@@ -237,6 +240,7 @@ public class RoundServiceImpl implements RoundService {
     }
 
     private void guardHackathonMutable(Hackathon h) {
+        archiveGuard.assertNotArchived(h);
         if (!MUTABLE_PARENT.contains(h.getStatus())) {
             throw new BusinessRuleException(ErrorCode.TRACK_HACKATHON_LOCKED,
                     "Hackathon status=%s không cho phép sửa cấu trúc Round"

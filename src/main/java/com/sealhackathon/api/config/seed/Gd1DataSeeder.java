@@ -72,7 +72,8 @@ public class Gd1DataSeeder {
     private static final List<String> SEED_HACKATHON_SLUGS = List.of(
             Gd1SeedConstants.SLUG_INCOMPLETE,
             Gd1SeedConstants.SLUG_READY,
-            Gd1SeedConstants.SLUG_ONGOING);
+            Gd1SeedConstants.SLUG_ONGOING,
+            Gd1SeedConstants.SLUG_FINISHED);
 
     /**
      * Đồng bộ lịch seed mẫu 24/05–10/06/2026 lên DB dev đã tồn tại (hackathon, events, rounds).
@@ -80,18 +81,16 @@ public class Gd1DataSeeder {
      */
     @Transactional
     public void repairSeededTimeline() {
-        SeedDates dates = computeDates();
         int hackathons = 0;
         int events = 0;
         int rounds = 0;
-        if (ensureFinishedHackathonSeed()) {
-            hackathons++;
-        }
+        hackathons += ensureFinishedHackathonFullSeed();
         for (String slug : SEED_HACKATHON_SLUGS) {
             Optional<Hackathon> maybe = hackathonRepository.findBySlug(slug);
             if (maybe.isEmpty()) {
                 continue;
             }
+            SeedDates dates = resolveSeedDates(slug);
             Hackathon h = maybe.get();
             if (repairHackathonCalendar(h, dates)) {
                 hackathons++;
@@ -106,6 +105,31 @@ public class Gd1DataSeeder {
                     [Gd1DataSeeder] Repair timeline seed data (SEAL 2026 + FINISHED):
                       hackathons={}, events={}, rounds={}""",
                     hackathons, events, rounds);
+        }
+    }
+
+    /**
+     * Bổ sung / đồng bộ dataset archive {@link Gd1SeedConstants#SLUG_FINISHED} (events, rounds, tracks, criteria).
+     * Idempotent — gọi mỗi lần start profile dev.
+     */
+    @Transactional
+    public void repairSeededFinishedHackathon() {
+        int backfilled = ensureFinishedHackathonFullSeed();
+        hackathonRepository.findBySlug(Gd1SeedConstants.SLUG_FINISHED).ifPresent(h -> {
+            SeedDates dates = computeFinishedDates();
+            repairHackathonCalendar(h, dates);
+            ensureOrRepairEvents(h, dates);
+            repairRoundsForHackathon(h, dates);
+            ensureTrackCriteriaForHackathon(h);
+            if (h.getStatus() != HackathonStatus.FINISHED) {
+                h.setStatus(HackathonStatus.FINISHED);
+                hackathonRepository.save(h);
+            }
+            applyArchivedRoundStateIfPresent(h.getId());
+        });
+        if (backfilled > 0) {
+            log.info("[Gd1DataSeeder] Đã bổ sung cấu trúc full seed cho hackathon FINISHED ({})",
+                    Gd1SeedConstants.SLUG_FINISHED);
         }
     }
 
@@ -158,54 +182,79 @@ public class Gd1DataSeeder {
                 Gd1SeedConstants.SLUG_READY,
                 "SEAL GĐ1 Ready (DRAFT)",
                 HackathonStatus.DRAFT,
+                Season.Spring,
                 false,
                 false,
                 users,
-                dates);
+                dates,
+                "Cuộc thi lập trình SEAL — seed MF-01 GĐ1 (readiness PASS)");
         FullHackathonSeed ongoing = seedFullHackathon(
                 Gd1SeedConstants.SLUG_ONGOING,
                 "SEAL Spring 2026",
                 HackathonStatus.ONGOING,
+                Season.Spring,
                 true,
                 true,
                 users,
-                dates);
-        Hackathon finished = seedFinishedHackathon(users.coordinator());
+                dates,
+                "Cuộc thi lập trình SEAL — seed MF-01 GĐ1");
+        FullHackathonSeed finished = seedFinishedHackathon(users);
 
         SeedSummary summary = new SeedSummary(users, incomplete, ready, ongoing, finished);
         logSummary(summary);
         return summary;
     }
 
-    private boolean ensureFinishedHackathonSeed() {
-        if (hackathonRepository.existsBySlug(Gd1SeedConstants.SLUG_FINISHED)) {
-            return false;
+    private int ensureFinishedHackathonFullSeed() {
+        Optional<SeedUsers> users = tryLoadSeedUsers();
+        if (users.isEmpty()) {
+            return 0;
         }
-        return userRepository.findByEmail(Gd1SeedConstants.EMAIL_COORDINATOR)
-                .map(this::seedFinishedHackathon)
-                .isPresent();
+        boolean needsBackfill = hackathonRepository.findBySlug(Gd1SeedConstants.SLUG_FINISHED)
+                .map(h -> roundRepository.findByHackathon_IdOrderByExamAtAsc(h.getId()).isEmpty())
+                .orElse(true);
+        seedFinishedHackathon(users.get());
+        return needsBackfill ? 1 : 0;
     }
 
-    private Hackathon seedFinishedHackathon(User coordinator) {
-        if (hackathonRepository.existsBySlug(Gd1SeedConstants.SLUG_FINISHED)) {
-            return hackathonRepository.findBySlug(Gd1SeedConstants.SLUG_FINISHED).orElseThrow();
+    private FullHackathonSeed seedFinishedHackathon(SeedUsers users) {
+        return seedFullHackathon(
+                Gd1SeedConstants.SLUG_FINISHED,
+                "SEAL Fall 2025 (Completed)",
+                HackathonStatus.FINISHED,
+                Season.Fall,
+                false,
+                false,
+                users,
+                computeFinishedDates(),
+                "Hackathon đã hoàn thành — xem lịch sử (read-only). Seed dev archive.");
+    }
+
+    private SeedDates resolveSeedDates(String slug) {
+        if (Gd1SeedConstants.SLUG_FINISHED.equals(slug)) {
+            return computeFinishedDates();
         }
-        SeedDates finishedDates = computeFinishedDates();
-        return hackathonRepository.save(Hackathon.builder()
-                .name("SEAL Fall 2025 (Completed)")
-                .slug(Gd1SeedConstants.SLUG_FINISHED)
-                .season(Season.Fall)
-                .year(finishedDates.eventStart().getYear())
-                .status(HackathonStatus.FINISHED)
-                .description("Hackathon đã hoàn thành — seed để test danh sách completed.")
-                .registrationStart(finishedDates.regStart())
-                .registrationEnd(finishedDates.regEnd())
-                .eventStart(finishedDates.eventStart())
-                .eventEnd(finishedDates.eventEnd())
-                .wildcardEnabled(true)
-                .individualRankingEnabled(false)
-                .createdBy(coordinator)
-                .build());
+        return computeDates();
+    }
+
+    private Optional<SeedUsers> tryLoadSeedUsers() {
+        Optional<User> coordinator = userRepository.findByEmail(Gd1SeedConstants.EMAIL_COORDINATOR);
+        Optional<User> judge1 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_JUDGE1);
+        Optional<User> judge2 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_JUDGE2);
+        Optional<User> guestJudge = userRepository.findByEmail(Gd1SeedConstants.EMAIL_GUEST_JUDGE);
+        Optional<User> mentor = userRepository.findByEmail(Gd1SeedConstants.EMAIL_MENTOR);
+        Optional<User> pendingJudge = userRepository.findByEmail(Gd1SeedConstants.EMAIL_PENDING_JUDGE);
+        if (coordinator.isEmpty() || judge1.isEmpty() || judge2.isEmpty()
+                || guestJudge.isEmpty() || mentor.isEmpty() || pendingJudge.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(new SeedUsers(
+                coordinator.get(),
+                judge1.get(),
+                judge2.get(),
+                guestJudge.get(),
+                mentor.get(),
+                pendingJudge.get()));
     }
 
     private void verifyCoordinatorId(User coordinator) {
@@ -257,8 +306,8 @@ public class Gd1DataSeeder {
         LocalDate eventEnd = eventStart;
         LocalDateTime workshopStart = LocalDate.of(2025, 10, 22).atTime(19, 30);
         LocalDateTime workshopEnd = LocalDate.of(2025, 10, 22).atTime(21, 0);
-        LocalDateTime kickoffStart = LocalDate.of(2025, 10, 25).atTime(8, 0);
-        LocalDateTime kickoffEnd = LocalDate.of(2025, 10, 25).atTime(9, 30);
+        LocalDateTime kickoffStart = LocalDate.of(2025, 10, 23).atTime(14, 0);
+        LocalDateTime kickoffEnd = LocalDate.of(2025, 10, 23).atTime(17, 0);
         LocalDateTime awardsStart = eventEnd.atTime(17, 30);
         LocalDateTime awardsEnd = eventEnd.atTime(19, 0);
         LocalDateTime prelimDeadline = eventStart.atTime(12, 0);
@@ -494,28 +543,47 @@ public class Gd1DataSeeder {
     }
 
     private FullHackathonSeed seedFullHackathon(String slug, String name, HackathonStatus status,
-                                                boolean prelimActive, boolean includeCloneDemoTrack3,
-                                                SeedUsers users, SeedDates dates) {
+                                                Season season, boolean prelimActive,
+                                                boolean includeCloneDemoTrack3,
+                                                SeedUsers users, SeedDates dates,
+                                                String description) {
+        Hackathon hackathon;
         if (hackathonRepository.existsBySlug(slug)) {
-            Hackathon existing = hackathonRepository.findBySlug(slug).orElseThrow();
-            repairHackathonCalendar(existing, dates);
-            ensureOrRepairEvents(existing, dates);
-            repairRoundsForHackathon(existing, dates);
-            ensureTrackCriteriaForHackathon(existing);
-            if (includeCloneDemoTrack3) {
-                ensureCloneDemoTrack3(existing);
+            hackathon = hackathonRepository.findBySlug(slug).orElseThrow();
+            if (hackathon.getStatus() != status) {
+                hackathon.setStatus(status);
+                hackathonRepository.save(hackathon);
             }
-            log.info("[Gd1DataSeeder] Hackathon '{}' đã tồn tại (id={})", slug, existing.getId());
-            return FullHackathonSeed.existing(existing);
+            repairHackathonCalendar(hackathon, dates);
+            ensureOrRepairEvents(hackathon, dates);
+            repairRoundsForHackathon(hackathon, dates);
+            ensureTrackCriteriaForHackathon(hackathon);
+            if (includeCloneDemoTrack3) {
+                ensureCloneDemoTrack3(hackathon);
+            }
+            if (needsStructureBackfill(hackathon)) {
+                log.info("[Gd1DataSeeder] Bổ sung rounds/tracks/events cho '{}' (id={})", slug, hackathon.getId());
+                StructureSeed structure = seedHackathonStructure(
+                        hackathon, status, prelimActive, includeCloneDemoTrack3, users, dates);
+                seedEvents(hackathon, users.coordinator(), dates);
+                return new FullHackathonSeed(
+                        hackathon, structure.prelim(), structure.finalRound(),
+                        structure.track1(), structure.track2(), structure.track3());
+            }
+            if (status == HackathonStatus.FINISHED) {
+                applyArchivedRoundStateIfPresent(hackathon.getId());
+            }
+            log.info("[Gd1DataSeeder] Hackathon '{}' đã tồn tại (id={})", slug, hackathon.getId());
+            return FullHackathonSeed.existing(hackathon);
         }
 
-        Hackathon hackathon = hackathonRepository.save(Hackathon.builder()
+        hackathon = hackathonRepository.save(Hackathon.builder()
                 .name(name)
                 .slug(slug)
-                .season(Season.Spring)
+                .season(season)
                 .year(dates.eventStart().getYear())
                 .status(status)
-                .description("Cuộc thi lập trình SEAL — seed MF-01 GĐ1")
+                .description(description)
                 .registrationStart(dates.regStart())
                 .registrationEnd(dates.regEnd())
                 .eventStart(dates.eventStart())
@@ -525,6 +593,26 @@ public class Gd1DataSeeder {
                 .createdBy(users.coordinator())
                 .build());
 
+        StructureSeed structure = seedHackathonStructure(
+                hackathon, status, prelimActive, includeCloneDemoTrack3, users, dates);
+        Round prelim = structure.prelim();
+        Round finalRound = structure.finalRound();
+        Track track1 = structure.track1();
+        Track track2 = structure.track2();
+        Track track3 = structure.track3();
+
+        seedEvents(hackathon, users.coordinator(), dates);
+
+        return new FullHackathonSeed(hackathon, prelim, finalRound, track1, track2, track3);
+    }
+
+    private boolean needsStructureBackfill(Hackathon hackathon) {
+        return roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathon.getId()).isEmpty();
+    }
+
+    private StructureSeed seedHackathonStructure(Hackathon hackathon, HackathonStatus status,
+                                                 boolean prelimActive, boolean includeCloneDemoTrack3,
+                                                 SeedUsers users, SeedDates dates) {
         Round prelim = roundRepository.save(Round.builder()
                 .hackathon(hackathon)
                 .name("Vòng Sơ loại")
@@ -603,27 +691,67 @@ public class Gd1DataSeeder {
 
         User coord = users.coordinator();
         LocalDateTime assignedAt = LocalDateTime.now();
-        mentorAssignmentRepository.save(MentorAssignment.builder()
-                .mentor(users.mentor())
-                .track(track1)
-                .assignedBy(coord)
-                .assignedAt(assignedAt)
-                .build());
-        mentorAssignmentRepository.save(MentorAssignment.builder()
-                .mentor(users.mentor())
-                .track(track2)
-                .assignedBy(coord)
-                .assignedAt(assignedAt)
-                .build());
+        if (mentorAssignmentRepository.findByTrackId(track1.getId()).isEmpty()) {
+            mentorAssignmentRepository.save(MentorAssignment.builder()
+                    .mentor(users.mentor())
+                    .track(track1)
+                    .assignedBy(coord)
+                    .assignedAt(assignedAt)
+                    .build());
+        }
+        if (mentorAssignmentRepository.findByTrackId(track2.getId()).isEmpty()) {
+            mentorAssignmentRepository.save(MentorAssignment.builder()
+                    .mentor(users.mentor())
+                    .track(track2)
+                    .assignedBy(coord)
+                    .assignedAt(assignedAt)
+                    .build());
+        }
 
-        saveJudgeAssignment(users.judge1(), track1, coord, assignedAt);
-        saveJudgeAssignment(users.guestJudge(), track1, coord, assignedAt);
-        saveJudgeAssignment(users.judge1(), track2, coord, assignedAt);
-        saveJudgeAssignment(users.judge2(), track2, coord, assignedAt);
+        if (judgeAssignmentRepository.findByTrackId(track1.getId()).isEmpty()) {
+            saveJudgeAssignment(users.judge1(), track1, coord, assignedAt);
+            saveJudgeAssignment(users.guestJudge(), track1, coord, assignedAt);
+        }
+        if (judgeAssignmentRepository.findByTrackId(track2.getId()).isEmpty()) {
+            saveJudgeAssignment(users.judge1(), track2, coord, assignedAt);
+            saveJudgeAssignment(users.judge2(), track2, coord, assignedAt);
+        }
 
-        seedEvents(hackathon, coord, dates);
+        if (status == HackathonStatus.FINISHED) {
+            applyArchivedRoundState(prelim, finalRound);
+        }
 
-        return new FullHackathonSeed(hackathon, prelim, finalRound, track1, track2, track3);
+        return new StructureSeed(prelim, finalRound, track1, track2, track3);
+    }
+
+    private void applyArchivedRoundStateIfPresent(Integer hackathonId) {
+        List<Round> rounds = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathonId);
+        if (rounds.isEmpty()) {
+            return;
+        }
+        Round prelim = rounds.stream()
+                .filter(r -> !Boolean.TRUE.equals(r.getIsFinal()))
+                .findFirst()
+                .orElse(null);
+        Round finalRound = rounds.stream()
+                .filter(r -> Boolean.TRUE.equals(r.getIsFinal()))
+                .findFirst()
+                .orElse(null);
+        if (prelim != null && finalRound != null) {
+            applyArchivedRoundState(prelim, finalRound);
+        }
+    }
+
+    private void applyArchivedRoundState(Round prelim, Round finalRound) {
+        LocalDateTime lockedAt = LocalDateTime.now();
+        prelim.setIsActive(false);
+        prelim.setScoringLocked(true);
+        prelim.setScoringLockedAt(lockedAt);
+        finalRound.setIsActive(false);
+        finalRound.setScoringLocked(true);
+        finalRound.setScoringLockedAt(lockedAt);
+        roundRepository.save(prelim);
+        roundRepository.save(finalRound);
     }
 
     private void saveJudgeAssignment(User judge, Track track, User assignedBy, LocalDateTime assignedAt) {
@@ -929,7 +1057,7 @@ public class Gd1DataSeeder {
                     - {} (id={}) DRAFT — readiness PASS → PATCH ONGOING
                     - {} (id={}) ONGOING — prelim id={} active={} examAt={}
                     - final examAt={}
-                    - {} (id={}) FINISHED — completed dataset
+                    - {} (id={}) FINISHED — archive (prelim={}, final={})
                   Tracks ready: t1={} t2={}
                   Track 3 clone demo (ongoing): id={}
                   Users: judge1={}, guest={}, mentor={}, pending={}
@@ -946,7 +1074,11 @@ public class Gd1DataSeeder {
                         ? summary.ongoing().prelimRound().getExamAt() : "n/a",
                 summary.ongoing().finalRound() != null
                         ? summary.ongoing().finalRound().getExamAt() : "n/a",
-                Gd1SeedConstants.SLUG_FINISHED, summary.finished().getId(),
+                Gd1SeedConstants.SLUG_FINISHED, summary.finished().hackathon().getId(),
+                summary.finished().prelimRound() != null
+                        ? summary.finished().prelimRound().getId() : "n/a",
+                summary.finished().finalRound() != null
+                        ? summary.finished().finalRound().getId() : "n/a",
                 summary.ready().track1() != null ? summary.ready().track1().getId() : "n/a",
                 summary.ready().track2() != null ? summary.ready().track2().getId() : "n/a",
                 summary.ongoing().track3() != null ? summary.ongoing().track3().getId() : "n/a",
@@ -1020,7 +1152,15 @@ public class Gd1DataSeeder {
             Hackathon incomplete,
             FullHackathonSeed ready,
             FullHackathonSeed ongoing,
-            Hackathon finished) {
+            FullHackathonSeed finished) {
+    }
+
+    private record StructureSeed(
+            Round prelim,
+            Round finalRound,
+            Track track1,
+            Track track2,
+            Track track3) {
     }
 
     private record CriteriaSeed(String name, CriteriaType type, float weight, int order) {

@@ -10,7 +10,7 @@ package com.sealhackathon.api.config.seed;
  *   <li>{@link #SLUG_INCOMPLETE} — DRAFT, không round (readiness fail)</li>
  *   <li>{@link #SLUG_READY} — DRAFT, đủ G1–G5 (PATCH ONGOING)</li>
  *   <li>{@link #SLUG_ONGOING} — ONGOING, prelim active; có Track 3 (chưa criteria) để test clone 2→3</li>
- *   <li>{@link #SLUG_FINISHED} — FINISHED, dữ liệu lịch sử để test màn Completed</li>
+ *   <li>{@link #SLUG_FINISHED} — FINISHED, full seed (events/rounds/tracks/criteria), read-only archive</li>
  * </ul>
  *
  * <h3>Lịch seed (2026)</h3>

@@ -14,6 +14,7 @@ import com.sealhackathon.api.judge_assignments.mapper.JudgeAssignmentMapper;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.judge_assignments.service.JudgeAssignmentService;
 import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
+import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
 import com.sealhackathon.api.mentor_assignments.repository.MentorAssignmentRepository;
 import com.sealhackathon.api.notifications.service.NotificationService;
 import com.sealhackathon.api.rounds.entity.Round;
@@ -52,6 +53,7 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
     private final AuditService auditService;
     private final CurrentUserAccessor currentUserAccessor;
     private final NotificationService notificationService;
+    private final HackathonArchiveGuard archiveGuard;
 
     @Override
     public CreateResult assign(CreateJudgeAssignmentRequest req) {
@@ -73,6 +75,7 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
         }
         Track track = trackRepository.findById(trackId)
                 .orElseThrow(() -> new ResourceNotFoundException("Track", trackId));
+        archiveGuard.assertNotArchivedForTrack(track);
         TrackRoundRules.requirePreliminaryAssignmentTrack(track);
 
         if (mentorAssignmentRepository.existsByMentorIdAndTrackId(judge.getId(), trackId)) {
@@ -100,6 +103,7 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
     private CreateResult assignToFinalRound(User judge, Integer roundId, JudgeAssignmentType assignType) {
         Round round = roundRepository.findById(roundId)
                 .orElseThrow(() -> new ResourceNotFoundException("Round", roundId));
+        archiveGuard.assertNotArchivedForRound(round);
         if (!Boolean.TRUE.equals(round.getIsFinal())) {
             throw new BusinessRuleException(ErrorCode.INVALID_FINAL_ROUND,
                     "Judge qua round_id chỉ cho Round Chung kết",
@@ -141,6 +145,11 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
     public Integer unassign(Integer id) {
         JudgeAssignment ja = judgeAssignmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("JudgeAssignment", id));
+        if (ja.getTrack() != null) {
+            archiveGuard.assertNotArchivedForTrack(ja.getTrack());
+        } else if (ja.getRound() != null) {
+            archiveGuard.assertNotArchivedForRound(ja.getRound());
+        }
         User judge = ja.getJudge();
         String label = ja.getTrack() != null ? ja.getTrack().getName()
                 : (ja.getRound() != null ? ja.getRound().getName() : "?");
