@@ -9,7 +9,6 @@ import com.sealhackathon.api.mentor_assignments.repository.MentorAssignmentRepos
 import com.sealhackathon.api.notifications.service.NotificationService;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
-import com.sealhackathon.api.teams.repository.TeamPlaceholderRepository;
 import com.sealhackathon.api.tracks.dto.response.TrackSummaryResponse;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.tracks.mapper.TrackMapper;
@@ -37,7 +36,6 @@ class TrackServiceImplListByRoundTest {
     @Mock private RoundRepository roundRepository;
     @Mock private TrackMapper trackMapper;
     @Mock private AuditService auditService;
-    @Mock private TeamPlaceholderRepository teamRepository;
     @Mock private MentorAssignmentRepository mentorAssignmentRepository;
     @Mock private NotificationService notificationService;
     @Mock private EventRepository eventRepository;

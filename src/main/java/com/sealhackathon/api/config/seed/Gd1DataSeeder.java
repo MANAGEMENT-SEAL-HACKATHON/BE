@@ -84,6 +84,9 @@ public class Gd1DataSeeder {
         int hackathons = 0;
         int events = 0;
         int rounds = 0;
+        if (ensureFinishedHackathonSeed()) {
+            hackathons++;
+        }
         for (String slug : SEED_HACKATHON_SLUGS) {
             Optional<Hackathon> maybe = hackathonRepository.findBySlug(slug);
             if (maybe.isEmpty()) {
@@ -100,7 +103,7 @@ public class Gd1DataSeeder {
         }
         if (hackathons > 0 || events > 0 || rounds > 0) {
             log.info("""
-                    [Gd1DataSeeder] Repair timeline SEAL 2026 (reg 24/05–05/06, WS 06/06, KO 07/06, thi 10/06):
+                    [Gd1DataSeeder] Repair timeline seed data (SEAL 2026 + FINISHED):
                       hackathons={}, events={}, rounds={}""",
                     hackathons, events, rounds);
         }
@@ -167,10 +170,42 @@ public class Gd1DataSeeder {
                 true,
                 users,
                 dates);
+        Hackathon finished = seedFinishedHackathon(users.coordinator());
 
-        SeedSummary summary = new SeedSummary(users, incomplete, ready, ongoing);
+        SeedSummary summary = new SeedSummary(users, incomplete, ready, ongoing, finished);
         logSummary(summary);
         return summary;
+    }
+
+    private boolean ensureFinishedHackathonSeed() {
+        if (hackathonRepository.existsBySlug(Gd1SeedConstants.SLUG_FINISHED)) {
+            return false;
+        }
+        return userRepository.findByEmail(Gd1SeedConstants.EMAIL_COORDINATOR)
+                .map(this::seedFinishedHackathon)
+                .isPresent();
+    }
+
+    private Hackathon seedFinishedHackathon(User coordinator) {
+        if (hackathonRepository.existsBySlug(Gd1SeedConstants.SLUG_FINISHED)) {
+            return hackathonRepository.findBySlug(Gd1SeedConstants.SLUG_FINISHED).orElseThrow();
+        }
+        SeedDates finishedDates = computeFinishedDates();
+        return hackathonRepository.save(Hackathon.builder()
+                .name("SEAL Fall 2025 (Completed)")
+                .slug(Gd1SeedConstants.SLUG_FINISHED)
+                .season(Season.Fall)
+                .year(finishedDates.eventStart().getYear())
+                .status(HackathonStatus.FINISHED)
+                .description("Hackathon đã hoàn thành — seed để test danh sách completed.")
+                .registrationStart(finishedDates.regStart())
+                .registrationEnd(finishedDates.regEnd())
+                .eventStart(finishedDates.eventStart())
+                .eventEnd(finishedDates.eventEnd())
+                .wildcardEnabled(true)
+                .individualRankingEnabled(false)
+                .createdBy(coordinator)
+                .build());
     }
 
     private void verifyCoordinatorId(User coordinator) {
@@ -196,6 +231,37 @@ public class Gd1DataSeeder {
         LocalDateTime awardsStart = eventEnd.atTime(17, 30);
         LocalDateTime awardsEnd = eventEnd.atTime(19, 0);
         LocalDateTime prelimDeadline = eventStart.atTime(11, 30);
+        LocalDateTime finalDeadline = eventStart.atTime(16, 30);
+        return new SeedDates(
+                regStart,
+                regEnd,
+                eventStart,
+                eventEnd,
+                prelimDeadline,
+                finalDeadline,
+                workshopStart,
+                workshopEnd,
+                kickoffStart,
+                kickoffEnd,
+                awardsStart,
+                awardsEnd);
+    }
+
+    /**
+     * Lịch completed mẫu (mùa trước): dùng để test filter/status FINISHED.
+     */
+    private SeedDates computeFinishedDates() {
+        LocalDate regStart = LocalDate.of(2025, 10, 1);
+        LocalDate regEnd = LocalDate.of(2025, 10, 20);
+        LocalDate eventStart = LocalDate.of(2025, 10, 25);
+        LocalDate eventEnd = eventStart;
+        LocalDateTime workshopStart = LocalDate.of(2025, 10, 22).atTime(19, 30);
+        LocalDateTime workshopEnd = LocalDate.of(2025, 10, 22).atTime(21, 0);
+        LocalDateTime kickoffStart = LocalDate.of(2025, 10, 25).atTime(8, 0);
+        LocalDateTime kickoffEnd = LocalDate.of(2025, 10, 25).atTime(9, 30);
+        LocalDateTime awardsStart = eventEnd.atTime(17, 30);
+        LocalDateTime awardsEnd = eventEnd.atTime(19, 0);
+        LocalDateTime prelimDeadline = eventStart.atTime(12, 0);
         LocalDateTime finalDeadline = eventStart.atTime(16, 30);
         return new SeedDates(
                 regStart,
@@ -863,6 +929,7 @@ public class Gd1DataSeeder {
                     - {} (id={}) DRAFT — readiness PASS → PATCH ONGOING
                     - {} (id={}) ONGOING — prelim id={} active={} examAt={}
                     - final examAt={}
+                    - {} (id={}) FINISHED — completed dataset
                   Tracks ready: t1={} t2={}
                   Track 3 clone demo (ongoing): id={}
                   Users: judge1={}, guest={}, mentor={}, pending={}
@@ -879,6 +946,7 @@ public class Gd1DataSeeder {
                         ? summary.ongoing().prelimRound().getExamAt() : "n/a",
                 summary.ongoing().finalRound() != null
                         ? summary.ongoing().finalRound().getExamAt() : "n/a",
+                Gd1SeedConstants.SLUG_FINISHED, summary.finished().getId(),
                 summary.ready().track1() != null ? summary.ready().track1().getId() : "n/a",
                 summary.ready().track2() != null ? summary.ready().track2().getId() : "n/a",
                 summary.ongoing().track3() != null ? summary.ongoing().track3().getId() : "n/a",
@@ -951,7 +1019,8 @@ public class Gd1DataSeeder {
             SeedUsers users,
             Hackathon incomplete,
             FullHackathonSeed ready,
-            FullHackathonSeed ongoing) {
+            FullHackathonSeed ongoing,
+            Hackathon finished) {
     }
 
     private record CriteriaSeed(String name, CriteriaType type, float weight, int order) {
