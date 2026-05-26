@@ -22,6 +22,7 @@ import com.sealhackathon.api.criteria.mapper.CriteriaMapper;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.criteria.service.CriteriaService;
 import com.sealhackathon.api.criteria.service.WeightSummaryService;
+import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.scores.repository.ScorePlaceholderRepository;
@@ -50,11 +51,13 @@ public class CriteriaServiceImpl implements CriteriaService {
     private final AuditService auditService;
     private final WeightSummaryService weightSummaryService;
     private final ScorePlaceholderRepository scoreRepository;
+    private final HackathonArchiveGuard archiveGuard;
 
     @Override
     public CreateResult createForTrack(Integer trackId, CreateCriterionRequest req) {
         Track track = trackRepository.findById(trackId)
                 .orElseThrow(() -> new ResourceNotFoundException("Track", trackId));
+        archiveGuard.assertNotArchivedForTrack(track);
         Criteria saved = criteriaRepository.save(criteriaMapper.toEntityForTrack(req, track));
         CriterionResponse response = criteriaMapper.toResponse(saved);
         auditService.log(AuditAction.CRITERIA_CREATE, "criteria", saved.getId(),
@@ -65,6 +68,7 @@ public class CriteriaServiceImpl implements CriteriaService {
     @Override
     public CreateResult createForFinalRound(Integer finalRoundId, CreateCriterionRequest req) {
         Round round = loadFinalRound(finalRoundId);
+        archiveGuard.assertNotArchivedForRound(round);
         Criteria saved = criteriaRepository.save(criteriaMapper.toEntityForFinalRound(req, round));
         CriterionResponse response = criteriaMapper.toResponse(saved);
         auditService.log(AuditAction.CRITERIA_CREATE, "criteria", saved.getId(),
@@ -82,6 +86,7 @@ public class CriteriaServiceImpl implements CriteriaService {
     public BatchCreateResponse batchCreateForTrack(Integer trackId, BatchCreateCriteriaRequest req) {
         Track track = trackRepository.findById(trackId)
                 .orElseThrow(() -> new ResourceNotFoundException("Track", trackId));
+        archiveGuard.assertNotArchivedForTrack(track);
         List<Integer> createdIds = new ArrayList<>();
         for (CreateCriterionRequest item : req.getItems()) {
             Criteria saved = criteriaRepository.save(criteriaMapper.toEntityForTrack(item, track));
@@ -98,6 +103,7 @@ public class CriteriaServiceImpl implements CriteriaService {
     @Override
     public BatchCreateResponse batchCreateForFinalRound(Integer finalRoundId, BatchCreateCriteriaRequest req) {
         Round round = loadFinalRound(finalRoundId);
+        archiveGuard.assertNotArchivedForRound(round);
         List<Integer> createdIds = new ArrayList<>();
         for (CreateCriterionRequest item : req.getItems()) {
             Criteria saved = criteriaRepository.save(criteriaMapper.toEntityForFinalRound(item, round));
@@ -158,6 +164,7 @@ public class CriteriaServiceImpl implements CriteriaService {
     public UpdateResult update(Integer id, UpdateCriterionRequest req) {
         Criteria c = criteriaRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Criterion", id));
+        archiveGuard.assertNotArchivedForCriteria(c);
         if (scoreRepository.countByCriteriaId(id) > 0) {
             throw new ConflictException(ErrorCode.CRITERIA_HAS_SCORES,
                     "Criterion đã có scores — không thể sửa");
@@ -174,6 +181,7 @@ public class CriteriaServiceImpl implements CriteriaService {
     public Integer delete(Integer id) {
         Criteria c = criteriaRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Criterion", id));
+        archiveGuard.assertNotArchivedForCriteria(c);
         if (scoreRepository.countByCriteriaId(id) > 0) {
             throw new ConflictException(ErrorCode.CRITERIA_HAS_SCORES,
                     "Criterion đã có scores — không thể xóa");
@@ -219,6 +227,7 @@ public class CriteriaServiceImpl implements CriteriaService {
     public CloneResponse cloneFromSourceForTrack(Integer trackId, CloneCriteriaRequest req) {
         Track target = trackRepository.findById(trackId)
                 .orElseThrow(() -> new ResourceNotFoundException("Track", trackId));
+        archiveGuard.assertNotArchivedForTrack(target);
         rejectWrongCloneFieldsForTrack(req, trackId);
         assertTrackScopeRound(target.getRound(), trackId, "trackId");
         if (req.getSourceTrackId() == null) {
@@ -259,6 +268,7 @@ public class CriteriaServiceImpl implements CriteriaService {
     @Override
     public CloneResponse cloneFromSourceForFinalRound(Integer finalRoundId, CloneCriteriaRequest req) {
         Round target = loadFinalRound(finalRoundId);
+        archiveGuard.assertNotArchivedForRound(target);
         rejectWrongCloneFieldsForFinalRound(req, finalRoundId);
         if (req.getSourceRoundId() == null) {
             throw new BusinessRuleException(ErrorCode.CRITERIA_CLONE_SOURCE_EMPTY,

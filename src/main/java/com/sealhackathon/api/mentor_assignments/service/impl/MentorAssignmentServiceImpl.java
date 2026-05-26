@@ -8,6 +8,7 @@ import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
+import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
@@ -58,6 +59,7 @@ public class MentorAssignmentServiceImpl implements MentorAssignmentService {
     private final AuditService auditService;
     private final CurrentUserAccessor currentUserAccessor;
     private final NotificationService notificationService;
+    private final HackathonArchiveGuard archiveGuard;
 
     @Override
     public CreateResult assign(CreateMentorAssignmentRequest req) {
@@ -81,6 +83,7 @@ public class MentorAssignmentServiceImpl implements MentorAssignmentService {
         }
 
         Hackathon parent = track.getHackathon();
+        archiveGuard.assertNotArchived(parent);
         if (parent != null && !MUTABLE_PARENT.contains(parent.getStatus())) {
             throw new ConflictException(ErrorCode.TRACK_HACKATHON_LOCKED,
                     "Hackathon đang %s — không cho phân công Mentor".formatted(parent.getStatus()));
@@ -152,6 +155,9 @@ public class MentorAssignmentServiceImpl implements MentorAssignmentService {
     public Integer unassign(Integer assignmentId) {
         MentorAssignment ma = mentorAssignmentRepository.findById(assignmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("MentorAssignment", assignmentId));
+        if (ma.getTrack() != null) {
+            archiveGuard.assertNotArchivedForTrack(ma.getTrack());
+        }
         MentorAssignmentResponse snapshot = mentorAssignmentMapper.toResponse(ma);
         User mentor = ma.getMentor();
         Track track = ma.getTrack();

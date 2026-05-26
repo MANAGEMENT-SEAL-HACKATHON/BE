@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
  * → DataInitializer (2).
  *
  * <p>Mỗi lần start: repair timeline (đăng ký 24/05–05/06, WS 06/06, KO 07/06, thi 10/06),
+ * repair/bổ sung hackathon {@link Gd1SeedConstants#SLUG_FINISHED} (dataset archive đầy đủ),
  * repair criteria/track seed (gỡ {@code source_criteria_id} cũ, bổ sung Track 3 trống để test clone 2→3).
  *
  * <p>Tham chiếu: {@code docs/mf01/02-functional-requirements.md} §11.1, {@code docs/api/fe-round-exam-at-migration.md},
@@ -33,6 +34,7 @@ public class DataInitializer implements CommandLineRunner {
     @Override
     public void run(String... args) {
         gd1DataSeeder.repairSeededTimeline();
+        gd1DataSeeder.repairSeededFinishedHackathon();
         gd1DataSeeder.repairSeededCriteriaAndTracks();
         gd1DataSeeder.repairDevUserPasswords();
 

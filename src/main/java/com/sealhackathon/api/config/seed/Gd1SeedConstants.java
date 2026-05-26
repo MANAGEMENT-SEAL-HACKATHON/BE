@@ -10,6 +10,7 @@ package com.sealhackathon.api.config.seed;
  *   <li>{@link #SLUG_INCOMPLETE} — DRAFT, không round (readiness fail)</li>
  *   <li>{@link #SLUG_READY} — DRAFT, đủ G1–G5 (PATCH ONGOING)</li>
  *   <li>{@link #SLUG_ONGOING} — ONGOING, prelim active; có Track 3 (chưa criteria) để test clone 2→3</li>
+ *   <li>{@link #SLUG_FINISHED} — FINISHED, full seed (events/rounds/tracks/criteria), read-only archive</li>
  * </ul>
  *
  * <h3>Lịch seed (2026)</h3>
@@ -48,6 +49,7 @@ public final class Gd1SeedConstants {
     public static final String SLUG_INCOMPLETE = "seal-gd1-incomplete";
     public static final String SLUG_READY = "seal-gd1-ready";
     public static final String SLUG_ONGOING = "seal-spring-2026";
+    public static final String SLUG_FINISHED = "seal-fall-2025-finished";
 
     public static final String EMAIL_COORDINATOR = "coord@fpt.edu.vn";
     public static final String EMAIL_JUDGE1 = "judge1@fpt.edu.vn";
