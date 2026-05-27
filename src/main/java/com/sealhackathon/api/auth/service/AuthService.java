@@ -110,19 +110,25 @@ public class AuthService {
                     invitationRepository.save(inv);
                 });
 
+        userSessionService.revokeAllForUser(userId);
+
         auditService.log(AuditAction.ACCOUNT_PASSWORD_CHANGED, "users", user.getId(),
                 Map.of("email", user.getEmail()));
     }
 
     @Transactional
-    public AuthTokenResponse refresh(String rawRefreshToken) {
-        User user = userSessionService.validateRefreshToken(rawRefreshToken);
+    public AuthTokenResponse refresh(String rawRefreshToken, HttpServletRequest httpRequest) {
+        UserSessionService.RefreshTokenPair rotated = userSessionService.rotateRefreshToken(
+                rawRefreshToken,
+                httpRequest.getRemoteAddr(),
+                httpRequest.getHeader("User-Agent"));
+        User user = rotated.session().getUser();
         assertApproved(user);
         guestJudgeLifecycleService.assertHackathonNotEndedForTempJudge(user);
         String access = jwtTokenService.createAccessToken(user);
         return AuthTokenResponse.builder()
                 .accessToken(access)
-                .refreshToken(rawRefreshToken)
+                .refreshToken(rotated.rawToken())
                 .tokenType("Bearer")
                 .expiresInSeconds(jwtProperties.getAccessTtlMinutes() * 60L)
                 .mustChangePassword(Boolean.TRUE.equals(user.getMustChangePassword()))
@@ -133,6 +139,13 @@ public class AuthService {
     public void logout(String rawRefreshToken) {
         userSessionService.revokeByRawToken(rawRefreshToken);
         auditService.log(AuditAction.ACCOUNT_LOGOUT, "users", null, Map.of());
+    }
+
+    @Transactional
+    public void logoutAll() {
+        Integer userId = currentUserAccessor.currentUserId();
+        userSessionService.revokeAllForUser(userId);
+        auditService.log(AuditAction.ACCOUNT_LOGOUT_ALL, "users", userId, Map.of());
     }
 
     private void assertGuestJudgeInvitationValid(User user) {

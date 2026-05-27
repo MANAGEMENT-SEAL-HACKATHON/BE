@@ -12,6 +12,10 @@ public final class FrontendUrls {
         return trimTrailingSlash(appProperties.getFrontendUrl()) + "/login";
     }
 
+    public static String resetPasswordUrl(AppProperties appProperties, String token) {
+        return trimTrailingSlash(appProperties.getFrontendUrl()) + "/reset-password?token=" + token;
+    }
+
     private static String trimTrailingSlash(String url) {
         if (url == null || url.isBlank()) {
             return "http://localhost:5173";

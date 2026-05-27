@@ -19,4 +19,7 @@ public class JwtProperties {
     private int emailVerifyTtlHours = 24;
     /** Dev: trả verify token trong response register. */
     private boolean devExposeVerifyToken = false;
+    private int passwordResetTtlHours = 1;
+    /** Dev: trả reset URL trong response forgot-password. */
+    private boolean devExposePasswordResetToken = false;
 }

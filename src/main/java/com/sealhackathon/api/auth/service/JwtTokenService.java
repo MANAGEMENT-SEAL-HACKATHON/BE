@@ -29,6 +29,7 @@ public class JwtTokenService {
     public static final String CLAIM_TOKEN_TYPE = "typ";
     public static final String TYPE_ACCESS = "access";
     public static final String TYPE_EMAIL_VERIFY = "email_verify";
+    public static final String TYPE_PASSWORD_RESET = "password_reset";
 
     private final JwtProperties jwtProperties;
 
@@ -80,6 +81,43 @@ public class JwtTokenService {
                     "Link xác thực email không hợp lệ", HttpStatus.BAD_REQUEST);
         }
         return Integer.parseInt(claims.getSubject());
+    }
+
+    public String createPasswordResetToken(Integer userId) {
+        Instant now = Instant.now();
+        Instant exp = now.plusSeconds(jwtProperties.getPasswordResetTtlHours() * 3600L);
+        return Jwts.builder()
+                .issuer(jwtProperties.getIssuer())
+                .subject(String.valueOf(userId))
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(exp))
+                .claim(CLAIM_TOKEN_TYPE, TYPE_PASSWORD_RESET)
+                .signWith(signingKey())
+                .compact();
+    }
+
+    public Integer parsePasswordResetUserId(String token) {
+        Claims claims = parseClaimsForPasswordReset(token);
+        if (!TYPE_PASSWORD_RESET.equals(claims.get(CLAIM_TOKEN_TYPE, String.class))) {
+            throw new AuthException(ErrorCode.PASSWORD_RESET_TOKEN_INVALID,
+                    "Link đặt lại mật khẩu không hợp lệ", HttpStatus.BAD_REQUEST);
+        }
+        return Integer.parseInt(claims.getSubject());
+    }
+
+    private Claims parseClaimsForPasswordReset(String token) {
+        try {
+            return Jwts.parser()
+                    .verifyWith(signingKey())
+                    .requireIssuer(jwtProperties.getIssuer())
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+        } catch (JwtException | IllegalArgumentException ex) {
+            throw new AuthException(ErrorCode.PASSWORD_RESET_TOKEN_INVALID,
+                    "Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn",
+                    HttpStatus.BAD_REQUEST, Map.of("reason", ex.getMessage()));
+        }
     }
 
     private CurrentUserStub toPrincipal(Claims claims) {

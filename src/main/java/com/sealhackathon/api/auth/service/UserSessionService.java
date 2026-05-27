@@ -18,7 +18,6 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.HexFormat;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -45,16 +44,17 @@ public class UserSessionService {
     }
 
     @Transactional
+    public RefreshTokenPair rotateRefreshToken(String rawToken, String ipAddress, String userAgent) {
+        UserSession active = resolveActiveSession(rawToken);
+        User user = active.getUser();
+        active.setRevokedAt(LocalDateTime.now());
+        userSessionRepository.save(active);
+        return createSession(user, ipAddress, userAgent);
+    }
+
+    @Transactional
     public User validateRefreshToken(String rawToken) {
-        String hash = hashToken(rawToken);
-        UserSession session = userSessionRepository.findByTokenHashAndRevokedAtIsNull(hash)
-                .orElseThrow(() -> new AuthException(ErrorCode.REFRESH_TOKEN_INVALID,
-                        "Refresh token không hợp lệ", HttpStatus.UNAUTHORIZED));
-        if (session.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new AuthException(ErrorCode.REFRESH_TOKEN_INVALID,
-                    "Refresh token đã hết hạn", HttpStatus.UNAUTHORIZED);
-        }
-        return session.getUser();
+        return resolveActiveSession(rawToken).getUser();
     }
 
     @Transactional
@@ -67,6 +67,43 @@ public class UserSessionService {
             session.setRevokedAt(LocalDateTime.now());
             userSessionRepository.save(session);
         });
+    }
+
+    @Transactional
+    public void revokeAllForUser(Integer userId) {
+        if (userId == null) {
+            return;
+        }
+        userSessionRepository.revokeAllActiveByUserId(userId, LocalDateTime.now());
+    }
+
+    private UserSession resolveActiveSession(String rawToken) {
+        if (rawToken == null || rawToken.isBlank()) {
+            throw refreshInvalid();
+        }
+        String hash = hashToken(rawToken);
+        return userSessionRepository.findByTokenHashAndRevokedAtIsNull(hash)
+                .map(session -> {
+                    if (session.getExpiresAt().isBefore(LocalDateTime.now())) {
+                        throw refreshInvalid();
+                    }
+                    return session;
+                })
+                .orElseGet(() -> handleMissingOrReusedToken(hash));
+    }
+
+    private UserSession handleMissingOrReusedToken(String hash) {
+        userSessionRepository.findByTokenHash(hash).ifPresent(revoked -> {
+            if (revoked.getRevokedAt() != null && revoked.getUser() != null) {
+                revokeAllForUser(revoked.getUser().getId());
+            }
+        });
+        throw refreshInvalid();
+    }
+
+    private static AuthException refreshInvalid() {
+        return new AuthException(ErrorCode.REFRESH_TOKEN_INVALID,
+                "Refresh token không hợp lệ", HttpStatus.UNAUTHORIZED);
     }
 
     public static String hashToken(String raw) {

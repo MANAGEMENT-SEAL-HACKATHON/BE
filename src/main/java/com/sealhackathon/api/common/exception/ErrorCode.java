@@ -45,6 +45,7 @@ public final class ErrorCode {
     public static final String INVALID_STATUS_TRANSITION = "INVALID_STATUS_TRANSITION";
     public static final String REFRESH_TOKEN_INVALID    = "REFRESH_TOKEN_INVALID";
     public static final String EMAIL_VERIFY_TOKEN_INVALID = "EMAIL_VERIFY_TOKEN_INVALID";
+    public static final String PASSWORD_RESET_TOKEN_INVALID = "PASSWORD_RESET_TOKEN_INVALID";
 
     // ---------- FR-01 HACKATHON ----------
     public static final String HACKATHON_DUPLICATE      = "HACKATHON_DUPLICATE";

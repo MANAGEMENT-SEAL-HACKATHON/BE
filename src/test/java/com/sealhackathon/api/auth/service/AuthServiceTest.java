@@ -3,6 +3,7 @@ package com.sealhackathon.api.auth.service;
 import com.sealhackathon.api.auth.config.JwtProperties;
 import com.sealhackathon.api.auth.dto.request.ChangePasswordRequest;
 import com.sealhackathon.api.auth.dto.request.LoginRequest;
+import com.sealhackathon.api.common.audit.AuditAction;
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.AuthException;
 import com.sealhackathon.api.common.exception.ErrorCode;
@@ -30,7 +31,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -145,6 +146,41 @@ class AuthServiceTest {
         assertThat(user.getPasswordHash()).isEqualTo("new-hash");
         assertThat(inv.getAcceptedAt()).isNotNull();
         verify(invitationRepository).save(inv);
+        verify(userSessionService).revokeAllForUser(10);
+    }
+
+    @Test
+    void refresh_returnsNewRefreshFromRotation() {
+        User user = User.builder()
+                .id(1)
+                .email("coord@fpt.edu.vn")
+                .status(UserStatus.APPROVED)
+                .mustChangePassword(false)
+                .build();
+        UserSession session = UserSession.builder().user(user).build();
+        when(userSessionService.rotateRefreshToken(any(), any(), any()))
+                .thenReturn(new UserSessionService.RefreshTokenPair("new-refresh", session));
+        when(jwtTokenService.createAccessToken(user)).thenReturn("access");
+        when(jwtProperties.getAccessTtlMinutes()).thenReturn(30);
+
+        var response = authService.refresh("old-refresh", new MockHttpServletRequest());
+
+        assertThat(response.getRefreshToken()).isEqualTo("new-refresh");
+        assertThat(response.getAccessToken()).isEqualTo("access");
+    }
+
+    @Test
+    void logoutAll_revokesAllForCurrentUser() {
+        when(currentUserAccessor.currentUserId()).thenReturn(99);
+
+        authService.logoutAll();
+
+        verify(userSessionService).revokeAllForUser(99);
+        verify(auditService).log(
+                eq(AuditAction.ACCOUNT_LOGOUT_ALL),
+                eq("users"),
+                eq(99),
+                org.mockito.ArgumentMatchers.<java.util.Map<String, Object>>any());
     }
 
     private static User tempJudgeUser() {

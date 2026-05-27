@@ -1,9 +1,13 @@
 package com.sealhackathon.api.auth.controller;
 
 import tools.jackson.databind.ObjectMapper;
+import com.sealhackathon.api.auth.dto.request.ForgotPasswordRequest;
 import com.sealhackathon.api.auth.dto.request.LoginRequest;
+import com.sealhackathon.api.auth.dto.request.ResetPasswordRequest;
 import com.sealhackathon.api.auth.dto.response.AuthTokenResponse;
+import com.sealhackathon.api.auth.dto.response.ForgotPasswordResponse;
 import com.sealhackathon.api.auth.service.AuthService;
+import com.sealhackathon.api.auth.service.PasswordResetService;
 import com.sealhackathon.api.auth.service.RegistrationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +44,9 @@ class AuthControllerTest {
     @MockitoBean
     private AuthService authService;
 
+    @MockitoBean
+    private PasswordResetService passwordResetService;
+
     @Test
     void login_returnsTokens() throws Exception {
         when(authService.login(any(), any())).thenReturn(AuthTokenResponse.builder()
@@ -59,5 +66,40 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.accessToken").value("access"));
+    }
+
+    @Test
+    void forgotPassword_returnsOk() throws Exception {
+        when(passwordResetService.requestReset("user@fpt.edu.vn"))
+                .thenReturn(ForgotPasswordResponse.builder()
+                        .message("Nếu email tồn tại trong hệ thống, hướng dẫn đặt lại mật khẩu sẽ được gửi.")
+                        .build());
+
+        ForgotPasswordRequest req = new ForgotPasswordRequest();
+        req.setEmail("user@fpt.edu.vn");
+
+        mockMvc.perform(post("/api/v1/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.message").exists());
+    }
+
+    @Test
+    void resetPassword_returnsOk() throws Exception {
+        ResetPasswordRequest req = new ResetPasswordRequest();
+        req.setToken("jwt-token");
+        req.setNewPassword("newPass123");
+
+        mockMvc.perform(post("/api/v1/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void logoutAll_returnsOk() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/logout-all"))
+                .andExpect(status().isOk());
     }
 }
