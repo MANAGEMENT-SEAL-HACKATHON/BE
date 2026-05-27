@@ -162,10 +162,11 @@ public final class ErrorCode {
     public static final String JUDGE_FINAL_AT_PHASE1                  = "JUDGE_FINAL_AT_PHASE1";
 
     // ---------- MF-02 GĐ2 TEAMS (FR-11 … FR-13C) — dùng khi implement logic ----------
+    public static final String CROSS_HACKATHON_VIOLATION                = "CROSS_HACKATHON_VIOLATION";
     public static final String TEAM_NAME_DUPLICATE                    = "TEAM_NAME_DUPLICATE";
     public static final String HACKATHON_NOT_ONGOING                    = "HACKATHON_NOT_ONGOING";
     public static final String REGISTRATION_CLOSED                      = "REGISTRATION_CLOSED";
-    public static final String TEAM_LEADER_NOT_APPROVED               = "TEAM_LEADER_NOT_APPROVED";
+    public static final String TEAM_LEADER_NOT_APPROVED                 = "TEAM_LEADER_NOT_APPROVED";
     public static final String TEAM_LEADER_INVALID_ROLE                 = "TEAM_LEADER_INVALID_ROLE";
     public static final String USER_IN_ANOTHER_TEAM                     = "USER_IN_ANOTHER_TEAM";
     public static final String TEAM_LOCKED                              = "TEAM_LOCKED";
@@ -183,7 +184,7 @@ public final class ErrorCode {
     public static final String ROUND_ALREADY_ACTIVE                     = "ROUND_ALREADY_ACTIVE";
     public static final String TEAM_ALREADY_HAS_MENTOR_IN_ROUND         = "TEAM_ALREADY_HAS_MENTOR_IN_ROUND";
     public static final String INVALID_MENTOR_FOR_TEAM                  = "INVALID_MENTOR_FOR_TEAM";
-    public static final String MENTOR_ASSIGNMENT_NOT_FOR_FINAL_ROUND      = "MENTOR_ASSIGNMENT_NOT_FOR_FINAL_ROUND";
+    public static final String MENTOR_ASSIGNMENT_NOT_FOR_FINAL_ROUND    = "MENTOR_ASSIGNMENT_NOT_FOR_FINAL_ROUND";
     public static final String TEAM_NOT_IN_ROUND                        = "TEAM_NOT_IN_ROUND";
     public static final String MENTOR_TEAM_CROSS_HACKATHON              = "MENTOR_TEAM_CROSS_HACKATHON";
     public static final String LEADER_CANNOT_LEAVE_TEAM                 = "LEADER_CANNOT_LEAVE_TEAM";
