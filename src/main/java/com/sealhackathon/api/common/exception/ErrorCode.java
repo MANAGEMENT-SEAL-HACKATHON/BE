@@ -46,6 +46,13 @@ public final class ErrorCode {
     public static final String REFRESH_TOKEN_INVALID    = "REFRESH_TOKEN_INVALID";
     public static final String EMAIL_VERIFY_TOKEN_INVALID = "EMAIL_VERIFY_TOKEN_INVALID";
     public static final String PASSWORD_RESET_TOKEN_INVALID = "PASSWORD_RESET_TOKEN_INVALID";
+    public static final String OAUTH_TOKEN_INVALID      = "OAUTH_TOKEN_INVALID";
+    public static final String OAUTH_ACCOUNT_NOT_LINKED = "OAUTH_ACCOUNT_NOT_LINKED";
+    public static final String OAUTH_ACCOUNT_ALREADY_LINKED = "OAUTH_ACCOUNT_ALREADY_LINKED";
+    public static final String OAUTH_EMAIL_MISMATCH = "OAUTH_EMAIL_MISMATCH";
+    public static final String OAUTH_EMAIL_NOT_VERIFIED = "OAUTH_EMAIL_NOT_VERIFIED";
+    public static final String OAUTH_PASSWORD_CONFIRM_REQUIRED = "OAUTH_PASSWORD_CONFIRM_REQUIRED";
+    public static final String OAUTH_UNLINK_FORBIDDEN = "OAUTH_UNLINK_FORBIDDEN";
 
     // ---------- FR-01 HACKATHON ----------
     public static final String HACKATHON_DUPLICATE      = "HACKATHON_DUPLICATE";

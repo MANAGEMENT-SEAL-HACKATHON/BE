@@ -50,6 +50,8 @@ public final class AuditAction {
     public static final String ACCOUNT_PASSWORD_CHANGED   = "ACCOUNT_PASSWORD_CHANGED";
     public static final String ACCOUNT_PASSWORD_RESET_REQUESTED = "ACCOUNT_PASSWORD_RESET_REQUESTED";
     public static final String ACCOUNT_PASSWORD_RESET     = "ACCOUNT_PASSWORD_RESET";
+    public static final String ACCOUNT_OAUTH_LINKED       = "ACCOUNT_OAUTH_LINKED";
+    public static final String ACCOUNT_OAUTH_UNLINKED     = "ACCOUNT_OAUTH_UNLINKED";
 
     // ---------- FR-05 PERSONNEL ----------
     public static final String TEMP_ACCOUNT_CREATE      = "TEMP_ACCOUNT_CREATE";

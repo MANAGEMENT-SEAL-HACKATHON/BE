@@ -4,16 +4,20 @@ import com.sealhackathon.api.auth.dto.request.ChangePasswordRequest;
 import com.sealhackathon.api.auth.dto.request.ForgotPasswordRequest;
 import com.sealhackathon.api.auth.dto.request.LoginRequest;
 import com.sealhackathon.api.auth.dto.request.LogoutRequest;
+import com.sealhackathon.api.auth.dto.request.OAuthGithubCodeRequest;
+import com.sealhackathon.api.auth.dto.request.OAuthGoogleRequest;
 import com.sealhackathon.api.auth.dto.request.RefreshTokenRequest;
 import com.sealhackathon.api.auth.dto.request.RegisterRequest;
 import com.sealhackathon.api.auth.dto.request.ResetPasswordRequest;
 import com.sealhackathon.api.common.security.ApprovedOnly;
 import com.sealhackathon.api.auth.dto.response.AuthTokenResponse;
 import com.sealhackathon.api.auth.dto.response.ForgotPasswordResponse;
+import com.sealhackathon.api.auth.dto.response.OAuthLinkStatusResponse;
 import com.sealhackathon.api.auth.dto.response.RegisterResponse;
 import com.sealhackathon.api.auth.service.AuthService;
 import com.sealhackathon.api.auth.service.PasswordResetService;
 import com.sealhackathon.api.auth.service.RegistrationService;
+import com.sealhackathon.api.auth.service.SocialAuthService;
 import com.sealhackathon.api.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -38,6 +42,7 @@ public class AuthController {
     private final RegistrationService registrationService;
     private final AuthService authService;
     private final PasswordResetService passwordResetService;
+    private final SocialAuthService socialAuthService;
 
     @PostMapping("/register")
     @Operation(summary = "Đăng ký tài khoản STUDENT (mở — không bắt buộc lời mời)")
@@ -69,6 +74,60 @@ public class AuthController {
             HttpServletRequest httpRequest) {
         return ResponseEntity.ok(ApiResponse.ok(
                 authService.refresh(req.getRefreshToken(), httpRequest)));
+    }
+
+    @PostMapping("/oauth/google")
+    @Operation(summary = "Đăng nhập bằng Google OAuth (chỉ tài khoản đã liên kết)")
+    public ResponseEntity<ApiResponse<AuthTokenResponse>> oauthGoogleLogin(
+            @Valid @RequestBody OAuthGoogleRequest req,
+            HttpServletRequest httpRequest) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                socialAuthService.loginWithGoogle(req.getIdToken(), req.getExistingAccountPassword(), httpRequest)));
+    }
+
+    @PostMapping("/oauth/github/code")
+    @Operation(summary = "Đăng nhập GitHub OAuth bằng code callback")
+    public ResponseEntity<ApiResponse<AuthTokenResponse>> oauthGithubCodeLogin(
+            @Valid @RequestBody OAuthGithubCodeRequest req,
+            HttpServletRequest httpRequest) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                socialAuthService.loginWithGithubCode(
+                        req.getCode(),
+                        req.getRedirectUri(),
+                        req.getExistingAccountPassword(),
+                        httpRequest)));
+    }
+
+    @PostMapping("/oauth/google/link")
+    @ApprovedOnly
+    @Operation(summary = "Liên kết tài khoản Google vào user hiện tại")
+    public ResponseEntity<ApiResponse<OAuthLinkStatusResponse>> linkGoogle(
+            @Valid @RequestBody OAuthGoogleRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                socialAuthService.linkGoogleForCurrentUser(req.getIdToken())));
+    }
+
+    @PostMapping("/oauth/github/link/code")
+    @ApprovedOnly
+    @Operation(summary = "Liên kết GitHub bằng code callback")
+    public ResponseEntity<ApiResponse<OAuthLinkStatusResponse>> linkGithubCode(
+            @Valid @RequestBody OAuthGithubCodeRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                socialAuthService.linkGithubCodeForCurrentUser(req.getCode(), req.getRedirectUri())));
+    }
+
+    @PostMapping("/oauth/google/unlink")
+    @ApprovedOnly
+    @Operation(summary = "Gỡ liên kết tài khoản Google khỏi user hiện tại")
+    public ResponseEntity<ApiResponse<OAuthLinkStatusResponse>> unlinkGoogle() {
+        return ResponseEntity.ok(ApiResponse.ok(socialAuthService.unlinkGoogleForCurrentUser()));
+    }
+
+    @PostMapping("/oauth/github/unlink")
+    @ApprovedOnly
+    @Operation(summary = "Gỡ liên kết tài khoản GitHub khỏi user hiện tại")
+    public ResponseEntity<ApiResponse<OAuthLinkStatusResponse>> unlinkGithub() {
+        return ResponseEntity.ok(ApiResponse.ok(socialAuthService.unlinkGithubForCurrentUser()));
     }
 
     @PostMapping("/forgot-password")
