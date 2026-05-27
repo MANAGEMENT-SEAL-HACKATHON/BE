@@ -1,369 +1,291 @@
 # MF-02 GĐ2 — Test data (Teams & Lottery)
 
-Dùng song song với [03-api-reference-gd2.md](03-api-reference-gd2.md).  
-**Lưu ý:** Các endpoint teams/lottery dưới đây hiện trả **`501 NOT_IMPLEMENTED`** cho đến khi implement service — FE vẫn mock UI theo JSON **kỳ vọng** bên dưới.
-
+Dùng song song với [03-api-reference-gd2.md](03-api-reference-gd2.md) và PDF `Bao_Cao_API_Data_Test_MF02_GD2.pdf`.  
 Auth / token: [04-test-data.md](04-test-data.md).
 
----
-
-## 0. Biến Postman
-
-| Biến | Gán từ |
-|------|--------|
-| `baseUrl` | `http://localhost:8080` |
-| `accessTokenStudent` | Login student APPROVED |
-| `accessTokenCoord` | `coord@fpt.edu.vn` |
-| `hackathonId` | Seed GĐ1 (thường `1`) |
-| `teamId` | Sau POST teams (khi implement) hoặc mock `10` |
-| `roundId` | Round Sơ loại seed |
-| `trackId` | Track seed |
+**Profile dev:** `Gd2DataSeeder` tự chạy sau `Gd1DataSeeder` — mỗi bảng GĐ2 có **≥ 5 bản ghi đa dạng** (trạng thái, chapter, track, mentor…).
 
 ---
 
-## 1. Login (tiền đề)
+## 0. Cấu hình nhanh
 
-### Student (sau khi register + approve)
+| Mục | Giá trị |
+|-----|---------|
+| Base URL | `http://localhost:8080/api/v1` |
+| Hackathon test | slug `seal-spring-2026` (ONGOING) — lấy `hackathonId` qua `GET /hackathons?q=seal-spring-2026` |
+| Vòng bốc thăm | Round **Sơ loại** (`PRELIMINARY`) — `roundId` từ `GET /hackathons/{id}/rounds` |
+| Track | `trackId` 1–2 (Track 1 RAG, Track 2 AI Agent) trên cùng round sơ loại |
+
+### Đăng nhập mẫu
+
+| Vai trò | Email | Password |
+|---------|-------|----------|
+| Coordinator | `coord@fpt.edu.vn` | `Coordinator@dev1` |
+| Mentor | `mentor@fpt.edu.vn` | `Mentor@dev1` |
+| Sinh viên GĐ2 (mọi tài khoản seed) | xem §1 | `Student@dev1` |
+
+---
+
+## 1. Bảng `users` — 30 sinh viên APPROVED
+
+Tất cả: `role=STUDENT`, `status=APPROVED`, password **`Student@dev1`**.
+
+| # | Email | userType | Chapter | Mục đích test |
+|---|-------|----------|---------|----------------|
+| 1 | `student.gd2.hcm.leader01@fpt.edu.vn` | INTERNAL | FPT-HCM | Leader đội 01 — duyệt fail (1 người) |
+| 2 | `student.gd2.hn.leader02@fpt.edu.vn` | INTERNAL | FPT-HN | Leader đội 02 — 2 ACCEPTED + 1 PENDING |
+| 3 | `student.gd2.hcm.member03@fpt.edu.vn` | INTERNAL | FPT-HCM | Member đội 02 |
+| 4 | `student.gd2.hcm.member04@fpt.edu.vn` | INTERNAL | FPT-HCM | Member đội 02 |
+| 5 | `student.gd2.ext.pending@gmail.com` | EXTERNAL | EXT | PENDING invite đội 02 |
+| 6 | `student.gd2.hcm.leader03@fpt.edu.vn` | INTERNAL | FPT-HCM | Leader đội 03 — sẵn duyệt (4 người) |
+| 7–9 | `member06`, `hn.member07`, `ext.member08` | mix | — | Member đội 03 |
+| 10 | `student.gd2.ext.leader04@gmail.com` | EXTERNAL | EXT | Leader đội 04 — ACTIVE + lottery + mentor |
+| 11–12 | `hcm.member10`, `hn.member11` | mix | — | Member đội 04 |
+| 13 | `student.gd2.hcm.leader05@fpt.edu.vn` | INTERNAL | FPT-HCM | Leader đội 05 — **isLocked** |
+| 14–16 | `member12`, `ext.member13`, `hn.member14` | mix | — | Member đội 05 (4 ACCEPTED) |
+| 17 | `student.gd2.hcm.leader06@fpt.edu.vn` | INTERNAL | FPT-HCM | Leader đội 06 — **REJECTED** |
+| 18–20 | `member15`, `ext.member16` | mix | — | Member đội 06 |
+| 21 | `student.gd2.hcm.leader07@fpt.edu.vn` | INTERNAL | FPT-HCM | Leader đội 07 — ACTIVE, **chưa mentor** |
+| 22–23 | `hn.member17`, `ext.member18` | mix | — | Member đội 07 |
+| 24 | `student.gd2.hcm.leader08@fpt.edu.vn` | INTERNAL | FPT-HCM | Leader đội 08 — **ELIMINATED** |
+| 25–26 | `member19`, `hn.member20` | mix | — | Member đội 08 |
+| 27 | `student.gd2.ext.leader09@gmail.com` | EXTERNAL | EXT | Leader đội 09 — ACTIVE track 2 |
+| 28–29 | `hcm.member21`, `ext.member22` | mix | — | Member đội 09 |
+| 30 | `student.gd2.ext.member23@gmail.com` | EXTERNAL | EXT | **LEFT** đội 02 |
+| — | `student.gd2.pool.free@gmail.com` | EXTERNAL | EXT | **Chưa có đội** — test mời |
+| — | `student.gd2.pool.busy@gmail.com` | EXTERNAL | EXT | **ACCEPTED đội 04** — test `USER_IN_ANOTHER_TEAM` |
+
+**SQL kiểm tra:**
+
+```sql
+SELECT id, email, user_type, status, institution
+FROM users
+WHERE email LIKE 'student.gd2.%' OR email LIKE 'student.gd2.pool.%'
+ORDER BY id;
+```
+
+---
+
+## 2. Bảng `teams` — 9 đội (≥ 5 trạng thái khác nhau)
+
+Hackathon: **SEAL Spring 2026** (`seal-spring-2026`). Tên đội prefix `GD2-`.
+
+| # | teamName | status | isLocked | accepted | Kịch bản |
+|---|----------|--------|----------|----------|----------|
+| 01 | `GD2-01 Chờ duyệt (1 người)` | PENDING | false | 1 | `PATCH .../status` ACTIVE → `422 TEAM_INVALID_MEMBER_COUNT` |
+| 02 | `GD2-02 Chờ duyệt (2 ACCEPTED + 1 PENDING)` | PENDING | false | 2 | Thiếu người; có invite PENDING |
+| 03 | `GD2-03 Sẵn duyệt ACTIVE (4 người)` | PENDING | false | 4 | Coordinator duyệt OK → ACTIVE |
+| 04 | `GD2-04 ACTIVE + bốc thăm Track 1` | ACTIVE | false | 4 | Lottery bảng A; có mentor |
+| 05 | `GD2-05 ACTIVE đã khóa + bốc thăm` | ACTIVE | **true** | 4 | `TEAM_LOCKED` khi mời/sửa |
+| 06 | `GD2-06 REJECTED` | REJECTED | false | 3 | Có `rejectionReason` |
+| 07 | `GD2-07 ACTIVE chưa mentor (bốc thăm)` | ACTIVE | false | 3 | `POST .../mentor` |
+| 08 | `GD2-08 ELIMINATED` | ELIMINATED | false | 3 | Loại cuộc thi |
+| 09 | `GD2-09 ACTIVE bốc thăm Track 2` | ACTIVE | false | 3 | Track 2, bảng B |
+
+```sql
+SELECT t.id, t.team_name, t.status, t.is_locked, t.rejection_reason, u.email AS leader_email
+FROM teams t
+JOIN users u ON u.id = t.leader_id
+JOIN hackathons h ON h.id = t.hackathon_id
+WHERE h.slug = 'seal-spring-2026' AND t.team_name LIKE 'GD2-%'
+ORDER BY t.team_name;
+```
+
+---
+
+## 3. Bảng `team_members` — đa dạng role / status
+
+| status | Ví dụ | Test |
+|--------|-------|------|
+| ACCEPTED + LEADER | Mỗi đội | Chi tiết đội, duyệt |
+| ACCEPTED + MEMBER | Đội 03–09 | Đủ 3–5 khi duyệt |
+| PENDING | `ext.pending@gmail.com` ở đội 02 | Accept / Reject invite |
+| LEFT | `ext.member23@gmail.com` ở đội 02 | Rời đội |
+
+**API mẫu — accept invite (đăng nhập user #5):**
 
 ```http
-POST {{baseUrl}}/api/v1/auth/login
-Content-Type: application/json
-```
-
-```json
-{
-  "email": "newstudent@gmail.com",
-  "password": "Student@dev1"
-}
-```
-
-Lưu `data.accessToken` → `accessTokenStudent`.
-
-### Coordinator
-
-```json
-{
-  "email": "coord@fpt.edu.vn",
-  "password": "Coordinator@dev1"
-}
-```
-
----
-
-## 2. Teams — kỳ vọng khi đã implement
-
-### 2.1 Tạo đội — `POST /teams`
-
-```http
-POST {{baseUrl}}/api/v1/teams
-Authorization: Bearer {{accessTokenStudent}}
-Content-Type: application/json
-```
-
-```json
-{
-  "hackathonId": 1,
-  "teamName": "Seal Warriors Dev"
-}
-```
-
-**Hiện tại (khung):** `501`, body `NOT_IMPLEMENTED`.
-
-**Kỳ vọng sau implement:** `201`
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": 10,
-    "hackathonId": 1,
-    "teamName": "Seal Warriors Dev",
-    "leaderId": 42,
-    "chapterId": 1,
-    "status": "PENDING",
-    "isLocked": false,
-    "createdAt": "2026-05-24T14:30:00"
-  },
-  "message": null,
-  "traceId": "..."
-}
-```
-
-**Lỗi mẫu — trùng tên**
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "TEAM_NAME_DUPLICATE",
-    "message": "Tên đội đã tồn tại trong hackathon này",
-    "status": 409
-  }
-}
-```
-
----
-
-### 2.2 Chi tiết đội — `GET /teams/10`
-
-```http
-GET {{baseUrl}}/api/v1/teams/10
-Authorization: Bearer {{accessTokenStudent}}
-```
-
-**Kỳ vọng `200` (mock cho FE Storybook)**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": 10,
-    "hackathonId": 1,
-    "hackathonName": "SEAL Hackathon Spring 2026",
-    "teamName": "Seal Warriors Dev",
-    "leaderId": 42,
-    "leaderName": "Nguyen Van A",
-    "chapterId": 1,
-    "status": "PENDING",
-    "isLocked": false,
-    "lockedAt": null,
-    "rejectionReason": null,
-    "createdAt": "2026-05-24T14:30:00",
-    "acceptedMemberCount": 1,
-    "pendingInviteCount": 2,
-    "members": [
-      {
-        "userId": 42,
-        "fullName": "Nguyen Van A",
-        "email": "student@fpt.edu.vn",
-        "roleInTeam": "LEADER",
-        "status": "ACCEPTED"
-      },
-      {
-        "userId": 43,
-        "fullName": "Tran Thi B",
-        "email": "invite.b@gmail.com",
-        "roleInTeam": "MEMBER",
-        "status": "PENDING"
-      },
-      {
-        "userId": 44,
-        "fullName": "Le Van C",
-        "email": "invite.c@gmail.com",
-        "roleInTeam": "MEMBER",
-        "status": "PENDING"
-      }
-    ]
-  }
-}
-```
-
----
-
-### 2.3 Coordinator — danh sách chờ duyệt
-
-```http
-GET {{baseUrl}}/api/v1/teams?hackathonId=1&status=PENDING
-Authorization: Bearer {{accessTokenCoord}}
-```
-
-**Kỳ vọng `200`:** `data` là mảng 2–3 `TeamDetailResponse` (như trên).
-
----
-
-### 2.4 Mời thành viên
-
-```http
-POST {{baseUrl}}/api/v1/teams/10/members/invite
-Authorization: Bearer {{accessTokenStudent}}
-```
-
-```json
-{ "email": "friend@gmail.com" }
-```
-
-**Kỳ vọng:** `202` + `message` "Đã gửi lời mời".
-
----
-
-### 2.5 Invitee accept
-
-```http
-PATCH {{baseUrl}}/api/v1/teams/10/members/43
+PATCH {{baseUrl}}/api/v1/teams/{{teamId02}}/members/{{userIdPending}}
 Authorization: Bearer {{accessTokenInvitee}}
-```
+Content-Type: application/json
 
-```json
 { "action": "ACCEPT" }
 ```
 
-**Kỳ vọng:** `200`, `acceptedMemberCount` tăng khi GET lại.
-
----
-
-### 2.6 Duyệt đội
+**API — mời (đăng nhập leader đội 01, user pool free):**
 
 ```http
-PATCH {{baseUrl}}/api/v1/teams/10/status
-Authorization: Bearer {{accessTokenCoord}}
+POST {{baseUrl}}/api/v1/teams/{{teamId01}}/members/invite
+Authorization: Bearer {{accessTokenLeader01}}
+Content-Type: application/json
+
+{ "email": "student.gd2.pool.free@gmail.com" }
 ```
+
+**API — mời trùng (pool busy → 409):**
 
 ```json
-{ "status": "ACTIVE" }
+{ "email": "student.gd2.pool.busy@gmail.com" }
 ```
 
-**Lỗi — thiếu thành viên**
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "TEAM_INVALID_MEMBER_COUNT",
-    "message": "Đội cần từ 3 đến 5 thành viên đã chấp nhận",
-    "status": 422,
-    "details": { "accepted": 2, "min": 3, "max": 5 }
-  }
-}
-```
-
-*(chi tiết `details` có thể thay khi implement)*
+Kỳ vọng: `409` `USER_IN_ANOTHER_TEAM`.
 
 ---
 
-### 2.7 Từ chối đội
+## 4. Bảng `team_round_participation` — 5 bản ghi
 
-```json
-{
-  "status": "REJECTED",
-  "rejectionReason": "Không đủ thành viên FPT chapter"
-}
-```
+| Đội | Round | Ghi chú |
+|-----|-------|---------|
+| GD2-04 | Sơ loại | ACTIVE |
+| GD2-05 | Sơ loại | ACTIVE locked |
+| GD2-07 | Sơ loại | Chưa mentor |
+| GD2-08 | Sơ loại | ELIMINATED (vẫn có participation để đọc lịch sử) |
+| GD2-09 | Sơ loại | Track 2 |
 
 ---
 
-## 3. Lottery — `PATCH /hackathons/1/lottery`
+## 5. Bảng `team_round_tracks` — 5 bản ghi
+
+| Đội | track (seed) | assignedGroup |
+|-----|--------------|---------------|
+| GD2-04 | Track 1 — RAG | Bảng A |
+| GD2-05 | Track 1 — RAG | Bảng B |
+| GD2-07 | Track 2 — AI Agent | Bảng A |
+| GD2-08 | Track 1 — RAG | Bảng C |
+| GD2-09 | Track 2 — AI Agent | Bảng B |
+
+**API lottery (Coordinator) — thêm đội mới:**
 
 ```http
-PATCH {{baseUrl}}/api/v1/hackathons/1/lottery
+PATCH {{baseUrl}}/api/v1/hackathons/{{hackathonId}}/lottery
 Authorization: Bearer {{accessTokenCoord}}
+Content-Type: application/json
 ```
 
 ```json
 {
-  "roundId": 2,
+  "roundId": 1,
   "assignments": [
-    { "teamId": 10, "trackId": 1, "assignedGroup": "A" },
-    { "teamId": 11, "trackId": 2, "assignedGroup": "B" }
+    { "teamId": 10, "trackId": 1, "assignedGroup": "Bảng A" }
   ]
 }
 ```
 
-**Kỳ vọng `200`**
-
-```json
-{
-  "success": true,
-  "data": {
-    "hackathonId": 1,
-    "roundId": 2,
-    "assignedCount": 2,
-    "teamIds": [10, 11]
-  }
-}
-```
+*(Thay `roundId` / `teamId` / `trackId` bằng ID thật sau seed.)*
 
 ---
 
-## 4. Re-lottery track
+## 6. Bảng `mentor_team_assignments` — 5 bản ghi
+
+Mentor seed: `mentor@fpt.edu.vn` — vòng **Sơ loại** (không gán FINAL).
+
+| Đội | Ghi chú |
+|-----|---------|
+| GD2-03 | PENDING (mentor sớm — edge case) |
+| GD2-04 | ACTIVE đầy đủ |
+| GD2-05 | ACTIVE locked |
+| GD2-07 | — |
+| GD2-09 | — |
+
+**GD2-07** cố ý **không** có mentor trong seed → test:
 
 ```http
-PATCH {{baseUrl}}/api/v1/teams/10/rounds/2/track
+POST {{baseUrl}}/api/v1/teams/{{teamId07}}/rounds/{{roundIdPrelim}}/mentor
 Authorization: Bearer {{accessTokenCoord}}
-```
+Content-Type: application/json
 
-```json
-{ "trackId": 3, "assignedGroup": "C" }
-```
-
----
-
-## 5. Mentor
-
-### Gán
-
-```http
-POST {{baseUrl}}/api/v1/teams/10/rounds/2/mentor
-Authorization: Bearer {{accessTokenCoord}}
-```
-
-```json
 { "mentorId": 5 }
 ```
 
-### Lịch sử
+**Disband có mentor (đội 04) → 409:**
 
 ```http
-GET {{baseUrl}}/api/v1/teams/10/mentors
-Authorization: Bearer {{accessTokenCoord}}
+DELETE {{baseUrl}}/api/v1/teams/{{teamId04}}
 ```
 
-**Kỳ vọng `200`:** xem [03-api-reference-gd2.md §4.3](03-api-reference-gd2.md#43-lịch-sử).
+Kỳ vọng: `409` `TEAM_HAS_MENTOR_CANNOT_DISBAND`.
 
 ---
 
-## 6. Kịch bản E2E (manual checklist)
+## 7. Map API ↔ Error code (từ PDF)
 
-| # | Bước | Actor | API |
-|---|------|-------|-----|
-| 1 | Login student | Student | auth/login |
-| 2 | Tạo đội | Student | POST `/teams` |
-| 3 | Mời 2 người | Leader | POST invite ×2 |
-| 4 | Accept cả 2 | Invitees | PATCH member ACCEPT |
-| 5 | Duyệt đội | Coordinator | PATCH status ACTIVE |
-| 6 | (Sau registration_end) Khóa | System | cron — `isLocked=true` |
-| 7 | Bốc thăm | Coordinator | PATCH lottery |
-| 8 | Gán mentor | Coordinator | POST mentor |
+| API | Body / điều kiện | Error |
+|-----|------------------|-------|
+| `POST /teams` trùng tên `GD2-01...` | — | `409 TEAM_NAME_DUPLICATE` |
+| `PATCH .../status` ACTIVE đội 01 | `{ "status": "ACTIVE" }` | `422 TEAM_INVALID_MEMBER_COUNT` |
+| `POST .../invite` pool.busy | email busy | `409 USER_IN_ANOTHER_TEAM` |
+| `PATCH .../status` ACTIVE đội 03 | `{ "status": "ACTIVE" }` | `200` |
+| `PATCH .../status` REJECTED đội 06 | + `rejectionReason` | `200` |
+| `DELETE /teams/{id}` đội 04 | có mentor | `409 TEAM_HAS_MENTOR_CANNOT_DISBAND` |
+| `POST .../rounds/{finalRoundId}/mentor` | round FINAL | `422 MENTOR_ASSIGNMENT_NOT_FOR_FINAL_ROUND` |
 
 ---
 
-## 7. Mock JSON cho FE (copy vào `mocks/teams.json`)
+## 8. Luồng E2E gợi ý (manual)
 
-File gộp 3 trạng thái UI:
+| # | Bước | Actor | Ghi chú |
+|---|------|-------|---------|
+| 1 | Login `student.gd2.hcm.leader03@fpt.edu.vn` | Student | |
+| 2 | `GET /teams?hackathonId=&status=PENDING` | Student | Thấy đội 03 |
+| 3 | Login Coordinator | Coord | |
+| 4 | `PATCH /teams/{03}/status` ACTIVE | Coord | `200` |
+| 5 | Login `student.gd2.pool.free@gmail.com` | Student | |
+| 6 | Nhận invite / tạo đội mới | — | |
+| 7 | `PATCH /hackathons/{id}/lottery` | Coord | Đội chưa có track |
+| 8 | `POST .../mentor` đội 07 | Coord | |
+
+---
+
+## 9. Reset / seed lại GĐ2
+
+Seed chỉ chạy **một lần** (kiểm tra tên `GD2-01...`). Để seed lại:
+
+```sql
+DELETE tm FROM team_members tm
+JOIN teams t ON t.id = tm.team_id
+JOIN hackathons h ON h.id = t.hackathon_id
+WHERE h.slug = 'seal-spring-2026' AND t.team_name LIKE 'GD2-%';
+
+DELETE FROM teams WHERE team_name LIKE 'GD2-%'
+  AND hackathon_id = (SELECT id FROM hackathons WHERE slug = 'seal-spring-2026' LIMIT 1);
+
+DELETE FROM users WHERE email LIKE 'student.gd2.%' OR email LIKE 'student.gd2.pool.%';
+```
+
+Restart app (`profile=dev`) → `Gd2DataSeeder` chạy lại.
+
+---
+
+## 10. Mock JSON FE (`mocks/teams-gd2.json`)
 
 ```json
 {
-  "teamPending": {
-    "id": 10,
-    "teamName": "Seal Warriors",
-    "status": "PENDING",
-    "isLocked": false,
-    "acceptedMemberCount": 1,
-    "pendingInviteCount": 2,
-    "members": []
-  },
-  "teamActive": {
-    "id": 10,
-    "teamName": "Seal Warriors",
-    "status": "ACTIVE",
-    "isLocked": false,
-    "acceptedMemberCount": 4,
-    "pendingInviteCount": 0
-  },
-  "teamLocked": {
-    "id": 10,
-    "teamName": "Seal Warriors",
+  "teamsPendingList": [
+    { "id": 1, "teamName": "GD2-01 Chờ duyệt (1 người)", "status": "PENDING", "acceptedMemberCount": 1 },
+    { "id": 2, "teamName": "GD2-02 Chờ duyệt (2 ACCEPTED + 1 PENDING)", "status": "PENDING", "acceptedMemberCount": 2, "pendingInviteCount": 1 },
+    { "id": 3, "teamName": "GD2-03 Sẵn duyệt ACTIVE (4 người)", "status": "PENDING", "acceptedMemberCount": 4 }
+  ],
+  "teamActiveLocked": {
+    "teamName": "GD2-05 ACTIVE đã khóa + bốc thăm",
     "status": "ACTIVE",
     "isLocked": true,
-    "lockedAt": "2026-06-05T23:59:59",
     "acceptedMemberCount": 4
+  },
+  "teamRejected": {
+    "teamName": "GD2-06 REJECTED",
+    "status": "REJECTED",
+    "rejectionReason": "Hồ sơ không khớp quy chế chapter FPT-HCM"
+  },
+  "teamEliminated": {
+    "teamName": "GD2-08 ELIMINATED",
+    "status": "ELIMINATED",
+    "eliminationReason": "Không nộp bài sơ loại"
   }
 }
 ```
 
 ---
 
-## 8. Swagger
+## 11. Swagger
 
-`http://localhost:8080/swagger-ui.html` → **Teams (GĐ2)**, **Hackathons** (lottery).
-
-Thử endpoint → expect `501` + `NOT_IMPLEMENTED` (xác nhận route đúng).
+`http://localhost:8080/swagger-ui.html` → **Teams**, **Hackathons** (lottery).

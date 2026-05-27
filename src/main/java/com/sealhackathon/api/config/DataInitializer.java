@@ -2,6 +2,7 @@ package com.sealhackathon.api.config;
 
 import com.sealhackathon.api.config.seed.Gd1DataSeeder;
 import com.sealhackathon.api.config.seed.Gd1SeedConstants;
+import com.sealhackathon.api.config.seed.Gd2DataSeeder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -30,6 +31,7 @@ import org.springframework.stereotype.Component;
 public class DataInitializer implements CommandLineRunner {
 
     private final Gd1DataSeeder gd1DataSeeder;
+    private final Gd2DataSeeder gd2DataSeeder;
 
     @Override
     public void run(String... args) {
@@ -39,10 +41,11 @@ public class DataInitializer implements CommandLineRunner {
         gd1DataSeeder.repairDevUserPasswords();
 
         if (gd1DataSeeder.isAlreadySeeded()) {
-            log.info("[DataInitializer] Seed đã có (slug={}), bỏ qua tạo mới.",
+            log.info("[DataInitializer] Seed GĐ1 đã có (slug={}), bỏ qua tạo mới GĐ1.",
                     Gd1SeedConstants.SLUG_ONGOING);
-            return;
+        } else {
+            gd1DataSeeder.seedAll();
         }
-        gd1DataSeeder.seedAll();
+        gd2DataSeeder.ensureSeed();
     }
 }
