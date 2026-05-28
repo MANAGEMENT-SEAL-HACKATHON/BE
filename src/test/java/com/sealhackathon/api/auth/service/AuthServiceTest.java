@@ -183,6 +183,59 @@ class AuthServiceTest {
                 org.mockito.ArgumentMatchers.<java.util.Map<String, Object>>any());
     }
 
+    @Test
+    void login_pendingStudent_allowsProfileCompletionFlow() {
+        User user = User.builder()
+                .id(77)
+                .email("pending.student@gmail.com")
+                .passwordHash("hash")
+                .role(UserRole.STUDENT)
+                .userType(UserType.UNSPECIFIED)
+                .isTempAccount(false)
+                .mustChangePassword(false)
+                .status(UserStatus.PENDING)
+                .build();
+        when(userRepository.findByEmail("pending.student@gmail.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("Student@123", "hash")).thenReturn(true);
+        when(jwtTokenService.createAccessToken(user)).thenReturn("access");
+        when(userSessionService.createSession(any(), any(), any()))
+                .thenReturn(new UserSessionService.RefreshTokenPair("refresh", new UserSession()));
+        when(jwtProperties.getAccessTtlMinutes()).thenReturn(30);
+
+        LoginRequest req = new LoginRequest();
+        req.setEmail("pending.student@gmail.com");
+        req.setPassword("Student@123");
+
+        var response = authService.login(req, new MockHttpServletRequest());
+
+        assertThat(response.getAccessToken()).isEqualTo("access");
+        assertThat(response.getRefreshToken()).isEqualTo("refresh");
+    }
+
+    @Test
+    void login_pendingNonStudent_stillBlocked() {
+        User user = User.builder()
+                .email("pending.judge@company.com")
+                .passwordHash("hash")
+                .role(UserRole.JUDGE)
+                .userType(UserType.EXTERNAL)
+                .isTempAccount(false)
+                .mustChangePassword(false)
+                .status(UserStatus.PENDING)
+                .build();
+        when(userRepository.findByEmail("pending.judge@company.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("Judge@123", "hash")).thenReturn(true);
+
+        LoginRequest req = new LoginRequest();
+        req.setEmail("pending.judge@company.com");
+        req.setPassword("Judge@123");
+
+        assertThatThrownBy(() -> authService.login(req, new MockHttpServletRequest()))
+                .isInstanceOf(AuthException.class)
+                .extracting(ex -> ((AuthException) ex).getCode())
+                .isEqualTo(ErrorCode.ACCOUNT_PENDING_NOT_ALLOWED_LOGIN);
+    }
+
     private static User tempJudgeUser() {
         return User.builder()
                 .email("guest@company.com")

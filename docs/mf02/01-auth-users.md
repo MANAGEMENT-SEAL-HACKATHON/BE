@@ -6,7 +6,7 @@
 
 
 
-**Chính sách duyệt:** FPT K19+ dùng email cá nhân — **không** auto-approve; **mọi** tài khoản chờ **Coordinator duyệt tay** sau verify email. Coordinator xem `institution`, `chapterCode`, `studentCode` khi duyệt (thủ công; bảng `participating_institutions` đợt sau).
+**Chính sách duyệt:** FPT K19+ dùng email cá nhân — **không** auto-approve; **mọi** tài khoản chờ **Coordinator duyệt tay** sau khi hoàn thiện hồ sơ. Coordinator xem `institution`, `chapterCode`, `studentCode` khi duyệt (thủ công; bảng `participating_institutions` đợt sau).
 
 
 
@@ -78,13 +78,11 @@ Log đầy đủ khi start `dev`: `[Gd1DataSeeder] Dev login` + `Password=... | 
 
 | **Đăng ký** | `POST /auth/register` | `PENDING`, chưa login |
 
-| **Verify email** | `GET /auth/verify-email?token=` | `email_verified_at` set — **vẫn PENDING** |
-
 | **Duyệt** | Coordinator `PATCH /users/{id}/status` | `APPROVED` → mới `POST /auth/login` |
 
 
 
-Verify email **không** thay duyệt Coordinator.
+Hoàn thiện hồ sơ **không** thay duyệt Coordinator.
 
 
 
@@ -101,8 +99,6 @@ Verify email **không** thay duyệt Coordinator.
 |--------|------|--------|
 
 | POST | `/api/v1/auth/register` | STUDENT mở: INTERNAL (`studentCode`, `chapterId`) hoặc EXTERNAL (`institution`, `studentCode`) — **không** `invitationToken` |
-
-| GET | `/api/v1/auth/verify-email?token=` | Xác thực sở hữu email |
 
 | POST | `/api/v1/auth/login` | Chỉ `status=APPROVED`; response `mustChangePassword` (judge khách) |
 
@@ -140,7 +136,7 @@ Verify email **không** thay duyệt Coordinator.
 
 
 
-Giống verify-email: JWT ngắn hạn (`security.jwt.password-reset-ttl-hours`, mặc định 1h), `log.info` token + URL khi user `APPROVED` có `passwordHash`. Profile dev: `security.jwt.dev-expose-password-reset-token=true` trả `devResetToken` / `devResetUrl` trong response. Chưa gửi SMTP thật.
+JWT ngắn hạn (`security.jwt.password-reset-ttl-hours`, mặc định 1h), `log.info` token + URL khi user `APPROVED` có `passwordHash`. Profile dev: `security.jwt.dev-expose-password-reset-token=true` trả `devResetToken` / `devResetUrl` trong response. Chưa gửi SMTP thật.
 
 
 
@@ -214,7 +210,7 @@ Cấu hình: `app.frontend-url` (mặc định Vercel FE).
 
 1. `POST /auth/register` EXTERNAL hoặc INTERNAL (đăng ký mở).
 
-3. Verify email → Coordinator duyệt → login.
+3. Hoàn thiện hồ sơ → Coordinator duyệt → login.
 
 4. `PATCH /users/me` cập nhật phone.
 

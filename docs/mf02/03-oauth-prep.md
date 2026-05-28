@@ -36,7 +36,7 @@ Không bắt buộc “một Gmail chính thức” duy nhất — cần **vài 
 | **Google OAuth-only** | Gmail chưa register email/password | Test `POST /auth/oauth/google` → bước **complete profile** |
 | **Judge khách** | Gmail BTC mời judge (tách luồng FR-05a) | Không trùng token STUDENT |
 
-**Lưu ý FPT K19+:** Sinh viên dùng **mail cá nhân** (@gmail.com, …) cho INTERNAL — coordinator **duyệt tay** sau verify email (đã tắt auto-approve).
+**Lưu ý FPT K19+:** Sinh viên dùng **mail cá nhân** (@gmail.com, …) cho INTERNAL — coordinator **duyệt tay** sau khi user hoàn thiện hồ sơ (đã tắt auto-approve).
 
 ---
 
@@ -47,7 +47,6 @@ Không bắt buộc “một Gmail chính thức” duy nhất — cần **vài 
 | MySQL + seed GĐ1 | Hackathon ONGOING (public trên FE) |
 | Chapter ACTIVE | `chapterId` khi register INTERNAL / complete profile |
 | JWT APPROVED | `POST /auth/login` → Bearer |
-| `security.jwt.dev-expose-verify-token=true` (dev) | Copy token verify / `registerUrl` |
 | `app.frontend-url` | Link email judge: `/login` |
 
 ---
@@ -94,10 +93,10 @@ sequenceDiagram
 | Hạng mục | Ghi chú |
 |----------|---------|
 | SMTP relay / SendGrid / SES | Thay `NoOpEmailServiceImpl` |
-| Template email | Verify email; judge khách (MK tạm + link login) |
+| Template email | Judge khách (MK tạm + link login) |
 | SPF/DKIM domain | Gửi từ domain BTC (VD `noreply@seal...`) |
 
-Hiện tại: MK tạm judge ở log DEBUG + `devVerifyUrl` khi `security.jwt.dev-expose-verify-token=true`.
+Hiện tại: MK tạm judge ở log DEBUG.
 
 ---
 
@@ -106,8 +105,8 @@ Hiện tại: MK tạm judge ở log DEBUG + `devVerifyUrl` khi `security.jwt.de
 - [ ] Google OAuth client dev + secret trong `.env`
 - [ ] Ít nhất 2 Gmail test (INTERNAL, EXTERNAL)
 - [ ] Judge khách: `POST /users/temp-judges` → login → `change-password`
-- [ ] Register EXTERNAL **không** token → verify → coordinator `PATCH .../status` APPROVED
-- [ ] Register INTERNAL Gmail + chapter → verify → **duyệt tay** (không auto)
+- [ ] Register EXTERNAL **không** token → hoàn thiện hồ sơ → coordinator `PATCH .../status` APPROVED
+- [ ] Register INTERNAL Gmail + chapter → hoàn thiện hồ sơ → **duyệt tay** (không auto)
 - [ ] Document quy tắc “SV tốt nghiệp”: coordinator reject + `rejectionReason` (không có API tự động)
 - [ ] FE redirect URI khớp Google Console
 - [ ] Quyết định: 1 Google `sub` ↔ 1 `users` row; xử lý email Google ≠ email đã register password

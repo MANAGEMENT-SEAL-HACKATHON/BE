@@ -12,7 +12,7 @@ Tài liệu này mô tả **những gì FE cần làm** khi tích hợp login, r
 | `auth/service/AuthService.java` | Login, refresh, logout, change-password |
 | `auth/service/UserSessionService.java` | Refresh rotation, revoke session |
 | `auth/service/JwtTokenService.java` | Tạo/parse JWT access |
-| `auth/service/RegistrationService.java` | Register, verify-email |
+| `auth/service/RegistrationService.java` | Register |
 | `auth/service/PasswordResetService.java` | Forgot / reset password |
 | `auth/security/JwtAuthenticationFilter.java` | Đọc Bearer access token |
 | `auth/dto/request/*`, `auth/dto/response/*` | Shape request/response |
@@ -80,7 +80,6 @@ FE nên branch theo `error.code`, không parse `message` để logic.
 | Method | Path | Auth | Mô tả |
 |--------|------|------|--------|
 | POST | `/auth/register` | Không | Đăng ký STUDENT |
-| GET | `/auth/verify-email?token=` | Không | Xác thực email (link) |
 | POST | `/auth/login` | Không | Login → tokens |
 | POST | `/auth/refresh` | Không (body refresh) | Làm mới access + **refresh mới** |
 | POST | `/auth/logout` | Không (body refresh tùy chọn) | Revoke 1 refresh session |
@@ -88,7 +87,7 @@ FE nên branch theo `error.code`, không parse `message` để logic.
 | POST | `/auth/reset-password` | Không | Đặt MK mới bằng token |
 | POST | `/auth/change-password` | **Bearer** + APPROVED | Đổi MK (judge khách bắt buộc lần đầu) |
 | POST | `/auth/logout-all` | **Bearer** + APPROVED | Revoke mọi phiên |
-| GET | `/users/me` | **Bearer** + APPROVED | Profile sau login |
+| GET | `/users/me` | **Bearer** | Profile sau login |
 
 Mọi API khác (hackathon, team, …) cần `Authorization: Bearer {accessToken}` trừ `/auth/**` và Swagger.
 
@@ -96,26 +95,17 @@ Mọi API khác (hackathon, team, …) cần `Authorization: Bearer {accessToken
 
 ## 4. Chi tiết từng luồng
 
-### 4.1 Đăng ký (`POST /auth/register`)
+### 4.1 Đăng ký tối giản (`POST /auth/register`)
 
 **Request:**
 
 ```json
 {
-  "fullName": "Nguyen Van A",
   "email": "sv@fpt.edu.vn",
   "password": "password12",
-  "userType": "INTERNAL",
-  "studentCode": "SE123456",
-  "chapterId": 1,
-  "institution": null
+  "confirmPassword": "password12"
 }
 ```
-
-| `userType` | Bắt buộc thêm |
-|------------|----------------|
-| `INTERNAL` | `studentCode`, `chapterId` |
-| `EXTERNAL` | `studentCode`, `institution` |
 
 **Response `201` — `data`:**
 
@@ -124,43 +114,25 @@ Mọi API khác (hackathon, team, …) cần `Authorization: Bearer {accessToken
   "userId": 42,
   "email": "sv@fpt.edu.vn",
   "status": "PENDING",
-  "message": "Đăng ký thành công. Vui lòng xác thực email và chờ duyệt tài khoản.",
-  "devVerifyToken": "jwt-...",
-  "devVerifyUrl": "/api/v1/auth/verify-email?token=jwt-..."
+  "message": "Đăng ký thành công. Vui lòng hoàn thiện hồ sơ."
 }
 ```
 
-`devVerifyToken` / `devVerifyUrl` chỉ có khi BE bật `security.jwt.dev-expose-verify-token=true` (dev).
-
 **FE cần làm:**
 
-1. Sau register → màn hình “Chờ xác thực email & duyệt” — **không** cho login.
-2. Dev: có thể mở `devVerifyUrl` hoặc gọi `GET /auth/verify-email?token=...`.
-3. Verify email **không** đổi `PENDING` → `APPROVED`. User vẫn chờ Coordinator duyệt mới login được.
+1. Sau register, user có thể login ngay khi còn `PENDING` để vào màn hình hoàn thiện hồ sơ.
+2. Bắt buộc hoàn thiện profile ở `PATCH /users/me` + upload ảnh thẻ trước khi Coordinator duyệt.
 
 **Lỗi thường gặp:**
 
 | `error.code` | HTTP | FE |
 |--------------|------|-----|
 | `ACCOUNT_DUPLICATE_EMAIL` | 409 | Email đã tồn tại |
-| `STUDENT_CODE_DUPLICATE` | 409 | Mã SV trùng |
-| `STUDENT_CODE_REQUIRED` | 400 | Thiếu mã SV |
-| `INSTITUTION_REQUIRED` | 400 | EXTERNAL thiếu institution |
-| `INVALID_CHAPTER` | 400 | chapterId sai / chapter không ACTIVE |
+| `VALIDATION_FAILED` | 400 | `confirmPassword` không khớp |
 
 ---
 
-### 4.2 Verify email (`GET /auth/verify-email?token={jwt}`)
-
-- Gọi từ link email (hoặc dev URL).
-- Thành công: `200`, `message`: "Email đã xác thực".
-- Token sai/hết hạn: `400` `EMAIL_VERIFY_TOKEN_INVALID`.
-
-**FE:** Trang `/verify-email?token=...` → gọi API → hiển thị success/fail → redirect login/register.
-
----
-
-### 4.3 Đăng nhập (`POST /auth/login`)
+### 4.2 Đăng nhập (`POST /auth/login`)
 
 **Request:**
 
@@ -202,7 +174,7 @@ navigate('/dashboard');
 | `error.code` | HTTP | Ý nghĩa |
 |--------------|------|---------|
 | `INVALID_CREDENTIALS` | 401 | Sai email/MK |
-| `ACCOUNT_PENDING` | 401 | Chưa được Coordinator duyệt |
+| `ACCOUNT_PENDING` | 401 | Tài khoản pending không phải STUDENT (vd judge) |
 | `REJECTED_NOT_ALLOWED_LOGIN` | 401 | Tài khoản bị từ chối |
 | `INVITATION_EXPIRED` | 401 | Judge khách — lời mời hết hạn |
 | `TEMP_JUDGE_HACKATHON_ENDED` | 401 | Hackathon đã kết thúc (judge tạm) |
@@ -415,11 +387,36 @@ Route FE gợi ý: `/reset-password?token={jwt}`
 
 ---
 
-### 4.8 Profile sau login (`GET /users/me`)
+### 4.8 Hoàn thiện hồ sơ sau login (`/users/me`)
 
-- Cần Bearer + user `APPROVED`.
-- Dùng để hydrate user (role, status, `mustChangePassword`, chapter, …).
-- Gọi sau login/refresh khi vào app lần đầu.
+- Cần Bearer (không bắt buộc APPROVED).
+- Dùng để hydrate user và nhận biết còn thiếu dữ liệu xét duyệt.
+
+#### GET `/users/me`
+
+- Đọc profile hiện tại: `status`, `userType`, `studentCode`, `chapter`, `institution`, `studentCardImagePath`.
+
+#### PATCH `/users/me`
+
+```json
+{
+  "fullName": "Nguyen Van A",
+  "userType": "INTERNAL",
+  "studentCode": "SE123456",
+  "chapterId": 1,
+  "institution": null,
+  "phone": "0901234567"
+}
+```
+
+- Nếu `userType=INTERNAL`: bắt buộc có `chapterId` trước khi duyệt.
+- Nếu `userType=EXTERNAL`: bắt buộc có `institution` trước khi duyệt.
+
+#### POST `/users/me/student-card` (multipart)
+
+- Field file: `file` (jpg/jpeg/png/webp, <= 5MB).
+- Thành công trả lại `UserDetailResponse` có `studentCardImagePath`.
+- FE cần cho user xem preview qua `GET /users/me/student-card`.
 
 ---
 
@@ -432,7 +429,9 @@ Route FE gợi ý: `/reset-password?token={jwt}`
 - [ ] Interceptor: `401` → refresh 1 lần → retry; fail → clear + `/login`
 - [ ] Sau **mỗi** refresh thành công: **ghi đè cả hai token**
 - [ ] Logout: gọi `/auth/logout` + clear storage
-- [ ] Register + verify-email + thông báo chờ duyệt
+- [ ] Register tối giản (`email/password/confirmPassword`)
+- [ ] Sau login PENDING: flow hoàn thiện profile (`PATCH /users/me`)
+- [ ] Upload ảnh thẻ (`POST /users/me/student-card`)
 - [ ] Xử lý `mustChangePassword` → block app → `/change-password`
 - [ ] Map `error.code` cho login/register (PENDING, REJECTED, …)
 
@@ -462,7 +461,7 @@ Khi chạy BE profile `dev`, xem log `[Gd1DataSeeder] Dev login`:
 | `guestjudge@gmail.com` | `GuestJudge@dev1` | `mustChangePassword: true` lần đầu |
 | `pending.judge@fpt.edu.vn` | `PendingJudge@dev1` | Login fail — `ACCOUNT_PENDING` |
 
-User **tự register** → verify email → Coordinator duyệt trong admin → mới login.
+User **tự register** → login PENDING → hoàn thiện hồ sơ → Coordinator duyệt.
 
 ---
 
@@ -474,7 +473,6 @@ User **tự register** → verify email → Coordinator duyệt trong admin → 
 | `ACCOUNT_PENDING` | 401 | Chưa duyệt |
 | `REJECTED_NOT_ALLOWED_LOGIN` | 401 | Bị từ chối |
 | `REFRESH_TOKEN_INVALID` | 401 | Refresh sai/hết hạn/reuse |
-| `EMAIL_VERIFY_TOKEN_INVALID` | 400 | Link verify email |
 | `PASSWORD_RESET_TOKEN_INVALID` | 400 | Link reset MK |
 | `PASSWORD_MISMATCH` | 400 | Đổi MK — MK cũ sai |
 | `NEW_PASSWORD_SAME_AS_CURRENT` | 400 | MK mới trùng MK cũ |
@@ -492,7 +490,6 @@ User **tự register** → verify email → Coordinator duyệt trong admin → 
 | `security.jwt.access-ttl-minutes` | 30 | Access JWT |
 | `security.jwt.refresh-ttl-days` | 7 | Refresh session DB |
 | `security.jwt.password-reset-ttl-hours` | 1 | Link reset MK |
-| `security.jwt.email-verify-ttl-hours` | 24 | Link verify email |
 | `app.frontend-url` | `http://localhost:5173` | Base URL cho link reset (dev log) |
 
 ---
@@ -501,17 +498,18 @@ User **tự register** → verify email → Coordinator duyệt trong admin → 
 
 ```mermaid
 flowchart TD
-    A[POST /auth/register] --> B[GET /auth/verify-email]
-    B --> C[Chờ Coordinator duyệt APPROVED]
-    C --> D[POST /auth/login]
-    D --> E{mustChangePassword?}
-    E -->|yes| F[POST /auth/change-password]
-    E -->|no| G[App chính + Bearer access]
-    F --> G
-    G --> H{access 401?}
-    H -->|yes| I[POST /auth/refresh]
-    I -->|OK| G
-    I -->|fail| J[Logout UI]
+    A[POST /auth/register] --> C[POST /auth/login status=PENDING]
+    C --> D[PATCH /users/me + upload student card]
+    D --> E[Chờ Coordinator duyệt APPROVED]
+    E --> F[POST /auth/login]
+    F --> G{mustChangePassword?}
+    G -->|yes| H[POST /auth/change-password]
+    G -->|no| I[App chính + Bearer access]
+    H --> I
+    I --> J{access 401?}
+    J -->|yes| K[POST /auth/refresh]
+    K -->|OK| I
+    K -->|fail| L[Logout UI]
 ```
 
 ---

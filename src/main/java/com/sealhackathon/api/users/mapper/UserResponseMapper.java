@@ -20,6 +20,7 @@ public class UserResponseMapper {
                 .isDeptHead(u.getIsDeptHead())
                 .status(u.getStatus())
                 .institution(u.getInstitution())
+                .studentCardImagePath(u.getStudentCardImagePath())
                 .build();
     }
 
@@ -49,6 +50,7 @@ public class UserResponseMapper {
                 .chapterCode(u.getChapter() != null ? u.getChapter().getCode() : null)
                 .chapterName(u.getChapter() != null ? u.getChapter().getName() : null)
                 .institution(u.getInstitution())
+                .studentCardImagePath(u.getStudentCardImagePath())
                 .isTempAccount(u.getIsTempAccount())
                 .mustChangePassword(u.getMustChangePassword())
                 .isDeptHead(u.getIsDeptHead())

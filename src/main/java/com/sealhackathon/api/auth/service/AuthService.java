@@ -168,6 +168,9 @@ public class AuthService {
     }
 
     private void assertApproved(User user) {
+        if (user.getRole() == UserRole.STUDENT && user.getStatus() == UserStatus.PENDING) {
+            return;
+        }
         if (user.getStatus() == UserStatus.PENDING) {
             throw new AuthException(ErrorCode.ACCOUNT_PENDING_NOT_ALLOWED_LOGIN,
                     "Tài khoản đang chờ duyệt", HttpStatus.UNAUTHORIZED,

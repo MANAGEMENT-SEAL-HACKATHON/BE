@@ -5,6 +5,9 @@ import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
+import com.sealhackathon.api.chapters.entity.Chapter;
+import com.sealhackathon.api.chapters.repository.ChapterRepository;
+import com.sealhackathon.api.chapters.value_object.ChapterStatus;
 import com.sealhackathon.api.common.response.PageResponse;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.users.dto.request.PatchMeRequest;
@@ -16,16 +19,19 @@ import com.sealhackathon.api.users.dto.response.UserSummaryResponse;
 import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.mapper.UserResponseMapper;
 import com.sealhackathon.api.users.repository.UserRepository;
+import com.sealhackathon.api.users.service.StudentCardStorageService;
 import com.sealhackathon.api.users.service.UserAdminService;
 import com.sealhackathon.api.users.support.PersonnelAssignmentRules;
 import com.sealhackathon.api.users.value_object.UserRole;
 import com.sealhackathon.api.users.value_object.UserStatus;
 import com.sealhackathon.api.users.value_object.UserType;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.EnumSet;
@@ -41,9 +47,11 @@ public class UserAdminServiceImpl implements UserAdminService {
             EnumSet.of(UserRole.JUDGE, UserRole.MENTOR);
 
     private final UserRepository userRepository;
+    private final ChapterRepository chapterRepository;
     private final AuditService auditService;
     private final CurrentUserAccessor currentUserAccessor;
     private final UserResponseMapper userResponseMapper;
+    private final StudentCardStorageService studentCardStorageService;
 
     @Override
     @Transactional(readOnly = true)
@@ -57,14 +65,78 @@ public class UserAdminServiceImpl implements UserAdminService {
     public UserDetailResponse patchMe(PatchMeRequest req) {
         User user = userRepository.findById(currentUserAccessor.currentUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User", currentUserAccessor.currentUserId()));
+        if (req.getFullName() != null && !req.getFullName().isBlank()) {
+            user.setFullName(req.getFullName().trim());
+        }
         if (req.getPhone() != null) {
             user.setPhone(req.getPhone().trim().isEmpty() ? null : req.getPhone().trim());
         }
         if (req.getAvatarUrl() != null) {
             user.setAvatarUrl(req.getAvatarUrl().trim().isEmpty() ? null : req.getAvatarUrl().trim());
         }
+        if (req.getUserType() != null) {
+            if (req.getUserType() == UserType.UNSPECIFIED) {
+                throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                        "userType không hợp lệ khi cập nhật hồ sơ");
+            }
+            user.setUserType(req.getUserType());
+            if (req.getUserType() == UserType.INTERNAL) {
+                user.setInstitution(null);
+            } else if (req.getUserType() == UserType.EXTERNAL) {
+                user.setChapter(null);
+            }
+        }
+        if (req.getStudentCode() != null) {
+            String studentCode = req.getStudentCode().trim();
+            user.setStudentCode(studentCode.isEmpty() ? null : studentCode);
+        }
+        if (req.getChapterId() != null) {
+            Chapter chapter = chapterRepository.findById(req.getChapterId())
+                    .orElseThrow(() -> new BusinessRuleException(ErrorCode.INVALID_CHAPTER,
+                            "chapterId không tồn tại", Map.of("chapterId", req.getChapterId())));
+            if (chapter.getStatus() != ChapterStatus.ACTIVE) {
+                throw new BusinessRuleException(ErrorCode.INVALID_CHAPTER,
+                        "Chapter không ACTIVE", Map.of("chapterId", req.getChapterId()));
+            }
+            user.setChapter(chapter);
+            if (user.getUserType() == UserType.INTERNAL) {
+                user.setInstitution(null);
+            }
+        }
+        if (req.getInstitution() != null) {
+            String institution = req.getInstitution().trim();
+            user.setInstitution(institution.isEmpty() ? null : institution);
+            if (user.getUserType() == UserType.EXTERNAL) {
+                user.setChapter(null);
+            }
+        }
+        if (user.getStudentCode() != null && !user.getStudentCode().isBlank()) {
+            if (userRepository.existsByStudentCodeAndIdNot(user.getStudentCode(), user.getId())) {
+                throw new BusinessRuleException(ErrorCode.STUDENT_CODE_DUPLICATE,
+                        "Mã sinh viên đã được sử dụng", Map.of("studentCode", user.getStudentCode()));
+            }
+        }
         user.setUpdatedAt(LocalDateTime.now());
         return userResponseMapper.toDetail(userRepository.save(user));
+    }
+
+    @Override
+    public UserDetailResponse uploadMyStudentCard(MultipartFile file) {
+        User user = userRepository.findById(currentUserAccessor.currentUserId())
+                .orElseThrow(() -> new ResourceNotFoundException("User", currentUserAccessor.currentUserId()));
+        String relativePath = studentCardStorageService.store(user.getId(), file);
+        user.setStudentCardImagePath(relativePath);
+        user.setUpdatedAt(LocalDateTime.now());
+        userRepository.save(user);
+        return userResponseMapper.toDetail(user);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Resource getMyStudentCard() {
+        User user = userRepository.findById(currentUserAccessor.currentUserId())
+                .orElseThrow(() -> new ResourceNotFoundException("User", currentUserAccessor.currentUserId()));
+        return studentCardStorageService.loadAsResource(user.getStudentCardImagePath());
     }
 
     @Override
@@ -171,11 +243,7 @@ public class UserAdminServiceImpl implements UserAdminService {
                         "Chỉ PENDING mới duyệt APPROVED",
                         Map.of("from", from.name()));
             }
-            if (user.getEmailVerifiedAt() == null) {
-                throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
-                        "Phải xác thực email trước khi duyệt",
-                        Map.of("userId", userId));
-            }
+            ensureStudentProfileCompleteForApproval(user);
             user.setStatus(UserStatus.APPROVED);
             user.setRejectionReason(null);
             user.setUpdatedAt(LocalDateTime.now());
@@ -189,5 +257,42 @@ public class UserAdminServiceImpl implements UserAdminService {
         throw new BusinessRuleException(ErrorCode.INVALID_STATUS_TRANSITION,
                 "Chuyển trạng thái không hợp lệ",
                 Map.of("from", from.name(), "to", to.name()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Resource getUserStudentCard(Integer userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        return studentCardStorageService.loadAsResource(user.getStudentCardImagePath());
+    }
+
+    private static void ensureStudentProfileCompleteForApproval(User user) {
+        if (user.getRole() != UserRole.STUDENT) {
+            return;
+        }
+        if (user.getUserType() == null || user.getUserType() == UserType.UNSPECIFIED) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                    "Sinh viên phải khai báo loại tài khoản INTERNAL/EXTERNAL trước khi duyệt");
+        }
+        if (user.getStudentCode() == null || user.getStudentCode().isBlank()) {
+            throw new BusinessRuleException(ErrorCode.STUDENT_CODE_REQUIRED,
+                    "Sinh viên phải khai báo studentCode trước khi duyệt");
+        }
+        if (user.getStudentCardImagePath() == null || user.getStudentCardImagePath().isBlank()) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                    "Sinh viên phải upload ảnh thẻ sinh viên trước khi duyệt");
+        }
+        if (user.getUserType() == UserType.INTERNAL) {
+            if (user.getChapter() == null) {
+                throw new BusinessRuleException(ErrorCode.INVALID_CHAPTER,
+                        "Sinh viên INTERNAL phải chọn chapter trước khi duyệt");
+            }
+        } else if (user.getUserType() == UserType.EXTERNAL) {
+            if (user.getInstitution() == null || user.getInstitution().isBlank()) {
+                throw new BusinessRuleException(ErrorCode.INSTITUTION_REQUIRED,
+                        "Sinh viên EXTERNAL phải khai báo institution trước khi duyệt");
+            }
+        }
     }
 }

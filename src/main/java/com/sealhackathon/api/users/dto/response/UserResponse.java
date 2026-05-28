@@ -19,4 +19,5 @@ public class UserResponse {
     private final Boolean isDeptHead;
     private final UserStatus status;
     private final String institution;
+    private final String studentCardImagePath;
 }

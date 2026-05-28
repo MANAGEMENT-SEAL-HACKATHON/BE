@@ -18,6 +18,9 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
@@ -63,6 +66,16 @@ public class UserController {
     @Operation(summary = "Chi tiết user (form duyệt)")
     public ResponseEntity<ApiResponse<UserDetailResponse>> get(@PathVariable Integer userId) {
         return ResponseEntity.ok(ApiResponse.ok(userAdminService.getUser(userId)));
+    }
+
+    @GetMapping("/{userId}/student-card")
+    @Operation(summary = "Coordinator tải ảnh thẻ sinh viên")
+    public ResponseEntity<Resource> getStudentCard(@PathVariable Integer userId) {
+        Resource resource = userAdminService.getUserStudentCard(userId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"student-card\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(resource);
     }
 
     @PatchMapping("/{userId}/status")

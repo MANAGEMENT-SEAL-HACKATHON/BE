@@ -28,7 +28,6 @@ public class JwtTokenService {
 
     public static final String CLAIM_TOKEN_TYPE = "typ";
     public static final String TYPE_ACCESS = "access";
-    public static final String TYPE_EMAIL_VERIFY = "email_verify";
     public static final String TYPE_PASSWORD_RESET = "password_reset";
 
     private final JwtProperties jwtProperties;
@@ -45,21 +44,8 @@ public class JwtTokenService {
                 .claim("email", user.getEmail())
                 .claim("role", user.getRole().name())
                 .claim("status", user.getStatus().name())
-                .claim("userType", user.getUserType().name())
+                .claim("userType", user.getUserType() != null ? user.getUserType().name() : UserType.UNSPECIFIED.name())
                 .claim("isTempAccount", Boolean.TRUE.equals(user.getIsTempAccount()))
-                .signWith(signingKey())
-                .compact();
-    }
-
-    public String createEmailVerifyToken(Integer userId) {
-        Instant now = Instant.now();
-        Instant exp = now.plusSeconds(jwtProperties.getEmailVerifyTtlHours() * 3600L);
-        return Jwts.builder()
-                .issuer(jwtProperties.getIssuer())
-                .subject(String.valueOf(userId))
-                .issuedAt(Date.from(now))
-                .expiration(Date.from(exp))
-                .claim(CLAIM_TOKEN_TYPE, TYPE_EMAIL_VERIFY)
                 .signWith(signingKey())
                 .compact();
     }
@@ -72,15 +58,6 @@ public class JwtTokenService {
                     HttpStatus.UNAUTHORIZED);
         }
         return toPrincipal(claims);
-    }
-
-    public Integer parseEmailVerifyUserId(String token) {
-        Claims claims = parseClaims(token);
-        if (!TYPE_EMAIL_VERIFY.equals(claims.get(CLAIM_TOKEN_TYPE, String.class))) {
-            throw new AuthException(ErrorCode.EMAIL_VERIFY_TOKEN_INVALID,
-                    "Link xác thực email không hợp lệ", HttpStatus.BAD_REQUEST);
-        }
-        return Integer.parseInt(claims.getSubject());
     }
 
     public String createPasswordResetToken(Integer userId) {
@@ -121,12 +98,13 @@ public class JwtTokenService {
     }
 
     private CurrentUserStub toPrincipal(Claims claims) {
+        String userTypeClaim = claims.get("userType", String.class);
         return CurrentUserStub.builder()
                 .userId(Integer.parseInt(claims.getSubject()))
                 .email(claims.get("email", String.class))
                 .role(UserRole.valueOf(claims.get("role", String.class)))
                 .status(UserStatus.valueOf(claims.get("status", String.class)))
-                .userType(UserType.valueOf(claims.get("userType", String.class)))
+                .userType(userTypeClaim != null ? UserType.valueOf(userTypeClaim) : UserType.UNSPECIFIED)
                 .isTempAccount(Boolean.TRUE.equals(claims.get("isTempAccount", Boolean.class)))
                 .build();
     }

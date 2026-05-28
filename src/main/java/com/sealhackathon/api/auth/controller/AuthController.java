@@ -26,11 +26,9 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Auth", description = "MF-02 FR-07 — Đăng ký, đăng nhập, JWT")
@@ -50,13 +48,6 @@ public class AuthController {
             @Valid @RequestBody RegisterRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created(registrationService.register(req)));
-    }
-
-    @GetMapping("/verify-email")
-    @Operation(summary = "Xác thực email (link từ mail stub / dev)")
-    public ResponseEntity<ApiResponse<Void>> verifyEmail(@RequestParam String token) {
-        registrationService.verifyEmail(token);
-        return ResponseEntity.ok(ApiResponse.ok(null, "Email đã xác thực"));
     }
 
     @PostMapping("/login")

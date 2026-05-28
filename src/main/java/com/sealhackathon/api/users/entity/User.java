@@ -93,6 +93,12 @@ public class User {
     @Column(name = "institution", length = 300)
     private String institution;
 
+    /**
+     * Ảnh thẻ sinh viên phục vụ Coordinator đối chiếu thông tin trước khi duyệt.
+     */
+    @Column(name = "student_card_image_path", columnDefinition = "TEXT")
+    private String studentCardImagePath;
+
     @Column(name = "email_verified_at")
     private LocalDateTime emailVerifiedAt;
 

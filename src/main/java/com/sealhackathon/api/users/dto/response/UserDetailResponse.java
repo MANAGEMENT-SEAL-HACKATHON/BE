@@ -24,6 +24,7 @@ public class UserDetailResponse {
     private final String chapterCode;
     private final String chapterName;
     private final String institution;
+    private final String studentCardImagePath;
     private final Boolean isTempAccount;
     private final Boolean mustChangePassword;
     private final Boolean isDeptHead;

@@ -10,13 +10,19 @@ import com.sealhackathon.api.users.dto.response.UserSummaryResponse;
 import com.sealhackathon.api.users.value_object.UserRole;
 import com.sealhackathon.api.users.value_object.UserStatus;
 import com.sealhackathon.api.users.value_object.UserType;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface UserAdminService {
 
     UserDetailResponse getMe();
 
     UserDetailResponse patchMe(PatchMeRequest req);
+
+    UserDetailResponse uploadMyStudentCard(MultipartFile file);
+
+    Resource getMyStudentCard();
 
     PageResponse<UserSummaryResponse> listUsers(UserStatus status, UserRole role, Boolean personnelOnly,
                                                        Boolean accountRoleExact, UserType userType, String q,
@@ -27,4 +33,6 @@ public interface UserAdminService {
     UserResponse patchUser(Integer userId, PatchUserRequest req);
 
     UserDetailResponse patchStatus(Integer userId, PatchUserStatusRequest req);
+
+    Resource getUserStudentCard(Integer userId);
 }

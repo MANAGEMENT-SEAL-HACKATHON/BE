@@ -21,7 +21,6 @@ class JwtTokenServiceTest {
         props.setSecret("test-secret-key-at-least-32-bytes-long!!");
         props.setIssuer("test-issuer");
         props.setAccessTtlMinutes(15);
-        props.setEmailVerifyTtlHours(24);
         jwtTokenService = new JwtTokenService(props);
     }
 
@@ -45,9 +44,4 @@ class JwtTokenServiceTest {
         assertThat(principal.getStatus()).isEqualTo(UserStatus.APPROVED);
     }
 
-    @Test
-    void createAndParseEmailVerifyToken() {
-        String token = jwtTokenService.createEmailVerifyToken(7);
-        assertThat(jwtTokenService.parseEmailVerifyUserId(token)).isEqualTo(7);
-    }
 }

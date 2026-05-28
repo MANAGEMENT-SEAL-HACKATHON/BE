@@ -167,10 +167,11 @@ public class SocialAuthService {
                 .email(normalizedEmail)
                 .passwordHash(null)
                 .role(UserRole.STUDENT)
-                .userType(UserType.EXTERNAL)
+                .userType(UserType.UNSPECIFIED)
                 .studentCode(null)
-                .institution("OAuth-" + identity.provider())
-                .status(UserStatus.APPROVED)
+                .institution(null)
+                .studentCardImagePath(null)
+                .status(UserStatus.PENDING)
                 .isTempAccount(false)
                 .isDeptHead(false)
                 .mustChangePassword(false)
@@ -295,6 +296,9 @@ public class SocialAuthService {
     }
 
     private static void assertApproved(User user) {
+        if (user.getRole() == UserRole.STUDENT && user.getStatus() == UserStatus.PENDING) {
+            return;
+        }
         if (user.getStatus() == UserStatus.PENDING) {
             throw new AuthException(ErrorCode.ACCOUNT_PENDING_NOT_ALLOWED_LOGIN,
                     "Tài khoản đang chờ duyệt", HttpStatus.UNAUTHORIZED,

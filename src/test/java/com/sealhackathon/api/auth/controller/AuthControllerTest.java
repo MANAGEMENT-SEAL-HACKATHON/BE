@@ -5,10 +5,12 @@ import com.sealhackathon.api.auth.dto.request.ForgotPasswordRequest;
 import com.sealhackathon.api.auth.dto.request.LoginRequest;
 import com.sealhackathon.api.auth.dto.request.OAuthGithubCodeRequest;
 import com.sealhackathon.api.auth.dto.request.OAuthGoogleRequest;
+import com.sealhackathon.api.auth.dto.request.RegisterRequest;
 import com.sealhackathon.api.auth.dto.request.ResetPasswordRequest;
 import com.sealhackathon.api.auth.dto.response.AuthTokenResponse;
 import com.sealhackathon.api.auth.dto.response.ForgotPasswordResponse;
 import com.sealhackathon.api.auth.dto.response.OAuthLinkStatusResponse;
+import com.sealhackathon.api.auth.dto.response.RegisterResponse;
 import com.sealhackathon.api.auth.service.AuthService;
 import com.sealhackathon.api.auth.service.PasswordResetService;
 import com.sealhackathon.api.auth.service.RegistrationService;
@@ -53,6 +55,27 @@ class AuthControllerTest {
 
     @MockitoBean
     private SocialAuthService socialAuthService;
+
+    @Test
+    void register_minimalPayload_returnsCreated() throws Exception {
+        when(registrationService.register(any())).thenReturn(RegisterResponse.builder()
+                .userId(100)
+                .email("user@gmail.com")
+                .status("PENDING")
+                .message("Đăng ký thành công")
+                .build());
+
+        RegisterRequest req = new RegisterRequest();
+        req.setEmail("user@gmail.com");
+        req.setPassword("password12");
+        req.setConfirmPassword("password12");
+
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.email").value("user@gmail.com"));
+    }
 
     @Test
     void login_returnsTokens() throws Exception {
