@@ -20,3 +20,4 @@
 
 - [Workflow v5.0](../system/workflow.md) — 6 giai đoạn
 - [MF-02 Auth](../mf02/README.md) — JWT cho mọi API MF-01 (trừ `/auth/**`)
+- [MF-03 Thi & chấm](../mf03/README.md) — GĐ3–GĐ6 sau khi hoàn thành GĐ2

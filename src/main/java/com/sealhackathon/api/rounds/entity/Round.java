@@ -117,6 +117,12 @@ public class Round {
     @Column(name = "tiebreak_rule", length = 50)
     private TiebreakRule tiebreakRule = TiebreakRule.PENALTY_SCORE;
 
+    /**
+     * Thời điểm kích hoạt Round lần cuối (FR-20/32). NULL khi chưa từng activate.
+     */
+    @Column(name = "activated_at")
+    private LocalDateTime activatedAt;
+
     @Builder.Default
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = false;

@@ -2,6 +2,7 @@ package com.sealhackathon.api.team_round_participation.entity;
 
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.rounds.entity.Round;
+import com.sealhackathon.api.team_round_participation.value_object.ParticipationStatus;
 import com.sealhackathon.api.teams.entity.Team;
 import jakarta.persistence.*;
 import lombok.*;
@@ -41,6 +42,11 @@ public class TeamRoundParticipation {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "hackathon_id", nullable = false)
     private Hackathon hackathon;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "participation_status", nullable = false, length = 20)
+    private ParticipationStatus participationStatus = ParticipationStatus.PARTICIPATING;
 
     @Builder.Default
     @Column(name = "created_at", nullable = false)

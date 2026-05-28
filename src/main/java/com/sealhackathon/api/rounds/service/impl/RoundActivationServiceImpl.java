@@ -27,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -70,6 +71,7 @@ public class RoundActivationServiceImpl implements RoundActivationService {
         }
 
         round.setIsActive(true);
+        round.setActivatedAt(LocalDateTime.now());
         Round saved = roundRepository.save(round);
 
         auditService.log(AuditAction.ROUND_ACTIVATE, "rounds", roundId, Map.of(

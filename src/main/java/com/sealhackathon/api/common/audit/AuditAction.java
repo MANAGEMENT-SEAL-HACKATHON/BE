@@ -84,6 +84,9 @@ public final class AuditAction {
     public static final String MENTOR_TEAM_ASSIGNED     = "MENTOR_TEAM_ASSIGNED";
     public static final String MENTOR_TEAM_UNASSIGNED   = "MENTOR_TEAM_UNASSIGNED";
 
+    // ---------- MF-03 GĐ6 PRIZES ----------
+    public static final String PRIZE_AWARDED              = "PRIZE_AWARDED";
+
     // ---------- WARNINGS ----------
     public static final String WARNING_CONFLICT_CHECK_SKIPPED = "WARNING_CONFLICT_CHECK_SKIPPED";
     public static final String WARNING_EVENT_ORDER            = "WARNING_EVENT_ORDER";

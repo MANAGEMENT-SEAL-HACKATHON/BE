@@ -43,3 +43,9 @@
 ## Spec gốc
 
 `GD02_SEAL_MF02_MASTER_v3.5.docx` (Workflow v5.0) — bản convert nội bộ: `BE/.cursor-tmp-mf02-master-v35.md`.
+
+---
+
+## Tiếp theo — MF-03
+
+Sau GĐ2 (đội ACTIVE + lottery): [mf03/README.md](../mf03/README.md) — nộp bài, chấm điểm, ranking, trao giải.

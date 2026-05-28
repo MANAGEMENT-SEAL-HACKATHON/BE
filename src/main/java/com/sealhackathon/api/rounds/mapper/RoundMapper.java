@@ -190,6 +190,8 @@ public class RoundMapper {
 
                 .isActive(e.getIsActive())
 
+                .activatedAt(e.getActivatedAt())
+
                 .scoringLocked(e.getScoringLocked())
 
                 .scoringLockedAt(e.getScoringLockedAt())

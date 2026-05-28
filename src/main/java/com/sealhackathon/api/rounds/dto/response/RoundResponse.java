@@ -36,6 +36,7 @@ public class RoundResponse {
     private final Integer minTeamsFinal;
     private final TiebreakRule tiebreakRule;
     private final Boolean isActive;
+    private final LocalDateTime activatedAt;
     private final Boolean scoringLocked;
     private final LocalDateTime scoringLockedAt;
     private final Integer scoringLockedById;

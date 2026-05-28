@@ -28,4 +28,6 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, TeamMemb
             @Param("memberStatus") TeamMemberStatus memberStatus);
 
     long countByTeam_IdAndStatus(Integer teamId, TeamMemberStatus status);
+
+    boolean existsByUser_IdAndTeam_IdAndStatus(Integer userId, Integer teamId, TeamMemberStatus status);
 }

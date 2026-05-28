@@ -202,4 +202,29 @@ public final class ErrorCode {
     public static final String INVITEE_NOT_APPROVED                     = "INVITEE_NOT_APPROVED";
     public static final String INVITEE_INVALID_ROLE                     = "INVITEE_INVALID_ROLE";
     public static final String NOT_IMPLEMENTED                          = "NOT_IMPLEMENTED";
+
+    // ---------- MF-03 GĐ3–GĐ5 (GD03 §7.1) ----------
+    public static final String NO_TEAMS_IN_ROUND                        = "NO_TEAMS_IN_ROUND";
+    public static final String JUDGE_NOT_ASSIGNED                       = "JUDGE_NOT_ASSIGNED";
+    public static final String ROUND_NOT_ACTIVE                         = "ROUND_NOT_ACTIVE";
+    public static final String TEAM_NOT_IN_TRACK                          = "TEAM_NOT_IN_TRACK";
+    public static final String TRACK_NOT_ALLOWED_FOR_FINAL                = "TRACK_NOT_ALLOWED_FOR_FINAL";
+    public static final String SUBMISSION_NOT_GRADABLE                    = "SUBMISSION_NOT_GRADABLE";
+    public static final String JUDGE_NOT_ASSIGNED_TO_TRACK                = "JUDGE_NOT_ASSIGNED_TO_TRACK";
+    public static final String SCORE_EXCEEDS_MAX                          = "SCORE_EXCEEDS_MAX";
+    public static final String SCORING_LOCKED                             = "SCORING_LOCKED";
+    public static final String CONFLICT_MENTOR_JUDGE_SAME_TRACK           = "CONFLICT_MENTOR_JUDGE_SAME_TRACK";
+    public static final String CRITERION_WRONG_TRACK                      = "CRITERION_WRONG_TRACK";
+    public static final String LATE_PENDING_NOT_ALLOWED                   = "LATE_PENDING_NOT_ALLOWED";
+    /** GD03 §7.1 — alias nghiệp vụ; {@link #ROUND_FORCE_LOCK_REASON} giữ cho FR-03 round update. */
+    public static final String FORCE_LOCK_REASON_REQUIRED                 = "FORCE_LOCK_REASON_REQUIRED";
+    public static final String DEPT_HEAD_NOT_CONFIRMED                    = "DEPT_HEAD_NOT_CONFIRMED";
+    public static final String ROUND_NOT_SCORING_LOCKED                     = "ROUND_NOT_SCORING_LOCKED";
+    public static final String TIEBREAK_REQUIRED                            = "TIEBREAK_REQUIRED";
+    public static final String TEAM_NOT_ADVANCING                           = "TEAM_NOT_ADVANCING";
+    public static final String ROUND_HAS_ACTIVE_STATE                       = "ROUND_HAS_ACTIVE_STATE";
+    public static final String TRACK_PARENT_ROUND_ACTIVE                    = "TRACK_PARENT_ROUND_ACTIVE";
+    public static final String PRIZE_DUPLICATE                              = "PRIZE_DUPLICATE";
+    public static final String HACKATHON_NOT_PENDING_CONFIRM                = "HACKATHON_NOT_PENDING_CONFIRM";
+    public static final String TRACK_DELETE_HAS_SUBMISSIONS                 = "TRACK_DELETE_HAS_SUBMISSIONS";
 }
