@@ -3,6 +3,7 @@ package com.sealhackathon.api.teams.service;
 import com.sealhackathon.api.teams.dto.request.AssignTeamMentorRequest;
 import com.sealhackathon.api.teams.dto.request.BulkApproveTeamsRequest;
 import com.sealhackathon.api.teams.dto.request.CreateTeamRequest;
+import com.sealhackathon.api.teams.dto.request.EliminateTeamRequest;
 import com.sealhackathon.api.teams.dto.request.InviteTeamMemberRequest;
 import com.sealhackathon.api.teams.dto.request.PatchTeamMemberRequest;
 import com.sealhackathon.api.teams.dto.request.PatchTeamStatusRequest;
@@ -31,6 +32,8 @@ public interface TeamService {
     TeamResponse transferLeader(Integer teamId, TransferLeaderRequest req);
 
     void disbandTeam(Integer teamId);
+
+    TeamResponse eliminateTeam(Integer teamId, EliminateTeamRequest req);
 
     void inviteMember(Integer teamId, InviteTeamMemberRequest req);
 

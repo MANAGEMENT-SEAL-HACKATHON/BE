@@ -29,6 +29,7 @@ public class RoundSummaryResponse {
     private final LocalDateTime submissionDeadline;
     private final Boolean isActive;
     private final Boolean scoringLocked;
+    private final Boolean isPublished;
     private final Integer trackCount;
     private final Integer criteriaCount;
     private final Float currentWeightTotal;

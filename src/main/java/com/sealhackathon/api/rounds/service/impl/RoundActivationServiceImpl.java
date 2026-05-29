@@ -18,6 +18,7 @@ import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.mapper.RoundMapper;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.service.RoundActivationService;
+import com.sealhackathon.api.team_round_participation.repository.TeamRoundParticipationRepository;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.tracks.value_object.TrackStatus;
@@ -50,6 +51,7 @@ public class RoundActivationServiceImpl implements RoundActivationService {
     private final AuditService auditService;
     private final WeightSummaryService weightSummaryService;
     private final NotificationService notificationService;
+    private final TeamRoundParticipationRepository teamRoundParticipationRepository;
 
     @Override
     public RoundResponse activate(Integer roundId, String note) {
@@ -57,9 +59,11 @@ public class RoundActivationServiceImpl implements RoundActivationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Round", roundId));
 
         if (Boolean.TRUE.equals(round.getIsFinal())) {
+            validatePreliminaryRoundPublished(round.getHackathon().getId());
             validateFinalRoundCriteria(roundId);
             validateFinalRoundJudges(roundId);
         } else {
+            validateTeamsInRound(round);
             validatePreliminaryRoundTracks(round);
         }
 
@@ -83,6 +87,25 @@ public class RoundActivationServiceImpl implements RoundActivationService {
 
         notifyRoundStarted(saved);
         return roundMapper.toResponse(saved);
+    }
+
+    private void validateTeamsInRound(Round round) {
+        if (teamRoundParticipationRepository.countByRound_Id(round.getId()) == 0) {
+            throw new BusinessRuleException(ErrorCode.NO_TEAMS_IN_ROUND,
+                    "Không có đội tham gia round này",
+                    Map.of("roundId", round.getId()));
+        }
+    }
+
+    private void validatePreliminaryRoundPublished(Integer hackathonId) {
+        boolean unpublished = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathonId).stream()
+                .filter(r -> !Boolean.TRUE.equals(r.getIsFinal()))
+                .anyMatch(r -> !Boolean.TRUE.equals(r.getIsPublished()));
+        if (unpublished) {
+            throw new BusinessRuleException(ErrorCode.RESULT_NOT_PUBLISHED,
+                    "Chưa công bố kết quả vòng Sơ loại",
+                    Map.of("hackathonId", hackathonId));
+        }
     }
 
     private void validateFinalRoundCriteria(Integer roundId) {

@@ -118,7 +118,7 @@ public class Round {
     private TiebreakRule tiebreakRule = TiebreakRule.PENALTY_SCORE;
 
     /**
-     * Thời điểm kích hoạt Round lần cuối (FR-20/32). NULL khi chưa từng activate.
+     * Thời điểm kích hoạt Round lần cuối (FR-15/25). NULL khi chưa từng activate.
      */
     @Column(name = "activated_at")
     private LocalDateTime activatedAt;
@@ -144,6 +144,18 @@ public class Round {
 
     @Column(name = "force_lock_reason", columnDefinition = "TEXT")
     private String forceLockReason;
+
+    /** FR-24 — công bố kết quả Sơ loại; gate trước kích hoạt Chung kết (FR-25). */
+    @Builder.Default
+    @Column(name = "is_published", nullable = false)
+    private Boolean isPublished = false;
+
+    @Column(name = "published_at")
+    private LocalDateTime publishedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "published_by")
+    private User publishedBy;
 
     @Builder.Default
     @Column(name = "created_at", nullable = false)

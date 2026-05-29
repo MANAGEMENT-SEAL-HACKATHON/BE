@@ -1,12 +1,35 @@
 # MF-03 — Giai đoạn 3–5 (Thi, chấm điểm, chuyển vòng) + GĐ6 (Kết thúc)
 
-**Nguồn spec:** `GD03_SEAL_MF03_v2_2.docx` (Workflow v5.0 · GĐ3 → GĐ6)
+**Nguồn spec:** `GD03_05_SEAL_MF_v4_1.docx` (Workflow v5.0 · GĐ3 → GĐ6)
 
-**Phạm vi:** FR-20 … FR-36 — nộp bài, chấm điểm, khóa điểm, xếp hạng, tiebreak, wild card, advance, judge CK, trao giải.
+**Phạm vi:** FR-15 … FR-30A — nộp bài, chấm điểm, khóa điểm, xếp hạng, publish, tiebreak, wild card, advance, calibration, RBL, judge CK, trao giải.
 
-**Tiền đề:** MF-01 (hackathon / round / track / criteria) + MF-02 (auth JWT, đội ACTIVE, lottery, `team_round_participation`).
+**Tiền đề:** MF-01 + MF-02 (auth JWT, đội ACTIVE, lottery, `team_round_participation` + `team_round_tracks`).
 
-**Quy tắc ưu tiên khi mâu thuẫn:** [`schema-v3.0-mysql.md`](../db/schema-v3.0-mysql.md) > GD03 docx > tài liệu này.
+**Quy tắc ưu tiên:** [`schema-v3.0-mysql.md`](../db/schema-v3.0-mysql.md) > GD03 v4.1 docx > tài liệu này.
+
+---
+
+## Ánh xạ FR v2.2 → v4.1 (tham khảo)
+
+| v4.1 | v2.2 cũ | Tên ngắn |
+|------|---------|----------|
+| FR-15 | FR-20 | Activate + judge |
+| FR-15A | FR-21 | Phát đề |
+| FR-16 | FR-22 | Nộp bài |
+| FR-16A | FR-25 | Duyệt trễ |
+| FR-18/18A | FR-24 | Chấm / live scoring |
+| FR-20A | FR-26 | Khóa chấm |
+| FR-20/22 | FR-27 | Leaderboard / Top N |
+| FR-22A | FR-29 | Wild Card |
+| FR-22B | FR-28 | Tiebreak |
+| FR-24 | — | Publish kết quả |
+| FR-25 | FR-32 | Activate CK |
+| FR-26 | FR-33 | Nộp CK |
+| FR-27 | FR-31 | Judge CK |
+| FR-29 | FR-34 | Calibration |
+| FR-30 | — | RBL Dashboard |
+| FR-30A | FR-36 | PENDING_CONFIRM |
 
 ---
 
@@ -14,44 +37,37 @@
 
 | # | File | Đối tượng | Nội dung |
 |---|------|-----------|----------|
-| 1 | [01-business-rules-gd3.md](01-business-rules-gd3.md) | BE / BA | FR-20…36, gate, XOR submission, lock scoring |
-| 2 | [02-mainflow-gd3.md](02-mainflow-gd3.md) | PM / FE | Luồng GĐ3 → GĐ6 + mermaid |
-| 3 | **[03-api-reference-gd3.md](03-api-reference-gd3.md)** | **FE (ưu tiên)** | Endpoint, auth, body, trạng thái implement |
-| 4 | [04-test-data.md](04-test-data.md) | FE / QA | curl, Postman, token mẫu |
-| 5 | [05-fe-handover-gd3.md](05-fe-handover-gd3.md) | FE | Màn hình gợi ý + happy path GĐ3→GĐ5 |
+| 1 | [01-business-rules-gd3.md](01-business-rules-gd3.md) | BE / BA | FR-15…30A, gate, BUG-1…9 |
+| 2 | [02-mainflow-gd3.md](02-mainflow-gd3.md) | PM / FE | Luồng GĐ3 → GĐ6 + FR-24 publish |
+| 3 | **[03-api-reference-gd3.md](03-api-reference-gd3.md)** | **FE** | Endpoint v4.1 + alias deprecated |
+| 4 | [04-test-data.md](04-test-data.md) | FE / QA | curl, token mẫu |
+| 5 | [05-fe-handover-gd3.md](05-fe-handover-gd3.md) | FE | Breaking path + màn hình |
+| 6 | [06-live-scoring-websocket.md](06-live-scoring-websocket.md) | FE | STOMP/SockJS FR-18A |
 
-**Swagger:** `http://localhost:8080/swagger-ui.html` — tag **Submissions**, **Scores**, **Round Progression**, **Prizes**, **Teams Journey**.
+**Swagger:** tag Submissions, Scores, Round Progression, Live Scoring (WebSocket), Wildcard Reviews, Calibration Sessions, RBL Dashboard, Prizes.
 
-**Migration MF-03:** `src/main/resources/db/manual/V20260528_mf03_schema_delta.sql` · auto: `Mf03SchemaMigration` khi start app.
+**Migration v4.1:** `V20260529_gd03_v4_1_delta.sql` · auto: `Gd03V41SchemaMigration` @Order(0).
 
 ---
 
-## Trạng thái implement (tóm tắt)
+## Trạng thái implement (tóm tắt — GĐ3)
 
 | Nhóm | Logic |
 |------|--------|
-| `PATCH /rounds/{id}/activate` | ✅ (MF-01, dùng cho FR-20/32) |
-| `PATCH /hackathons/{id}/status` | ✅ |
-| `POST /hackathons/{id}/prizes` | ✅ |
-| `GET /submissions` (lọc role) | ✅ |
-| Submissions submit / resubmit / review | ⏳ TODO |
-| Scores / calibration | ⏳ TODO |
-| Round progression (ranking, tiebreak, wildcard, advance, …) | ⏳ TODO (route có, trả stub) |
-| `GET /teams/{id}/journey` | ⏳ TODO |
+| `PATCH /rounds/{id}/activate` | ✅ + `NO_TEAMS_IN_ROUND` + gate CK publish |
+| `PATCH /rounds/{id}/release-problem` | ✅ FR-15A |
+| `POST /submissions` (Sơ loại upsert) | ✅ FR-16 |
+| `PATCH /submissions/{id}/review-late` | ✅ FR-16A |
+| `POST /scores` | ✅ FR-18/19 + WS push |
+| **WebSocket `/ws`** | ✅ FR-18A STOMP |
+| `GET .../ranking/preview`, `scoring-progress` | ✅ FR-20 live |
+| `PATCH /rounds/{id}/lock-scoring` | ✅ FR-20A (+ warnings) |
+| `PATCH /teams/{id}/eliminate` | ✅ FR-21 |
+| `GET /submissions` | ✅ lọc role |
+| GĐ4/GĐ5: publish, advance, wildcard, CK submit, calibration, RBL | ⏳ stub |
+| `POST /hackathons/{id}/prizes` | ✅ (GĐ6) |
 
-Chi tiết từng endpoint: [03-api-reference-gd3.md](03-api-reference-gd3.md).
-
----
-
-## Liên kết MF-01 / MF-02
-
-| Chủ đề | Tài liệu |
-|--------|----------|
-| Envelope & error | [mf01/api/_conventions.md](../mf01/api/_conventions.md) |
-| Activate round | [mf01/api/fr-06b-activate.md](../mf01/api/fr-06b-activate.md) |
-| Hackathon status | [mf01/api/fr-06-status.md](../mf01/api/fr-06-status.md) |
-| Auth JWT | [mf02/01-auth-users.md](../mf02/01-auth-users.md) |
-| Đội & lottery | [mf02/03-api-reference-gd2.md](../mf02/03-api-reference-gd2.md) |
+Chi tiết: [03-api-reference-gd3.md](03-api-reference-gd3.md) · Phân quyền: [api-authorization-matrix.md](../api-authorization-matrix.md).
 
 ---
 
@@ -60,10 +76,11 @@ Chi tiết từng endpoint: [03-api-reference-gd3.md](03-api-reference-gd3.md).
 ```
 com.sealhackathon.api.submissions.*
 com.sealhackathon.api.scores.*
-com.sealhackathon.api.rounds.controller.RoundProgressionController
-com.sealhackathon.api.rounds.service.RoundProgressionService
-com.sealhackathon.api.teams.controller.TeamJourneyController
+com.sealhackathon.api.rounds.*
+com.sealhackathon.api.live_scoring.*
+com.sealhackathon.api.wildcard_reviews.*
+com.sealhackathon.api.calibration_sessions.*
+com.sealhackathon.api.rbl.*
 com.sealhackathon.api.prizes.*
-com.sealhackathon.api.tiebreak_evaluations.entity
-com.sealhackathon.api.wildcard_reviews.entity
+com.sealhackathon.api.config.Gd03V41SchemaMigration
 ```

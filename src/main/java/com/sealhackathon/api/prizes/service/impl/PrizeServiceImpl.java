@@ -95,6 +95,7 @@ public class PrizeServiceImpl implements PrizeService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", currentUserAccessor.currentUserId()));
 
         Prize saved = prizeRepository.save(Prize.builder()
+                .hackathon(hackathon)
                 .round(round)
                 .track(track)
                 .team(team)

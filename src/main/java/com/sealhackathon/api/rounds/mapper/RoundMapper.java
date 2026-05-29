@@ -202,6 +202,12 @@ public class RoundMapper {
 
                 .forceLockReason(e.getForceLockReason())
 
+                .isPublished(e.getIsPublished())
+
+                .publishedAt(e.getPublishedAt())
+
+                .publishedById(e.getPublishedBy() == null ? null : e.getPublishedBy().getId())
+
                 .createdAt(e.getCreatedAt())
 
                 .build();

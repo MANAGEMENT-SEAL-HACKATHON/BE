@@ -8,9 +8,21 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ScoreRepository extends JpaRepository<Score, Integer> {
+
+    Optional<Score> findBySubmission_IdAndJudge_IdAndCriterion_IdAndScoreType(
+            Integer submissionId, Integer judgeId, Integer criterionId, ScoreType scoreType);
+
+    List<Score> findBySubmission_IdAndCriterion_IdAndScoreTypeAndIsFinal(
+            Integer submissionId, Integer criterionId, ScoreType scoreType, Boolean isFinal);
+
+    long countBySubmission_IdAndCriterion_IdAndScoreTypeAndIsFinal(
+            Integer submissionId, Integer criterionId, ScoreType scoreType, Boolean isFinal);
+
+    long countBySubmission_IdAndScoreType(Integer submissionId, ScoreType scoreType);
 
     List<Score> findBySubmission_Id(Integer submissionId);
 

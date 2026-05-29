@@ -42,5 +42,8 @@ public class RoundResponse {
     private final Integer scoringLockedById;
     private final Boolean forceLocked;
     private final String forceLockReason;
+    private final Boolean isPublished;
+    private final LocalDateTime publishedAt;
+    private final Integer publishedById;
     private final LocalDateTime createdAt;
 }

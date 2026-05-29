@@ -7,6 +7,7 @@
 3. [MF-01 Chuẩn bị sự kiện](mf01/README.md) — GĐ1: business rules, FR, runbook, test
 4. [MF-02 Auth & Users](mf02/README.md) — JWT, đăng ký, đội, lottery
 5. [MF-03 Thi & chấm điểm](mf03/README.md) — GĐ3–GĐ6: submission, score, ranking, prizes
+6. [Ma trận phân quyền MF-03 v4.1](api-authorization-matrix.md)
 
 ## Cấu trúc thư mục
 

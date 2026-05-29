@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "Scores (GĐ3-GĐ5)", description = "FR-24/34/35 — Chấm điểm")
+@Tag(name = "Scores (GĐ3-GĐ5)", description = "FR-18/18A/29 — Chấm điểm")
 @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
 @RequestMapping("/api/v1/scores")
@@ -29,14 +29,14 @@ public class ScoreController {
 
     @PostMapping
     @PreAuthorize("hasRole('JUDGE') and authentication.principal.status.name() == 'APPROVED'")
-    @Operation(summary = "FR-24/35 — Judge chấm điểm bài nộp")
+    @Operation(summary = "FR-18/18A — Judge chấm điểm bài nộp (upsert nháp)")
     public ResponseEntity<ApiResponse<ScoreResponse>> submit(@Valid @RequestBody SubmitScoreRequest req) {
         return ResponseEntity.status(201).body(ApiResponse.created(scoreService.submitScore(req)));
     }
 
     @PostMapping("/calibration")
     @PreAuthorize("hasRole('JUDGE') and authentication.principal.status.name() == 'APPROVED'")
-    @Operation(summary = "FR-34 — Judge chấm calibration")
+    @Operation(summary = "FR-29 — Judge chấm calibration session")
     public ResponseEntity<ApiResponse<ScoreResponse>> submitCalibration(
             @Valid @RequestBody SubmitCalibrationScoreRequest req) {
         return ResponseEntity.status(201).body(ApiResponse.created(scoreService.submitCalibrationScore(req)));

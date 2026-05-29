@@ -1,8 +1,8 @@
 # MF-03 GĐ3–GĐ5 — Business Rules
 
-**Nguồn:** `GD03_SEAL_MF03_v2_2.docx` · **Schema:** [schema-v3.0-mysql.md](../db/schema-v3.0-mysql.md)
+**Nguồn:** `GD03_05_SEAL_MF_v4_1.docx` · **Schema:** [schema-v3.0-mysql.md](../db/schema-v3.0-mysql.md)
 
-**Trạng thái BE:** Khung API + repository; phần lớn service MF-03 còn `TODO` (xem [README.md](README.md)).
+**Trạng thái BE:** GĐ3 (FR-15..21 + WS) đã implement; GĐ4/GĐ5 còn stub.
 
 ---
 
@@ -20,22 +20,23 @@
 
 | Bảng | Vai trò MF-03 |
 |------|----------------|
-| `rounds` | `is_active`, `activated_at`, `problem_released_at`, `scoring_locked`, `top_n_advance`, `min_teams_final`, `wildcard_enabled` |
-| `submissions` | XOR `track_id` (Sơ loại) **hoặc** `round_id` (Chung kết FINAL) |
+| `rounds` | `is_active`, `activated_at`, `is_published`, `scoring_locked`, `top_n_advance`, `min_teams_final`, `wildcard_enabled` |
+| `submissions` | `track_id` (Sơ loại) + `round_id` NOT NULL; UNIQUE `(team_id, scoring_key)` BUG-2 |
 | `scores` | Chấm theo `(submission, judge, criterion, score_type)` |
-| `tiebreak_evaluations` | Judge penalty tiebreak (FR-28) |
-| `wildcard_reviews` | Đề xuất / duyệt wild card (FR-29) |
-| `team_round_participation` | `participation_status`: PARTICIPATING / ADVANCED / ELIMINATED (FR-30) |
-| `team_round_tracks` | Gán track + `assigned_group` (partition ranking) |
+| `tiebreak_evaluations` | Judge penalty tiebreak (FR-22B) |
+| `wildcard_reviews` | Đề xuất / duyệt wild card (FR-22A) |
+| `team_round_participation` | GĐ2 v3.5 — đội tham gia mọi Round (kể cả FINAL) |
+| `team_round_tracks` | Gán track + `assigned_group` + `participation_status` (D-2 v4.1) |
 | `judge_assignments` | Track (Sơ loại) hoặc Round FINAL (`FINAL_EXTERNAL`) |
 | `prizes` | Trao giải GĐ6 |
-| `calibration_sessions` | FR-34 (tùy chọn) |
+| `calibration_sessions` | FR-29 (RBL) |
+| `submission_metadata` | FR-17 (async, optional) |
 
 **Submission XOR (BC-06)**
 
 - Sơ loại: `track_id NOT NULL`, `round_id` denormalized từ track.
 - Chung kết: `track_id NULL`, `round_id` = round FINAL.
-- Trigger DB + partial UNIQUE (`track_uk` / `round_uk`) — xem schema §5.7.
+- Trigger DB + UNIQUE `scoring_key` generated (BUG-2) — xem schema §6.2 v4.1.
 
 ---
 

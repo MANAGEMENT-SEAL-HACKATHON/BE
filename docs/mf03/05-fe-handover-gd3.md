@@ -29,7 +29,7 @@ Coordinator: round Sơ loại đã cấu hình criteria + judge (MF-01).
 | Thông tin đề | Đọc từ hackathon/round (sau release-problem có URL) |
 | Form nộp | `POST /submissions` |
 | Lịch sử / trạng thái | `GET /submissions?teamId=&roundId=` |
-| Nộp lại | `PATCH /submissions/{id}/resubmit` |
+| Nộp lại | `POST /submissions` (upsert) — `PATCH .../resubmit` deprecated |
 
 **Body Sơ loại:** có `trackId`. **Chung kết:** chỉ `roundId` (FINAL), **không** gửi `trackId`.
 
@@ -48,12 +48,12 @@ Coordinator: round Sơ loại đã cấu hình criteria + judge (MF-01).
 |-----|-----|
 | Kích hoạt vòng | `PATCH /rounds/{id}/activate` |
 | Phát đề | `PATCH /rounds/{id}/release-problem` |
-| Duyệt nộp muộn | `GET /submissions?roundId=` + `PATCH .../review` |
-| Tiến độ chấm | `GET /rounds/{id}/scoring-progress` |
+| Duyệt nộp muộn | `GET /submissions?roundId=` + `PATCH .../review-late` |
+| Tiến độ chấm | `GET /rounds/{id}/scoring-progress` hoặc WS |
 | Khóa chấm | `PATCH /rounds/{id}/lock-scoring` |
-| Xếp hạng | `GET .../ranking/preview` → `.../ranking` |
-| Tiebreak / Wild card | endpoints `tiebreak`, `wildcard` |
-| Chốt danh sách | `POST .../advance-teams` |
+| Xếp hạng live | `GET .../ranking/preview` hoặc WS `/topic/rounds/{id}/leaderboard-preview` |
+| Tiebreak / Wild card | GĐ4 — endpoints `tiebreak`, `wildcard` |
+| Chốt danh sách | GĐ4 — `POST .../advance` |
 | Phân judge CK | `POST .../judge-assignments` |
 
 **Lock scoring:** Nếu response có `warnings`, hiển thị dialog xác nhận (partial scoring).
@@ -63,7 +63,7 @@ Coordinator: round Sơ loại đã cấu hình criteria + judge (MF-01).
 | Màn | API |
 |-----|-----|
 | Danh sách bài | `GET /submissions?roundId=` |
-| Form điểm | `POST /scores` |
+| Form điểm | `POST /scores` + subscribe WS [06-live-scoring-websocket.md](06-live-scoring-websocket.md) |
 | Calibration (nếu có) | `POST /scores/calibration` |
 
 Disable form khi nhận `423 SCORING_LOCKED`.
@@ -89,7 +89,7 @@ Giả sử seed MF-01 + MF-02 đã có hackathon id `1`, round SL id `1`, round 
 3. **Student** login → `POST /submissions` (teamId, trackId, urls…)
 4. **Judge** login → `POST /scores` (submissionId, criterionId, scoreValue)
 5. **Coordinator** → `PATCH /rounds/1/lock-scoring` `{ "force": false }`
-6. `GET /rounds/1/ranking/preview` → tiebreak/wildcard nếu cần → `POST /rounds/1/advance-teams`
+6. `GET /rounds/1/ranking/preview` (hoặc WS) → GĐ4: tiebreak/wildcard → `POST /rounds/1/advance`
 7. `POST /rounds/2/judge-assignments` → `PATCH /rounds/2/activate`
 8. Student nộp CK → Judge chấm → `PATCH /rounds/2/lock-scoring`
 9. `POST /hackathons/1/prizes` → `PATCH /hackathons/1/status` `{ "targetStatus": "FINISHED" }`

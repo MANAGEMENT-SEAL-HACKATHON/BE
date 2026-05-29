@@ -58,12 +58,18 @@ curl -s -X PATCH "http://localhost:8080/api/v1/rounds/1/release-problem" \
   -H "Content-Type: application/json" \
   -d '{"problemStatementUrl":"https://example.com/debai.pdf"}'
 
-# Lock scoring (stub có thể trả 200 rỗng)
+# Lock scoring
 curl -s -X PATCH "http://localhost:8080/api/v1/rounds/1/lock-scoring" \
   -H "Authorization: Bearer $COORD_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"force":false}'
+
+# Live ranking preview (polling fallback)
+curl -s "http://localhost:8080/api/v1/rounds/1/ranking/preview" \
+  -H "Authorization: Bearer $COORD_TOKEN"
 ```
+
+**WebSocket:** xem [06-live-scoring-websocket.md](06-live-scoring-websocket.md).
 
 ---
 

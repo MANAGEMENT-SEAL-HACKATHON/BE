@@ -1,5 +1,6 @@
 package com.sealhackathon.api.prizes.entity;
 
+import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.prizes.value_object.PrizeRank;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.teams.entity.Team;
@@ -14,7 +15,13 @@ import java.time.LocalDateTime;
  * Giải thưởng cấp cho 1 Team trong 1 Round (và optional Track).
  */
 @Entity
-@Table(name = "prizes")
+@Table(
+        name = "prizes",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_prizes_hackathon_team", columnNames = {"hackathon_id", "team_id"}),
+                @UniqueConstraint(name = "uk_prizes_hackathon_rank", columnNames = {"hackathon_id", "prize_rank"})
+        }
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -25,6 +32,10 @@ public class Prize {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "hackathon_id", nullable = false)
+    private Hackathon hackathon;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "track_id")

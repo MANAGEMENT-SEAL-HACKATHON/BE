@@ -8,7 +8,7 @@ flowchart TB
     A1[Activate Round SL] --> A2[Phát đề]
     A2 --> A3[Nộp bài]
     A3 --> A4[Thuyết trình - events]
-    A4 --> A5[Judge chấm]
+    A4 --> A5[Judge chấm + WS live]
     A5 --> A6[Lock scoring SL]
   end
   subgraph G4[GĐ4 - Chuyển vòng]
@@ -36,13 +36,13 @@ flowchart TB
 
 | Bước | FR | Actor | API chính |
 |------|-----|-------|-----------|
-| 1 | FR-20 | Coordinator | `PATCH /rounds/{id}/activate` |
-| 2 | FR-21 | Coordinator | `PATCH /rounds/{id}/release-problem` |
-| 3 | FR-22 | Student | `POST /submissions` |
-| 3b | FR-25 | Coordinator | `PATCH /submissions/{id}/review` |
+| 1 | FR-15 | Coordinator | `PATCH /rounds/{id}/activate` |
+| 2 | FR-15A | Coordinator | `PATCH /rounds/{id}/release-problem` |
+| 3 | FR-16 | Student | `POST /submissions` (upsert) |
+| 3b | FR-16A | Coordinator | `PATCH /submissions/{id}/review-late` |
 | 4 | FR-23 | — | Events (presentation) |
-| 5 | FR-24 | Judge | `POST /scores` |
-| 6 | FR-26 | Coordinator | `PATCH /rounds/{id}/lock-scoring` |
+| 5 | FR-18/18A | Judge | `POST /scores` + WS `/topic/rounds/{id}/*` |
+| 6 | FR-20A | Coordinator | `PATCH /rounds/{id}/lock-scoring` |
 
 **FE gợi ý (Sơ loại):**
 

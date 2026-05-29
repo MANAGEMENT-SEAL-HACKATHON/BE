@@ -1,6 +1,6 @@
-# MF-03 GĐ3–GĐ6 — API Reference (cho FE / QA)
+# MF-03 GĐ3–GĐ6 — API Reference (GD03 v4.1)
 
-**Base:** `http://localhost:8080/api/v1`  
+**Nguồn:** `GD03_05_SEAL_MF_v4_1.docx` · **Base:** `http://localhost:8080/api/v1`  
 **Auth:** `Authorization: Bearer {{accessToken}}` — [mf02/01-auth-users.md](../mf02/01-auth-users.md)  
 **Envelope:** [mf01/api/_conventions.md](../mf01/api/_conventions.md)  
 **JSON mẫu:** [04-test-data.md](04-test-data.md)
@@ -15,33 +15,38 @@
 | 🔶 | Một phần (vd. list có lọc role, submit chưa) |
 | ⏳ | Route + DTO có; service `TODO` — có thể trả 200 với `data` rỗng |
 
-| Endpoint | FR | Trạng thái |
-|----------|-----|------------|
-| `PATCH /rounds/{id}/activate` | 20/32 | ✅ |
-| `PATCH /rounds/{id}/release-problem` | 21 | ⏳ |
-| `POST /submissions` | 22/33 | ⏳ |
-| `GET /submissions` | — | 🔶 |
-| `PATCH /submissions/{id}/resubmit` | 22 | ⏳ |
-| `PATCH /submissions/{id}/review` | 25 | ⏳ |
-| `POST /scores` | 24/35 | ⏳ |
-| `POST /scores/calibration` | 34 | ⏳ |
-| `PATCH /rounds/{id}/lock-scoring` | 26/36 | ⏳ |
-| `GET /rounds/{id}/scoring-progress` | — | ⏳ |
-| `GET /rounds/{id}/ranking` | 27 | ⏳ |
-| `GET /rounds/{id}/ranking/preview` | 27 | ⏳ |
-| `GET /rounds/{id}/tiebreak` | 28 | ⏳ |
-| `POST /rounds/{id}/tiebreak/resolve` | 28 | ⏳ |
-| `GET /rounds/{id}/wildcard/candidates` | 29 | ⏳ |
-| `POST /rounds/{id}/wildcard/approve` | 29 | ⏳ |
-| `POST /rounds/{id}/wildcard/reject` | 29 | ⏳ |
-| `POST /rounds/{id}/advance-teams` | 30 | ⏳ |
-| `POST /rounds/{id}/judge-assignments` | 31 | ⏳ |
-| `GET /rounds/{id}/scoreboard` | — | ⏳ (public ✅ route) |
-| `PATCH /hackathons/{id}/status` | GĐ6 | ✅ |
+| Endpoint | FR v4.1 | Trạng thái |
+|----------|---------|------------|
+| `PATCH /rounds/{id}/activate` | 15/25 | ✅ (+ gate publish CK) |
+| `PATCH /rounds/{id}/release-problem` | 15A | ✅ |
+| `PATCH /rounds/{id}/publish` | 24 | ⏳ GĐ4 stub |
+| `POST /submissions` | 16 | ✅ (Sơ loại; CK → GĐ5) |
+| `GET /submissions` | — | ✅ |
+| `PATCH /submissions/{id}/review-late` | 16A | ✅ |
+| `PATCH /submissions/{id}/review` | 16A | ⚠️ deprecated alias |
+| `PATCH /submissions/{id}/resubmit` | 16 | ⚠️ deprecated — upsert POST |
+| `POST /scores` | 18/18A | ✅ + WS push |
+| `POST /scores/calibration` | 29 | ⏳ GĐ5 |
+| `PATCH /rounds/{id}/lock-scoring` | 20A | ✅ |
+| `GET /rounds/{id}/ranking/preview` | 20 | ✅ live |
+| `GET /rounds/{id}/scoring-progress` | 20A | ✅ |
+| `GET /rounds/{id}/ranking` | 20/22 | ✅ (cần lock) |
+| `GET /rounds/{id}/wildcard-candidates` | 22A | ⏳ GĐ4 stub |
+| `PATCH /wildcard-reviews/{id}` | 22A | ⏳ GĐ4 stub |
+| `POST /rounds/{id}/advance` | 22/23 | ⏳ GĐ4 stub |
+| `POST /rounds/{id}/advance-teams` | 22/23 | ⚠️ deprecated alias |
+| `POST /rounds/{id}/judge-assignments` | 27 | ⏳ |
+| `PATCH /teams/{id}/eliminate` | 21 | ✅ |
+| `POST /calibration-sessions` | 29 | ⏳ GĐ5 stub |
+| `GET /rounds/{id}/rbl/variance` | 30 | ⏳ GĐ5 stub |
+| `GET /rounds/{id}/scoreboard` | 20 | ⏳ GĐ4 |
+| **WebSocket `/ws`** | 18A | ✅ — [06-live-scoring-websocket.md](06-live-scoring-websocket.md) |
 | `POST /hackathons/{id}/prizes` | GĐ6 | ✅ |
 | `GET /teams/{teamId}/journey` | — | ⏳ |
 
-**Swagger tags:** Submissions (GĐ3-GĐ5), Scores, Round Progression, Prizes (GĐ6), Teams Journey.
+**Deprecated alias (1 sprint):** `/review`, `/resubmit`, `/advance-teams`, `/wildcard/candidates`, `/wildcard/approve|reject`.
+
+**Swagger tags:** Submissions, Scores, Round Progression, Wildcard Reviews, Calibration Sessions, RBL Dashboard, Prizes, Teams Journey.
 
 ---
 
@@ -55,7 +60,7 @@
 
 `NORMAL` | `CALIBRATION` | `PENALTY` (xem `ScoreType.java`)
 
-### `ParticipationStatus` (journey / advance)
+### `ParticipationStatus` (team_round_tracks — D-2 v4.1)
 
 `PARTICIPATING` | `ADVANCED` | `ELIMINATED`
 
@@ -65,7 +70,7 @@
 
 ---
 
-## 1. Round — Activate (MF-01, dùng cho FR-20/32)
+## 1. Round — Activate (MF-01, FR-15/25)
 
 ```http
 PATCH /rounds/{id}/activate
