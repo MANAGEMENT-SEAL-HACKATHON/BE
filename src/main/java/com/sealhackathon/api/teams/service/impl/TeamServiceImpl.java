@@ -150,6 +150,20 @@ public class TeamServiceImpl implements TeamService {
                         .build())
                 .toList();
 
+        // Lấy thông tin Track (bảng đấu) của đội
+        java.util.List<com.sealhackathon.api.team_round_tracks.entity.TeamRoundTrack> trackAssignments = teamRoundTrackRepository.findByTeam_Id(teamId);
+        Integer trackId = null;
+        String trackName = null;
+        String assignedGroup = null;
+
+        // Nếu đội đã được bốc thăm, lấy Track mới nhất
+        if (!trackAssignments.isEmpty()) {
+            com.sealhackathon.api.team_round_tracks.entity.TeamRoundTrack latestTrack = trackAssignments.get(trackAssignments.size() - 1);
+            trackId = latestTrack.getTrack().getId();
+            trackName = latestTrack.getTrack().getName();
+            assignedGroup = latestTrack.getAssignedGroup();
+        }
+
         return TeamDetailResponse.builder()
                 .id(team.getId())
                 .hackathonId(team.getHackathon().getId())
@@ -166,6 +180,9 @@ public class TeamServiceImpl implements TeamService {
                 .acceptedMemberCount(acceptedCount)
                 .pendingInviteCount(pendingCount)
                 .members(memberResponses)
+                .trackId(trackId)
+                .trackName(trackName)
+                .assignedGroup(assignedGroup)
                 .build();
     }
 

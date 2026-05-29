@@ -31,4 +31,7 @@ public class TeamDetailResponse {
     private int acceptedMemberCount;
     private int pendingInviteCount;
     private List<TeamMemberResponse> members;
+    private Integer trackId;
+    private String trackName;
+    private String assignedGroup;
 }

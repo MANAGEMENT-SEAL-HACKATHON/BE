@@ -193,7 +193,7 @@ public class Gd1DataSeeder {
                 "SEAL Spring 2026",
                 HackathonStatus.ONGOING,
                 Season.Spring,
-                true,
+                false,
                 true,
                 users,
                 dates,
