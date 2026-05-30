@@ -79,8 +79,12 @@ public class TrackMapper {
                 .id(e.getId())
                 .roundId(roundId)
                 .name(e.getName())
+                .description(e.getDescription())
+                .topic(e.getTopic())
                 .status(e.getStatus())
                 .sequenceOrder(e.getSequenceOrder())
+                .minTeamSize(e.getMinTeamSize())
+                .maxTeamSize(e.getMaxTeamSize())
                 .maxTeams(e.getMaxTeams())
                 .maxTeamsPerGroup(e.getMaxTeamsPerGroup())
                 .build();

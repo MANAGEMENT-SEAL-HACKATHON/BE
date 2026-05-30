@@ -1,7 +1,6 @@
 package com.sealhackathon.api.hackathons.dto.request;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -12,7 +11,10 @@ import lombok.Setter;
 import java.util.List;
 
 /**
- * FR-13B PATCH /api/v1/hackathons/{id}/lottery — batch bốc thăm Track.
+ * FR-13B PATCH /api/v1/hackathons/{id}/lottery — bốc thăm Track.
+ * Hỗ trợ 2 chế độ:
+ * 1. Batch Save: FE gửi danh sách assignments (chọn tay).
+ * 2. Auto Lottery: FE để trống assignments, BE tự động chia bảng ngẫu nhiên.
  */
 @Getter
 @Setter
@@ -21,10 +23,9 @@ import java.util.List;
 @Builder
 public class HackathonLotteryRequest {
 
-    @NotNull
+    @NotNull(message = "roundId không được để trống")
     private Integer roundId;
 
-    @NotEmpty
     @Valid
     private List<Assignment> assignments;
 
@@ -34,7 +35,6 @@ public class HackathonLotteryRequest {
     @AllArgsConstructor
     @Builder
     public static class Assignment {
-
         @NotNull
         private Integer teamId;
 

@@ -31,12 +31,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
-/**
- * MF-02 FR-13B — Bốc thăm Track (batch).
- */
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -48,9 +47,9 @@ public class HackathonLotteryServiceImpl implements HackathonLotteryService {
     private final TrackRepository trackRepository;
     private final TeamRoundParticipationRepository teamRoundParticipationRepository;
     private final TeamRoundTrackRepository teamRoundTrackRepository;
+    private final UserRepository userRepository;
     private final CurrentUserAccessor currentUserAccessor;
     private final AuditService auditService;
-    private final UserRepository userRepository;
 
     @Override
     public HackathonLotteryResponse runLottery(Integer hackathonId, HackathonLotteryRequest req) {
@@ -69,6 +68,55 @@ public class HackathonLotteryServiceImpl implements HackathonLotteryService {
         }
         if (Boolean.TRUE.equals(round.getIsActive())) {
             throw new BusinessRuleException(ErrorCode.ROUND_ALREADY_ACTIVE, "Vòng thi đã kích hoạt, không thể bốc thăm");
+        }
+
+        // BỘ NÃO AUTO-LOTTERY NẾU FE KHÔNG GỬI ASSIGNMENTS
+        if (req.getAssignments() == null || req.getAssignments().isEmpty()) {
+
+            // 1. Lấy tất cả đội hợp lệ chưa bốc thăm
+            List<Team> eligibleTeams = teamRepository.findByHackathon_IdAndStatus(hackathonId, TeamStatus.ACTIVE).stream()
+                    .filter(t -> Boolean.TRUE.equals(t.getIsLocked()))
+                    .filter(t -> teamRoundTrackRepository.findByTeam_IdAndTrack_Round_Id(t.getId(), round.getId()).isEmpty())
+                    .collect(Collectors.toList());
+
+            // 2. Lấy tất cả Track đang mở
+            List<Track> openTracks = trackRepository.findByRoundIdOrderBySequenceOrderAsc(round.getId()).stream()
+                    .filter(t -> t.getStatus() == com.sealhackathon.api.tracks.value_object.TrackStatus.OPEN)
+                    .collect(Collectors.toList());
+
+            if (openTracks.isEmpty() && !eligibleTeams.isEmpty()) {
+                throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Không có Track nào đang MỞ để bốc thăm");
+            }
+
+            // 3. Trộn ngẫu nhiên danh sách đội để đảm bảo công bằng
+            Collections.shuffle(eligibleTeams);
+
+            List<HackathonLotteryRequest.Assignment> autoAssignments = new ArrayList<>();
+            int[] trackCounts = new int[openTracks.size()];
+
+            // 4. Phân bổ Round-Robin
+            for (int i = 0; i < eligibleTeams.size(); i++) {
+                Team team = eligibleTeams.get(i);
+                int trackIdx = i % openTracks.size();
+                Track track = openTracks.get(trackIdx);
+
+                int currentTrackTeamCount = trackCounts[trackIdx];
+                int maxPerGroup = track.getMaxTeamsPerGroup() != null ? track.getMaxTeamsPerGroup() : 5;
+                int groupNumber = (currentTrackTeamCount / maxPerGroup) + 1;
+
+                // Tự động tạo tên Bảng (Bảng A, Bảng B, C...)
+                String assignedGroup = "Bảng " + (char) ('A' + groupNumber - 1);
+
+                autoAssignments.add(HackathonLotteryRequest.Assignment.builder()
+                        .teamId(team.getId())
+                        .trackId(track.getId())
+                        .assignedGroup(assignedGroup)
+                        .build());
+
+                trackCounts[trackIdx]++;
+            }
+            // Gán lại vào request để tiếp tục luồng lưu DB bên dưới
+            req.setAssignments(autoAssignments);
         }
 
         User coordinator = null;
@@ -103,12 +151,10 @@ public class HackathonLotteryServiceImpl implements HackathonLotteryService {
                 throw new BusinessRuleException(ErrorCode.TRACK_CLOSED, "Track đã đóng");
             }
 
-            // Đội đã ở trong Track của Vòng này chưa?
             if (teamRoundTrackRepository.findByTeam_IdAndTrack_Round_Id(team.getId(), round.getId()).isPresent()) {
                 throw new ConflictException(ErrorCode.TEAM_ALREADY_IN_TRACK_THIS_ROUND, "Đội đã được phân vào một Track trong vòng này");
             }
 
-            // BƯỚC 1: TẠO PARTICIPATION TRƯỚC (Yêu cầu v3.5)
             TeamRoundParticipation participation = teamRoundParticipationRepository.findByTeam_IdAndRound_Id(team.getId(), round.getId())
                     .orElse(null);
 
@@ -122,7 +168,6 @@ public class HackathonLotteryServiceImpl implements HackathonLotteryService {
                 teamRoundParticipationRepository.save(participation);
             }
 
-            // BƯỚC 2: TẠO TEAM_ROUND_TRACKS
             TeamRoundTrack trt = TeamRoundTrack.builder()
                     .team(team)
                     .track(track)

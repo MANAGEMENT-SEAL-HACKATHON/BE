@@ -1,6 +1,5 @@
 package com.sealhackathon.api.tracks.dto.response;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.sealhackathon.api.tracks.value_object.TrackStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,7 +8,6 @@ import lombok.Getter;
 @Getter
 @Builder
 @AllArgsConstructor
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public class TrackResponse {
 
     private final Integer id;
