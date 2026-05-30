@@ -68,7 +68,7 @@ public class TeamController {
 
     @GetMapping
     @ApprovedOnly
-    @Operation(summary = "Danh sách đội theo hackathon (Coordinator / Student đội mình)")
+    @Operation(summary = "Danh sách đội theo hackathon (Coordinator: tất cả; Student: đội mình tham gia / được mời)")
     public ResponseEntity<ApiResponse<List<TeamDetailResponse>>> list(
             @RequestParam Integer hackathonId,
             @RequestParam(required = false) TeamStatus status) {

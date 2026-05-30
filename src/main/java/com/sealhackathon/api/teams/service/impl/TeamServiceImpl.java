@@ -185,11 +185,17 @@ public class TeamServiceImpl implements TeamService {
                 teams = teamRepository.findByHackathon_Id(hackathonId);
             }
         }
-        // Nếu là Student -> Chỉ thấy đội do mình làm Leader (Có thể mở rộng thấy đội mình làm Member sau)
+        // Student: đội mình là thành viên (leader cũng nằm trong team_members)
         else {
-            teams = teamRepository.findByLeader_Id(currentUserId).stream()
-                    .filter(t -> t.getHackathon().getId().equals(hackathonId))
-                    .toList();
+            teams = teamMemberRepository.findTeamsByUserIdAndHackathonIdAndMemberStatusIn(
+                    currentUserId,
+                    hackathonId,
+                    java.util.List.of(
+                            com.sealhackathon.api.team_members.value_object.TeamMemberStatus.PENDING,
+                            com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED));
+            if (status != null) {
+                teams = teams.stream().filter(t -> t.getStatus() == status).toList();
+            }
         }
 
         // Map sang Detail Response (Có thể tối ưu N+1 query sau, tạm thời vòng lặp cho logic chuẩn)
