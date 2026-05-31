@@ -1,4 +1,4 @@
-# BE Backlog — GĐ4 & GĐ5 (checklist triển khai)
+# BE Backlog — GĐ4, GĐ5 & GĐ6 (checklist triển khai)
 
 **Mục đích:** Một file ngắn để team BE biết **đã làm gì**, **còn thiếu gì**, tránh trùng lặp khi đọc doc tổng (`01-business-rules`, `03-api-reference`, docx v4.1).
 
@@ -105,8 +105,9 @@
 | G5-2 | FR-35 | `POST /scores` round FINAL | 🔶 guard có | `JudgeAssignmentGuard` đã hỗ trợ round scope; cần submission CK + criteria round FINAL. | `ScoreServiceImpl` |
 | G5-3 | FR-18A | WebSocket CK | 🔶 | Broadcast round FINAL (`/topic/rounds/{finalId}/*`) — verify sau G5-1. | `LiveScoringPublisher` |
 | G5-4 | FR-20 | Ranking CK | ⏳ | `RoundRankingQueryService` hiện **bỏ qua** `track_id NULL` — thêm nhánh ranking pool chung FINAL. | `RoundRankingQueryService` |
-| G5-5 | FR-20A | `PATCH /rounds/{finalId}/lock-scoring` | 🔶 lock có | Side effect FR-36: `hackathons.status → PENDING_CONFIRM` khi lock round FINAL. | `RoundProgressionServiceImpl.lockScoring` |
-| G5-6 | FR-36 | Confirm kết quả | ⏳ | API xác nhận BTC (Coordinator) sau `PENDING_CONFIRM` — spec docx / GĐ6. | `HackathonStatusService` hoặc endpoint mới |
+| G5-5 | FR-20A | `PATCH /rounds/{finalId}/lock-scoring` | 🔶 lock có | Side effect FR-30A: `hackathons.status → PENDING_CONFIRM` khi lock round FINAL. | `RoundProgressionServiceImpl.lockScoring` |
+
+> **Lưu ý:** Confirm `PENDING_CONFIRM → FINISHED` thuộc **GĐ6 FR-33** (không phải GĐ5). Scaffold: `HackathonClosureServiceImpl.confirm` — xem mục GĐ6 bên dưới.
 
 ### Calibration & RBL (FR-29 / FR-30)
 
@@ -131,24 +132,71 @@
 
 ---
 
-## GĐ6 — Liên quan (ngắn, tránh nhầm scope)
+## GĐ6 — Scaffold TODO (MF-06 v3.2)
 
-| Hạng mục | Trạng thái | Ghi chú |
-|----------|------------|---------|
-| `POST /hackathons/{id}/prizes` | ✅ | Đã có — chỉ khi `PENDING_CONFIRM` |
-| `PATCH /hackathons/{id}/status → FINISHED` | 🔶 | Kiểm tra gate readiness |
-| `chapter_rankings` / batch | ⏳ | Chưa API — job/batch sau prizes |
+**Nguồn:** `GD06_SEAL_MF06_v3_2.docx` · **Chỉ khung route + service `// TODO`** — chưa gates/worker/query thật.
+
+### Đã có (đừng làm lại)
+
+| API | File |
+|-----|------|
+| `POST /hackathons/{id}/prizes` | [`PrizeServiceImpl.award`](../../src/main/java/com/sealhackathon/api/prizes/service/impl/PrizeServiceImpl.java) ✅ |
+
+### Scaffold mới (TODO trong impl)
+
+| Method | Path | Service |
+|--------|------|---------|
+| `PATCH` | `/hackathons/{id}/confirm` | `HackathonClosureServiceImpl.confirm` |
+| `GET` | `/hackathons/{id}/team-rankings` | `HackathonClosureServiceImpl.teamRankings` |
+| `GET` | `/hackathons/{id}/chapter-rankings` | `ChapterRankingServiceImpl` |
+| `GET` | `/hackathons/{id}/individual-rankings` | `IndividualRankingServiceImpl` |
+| `GET` | `/hackathons/{id}/prizes` | `PrizeServiceImpl.listByHackathon` |
+| `DELETE` | `/prizes/{id}` | `PrizeServiceImpl.revoke` |
+| `POST` | `/hackathons/{id}/export-jobs` | `ExportJobServiceImpl.create` |
+| `GET` | `/export-jobs/{id}` | `ExportJobServiceImpl.getById` |
+| `GET` | `/export-jobs/{id}/download` | `ExportJobServiceImpl.downloadUrl` |
+
+Controller: [`HackathonClosureController`](../../src/main/java/com/sealhackathon/api/hackathons/controller/HackathonClosureController.java), [`ExportJobController`](../../src/main/java/com/sealhackathon/api/export_jobs/controller/ExportJobController.java), [`PrizeController`](../../src/main/java/com/sealhackathon/api/prizes/controller/PrizeController.java).
+
+Query / event (scaffold):
+
+| Thành phần | File |
+|------------|------|
+| `FinalRankingQueryService` | [`hackathons/query/`](../../src/main/java/com/sealhackathon/api/hackathons/query/) |
+| `HackathonFinishedEvent` + listener | [`hackathons/event/`](../../src/main/java/com/sealhackathon/api/hackathons/event/), [`hackathons/listener/`](../../src/main/java/com/sealhackathon/api/hackathons/listener/) |
+
+Docs: [01-business-rules-gd6.md](./01-business-rules-gd6.md), [10-fe-api-flow-gd6.md](./10-fe-api-flow-gd6.md).
+
+### GĐ6 — Implement thật (phase 2)
+
+| # | FR | Endpoint / hành vi | Việc cần làm | File gợi ý |
+|---|-----|-------------------|--------------|------------|
+| G6-1 | FR-33 | `PATCH /hackathons/{id}/confirm` | Gate `PENDING_CONFIRM`, round FINAL locked, `NO_PRIZES_RECORDED`, `SELECT FOR UPDATE`, status → FINISHED, audit IP/UA | `HackathonClosureServiceImpl.confirm` |
+| G6-2 | FR-33 | Event async | Publish `HackathonFinishedEvent` → notify `RESULT_PUBLISHED` | `HackathonFinishedEventListener` |
+| G6-3 | FR-31/33A | `GET .../team-rankings` | Query `v_round_leaderboard` round `is_final=TRUE`; gate `PENDING_CONFIRM`+ | `FinalRankingQueryServiceImpl` |
+| G6-4 | FR-33B | Worker chapter | `calculateAsync` persist `chapter_rankings` + formula_snapshot | `ChapterRankingServiceImpl` |
+| G6-5 | FR-33C/D | Worker individual | `calculateAsync` nếu `individual_ranking_enabled`; gate 404 | `IndividualRankingServiceImpl` |
+| G6-6 | FR-32 | `GET .../prizes`, `DELETE /prizes/{id}` | List thật + revoke (chặn FINISHED) + audit | `PrizeServiceImpl` |
+| G6-7 | FR-34/35 | Export jobs | INSERT job, worker S3, `expires_at`, download URL | `ExportJobServiceImpl` + worker |
+| G6-8 | FR-32 | Migration BUG-7 | `scope`, `prize_type`, `user_id`; UNIQUE mới | SQL migration |
+| G6-9 | — | Error codes | `NO_PRIZES_RECORDED`, `EXPORT_JOB_NOT_READY`, … | `ErrorCode.java` |
+| G6-10 | — | Tests & docs | IT confirm + export; cập nhật `03-api-reference` §6 | tests + docs |
+
+**Phụ thuộc GĐ5:** G5-5 phải set `PENDING_CONFIRM` trước khi G6-1 chạy được.
 
 ---
 
 ## Docs cần sync (tránh FE/BE lệch)
 
-| File | Việc |
-|------|------|
-| [03-api-reference-gd3.md](03-api-reference-gd3.md) | Sửa bảng trạng thái: `publish`, `advance`, `judge-assignments` → ✅ phase 1 |
-| [01-business-rules-gd3.md](01-business-rules-gd3.md) dòng 5 | Đổi “GĐ4/GĐ5 còn stub” → “GĐ4 phase 1 ✅; phase 2 + GĐ5 ⏳” |
-| [02-mainflow-gd3.md](02-mainflow-gd3.md) | Thêm link `09-be-backlog-gd4-gd5.md` ở mục GĐ4/GĐ5 |
-| Swagger `@Operation` | Tag Round Progression — ghi rõ endpoint nào ✅ / ⏳ |
+| File | Trạng thái | Việc còn lại |
+|------|------------|--------------|
+| [03-api-reference-gd3.md](03-api-reference-gd3.md) | ✅ | §6 GĐ6 đầy đủ endpoint scaffold + DTO mẫu |
+| [01-business-rules-gd3.md](01-business-rules-gd3.md) dòng 5 | ✅ | Đã ghi GĐ4 phase 1 ✅ |
+| [01-business-rules-gd6.md](01-business-rules-gd6.md) | ✅ | FR-31…36 map package |
+| [10-fe-api-flow-gd6.md](10-fe-api-flow-gd6.md) | ✅ | Luồng FE GĐ6 scaffold |
+| [02-mainflow-gd3.md](02-mainflow-gd3.md) | ✅ | GĐ6 bảng API + link backlog / 10-fe-api-flow |
+| [10-fe-api-flow-gd5.md](10-fe-api-flow-gd5.md) | ⏳ | Tạo khi bắt đầu implement GĐ5 |
+| Swagger `@Operation` | 📝 | Tag Round Progression / GĐ6 — ghi rõ endpoint ✅ / ⏳ |
 
 ---
 
@@ -170,16 +218,22 @@ flowchart LR
     CAL[calibration RBL]
     LOCK[lock CK PENDING_CONFIRM]
   end
+  subgraph g6 [GĐ6 phase 2]
+    CONF[confirm FINISHED]
+    RANK6[rankings export]
+  end
   done --> T --> W --> S
   S --> SUB --> CAL --> RANK --> LOCK
+  LOCK --> CONF --> RANK6
 ```
 
 1. **G4-1 → G4-3** — Tiebreak (block advance nếu chưa xong).
 2. **G4-4 → G4-6** — Wild card (chỉ khi `wildcard_enabled`).
-3. **G4-7** — Scoreboard public (FE GĐ6 / landing).
+3. **G4-7** — Scoreboard public (FE landing).
 4. **G5-1 → G5-5** — Core CK: nộp → chấm → ranking → lock → `PENDING_CONFIRM`.
 5. **G5-7 → G5-12** — Calibration + RBL (có thể song song sau G5-2).
-6. **G4-8 → G4-11, G5-13 → G5-15** — Polish, tests, docs.
+6. **G6-1 → G6-10** — Confirm, rankings workers, export, BUG-7 migration.
+7. **G4-8 → G4-11, G5-13 → G5-15** — Polish, tests, docs.
 
 ---
 
@@ -193,6 +247,9 @@ flowchart LR
 | `ScoreController` | `ScoreServiceImpl` | GĐ3 ✅ / GĐ5 ⏳ calibration |
 | `CalibrationSessionController` | `CalibrationSessionServiceImpl` | GĐ5 ⏳ |
 | `RblDashboardController` | `RblDashboardServiceImpl` | GĐ5 ⏳ |
+| `HackathonClosureController` | `HackathonClosureService` + rankings + export | GĐ6 🔶 scaffold |
+| `HackathonPrizeController` / `PrizeController` | `PrizeServiceImpl` | GĐ6 — `award` ✅; list/revoke ⏳ |
+| `ExportJobController` | `ExportJobServiceImpl` | GĐ6 ⏳ |
 | `TeamJourneyController` | `TeamJourneyServiceImpl` | Optional ⏳ |
 
 ---

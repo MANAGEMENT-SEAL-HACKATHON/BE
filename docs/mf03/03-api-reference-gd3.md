@@ -41,12 +41,24 @@
 | `GET /rounds/{id}/rbl/variance` | 30 | ⏳ GĐ5 stub |
 | `GET /rounds/{id}/scoreboard` | 20 | ⏳ GĐ4 |
 | **WebSocket `/ws`** | 18A | ✅ — [06-live-scoring-websocket.md](06-live-scoring-websocket.md) |
-| `POST /hackathons/{id}/prizes` | GĐ6 | ✅ |
+| `POST /hackathons/{id}/prizes` | FR-32 | ✅ GĐ6 |
+| `GET /hackathons/{id}/prizes` | FR-32 | ⏳ GĐ6 stub |
+| `DELETE /prizes/{id}` | FR-32 | ⏳ GĐ6 stub |
+| `PATCH /hackathons/{id}/confirm` | FR-33 | ⏳ GĐ6 stub |
+| `GET /hackathons/{id}/team-rankings` | FR-31/33A | ⏳ GĐ6 stub |
+| `GET /hackathons/{id}/chapter-rankings` | FR-33B | ⏳ GĐ6 stub |
+| `GET /hackathons/{id}/individual-rankings` | FR-33C | ⏳ GĐ6 stub |
+| `POST /hackathons/{id}/export-jobs` | FR-34/35 | ⏳ GĐ6 stub (202) |
+| `GET /export-jobs/{id}` | FR-34 | ⏳ GĐ6 stub |
+| `GET /export-jobs/{id}/download` | FR-34/35 | ⏳ GĐ6 stub |
+| `PATCH /hackathons/{id}/status` | GĐ1 FR-06 | ✅ (generic; GĐ6 ưu tiên `/confirm`) |
 | `GET /teams/{teamId}/journey` | — | ⏳ |
 
 **Deprecated alias (1 sprint):** `/review`, `/resubmit`, `/advance-teams`, `/wildcard/candidates`, `/wildcard/approve|reject`.
 
-**Swagger tags:** Submissions, Scores, Round Progression, Wildcard Reviews, Calibration Sessions, RBL Dashboard, Prizes, Teams Journey.
+**Swagger tags:** Submissions, Scores, Round Progression, Wildcard Reviews, Calibration Sessions, RBL Dashboard, **Hackathon Closure (GĐ6)**, **Prizes (GĐ6)**, **Export Jobs (GĐ6)**, Status, Teams Journey.
+
+**GĐ6 chi tiết:** §6 · Luồng FE: [10-fe-api-flow-gd6.md](10-fe-api-flow-gd6.md) · Business rules: [01-business-rules-gd6.md](01-business-rules-gd6.md) · Backlog: [09-be-backlog-gd4-gd5.md](09-be-backlog-gd4-gd5.md).
 
 ---
 
@@ -324,9 +336,282 @@ GET /rounds/{id}/scoreboard
 
 ---
 
-## 6. Hackathon — Status & Prizes (GĐ6)
+## 6. Hackathon — Kết thúc & Trao giải (GĐ6 / MF-06)
 
-### 6.1 Đổi trạng thái
+**Nguồn:** `GD06_SEAL_MF06_v3_2.docx` · **Role:** Coordinator (`@CoordinatorOnly`) trừ khi ghi chú khác.
+
+**Tiền đề:** Hackathon `PENDING_CONFIRM` (GĐ5 FR-30A — lock scoring round FINAL). Luồng đóng sự kiện:
+
+```
+GET team-rankings → POST/GET prizes → PATCH confirm → (async) chapter/individual rankings → POST export-jobs
+```
+
+**Stub hiện tại:** endpoint trả **200/201/202** với `data` rỗng hoặc builder tối thiểu — chưa gate/worker/query thật. Xem [09-be-backlog-gd4-gd5.md](09-be-backlog-gd4-gd5.md) mục G6-*.
+
+---
+
+### 6.1 Bảng XH Team — round Chung kết (FR-31 / FR-33A) ⏳
+
+```http
+GET /hackathons/{hackathonId}/team-rankings
+Authorization: Bearer <coordinator>
+```
+
+**Điều kiện (phase 2):** hackathon `PENDING_CONFIRM` hoặc `FINISHED`; query `v_round_leaderboard` round `is_final=TRUE`.
+
+**200 — `FinalTeamRankingItemResponse[]`**
+
+```json
+[
+  {
+    "rank": 1,
+    "teamId": 1,
+    "teamName": "Seal Warriors",
+    "chapterId": 2,
+    "chapterName": "FPT HCM",
+    "weightedAvgScore": 8.75,
+    "judgeCount": 3
+  }
+]
+```
+
+**Hiện tại:** `[]` (stub).
+
+---
+
+### 6.2 Trao giải (FR-32)
+
+#### 6.2.1 Trao giải — ✅
+
+```http
+POST /hackathons/{hackathonId}/prizes
+Authorization: Bearer <coordinator>
+```
+
+**Điều kiện:** hackathon `PENDING_CONFIRM` (không `FINISHED`).
+
+```json
+{
+  "roundId": 2,
+  "trackId": null,
+  "teamId": 1,
+  "prizeName": "Giải Nhất",
+  "prizeRank": "FIRST",
+  "prizeValue": "7000000",
+  "description": "SEAL Spring 2026"
+}
+```
+
+| Field | Bắt buộc | Ghi chú |
+|-------|----------|---------|
+| `roundId` | ✅ | Round FINAL của hackathon |
+| `trackId` | — | Nullable — round CK không bắt buộc track |
+| `teamId` | ✅ | Đội thuộc cùng hackathon |
+| `prizeRank` | — | `FIRST`, `SECOND`, `THIRD`, `CONSOLATION`, … |
+
+**201 — `PrizeResponse`**
+
+```json
+{
+  "id": 10,
+  "hackathonId": 1,
+  "roundId": 2,
+  "trackId": null,
+  "teamId": 1,
+  "prizeName": "Giải Nhất",
+  "prizeRank": "FIRST",
+  "prizeValue": "7000000",
+  "description": "SEAL Spring 2026",
+  "awardedAt": "2026-05-29T14:00:00",
+  "awardedById": 5
+}
+```
+
+**409** `PRIZE_DUPLICATE` — trùng đội hoặc loại giải trong hackathon.  
+**422** `HACKATHON_NOT_PENDING_CONFIRM` — trao giải sai phase.
+
+#### 6.2.2 Danh sách giải — ⏳
+
+```http
+GET /hackathons/{hackathonId}/prizes
+Authorization: Bearer <coordinator>
+```
+
+**200 — `PrizeResponse[]`** · **Hiện tại:** `[]` (stub; phase 2 đọc DB + gate `PENDING_CONFIRM`+).
+
+#### 6.2.3 Thu hồi giải — ⏳
+
+```http
+DELETE /prizes/{prizeId}
+Authorization: Bearer <coordinator>
+```
+
+**200** — body `null` trong envelope.  
+**Phase 2:** chặn khi hackathon `FINISHED`; audit FR-36.
+
+---
+
+### 6.3 Xác nhận kết thúc (FR-33) ⏳
+
+```http
+PATCH /hackathons/{hackathonId}/confirm
+Authorization: Bearer <coordinator>
+```
+
+```json
+{
+  "confirm": true,
+  "note": "BTC xác nhận kết quả SEAL Spring 2026"
+}
+```
+
+| Field | Bắt buộc | Ghi chú |
+|-------|----------|---------|
+| `confirm` | ✅ | `true` để chuyển `PENDING_CONFIRM → FINISHED` |
+| `note` | — | Ghi chú audit |
+
+**200 — `HackathonResponse`** (stub hiện chỉ trả `id`).
+
+**Phase 2 gates:**
+
+- Hackathon `PENDING_CONFIRM`
+- Round FINAL đã `scoring_locked`
+- ≥ 1 bản ghi `prizes` → nếu không: **422** `NO_PRIZES_RECORDED`
+- `SELECT … FOR UPDATE` chống race confirm
+
+**Side effect (async):** `HackathonFinishedEvent` → worker chapter/individual rankings + notify `RESULT_PUBLISHED`.
+
+> **Khác `/status`:** GĐ6 workflow dùng **`/confirm`** (FR-33). `PATCH /hackathons/{id}/status` (§6.7) là API generic GĐ1 — không thay thế gate prizes của MF-06.
+
+---
+
+### 6.4 Bảng XH Chapter (FR-33B) ⏳
+
+```http
+GET /hackathons/{hackathonId}/chapter-rankings
+Authorization: Bearer <coordinator>
+```
+
+**200 — `ChapterRankingItemResponse[]`**
+
+```json
+[
+  {
+    "chapterId": 2,
+    "chapterName": "FPT HCM",
+    "bestTeamScore": 8.75,
+    "totalScore": 12.5,
+    "rank": 1,
+    "teamsParticipated": 4,
+    "prizesWon": 2
+  }
+]
+```
+
+**Phase 2:** đọc `chapter_rankings` sau worker; gate hackathon `FINISHED` (hoặc đang processing).
+
+**Hiện tại:** `[]`.
+
+---
+
+### 6.5 Bảng XH Cá nhân (FR-33C / FR-33D) ⏳
+
+```http
+GET /hackathons/{hackathonId}/individual-rankings
+Authorization: Bearer <coordinator>
+```
+
+Chỉ áp dụng khi `hackathons.individual_ranking_enabled = true` (Fall 2025). Spring 2026 thường **không** có bảng này.
+
+**200 — `IndividualRankingItemResponse[]`**
+
+```json
+[
+  {
+    "userId": 42,
+    "fullName": "Nguyen Van A",
+    "scoreThisHackathon": 9.2,
+    "cumulativeScore": 27.5,
+    "rank": 1
+  }
+]
+```
+
+**Phase 2:** **404** `INDIVIDUAL_RANKING_NOT_AVAILABLE` nếu cờ tắt.
+
+**Hiện tại:** `[]` (chưa gate cờ).
+
+---
+
+### 6.6 Export jobs (FR-34 / FR-35) ⏳
+
+#### 6.6.1 Tạo job
+
+```http
+POST /hackathons/{hackathonId}/export-jobs
+Authorization: Bearer <coordinator>
+```
+
+```json
+{
+  "type": "CSV_RANKINGS"
+}
+```
+
+**`ExportJobType`:** `CSV_SCORES` · `CSV_RANKINGS` · `ANONYMIZED_RBL` · `FULL_REPORT`
+
+**202 — `ExportJobResponse`** (stub: `status=PENDING`, chưa persist DB)
+
+```json
+{
+  "hackathonId": 1,
+  "type": "CSV_RANKINGS",
+  "status": "PENDING"
+}
+```
+
+**Phase 2:** gate hackathon `FINISHED`; INSERT `export_jobs`; enqueue worker; `expires_at` + cleanup.
+
+#### 6.6.2 Trạng thái job
+
+```http
+GET /export-jobs/{jobId}
+Authorization: Bearer <coordinator>
+```
+
+**200 — `ExportJobResponse`**
+
+```json
+{
+  "id": 7,
+  "hackathonId": 1,
+  "type": "ANONYMIZED_RBL",
+  "status": "DONE",
+  "fileUrl": "https://s3.../export-7.zip",
+  "errorMessage": null,
+  "createdAt": "2026-05-29T15:00:00",
+  "finishedAt": "2026-05-29T15:02:30"
+}
+```
+
+**`ExportJobStatus`:** `PENDING` · `PROCESSING` · `DONE` · `FAILED`
+
+#### 6.6.3 Download
+
+```http
+GET /export-jobs/{jobId}/download
+Authorization: Bearer <coordinator>
+```
+
+**200 — `String`** (presigned URL hoặc path) trong envelope `data`.
+
+**Phase 2:** gate `status=DONE`, chưa hết `expires_at`; audit download FR-36.
+
+**Hiện tại:** `data: null`.
+
+---
+
+### 6.7 Đổi trạng thái generic (GĐ1 FR-06) ✅
 
 ```http
 PATCH /hackathons/{id}/status
@@ -343,28 +628,7 @@ Authorization: Bearer <coordinator>
 Machine: `DRAFT → ONGOING → PENDING_CONFIRM → FINISHED`.  
 Chi tiết: [mf01/api/fr-06-status.md](../mf01/api/fr-06-status.md).
 
-### 6.2 Trao giải
-
-```http
-POST /hackathons/{hackathonId}/prizes
-Authorization: Bearer <coordinator>
-```
-
-**Điều kiện:** hackathon `PENDING_CONFIRM`.
-
-```json
-{
-  "roundId": 2,
-  "trackId": null,
-  "teamId": 1,
-  "prizeName": "Giải Nhất",
-  "prizeRank": "FIRST",
-  "prizeValue": "7000000",
-  "description": "SEAL Spring 2026"
-}
-```
-
-**409** `PRIZE_DUPLICATE` nếu trùng đội hoặc `prizeRank` trong hackathon.
+**Ghi chú GĐ6:** MF-06 khuyến nghị Coordinator dùng **`PATCH /confirm`** (§6.3) thay vì set `FINISHED` trực tiếp qua `/status`, để đảm bảo gate prizes và audit đầy đủ.
 
 ---
 
@@ -407,8 +671,12 @@ Authorization: Bearer <any authenticated>
 | `ROUND_NOT_SCORING_LOCKED` | 422 | Ranking trước lock |
 | `PRIZE_DUPLICATE` | 409 | Trùng giải |
 | `HACKATHON_NOT_PENDING_CONFIRM` | 422 | Trao giải sai phase |
+| `NO_PRIZES_RECORDED` | 422 | Confirm GĐ6 khi chưa trao giải (phase 2) |
+| `HACKATHON_NOT_FINISHED` | 422 | Export / chapter rankings trước FINISHED (phase 2) |
+| `INDIVIDUAL_RANKING_NOT_AVAILABLE` | 404 | Cờ `individual_ranking_enabled=false` (phase 2) |
+| `EXPORT_JOB_NOT_READY` | 422 | Download khi job chưa DONE (phase 2) |
 
-Đầy đủ: `ErrorCode.java`, [01-business-rules-gd3.md](01-business-rules-gd3.md).
+Đầy đủ: `ErrorCode.java`, [01-business-rules-gd3.md](01-business-rules-gd3.md), [01-business-rules-gd6.md](01-business-rules-gd6.md).
 
 ---
 

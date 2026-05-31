@@ -72,11 +72,17 @@ Disable form khi nhận `423 SCORING_LOCKED`.
 
 `GET /rounds/{id}/scoreboard` — **không** cần header Authorization (sau khi BTC công bố).
 
-### 2.5 GĐ6 — Trao giải
+### 2.5 GĐ6 — Kết thúc & trao giải
+
+**Luồng:** [10-fe-api-flow-gd6.md](10-fe-api-flow-gd6.md) · **API §6:** [03-api-reference-gd3.md](03-api-reference-gd3.md#6-hackathon--kết-thúc--trao-giải-gđ6--mf-06)
 
 Chỉ khi hackathon `PENDING_CONFIRM`:
 
-`POST /hackathons/{id}/prizes` → sau đó `PATCH .../status` `FINISHED`.
+1. `GET /hackathons/{id}/team-rankings` (xem XH CK)
+2. `POST /hackathons/{id}/prizes` ✅
+3. `PATCH /hackathons/{id}/confirm` `{ "confirm": true }` — **ưu tiên** thay `PATCH /status`
+4. Poll `GET .../chapter-rankings` (và `individual-rankings` nếu bật cờ)
+5. `POST /hackathons/{id}/export-jobs` → poll `GET /export-jobs/{id}`
 
 ---
 
@@ -92,7 +98,7 @@ Giả sử seed MF-01 + MF-02 đã có hackathon id `1`, round SL id `1`, round 
 6. `GET /rounds/1/ranking/preview` (hoặc WS) → GĐ4: tiebreak/wildcard → `POST /rounds/1/advance`
 7. `POST /rounds/2/judge-assignments` → `PATCH /rounds/2/activate`
 8. Student nộp CK → Judge chấm → `PATCH /rounds/2/lock-scoring`
-9. `POST /hackathons/1/prizes` → `PATCH /hackathons/1/status` `{ "targetStatus": "FINISHED" }`
+9. GĐ6: `GET .../team-rankings` → `POST /hackathons/1/prizes` → `PATCH /hackathons/1/confirm` `{ "confirm": true }`
 10. `GET /rounds/2/scoreboard` (không token)
 
 **Lưu ý:** Các bước 3–8 có thể trả data rỗng/stub cho đến khi BE hoàn thiện logic — FE nên handle `data` null/[] và theo dõi [README.md](README.md).

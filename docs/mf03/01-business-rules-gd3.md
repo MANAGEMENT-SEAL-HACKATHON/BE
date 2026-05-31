@@ -179,13 +179,16 @@ Panel Chung kết gồm **Judge khách mời** (chính) và **ngoại lệ trư�
 
 ## 15. GĐ6 — Kết thúc
 
-| Bước | Hành động |
-|------|-----------|
-| 1 | Lock CK → auto rank → `PENDING_CONFIRM` |
-| 2 | BTC họp → Coordinator xác nhận |
-| 3 | `POST /hackathons/{id}/prizes` (✅ implement) |
-| 4 | `PATCH /hackathons/{id}/status` → `FINISHED` |
-| 5 | `chapter_rankings` / `individual_rankings` (chưa API — job/batch) |
+Chi tiết MF-06: [01-business-rules-gd6.md](01-business-rules-gd6.md) · API: [03-api-reference-gd3.md §6](03-api-reference-gd3.md#6-hackathon--kết-thúc--trao-giải-gđ6--mf-06)
+
+| Bước | Hành động | Trạng thái BE |
+|------|-----------|---------------|
+| 1 | Lock CK → `PENDING_CONFIRM` (GĐ5 FR-30A) | 🔶 side effect chưa đủ |
+| 2 | `GET /hackathons/{id}/team-rankings` | ⏳ stub |
+| 3 | `POST /hackathons/{id}/prizes` | ✅ |
+| 4 | `PATCH /hackathons/{id}/confirm` → `FINISHED` | ⏳ stub |
+| 5 | `GET .../chapter-rankings`, `individual-rankings` (async worker) | ⏳ stub |
+| 6 | `POST /hackathons/{id}/export-jobs` | ⏳ stub |
 
 **Prize:** Chỉ khi `PENDING_CONFIRM`; chặn trùng đội / `prizeRank` → `PRIZE_DUPLICATE`.
 

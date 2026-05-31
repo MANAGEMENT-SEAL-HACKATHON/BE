@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -34,5 +35,12 @@ public class HackathonPrizeController {
             @PathVariable Integer hackathonId,
             @Valid @RequestBody AwardPrizeRequest req) {
         return ResponseEntity.status(201).body(ApiResponse.created(prizeService.award(hackathonId, req)));
+    }
+
+    @GetMapping("/{hackathonId}/prizes")
+    @Operation(summary = "FR-32 — Danh sách giải đã trao (stub gates)")
+    public ResponseEntity<ApiResponse<java.util.List<PrizeResponse>>> list(
+            @PathVariable Integer hackathonId) {
+        return ResponseEntity.ok(ApiResponse.ok(prizeService.listByHackathon(hackathonId)));
     }
 }

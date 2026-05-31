@@ -29,7 +29,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.Map;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -113,6 +115,18 @@ public class PrizeServiceImpl implements PrizeService {
                 "prizeRank", req.getPrizeRank() != null ? req.getPrizeRank().name() : null));
 
         return prizeMapper.toResponse(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PrizeResponse> listByHackathon(Integer hackathonId) {
+        // TODO: FR-32 — list prizes; gate PENDING_CONFIRM+
+        return Collections.emptyList();
+    }
+
+    @Override
+    public void revoke(Integer prizeId) {
+        // TODO: FR-32 — chặn nếu hackathon FINISHED; DELETE + audit FR-36
     }
 
     private void assertNoDuplicate(Integer hackathonId, Integer roundId, Integer teamId, PrizeRank prizeRank) {

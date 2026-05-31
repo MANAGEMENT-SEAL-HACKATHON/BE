@@ -112,9 +112,20 @@ curl -s -X POST "http://localhost:8080/api/v1/scores" \
 
 ---
 
-## 6. curl — Trao giải (GĐ6)
+## 6. curl — GĐ6 (MF-06)
 
-**Chuẩn bị:** `PATCH /hackathons/1/status` → `PENDING_CONFIRM` (sau lock CK khi logic đủ).
+**Chuẩn bị:** hackathon `PENDING_CONFIRM` (sau lock CK — GĐ5 FR-30A).
+
+**Tham chiếu đầy đủ:** [03-api-reference-gd3.md §6](03-api-reference-gd3.md#6-hackathon--kết-thúc--trao-giải-gđ6--mf-06)
+
+### 6.1 XH Team (stub → `[]`)
+
+```bash
+curl -s "http://localhost:8080/api/v1/hackathons/1/team-rankings" \
+  -H "Authorization: Bearer $COORD_TOKEN"
+```
+
+### 6.2 Trao giải ✅
 
 ```bash
 curl -s -X POST "http://localhost:8080/api/v1/hackathons/1/prizes" \
@@ -129,10 +140,54 @@ curl -s -X POST "http://localhost:8080/api/v1/hackathons/1/prizes" \
   }'
 ```
 
-**Trùng giải (kỳ vọng 409)**
+**Trùng giải (kỳ vọng 409):** gọi lại cùng `teamId` hoặc cùng `prizeRank`.
+
+### 6.3 Danh sách giải (stub → `[]`)
 
 ```bash
-# Gọi lại cùng teamId hoặc cùng prizeRank FIRST
+curl -s "http://localhost:8080/api/v1/hackathons/1/prizes" \
+  -H "Authorization: Bearer $COORD_TOKEN"
+```
+
+### 6.4 Confirm FINISHED (stub)
+
+```bash
+curl -s -X PATCH "http://localhost:8080/api/v1/hackathons/1/confirm" \
+  -H "Authorization: Bearer $COORD_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"confirm": true, "note": "BTC xác nhận"}'
+```
+
+### 6.5 Rankings Chapter / Individual (stub → `[]`)
+
+```bash
+curl -s "http://localhost:8080/api/v1/hackathons/1/chapter-rankings" \
+  -H "Authorization: Bearer $COORD_TOKEN"
+
+curl -s "http://localhost:8080/api/v1/hackathons/1/individual-rankings" \
+  -H "Authorization: Bearer $COORD_TOKEN"
+```
+
+### 6.6 Export job (stub)
+
+```bash
+curl -s -X POST "http://localhost:8080/api/v1/hackathons/1/export-jobs" \
+  -H "Authorization: Bearer $COORD_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "CSV_RANKINGS"}'
+
+curl -s "http://localhost:8080/api/v1/export-jobs/1" \
+  -H "Authorization: Bearer $COORD_TOKEN"
+
+curl -s "http://localhost:8080/api/v1/export-jobs/1/download" \
+  -H "Authorization: Bearer $COORD_TOKEN"
+```
+
+### 6.7 Thu hồi giải (stub no-op)
+
+```bash
+curl -s -X DELETE "http://localhost:8080/api/v1/prizes/10" \
+  -H "Authorization: Bearer $COORD_TOKEN"
 ```
 
 ---
@@ -178,9 +233,13 @@ MF-03 GĐ3
 │   ├── Submit final
 │   └── Lock final
 └── GĐ6
-    ├── Award prize
-    ├── Status FINISHED
-    └── Scoreboard (no auth)
+    ├── Team rankings (GET)
+    ├── Award prize (POST) ✅
+    ├── List / revoke prizes
+    ├── Confirm FINISHED
+    ├── Chapter / individual rankings
+    ├── Export jobs
+    └── Scoreboard (no auth, GĐ4)
 ```
 
 ---
@@ -190,9 +249,11 @@ MF-03 GĐ3
 | API | Kỳ vọng hiện tại |
 |-----|------------------|
 | activate | Có `isActive`, `activatedAt` |
-| prizes | 201 + `PrizeResponse`; 409 trùng |
+| publish / advance / judge CK | Logic thật GĐ4 phase 1 |
+| POST prizes | 201 + `PrizeResponse`; 409 trùng |
+| GET prizes / confirm / rankings / export GĐ6 | 200/202 stub — `[]` hoặc body tối thiểu |
 | GET submissions | Mảng thật nếu DB có row |
-| POST submissions | 200/201 body rỗng hoặc stub — **chưa persist** |
-| ranking / advance | 200 + `[]` hoặc echo — **chưa persist** |
+| POST submissions CK | ⏳ GĐ5 — chưa persist round FINAL |
+| tiebreak / wildcard / scoreboard | ⏳ GĐ4 phase 2 stub |
 
 Cập nhật bảng này khi BE merge logic MF-03.

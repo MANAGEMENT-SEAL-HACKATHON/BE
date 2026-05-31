@@ -39,13 +39,15 @@
 |---|------|-----------|----------|
 | 1 | [01-business-rules-gd3.md](01-business-rules-gd3.md) | BE / BA | FR-15…30A, gate, BUG-1…9 |
 | 2 | [02-mainflow-gd3.md](02-mainflow-gd3.md) | PM / FE | Luồng GĐ3 → GĐ6 + FR-24 publish |
-| 3 | **[03-api-reference-gd3.md](03-api-reference-gd3.md)** | **FE** | Endpoint v4.1 + alias deprecated |
+| 3 | **[03-api-reference-gd3.md](03-api-reference-gd3.md)** | **FE** | Endpoint v4.1 + **§6 GĐ6** (MF-06) |
 | 4 | [04-test-data.md](04-test-data.md) | FE / QA | curl, token mẫu |
 | 5 | [05-fe-handover-gd3.md](05-fe-handover-gd3.md) | FE | Breaking path + màn hình |
 | 6 | [06-live-scoring-websocket.md](06-live-scoring-websocket.md) | FE | STOMP/SockJS FR-18A |
 | 7 | **[07-fe-api-flow-gd3.md](07-fe-api-flow-gd3.md)** | **FE** | **Luồng API từng bước GĐ3 (đọc đầu tiên)** |
 | 8 | **[08-fe-api-flow-gd4.md](08-fe-api-flow-gd4.md)** | **FE** | **Luồng API GĐ4: publish → advance → judge CK → activate** |
-| 9 | **[09-be-backlog-gd4-gd5.md](09-be-backlog-gd4-gd5.md)** | **BE** | **Checklist còn thiếu GĐ4/GĐ5 — tránh trùng/lệch** |
+| 9 | **[09-be-backlog-gd4-gd5.md](09-be-backlog-gd4-gd5.md)** | **BE** | **Checklist còn thiếu GĐ4/GĐ5/GĐ6 — tránh trùng/lệch** |
+| 10 | [01-business-rules-gd6.md](01-business-rules-gd6.md) | BE / BA | FR-31…36 (MF-06 v3.2) |
+| 11 | **[10-fe-api-flow-gd6.md](10-fe-api-flow-gd6.md)** | **FE** | **Luồng API GĐ6: rankings → prizes → confirm → export** |
 
 **Swagger:** tag Submissions, Scores, Round Progression, Live Scoring (WebSocket), Wildcard Reviews, Calibration Sessions, RBL Dashboard, Prizes.
 
@@ -69,6 +71,7 @@
 | `GET /submissions` | ✅ lọc role |
 | GĐ4 phase 1: publish, advance, judge-assignments CK | ✅ |
 | GĐ4/GĐ5 phase 2: tiebreak, wildcard, scoreboard, CK submit, calibration, RBL | ⏳ stub |
+| GĐ6 scaffold: confirm, rankings, export-jobs, GET/DELETE prizes | 🔶 route + `// TODO` service |
 | `POST /hackathons/{id}/prizes` | ✅ (GĐ6) |
 
 Chi tiết: [03-api-reference-gd3.md](03-api-reference-gd3.md) · Phân quyền: [api-authorization-matrix.md](../api-authorization-matrix.md).
@@ -86,5 +89,12 @@ com.sealhackathon.api.wildcard_reviews.*
 com.sealhackathon.api.calibration_sessions.*
 com.sealhackathon.api.rbl.*
 com.sealhackathon.api.prizes.*
+com.sealhackathon.api.hackathons.controller.HackathonClosureController
+com.sealhackathon.api.hackathons.query.*
+com.sealhackathon.api.hackathons.event.*
+com.sealhackathon.api.hackathons.listener.*
+com.sealhackathon.api.chapter_rankings.*
+com.sealhackathon.api.individual_rankings.*
+com.sealhackathon.api.export_jobs.*
 com.sealhackathon.api.config.Gd03V41SchemaMigration
 ```

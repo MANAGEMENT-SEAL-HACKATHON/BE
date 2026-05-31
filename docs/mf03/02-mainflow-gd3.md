@@ -92,13 +92,21 @@ flowchart TB
 
 ---
 
-## GĐ6 — Kết thúc
+## GĐ6 — Kết thúc (MF-06)
 
-| Bước | API |
-|------|-----|
-| Trao giải | `POST /hackathons/{id}/prizes` |
-| Đóng sự kiện | `PATCH /hackathons/{id}/status` → `FINISHED` |
-| Bảng điểm công khai | `GET /rounds/{id}/scoreboard` (public, không JWT) |
+**Luồng FE:** [10-fe-api-flow-gd6.md](10-fe-api-flow-gd6.md) · **API:** [03-api-reference-gd3.md §6](03-api-reference-gd3.md#6-hackathon--kết-thúc--trao-giải-gđ6--mf-06) · **Backlog BE:** [09-be-backlog-gd4-gd5.md](09-be-backlog-gd4-gd5.md)
+
+| Bước | API | Trạng thái |
+|------|-----|------------|
+| Xem XH Team CK | `GET /hackathons/{id}/team-rankings` | ⏳ stub |
+| Trao giải | `POST /hackathons/{id}/prizes` | ✅ |
+| Xem / thu hồi giải | `GET /hackathons/{id}/prizes`, `DELETE /prizes/{id}` | ⏳ stub |
+| Confirm FINISHED | `PATCH /hackathons/{id}/confirm` | ⏳ stub |
+| XH Chapter / Cá nhân | `GET .../chapter-rankings`, `GET .../individual-rankings` | ⏳ stub (async sau confirm) |
+| Xuất báo cáo / RBL | `POST /hackathons/{id}/export-jobs`, `GET /export-jobs/{id}` | ⏳ stub |
+| Bảng điểm công khai (GĐ4) | `GET /rounds/{id}/scoreboard` | ⏳ stub, public không JWT |
+
+> Đóng sự kiện GĐ6 dùng **`/confirm`** (FR-33), không khuyến nghị `PATCH /status → FINISHED` trực tiếp.
 
 ---
 
@@ -120,6 +128,7 @@ Dùng cho màn “Lịch sử thi” phía student / coordinator.
 | Round progression | — | — | ✅ | — |
 | GET scoreboard | — | — | — | ✅ |
 | POST prizes | — | — | ✅ | — |
+| GET prizes / confirm / export GĐ6 | — | — | ✅ | — |
 | GET journey | ✅** | ✅** | ✅** | — |
 
 \* Student: bắt buộc `teamId`; Judge: bắt buộc `roundId` + đã phân công.  
@@ -130,5 +139,6 @@ Dùng cho màn “Lịch sử thi” phía student / coordinator.
 ## Liên kết
 
 - API chi tiết: [03-api-reference-gd3.md](03-api-reference-gd3.md)
-- Business rules: [01-business-rules-gd3.md](01-business-rules-gd3.md)
+- Business rules: [01-business-rules-gd3.md](01-business-rules-gd3.md) · GĐ6: [01-business-rules-gd6.md](01-business-rules-gd6.md)
+- Backlog BE GĐ4–6: [09-be-backlog-gd4-gd5.md](09-be-backlog-gd4-gd5.md)
 - Test: [04-test-data.md](04-test-data.md)
