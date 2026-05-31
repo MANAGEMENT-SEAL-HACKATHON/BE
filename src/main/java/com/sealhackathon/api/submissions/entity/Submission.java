@@ -1,5 +1,6 @@
 package com.sealhackathon.api.submissions.entity;
 
+import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.submissions.value_object.SubmissionStatus;
 import com.sealhackathon.api.teams.entity.Team;
@@ -11,10 +12,10 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 /**
- * [BC-06] Submission dùng XOR FK — Track (Sơ loại) HOẶC Round (Chung kết).
+ * [BC-06] Submission — Sơ loại gắn {@code track_id}; Chung kết gắn {@code round_id} (FINAL).
  *
- * <p>Partial UNIQUE mô phỏng bằng generated columns {@code track_uk}, {@code round_uk}
- * ở DB layer (KHÔNG khai báo trong entity).
+ * <p>UNIQUE {@code (team_id, scoring_key)} — generated column {@code scoring_key} ở DB (BUG-2).
+ * Sơ loại: {@code T{track_id}}; Chung kết: {@code R{round_id}}.
  *
  * <p>Trigger {@code trg_check_submission_round_is_final} ({@code docs/db/schema-v3.0-mysql.md} §5.7):
  * <ul>
@@ -39,18 +40,22 @@ public class Submission {
     @JoinColumn(name = "team_id", nullable = false)
     private Team team;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "hackathon_id", nullable = false)
+    private Hackathon hackathon;
+
     /**
-     * [BC-06] FK XOR — Track (Sơ loại). Nullable=true.
+     * [BC-06] FK — Track (Sơ loại). Nullable khi Chung kết.
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "track_id")
     private Track track;
 
     /**
-     * [BC-06] FK XOR — Round (Chung kết). Nullable=true.
+     * [BC-06] FK — Round (denormalized từ track hoặc FINAL). NOT NULL sau v4.1 migration.
      */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "round_id")
+    @JoinColumn(name = "round_id", nullable = false)
     private Round round;
 
     @Column(name = "repo_url", columnDefinition = "TEXT")

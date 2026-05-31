@@ -13,6 +13,7 @@ import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackReposito
 import com.sealhackathon.api.teams.dto.request.AssignTeamMentorRequest;
 import com.sealhackathon.api.teams.dto.request.BulkApproveTeamsRequest;
 import com.sealhackathon.api.teams.dto.request.CreateTeamRequest;
+import com.sealhackathon.api.teams.dto.request.EliminateTeamRequest;
 import com.sealhackathon.api.teams.dto.request.InviteTeamMemberRequest;
 import com.sealhackathon.api.teams.dto.request.PatchTeamMemberRequest;
 import com.sealhackathon.api.teams.dto.request.PatchTeamStatusRequest;
@@ -26,6 +27,8 @@ import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.mapper.TeamMapper;
 import com.sealhackathon.api.teams.repository.TeamRepository;
 import com.sealhackathon.api.teams.service.TeamService;
+import com.sealhackathon.api.team_round_participation.value_object.ParticipationStatus;
+import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.teams.value_object.TeamStatus;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.users.entity.User;
@@ -614,5 +617,28 @@ public class TeamServiceImpl implements TeamService {
                 .teamId(teamId)
                 .items(items)
                 .build();
+    }
+
+    @Override
+    public TeamResponse eliminateTeam(Integer teamId, EliminateTeamRequest req) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new ResourceNotFoundException("Team", teamId));
+        if (team.getStatus() == TeamStatus.ELIMINATED) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Đội đã bị loại");
+        }
+        team.setStatus(TeamStatus.ELIMINATED);
+        team.setEliminatedAt(java.time.LocalDateTime.now());
+        team.setEliminationReason(req.getReason());
+        Team saved = teamRepository.save(team);
+
+        var teamTracks = teamRoundTrackRepository.findByTeam_Id(teamId);
+        for (com.sealhackathon.api.team_round_tracks.entity.TeamRoundTrack trt : teamTracks) {
+            trt.setParticipationStatus(ParticipationStatus.ELIMINATED);
+        }
+        teamRoundTrackRepository.saveAll(teamTracks);
+
+        auditService.log(com.sealhackathon.api.common.audit.AuditAction.TEAM_ELIMINATE_MANUAL,
+                "teams", teamId, java.util.Map.of("reason", req.getReason()));
+        return teamMapper.toResponse(saved);
     }
 }

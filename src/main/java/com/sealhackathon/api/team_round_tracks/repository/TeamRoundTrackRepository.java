@@ -12,5 +12,9 @@ public interface TeamRoundTrackRepository extends JpaRepository<TeamRoundTrack, 
 
     Optional<TeamRoundTrack> findByTeam_IdAndTrack_Round_Id(Integer teamId, Integer roundId);
 
+    Optional<TeamRoundTrack> findByTeam_IdAndTrack_Id(Integer teamId, Integer trackId);
+
+    List<TeamRoundTrack> findByTrack_Round_Id(Integer roundId);
+
     boolean existsByTeam_Id(Integer teamId);
 }

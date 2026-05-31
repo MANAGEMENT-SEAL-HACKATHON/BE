@@ -190,6 +190,8 @@ public class RoundMapper {
 
                 .isActive(e.getIsActive())
 
+                .activatedAt(e.getActivatedAt())
+
                 .scoringLocked(e.getScoringLocked())
 
                 .scoringLockedAt(e.getScoringLockedAt())
@@ -199,6 +201,12 @@ public class RoundMapper {
                 .forceLocked(e.getForceLocked())
 
                 .forceLockReason(e.getForceLockReason())
+
+                .isPublished(e.getIsPublished())
+
+                .publishedAt(e.getPublishedAt())
+
+                .publishedById(e.getPublishedBy() == null ? null : e.getPublishedBy().getId())
 
                 .createdAt(e.getCreatedAt())
 

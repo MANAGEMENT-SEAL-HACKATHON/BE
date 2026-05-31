@@ -2,7 +2,9 @@ package com.sealhackathon.api.rounds.repository;
 
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.value_object.RoundType;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -14,6 +16,10 @@ import java.util.Optional;
 
 @Repository
 public interface RoundRepository extends JpaRepository<Round, Integer> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM Round r WHERE r.id = :id")
+    Optional<Round> findByIdForUpdate(@Param("id") Integer id);
 
     List<Round> findByHackathon_IdOrderByExamAtAsc(Integer hackathonId);
 

@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 /**
  * Dev profile: seed MF-01 Giai đoạn 1 (chapters → users → hackathons → …).
  *
- * <p>Thứ tự startup: {@link RoundExamAtSchemaMigration} (0) → {@link CriteriaCloneSourceUnlinkMigration} (1)
+ * <p>Thứ tự startup: {@link Gd03V41SchemaMigration} (0) → {@link Mf03SchemaMigration} (1)
  * → DataInitializer (2).
  *
  * <p>Mỗi lần start: repair timeline (đăng ký 24/05–05/06, WS 06/06, KO 07/06, thi 10/06),

@@ -36,10 +36,14 @@ public class RoundResponse {
     private final Integer minTeamsFinal;
     private final TiebreakRule tiebreakRule;
     private final Boolean isActive;
+    private final LocalDateTime activatedAt;
     private final Boolean scoringLocked;
     private final LocalDateTime scoringLockedAt;
     private final Integer scoringLockedById;
     private final Boolean forceLocked;
     private final String forceLockReason;
+    private final Boolean isPublished;
+    private final LocalDateTime publishedAt;
+    private final Integer publishedById;
     private final LocalDateTime createdAt;
 }

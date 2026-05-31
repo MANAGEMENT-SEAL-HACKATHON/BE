@@ -84,6 +84,19 @@ public final class AuditAction {
     public static final String MENTOR_TEAM_ASSIGNED     = "MENTOR_TEAM_ASSIGNED";
     public static final String MENTOR_TEAM_UNASSIGNED   = "MENTOR_TEAM_UNASSIGNED";
 
+    // ---------- MF-03 GĐ3 SUBMISSIONS / SCORES ----------
+    public static final String SUBMISSION_CREATE            = "SUBMISSION_CREATE";
+    public static final String SUBMISSION_UPDATE            = "SUBMISSION_UPDATE";
+    public static final String SUBMISSION_LATE_REVIEW       = "SUBMISSION_LATE_REVIEW";
+    public static final String SCORE_UPSERT                 = "SCORE_UPSERT";
+    public static final String ROUND_RELEASE_PROBLEM        = "ROUND_RELEASE_PROBLEM";
+    public static final String ROUND_PUBLISH                = "ROUND_PUBLISH";
+    public static final String ROUND_ADVANCE_TEAMS          = "ROUND_ADVANCE_TEAMS";
+    public static final String TEAM_ELIMINATE_MANUAL        = "TEAM_ELIMINATE_MANUAL";
+
+    // ---------- MF-03 GĐ6 PRIZES ----------
+    public static final String PRIZE_AWARDED              = "PRIZE_AWARDED";
+
     // ---------- WARNINGS ----------
     public static final String WARNING_CONFLICT_CHECK_SKIPPED = "WARNING_CONFLICT_CHECK_SKIPPED";
     public static final String WARNING_EVENT_ORDER            = "WARNING_EVENT_ORDER";

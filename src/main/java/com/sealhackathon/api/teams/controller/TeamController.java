@@ -8,6 +8,7 @@ import com.sealhackathon.api.config.OpenApiConfig;
 import com.sealhackathon.api.teams.dto.request.AssignTeamMentorRequest;
 import com.sealhackathon.api.teams.dto.request.BulkApproveTeamsRequest;
 import com.sealhackathon.api.teams.dto.request.CreateTeamRequest;
+import com.sealhackathon.api.teams.dto.request.EliminateTeamRequest;
 import com.sealhackathon.api.teams.dto.request.InviteTeamMemberRequest;
 import com.sealhackathon.api.teams.dto.request.PatchTeamMemberRequest;
 import com.sealhackathon.api.teams.dto.request.PatchTeamStatusRequest;
@@ -122,6 +123,15 @@ public class TeamController {
     public ResponseEntity<ApiResponse<Void>> disband(@PathVariable Integer teamId) {
         teamService.disbandTeam(teamId);
         return ResponseEntity.ok(ApiResponse.ok(null, "Đội đã giải tán"));
+    }
+
+    @PatchMapping("/{teamId}/eliminate")
+    @CoordinatorOnly
+    @Operation(summary = "FR-21 — Loại đội vi phạm (ELIMINATE thủ công)")
+    public ResponseEntity<ApiResponse<TeamResponse>> eliminate(
+            @PathVariable Integer teamId,
+            @Valid @RequestBody EliminateTeamRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(teamService.eliminateTeam(teamId, req)));
     }
 
     @PostMapping("/{teamId}/members/invite")

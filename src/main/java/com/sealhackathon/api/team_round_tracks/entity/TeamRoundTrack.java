@@ -1,6 +1,7 @@
 package com.sealhackathon.api.team_round_tracks.entity;
 
 import com.sealhackathon.api.team_round_tracks.value_object.RegistrationType;
+import com.sealhackathon.api.team_round_participation.value_object.ParticipationStatus;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.users.entity.User;
@@ -55,6 +56,12 @@ public class TeamRoundTrack {
      */
     @Column(name = "assigned_group", length = 50)
     private String assignedGroup;
+
+    /** FR-22/23 — ADVANCE / ELIMINATED trong Round có Track (D-2 v4.1). */
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "participation_status", nullable = false, length = 20)
+    private ParticipationStatus participationStatus = ParticipationStatus.PARTICIPATING;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)

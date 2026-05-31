@@ -13,4 +13,6 @@ public interface TeamRoundParticipationRepository extends JpaRepository<TeamRoun
     List<TeamRoundParticipation> findByTeam_Id(Integer teamId);
 
     List<TeamRoundParticipation> findByRound_Id(Integer roundId);
+
+    long countByRound_Id(Integer roundId);
 }

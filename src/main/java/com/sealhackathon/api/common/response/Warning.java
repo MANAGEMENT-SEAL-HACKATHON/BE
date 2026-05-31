@@ -21,6 +21,7 @@ import java.util.Map;
  *   <li><b>JUDGE_FINAL_ROUND_AT_PHASE1</b> — phân công Judge cho Round Chung kết tại GĐ1 (FR-05c)</li>
  *   <li><b>EVENT_ORDER_INVALID</b> — Lớp 3 thứ tự sự kiện (FR-06A)</li>
  *   <li><b>READINESS_WARNING</b> — cảnh báo mềm tổng hợp tại {@code GET /hackathons/{id}/readiness}</li>
+ *   <li>MF-03 — xem {@link WarningCode}</li>
  * </ul>
  */
 @Getter

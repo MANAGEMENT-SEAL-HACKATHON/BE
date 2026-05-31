@@ -219,6 +219,9 @@ public class GlobalExceptionHandler {
             case ErrorCode.DESIGN_VIOLATION -> "Round Chung kết không được có Track con";
             case ErrorCode.INVALID_ROUND_FOR_CRITERIA -> "Criteria Chung kết phải gắn Round FINAL";
             case ErrorCode.FINAL_JUDGE_CANNOT_BE_MENTOR -> "Judge Chung kết không được làm Mentor Sơ loại";
+            case ErrorCode.RESULT_NOT_PUBLISHED -> "Chưa công bố kết quả Sơ loại";
+            case ErrorCode.CRITERION_WRONG_ROUND -> "Tiêu chí không thuộc round của bài nộp";
+            case ErrorCode.CALIBRATION_SESSION_CLOSED -> "Phiên hiệu chuẩn đã đóng";
             default -> "Vi phạm ràng buộc nghiệp vụ tại cơ sở dữ liệu";
         };
     }

@@ -39,4 +39,6 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, TeamMemb
             @Param("userId") Integer userId,
             @Param("hackathonId") Integer hackathonId,
             @Param("memberStatuses") Collection<TeamMemberStatus> memberStatuses);
+
+    boolean existsByUser_IdAndTeam_IdAndStatus(Integer userId, Integer teamId, TeamMemberStatus status);
 }
