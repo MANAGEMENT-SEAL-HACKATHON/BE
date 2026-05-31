@@ -19,8 +19,8 @@
 |----------|---------|------------|
 | `PATCH /rounds/{id}/activate` | 15/25 | ✅ (+ gate publish CK) |
 | `PATCH /rounds/{id}/release-problem` | 15A | ✅ |
-| `PATCH /rounds/{id}/publish` | 24 | ⏳ GĐ4 stub |
-| `POST /submissions` | 16 | ✅ (Sơ loại; CK → GĐ5) |
+| `PATCH /rounds/{id}/publish` | 24 | ✅ GĐ4 phase 1 |
+| `POST /submissions` | 16 | ✅ (Sơ loại; CK → GĐ5 ⏳) |
 | `GET /submissions` | — | ✅ |
 | `PATCH /submissions/{id}/review-late` | 16A | ✅ |
 | `PATCH /submissions/{id}/review` | 16A | ⚠️ deprecated alias |
@@ -33,9 +33,9 @@
 | `GET /rounds/{id}/ranking` | 20/22 | ✅ (cần lock) |
 | `GET /rounds/{id}/wildcard-candidates` | 22A | ⏳ GĐ4 stub |
 | `PATCH /wildcard-reviews/{id}` | 22A | ⏳ GĐ4 stub |
-| `POST /rounds/{id}/advance` | 22/23 | ⏳ GĐ4 stub |
+| `POST /rounds/{id}/advance` | 22/23 | ✅ GĐ4 phase 1 |
 | `POST /rounds/{id}/advance-teams` | 22/23 | ⚠️ deprecated alias |
-| `POST /rounds/{id}/judge-assignments` | 27 | ⏳ |
+| `POST /rounds/{id}/judge-assignments` | 27 | ✅ GĐ4 phase 1 (round FINAL) |
 | `PATCH /teams/{id}/eliminate` | 21 | ✅ |
 | `POST /calibration-sessions` | 29 | ⏳ GĐ5 stub |
 | `GET /rounds/{id}/rbl/variance` | 30 | ⏳ GĐ5 stub |

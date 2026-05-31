@@ -7,6 +7,8 @@ import com.sealhackathon.api.common.exception.ConflictException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
+import com.sealhackathon.api.common.response.Warning;
+import com.sealhackathon.api.common.response.WarningCode;
 import com.sealhackathon.api.judge_assignments.dto.request.CreateJudgeAssignmentRequest;
 import com.sealhackathon.api.judge_assignments.dto.response.JudgeAssignmentResponse;
 import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
@@ -32,6 +34,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -117,6 +120,45 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
         throw new BusinessRuleException(ErrorCode.JUDGE_FINAL_AT_PHASE1,
                 "Phân công Judge Chung kết chỉ thực hiện ở GĐ4 — không làm ở GĐ1",
                 Map.of("roundId", roundId));
+    }
+
+    @Override
+    public CreateResult assignFinalRoundG4(Integer finalRoundId, Integer judgeId) {
+        User judge = loadApprovedPersonnel(judgeId);
+        Round round = roundRepository.findById(finalRoundId)
+                .orElseThrow(() -> new ResourceNotFoundException("Round", finalRoundId));
+        archiveGuard.assertNotArchivedForRound(round);
+        if (!Boolean.TRUE.equals(round.getIsFinal())) {
+            throw new BusinessRuleException(ErrorCode.INVALID_FINAL_ROUND,
+                    "Phân công Judge Chung kết chỉ cho Round FINAL",
+                    Map.of("roundId", finalRoundId));
+        }
+        if (judgeAssignmentRepository.existsByJudgeIdAndRoundId(judge.getId(), finalRoundId)) {
+            throw new ConflictException(ErrorCode.JUDGE_ASSIGN_DUPLICATE,
+                    "Judge #%d đã được phân công Round Chung kết #%d"
+                            .formatted(judge.getId(), finalRoundId));
+        }
+
+        List<Warning> warnings = new ArrayList<>();
+        Integer hackathonId = round.getHackathon().getId();
+        if (judgeAssignmentRepository.hasPreliminaryTrackAssignmentInHackathon(judge.getId(), hackathonId)) {
+            warnings.add(Warning.builder()
+                    .code(WarningCode.JUDGE_PARTICIPATED_IN_PRELIM)
+                    .message("Judge #%d đã tham gia chấm Sơ loại — cân nhắc trước khi phân CK"
+                            .formatted(judge.getId()))
+                    .build());
+        }
+
+        JudgeAssignment saved = saveAssignment(judge, null, round, JudgeAssignmentType.FINAL_EXTERNAL);
+        JudgeAssignmentResponse response = judgeAssignmentMapper.toResponse(saved);
+        auditService.log(AuditAction.JUDGE_ASSIGNED, "judge_assignments", saved.getId(), Map.of(
+                "judgeId", judge.getId(), "roundId", finalRoundId, "type", JudgeAssignmentType.FINAL_EXTERNAL.name(),
+                "phase", "G4"));
+        notificationService.send(judge, "JUDGE_ASSIGNED",
+                "Bạn được phân công làm Judge Chung kết '%s'".formatted(round.getName()),
+                "Round: %s".formatted(round.getName()),
+                "rounds", finalRoundId);
+        return new CreateResult(response, warnings);
     }
 
     @Override

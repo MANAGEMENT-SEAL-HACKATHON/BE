@@ -2,7 +2,7 @@
 
 **Nguồn:** `GD03_05_SEAL_MF_v4_1.docx` · **Schema:** [schema-v3.0-mysql.md](../db/schema-v3.0-mysql.md)
 
-**Trạng thái BE:** GĐ3 (FR-15..21 + WS) đã implement; GĐ4/GĐ5 còn stub.
+**Trạng thái BE:** GĐ3 (FR-15..21 + WS) ✅; GĐ4 phase 1 ✅; GĐ4 phase 2 + GĐ5 ⏳ — xem [09-be-backlog-gd4-gd5.md](09-be-backlog-gd4-gd5.md).
 
 ---
 
@@ -140,18 +140,34 @@
 
 ## 12. FR-30 — Advance / Eliminate
 
-- Batch `POST /rounds/{id}/advance-teams` sau ranking + tiebreak (+ wildcard).
-- Cập nhật `team_round_participation.participation_status`:
-  - Sơ loại bản ghi: `ADVANCED` / `ELIMINATED`
-  - Tạo participation Chung kết: `PARTICIPATING`
+- Batch `POST /rounds/{id}/advance` sau ranking + tiebreak (+ wildcard).
+- Cập nhật `team_round_tracks.participation_status`:
+  - Sơ loại: `ADVANCED` / `ELIMINATED`
+- Tạo `team_round_participation` cho round Chung kết (upsert idempotent).
 - **BUG-6:** Idempotent — `UNIQUE(team_id, round_id)` + upsert.
 
 ---
 
 ## 13. FR-31 — Judge Chung kết
 
-- 100% `FINAL_EXTERNAL`; không INTERNAL; không judge đã Sơ loại (warning `JUDGE_PARTICIPATED_IN_PRELIM`).
-- `POST /rounds/{finalRoundId}/judge-assignments` hoặc dùng chung `POST /judge-assignments` với `roundId`.
+Panel Chung kết gồm **Judge khách mời** (chính) và **ngoại lệ trưởng ban nội bộ** — không phải 100% guest.
+
+| Loại | Điều kiện | Ghi chú |
+|------|-----------|---------|
+| Judge khách | `user_type=EXTERNAL`, thường `is_temp_account=true` | Tạo qua `POST /users/temp-judges` (GĐ1/GĐ4) |
+| Trưởng ban | `is_dept_head=true` (Coordinator `PATCH /users/{id}`), **không** mentor kỳ này | DB trigger `trg_check_mentor_judge_conflict` + audit `DEPT_HEAD_FINAL_JUDGE_EXCEPTION` |
+| Judge Sơ loại | Không tự động lên CK | Warning `JUDGE_PARTICIPATED_IN_PRELIM` khi assign GĐ4 |
+
+**Naming:** `assignment_type=FINAL_EXTERNAL` = phân công panel **round Chung kết** — **không** có nghĩa user phải `EXTERNAL`.
+
+- `POST /rounds/{finalRoundId}/judge-assignments` (GĐ4) hoặc `POST /judge-assignments` với `roundId` + `FINAL_EXTERNAL` (GĐ1 vẫn block `JUDGE_FINAL_AT_PHASE1`).
+
+### Playbook — thiếu judge khách mời
+
+1. **Trước CK (≥48h KICKOFF):** `POST /users/temp-judges` + resend invitation ([mf02/02-invitations.md](../mf02/02-invitations.md)).
+2. **Bổ sung slot nội bộ:** Trưởng ban (`is_dept_head`) nếu chưa mentor kỳ này.
+3. **Readiness:** Cảnh báo nếu panel &lt; tối thiểu (khuyến nghị 3); **không activate CK** cho đến khi có ≥1 judge (`JUDGE_NOT_ASSIGNED`).
+4. **Không làm:** Tự động kéo judge Sơ loại lên CK — chỉ assign chủ động + chấp nhận warning.
 
 ---
 

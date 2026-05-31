@@ -125,6 +125,11 @@ public class RoundActivationServiceImpl implements RoundActivationService {
 
     private void validateFinalRoundJudges(Integer roundId) {
         List<JudgeAssignment> assignments = judgeAssignmentRepository.findByRoundId(roundId);
+        if (assignments.isEmpty()) {
+            throw new BusinessRuleException(ErrorCode.JUDGE_NOT_ASSIGNED,
+                    "Round Chung kết chưa có Judge được phân công",
+                    Map.of("roundId", roundId));
+        }
         for (JudgeAssignment ja : assignments) {
             if (ja.getAssignmentType() != JudgeAssignmentType.FINAL_EXTERNAL) {
                 throw new BusinessRuleException(ErrorCode.INVALID_ASSIGNMENT_TYPE,
@@ -150,6 +155,11 @@ public class RoundActivationServiceImpl implements RoundActivationService {
                 throw new BusinessRuleException(ErrorCode.ROUND_WEIGHT_NOT_ONE,
                         "Track '%s': tổng weight = %.4f".formatted(t.getName(), raw),
                         Map.of("trackId", t.getId(), "roundId", round.getId(), "total", raw));
+            }
+            if (judgeAssignmentRepository.findByTrackId(t.getId()).isEmpty()) {
+                throw new BusinessRuleException(ErrorCode.JUDGE_NOT_ASSIGNED,
+                        "Track '%s' chưa có Judge được phân công".formatted(t.getName()),
+                        Map.of("trackId", t.getId(), "roundId", round.getId()));
             }
             validateTrackMentorJudgeConflict(t);
         }

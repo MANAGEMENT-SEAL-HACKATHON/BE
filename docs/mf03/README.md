@@ -43,6 +43,9 @@
 | 4 | [04-test-data.md](04-test-data.md) | FE / QA | curl, token mẫu |
 | 5 | [05-fe-handover-gd3.md](05-fe-handover-gd3.md) | FE | Breaking path + màn hình |
 | 6 | [06-live-scoring-websocket.md](06-live-scoring-websocket.md) | FE | STOMP/SockJS FR-18A |
+| 7 | **[07-fe-api-flow-gd3.md](07-fe-api-flow-gd3.md)** | **FE** | **Luồng API từng bước GĐ3 (đọc đầu tiên)** |
+| 8 | **[08-fe-api-flow-gd4.md](08-fe-api-flow-gd4.md)** | **FE** | **Luồng API GĐ4: publish → advance → judge CK → activate** |
+| 9 | **[09-be-backlog-gd4-gd5.md](09-be-backlog-gd4-gd5.md)** | **BE** | **Checklist còn thiếu GĐ4/GĐ5 — tránh trùng/lệch** |
 
 **Swagger:** tag Submissions, Scores, Round Progression, Live Scoring (WebSocket), Wildcard Reviews, Calibration Sessions, RBL Dashboard, Prizes.
 
@@ -54,7 +57,7 @@
 
 | Nhóm | Logic |
 |------|--------|
-| `PATCH /rounds/{id}/activate` | ✅ + `NO_TEAMS_IN_ROUND` + gate CK publish |
+| `PATCH /rounds/{id}/activate` | ✅ + `NO_TEAMS_IN_ROUND` + `JUDGE_NOT_ASSIGNED` (track/CK) + gate CK publish |
 | `PATCH /rounds/{id}/release-problem` | ✅ FR-15A |
 | `POST /submissions` (Sơ loại upsert) | ✅ FR-16 |
 | `PATCH /submissions/{id}/review-late` | ✅ FR-16A |
@@ -64,7 +67,8 @@
 | `PATCH /rounds/{id}/lock-scoring` | ✅ FR-20A (+ warnings) |
 | `PATCH /teams/{id}/eliminate` | ✅ FR-21 |
 | `GET /submissions` | ✅ lọc role |
-| GĐ4/GĐ5: publish, advance, wildcard, CK submit, calibration, RBL | ⏳ stub |
+| GĐ4 phase 1: publish, advance, judge-assignments CK | ✅ |
+| GĐ4/GĐ5 phase 2: tiebreak, wildcard, scoreboard, CK submit, calibration, RBL | ⏳ stub |
 | `POST /hackathons/{id}/prizes` | ✅ (GĐ6) |
 
 Chi tiết: [03-api-reference-gd3.md](03-api-reference-gd3.md) · Phân quyền: [api-authorization-matrix.md](../api-authorization-matrix.md).

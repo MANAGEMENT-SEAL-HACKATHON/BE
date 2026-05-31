@@ -195,7 +195,11 @@ public class RoundProgressionController {
     public ResponseEntity<ApiResponse<FinalJudgeAssignmentResponse>> assignFinalJudges(
             @PathVariable Integer id,
             @Valid @RequestBody AssignFinalJudgesRequest req) {
-        return ResponseEntity.ok(ApiResponse.ok(progressionService.assignFinalJudges(id, req)));
+        FinalJudgeAssignmentResponse result = progressionService.assignFinalJudges(id, req);
+        if (result.getWarnings() == null || result.getWarnings().isEmpty()) {
+            return ResponseEntity.ok(ApiResponse.ok(result));
+        }
+        return ResponseEntity.ok(ApiResponse.okWithWarnings(result, result.getWarnings()));
     }
 
     @GetMapping("/{id}/scoreboard")

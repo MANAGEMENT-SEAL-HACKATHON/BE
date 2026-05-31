@@ -1,5 +1,6 @@
 package com.sealhackathon.api.rounds.dto.response;
 
+import com.sealhackathon.api.common.response.Warning;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -15,4 +16,5 @@ public class FinalJudgeAssignmentResponse {
 
     private Integer roundId;
     private List<Integer> judgeIds;
+    private List<Warning> warnings;
 }

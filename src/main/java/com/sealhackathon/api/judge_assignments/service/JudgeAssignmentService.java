@@ -31,6 +31,9 @@ public interface JudgeAssignmentService {
 
     CreateResult assign(CreateJudgeAssignmentRequest req);
 
+    /** GĐ4 — phân Judge Chung kết (FINAL_EXTERNAL); không block GĐ1. */
+    CreateResult assignFinalRoundG4(Integer finalRoundId, Integer judgeId);
+
     List<JudgeAssignmentResponse> listByTrack(Integer trackId);
 
     List<JudgeAssignmentResponse> listByRound(Integer roundId);

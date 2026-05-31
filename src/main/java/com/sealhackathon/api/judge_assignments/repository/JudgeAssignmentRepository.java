@@ -69,4 +69,14 @@ public interface JudgeAssignmentRepository extends JpaRepository<JudgeAssignment
     boolean existsFinalExternalJudgeInHackathonOfTrack(@Param("judgeId") Integer judgeId,
                                                      @Param("trackId") Integer trackId,
                                                      @Param("finalExternal") JudgeAssignmentType finalExternal);
+
+    @Query("""
+            SELECT COUNT(ja) > 0 FROM JudgeAssignment ja
+            WHERE ja.judge.id = :judgeId
+              AND ja.track IS NOT NULL
+              AND ja.track.round.hackathon.id = :hackathonId
+              AND ja.track.round.isFinal = FALSE
+            """)
+    boolean hasPreliminaryTrackAssignmentInHackathon(@Param("judgeId") Integer judgeId,
+                                                     @Param("hackathonId") Integer hackathonId);
 }

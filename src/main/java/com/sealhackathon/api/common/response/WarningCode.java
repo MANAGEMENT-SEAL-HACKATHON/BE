@@ -10,6 +10,8 @@ public final class WarningCode {
     // ---------- MF-03 GĐ3–GĐ5 (GD03 v4.1 §7.2) ----------
     /** Judge đã tham gia Sơ loại — đề xuất không phân CK (FR-27). */
     public static final String JUDGE_PARTICIPATED_IN_PRELIM = "JUDGE_PARTICIPATED_IN_PRELIM";
+    /** Panel Chung kết chưa đủ số judge tối thiểu (FR-27 / readiness). */
+    public static final String MIN_FINAL_JUDGES_NOT_MET = "MIN_FINAL_JUDGES_NOT_MET";
     /** Tổng đội advance &lt; min_teams_final — cần Wild Card (FR-22A). */
     public static final String MIN_TEAMS_NOT_REACHED = "MIN_TEAMS_NOT_REACHED";
     /** Có Track chưa chấm đủ trước lock (FR-20A). */
