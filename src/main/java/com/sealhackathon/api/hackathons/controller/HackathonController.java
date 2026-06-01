@@ -5,7 +5,6 @@ import com.sealhackathon.api.common.response.PageResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.sealhackathon.api.hackathons.dto.request.CreateHackathonRequest;
@@ -24,16 +23,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
@@ -41,22 +31,32 @@ import java.util.Map;
 
 /**
  * FR-01 — REST controller cho Hackathon CRUD.
- *
- * <p>Spec: {@code docs/mf01/api/fr-01-hackathons.md}.
- * <p>State transition (FR-06) ở {@link HackathonStatusController}.
  */
 @Tag(name = "Hackathon", description = "FR-01 — CRUD hackathon")
 @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
 @RequestMapping("/api/v1/hackathons")
 @RequiredArgsConstructor
-@CoordinatorOnly
+// ĐÃ GỠ BỎ @CoordinatorOnly Ở ĐÂY ĐỂ MỞ CỬA CHO TẤT CẢ USER ĐƯỢC XEM DANH SÁCH
 public class HackathonController {
 
     private final HackathonService hackathonService;
     private final HackathonLotteryService hackathonLotteryService;
 
+    // API MỚI DÀNH RIÊNG CHO FRONTEND SET MẶC ĐỊNH
+    @GetMapping("/active")
+    @Operation(summary = "Lấy danh sách Hackathon ĐANG DIỄN RA", description = "Mọi user (Student/Judge) đều gọi được để FE set mặc định sự kiện hiện tại.")
+    public ResponseEntity<ApiResponse<PageResponse<HackathonSummaryResponse>>> getActiveHackathons(
+            @PageableDefault(size = 10) Pageable pageable
+    ) {
+        // Tận dụng hàm search có sẵn, ép cứng status = ONGOING để FE không cần truyền param
+        return ResponseEntity.ok(ApiResponse.ok(
+                hackathonService.search(HackathonStatus.ONGOING, null, null, null, pageable)
+        ));
+    }
+
     @PostMapping
+    @CoordinatorOnly // GẮN BẢO VỆ VÀO TỪNG HÀM
     @Operation(summary = "Tạo hackathon mới", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<HackathonResponse>> create(@Valid @RequestBody CreateHackathonRequest req) {
         HackathonResponse data = hackathonService.create(req);
@@ -68,7 +68,7 @@ public class HackathonController {
     }
 
     @GetMapping
-    @Operation(summary = "Tìm kiếm và phân trang hackathon", description = "Các tham số truy vấn đều tùy chọn, nếu không cung cấp sẽ trả về tất cả hackathon.")
+    @Operation(summary = "Tìm kiếm và phân trang hackathon", description = "Mọi user đều có thể xem danh sách.")
     public ResponseEntity<ApiResponse<PageResponse<HackathonSummaryResponse>>> search(
             @RequestParam(required = false) HackathonStatus status,
             @RequestParam(required = false) Integer year,
@@ -80,13 +80,14 @@ public class HackathonController {
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Lấy thông tin chi tiết hackathon theo ID", description = "Trả về lỗi 404 nếu không tìm thấy hackathon với ID đã cho.")
+    @Operation(summary = "Lấy thông tin chi tiết hackathon theo ID", description = "Mọi user đều có thể xem chi tiết sự kiện.")
     public ResponseEntity<ApiResponse<HackathonResponse>> getById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.ok(hackathonService.getById(id)));
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "Cập nhật thông tin hackathon", description = "Chỉ coordinator mới có quyền thực hiện hành động này. Trả về lỗi 404 nếu không tìm thấy hackathon với ID đã cho.")
+    @CoordinatorOnly // GẮN BẢO VỆ
+    @Operation(summary = "Cập nhật thông tin hackathon", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<HackathonResponse>> update(
             @PathVariable Integer id,
             @Valid @RequestBody UpdateHackathonRequest req
@@ -95,7 +96,8 @@ public class HackathonController {
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Xóa hackathon", description = "Chỉ coordinator mới có quyền thực hiện hành động này. Trả về lỗi 404 nếu không tìm thấy hackathon với ID đã cho.")
+    @CoordinatorOnly // GẮN BẢO VỆ
+    @Operation(summary = "Xóa hackathon", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<Map<String, Object>>> delete(@PathVariable Integer id) {
         Integer deletedId = hackathonService.delete(id);
         return ResponseEntity.status(HttpStatus.OK)
@@ -103,6 +105,7 @@ public class HackathonController {
     }
 
     @PatchMapping("/{hackathonId}/lottery")
+    @CoordinatorOnly // GẮN BẢO VỆ
     @Operation(summary = "FR-13B — Bốc thăm Track (batch)")
     public ResponseEntity<ApiResponse<HackathonLotteryResponse>> lottery(
             @PathVariable Integer hackathonId,
