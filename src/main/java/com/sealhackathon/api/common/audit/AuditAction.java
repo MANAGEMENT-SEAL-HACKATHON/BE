@@ -98,6 +98,10 @@ public final class AuditAction {
     // ---------- MF-03 GĐ6 PRIZES ----------
     public static final String PRIZE_AWARDED              = "PRIZE_AWARDED";
 
+    // ---------- MF-03 GĐ5 CALIBRATION ----------
+    public static final String CALIBRATION_SESSION_CREATED  = "CALIBRATION_SESSION_CREATED";
+    public static final String CALIBRATION_SESSION_UPDATED  = "CALIBRATION_SESSION_UPDATED";
+
     // ---------- WARNINGS ----------
     public static final String WARNING_CONFLICT_CHECK_SKIPPED = "WARNING_CONFLICT_CHECK_SKIPPED";
     public static final String WARNING_EVENT_ORDER            = "WARNING_EVENT_ORDER";
