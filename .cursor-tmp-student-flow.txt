@@ -1,0 +1,1653 @@
+SEAL HACKATHON MANAGEMENT SYSTEM
+
+STUDENT USER — Hành trình & Chức năng
+
+Workflow · Mainflow · FR · Business Rules — gộp 6 giai đoạn thành 1 tài
+liệu
+
+Phiên bản 1.1 — Bổ sung MF-06 v3.2 đồng bộ — Góc nhìn USER (Leader +
+Member)
+
+Đối chiếu: Coordinator-side MF-01..06 đã document · Workflow v5.0 · GĐ1
+v3.1 · GĐ2 v3.5 · GĐ3-5 v4.1 · GĐ6 v3.2
+
+MySQL 8 · Hackathon → Round → Track · Mùa chuẩn: SPRING 2026
+
+BA · SA · QA · SRE · DA · Solution Architect · PM · System Design ·
+Software Architect
+
+Mục lục
+
+0. Mục đích & Phạm vi tài liệu
+
+0.1 Tại sao gộp 6 GĐ thành 1 file
+
+Hệ thống có 2 vai trò chính: Coordinator (BTC) và Student (User thi
+đấu). Tài liệu Coordinator-side đã tách 6 file theo 6 GĐ (MF-01..06) vì
+BTC có ~40+ chức năng phức tạp. Student chỉ có ~25 chức năng, đơn giản
+hơn, không cần phân nhỏ. Đa số chức năng Student đã được CHỈNH ĐỊNH ở
+phía Coordinator (vd: lock scoring → Student chỉ chờ; bốc thăm Spring →
+Student chỉ xem kết quả; chấm điểm → Judge); Student chủ yếu tương tác ở
+GĐ2 (đội), GĐ3/GĐ5 (nộp bài), GĐ6 (xem kết quả).
+
+0.2 Phân biệt 2 sub-role: Leader vs Member
+
+  ------------------------------------------------------------------------
+  Hành động                      Student-Leader       Student-Member
+  ------------------------------ -------------------- --------------------
+  Tạo đội                        ✓                    ✗
+
+  Mời thành viên                 ✓                    ✗
+
+  Chấp nhận/Từ chối lời mời      ✗ (Leader tự không   ✓
+                                 cần invite)          
+
+  Kick thành viên (trước         ✓                    ✗
+  is_locked)                                          
+
+  Rời đội tự nguyện (trước       ✗ (Leader phải       ✓
+  is_locked)                     transfer trước)      
+
+  Transfer Leader                ✓                    Đối tượng nhận (sau
+                                                      confirm)
+
+  Disband đội (trước Bước 7)     ✓                    ✗
+
+  Nộp bài (Sơ loại + CK)         ✓ Đại diện đội       ✗ (Leader nộp đại
+                                                      diện cả đội)
+
+  Re-Lottery — đổi Track (trước  ✓                    ✗
+  Round active)                                       
+
+  Self-select Track (Fall only)  ✓                    ✗
+
+  Submit Appeal (sau             ✓                    ✗ (qua Leader)
+  ELIMINATE_MANUAL)                                   
+
+  Xem thông tin đội +            ✓                    ✓
+  leaderboard                                         
+
+  Xem profile cá nhân            ✓                    ✓
+
+  Nhận notification              ✓                    ✓
+  ------------------------------------------------------------------------
+
+0.3 Đối chiếu với góc Coordinator (Coordinator-side đã làm gì)
+
+  -------------------------------------------------------------------------
+  GĐ    Coordinator làm (đã document)     Student làm (tài liệu này)
+  ----- --------------------------------- ---------------------------------
+  GĐ1   Tạo Hackathon, Round, Track,      PASSIVE — không tham gia GĐ1
+        Criteria, phân Judge/Mentor (5    
+        gate G1-G5)                       
+
+  GĐ2   Mở registration, lottery          ĐÚNG GIAI ĐOẠN CHÍNH: register,
+        (Spring), assign Mentor, lock đội tạo đội, invite/accept, transfer,
+                                          disband, view lottery result
+
+  GĐ3   Phát đề, kích hoạt Round,         Xem đề bài, nộp bài (Leader), xem
+        force-lock scoring, eliminate     status, thuyết trình (offline)
+        manual                            
+
+  GĐ4   Tính Top N, Wild Card review,     PASSIVE — nhận
+        công bố RESULT_PUBLISHED          TEAM_ADVANCED/ELIMINATED
+                                          notification
+
+  GĐ5   Phân Judge CK (100% EXTERNAL),    Nộp bài CK, thuyết trình + Q&A &
+        Calibration, RBL dashboard        Rebuttal (offline)
+
+  GĐ6   Ghi prizes, confirm FINISHED,     Xem rankings, prizes,
+        tính 3 bảng XH, xuất CSV/RBL      certificate, submit appeal (24h)
+  -------------------------------------------------------------------------
+
+  -----------------------------------------------------------------------
+  [ĐÁNH GIÁ TỔNG] Coordinator có ~40 FR phức tạp (FR-01..36 + FR-13B-R +
+  FR-30A...). Student chỉ có ~31 FR (FR-U-01..31), trong đó 7 FR là
+  PASSIVE (chỉ xem/nhận). Document Student-side này KHÔNG lặp lại logic
+  backend đã có ở Coordinator-side — tham chiếu đến MF-01..06 cho chi
+  tiết schema/trigger. Tài liệu này tập trung: ai thấy gì, ai làm được
+  gì, lỗi gì hay gặp.
+
+  -----------------------------------------------------------------------
+
+1. Tổng quan hành trình Student
+
+1.1 Sơ đồ luồng — Từ đăng ký đến trao giải
+
++-----------------------------------------------------------------------+
+| [Trước Hackathon]                                                     |
+|                                                                       |
+| Signup → Browse Hackathon ONGOING → Register Hackathon → Tạo đội      |
+| (Leader)                                                              |
+|                                                                       |
+| OR Nhận invite (Member)                                               |
+|                                                                       |
+| [Ngày 11/4 — Khai mạc + Lottery]                                      |
+|                                                                       |
+| Có mặt offline → Spring: chờ Coordinator bốc thăm Track               |
+|                                                                       |
+| → Fall: tự chọn Track 1/2 + bốc thăm bảng                             |
+|                                                                       |
+| → Workshop training online (9/4 đêm)                                  |
+|                                                                       |
+| [Ngày 12/4 — Cả 2 vòng cùng ngày]                                     |
+|                                                                       |
+| 07h: Coordinator phát đề → Student xem đề bài                         |
+|                                                                       |
+| 07h-14h: Code (coding_duration_hours=7)                               |
+|                                                                       |
+| 14h: Leader nộp bài (repo_url, demo_url, slide_url) — trước deadline  |
+|                                                                       |
+| Sau 14h: Thuyết trình Sơ loại 5'+3' Q&A (offline)                     |
+|                                                                       |
+| Sau Sơ loại: Coordinator lock scoring → công bố Top 6 đội vào CK      |
+|                                                                       |
+| Đội vào CK: thuyết trình 7'+3' Phản biện (Q&A & Rebuttal — TÍNH ĐIỂM) |
+|                                                                       |
+| Cuối ngày: Coordinator confirm FINISHED → trao giải + bế mạc          |
+|                                                                       |
+| [Sau Hackathon]                                                       |
+|                                                                       |
+| Nhận RESULT_PUBLISHED notification                                    |
+|                                                                       |
+| Xem leaderboard (Team + Chapter, +Cá nhân Fall)                       |
+|                                                                       |
+| Tải certificate (giấy chứng nhận tham gia)                            |
+|                                                                       |
+| Đội đoạt giải: xem prizes                                             |
+|                                                                       |
+| Đội bị ELIMINATE_MANUAL: được quyền submit appeal trong 24h           |
++-----------------------------------------------------------------------+
+
+1.2 Vai trò Student trong từng GĐ
+
+  ----------------------------------------------------------------------------
+  GĐ     Active/Passive   Hành động chính
+  ------ ---------------- ----------------------------------------------------
+  GĐ1    —                Không tham gia (BTC setup)
+
+  GĐ2    ACTIVE Heavy     Register · Tạo đội · Invite/Accept ·
+                          Transfer/Disband · View lottery
+
+  GĐ3    ACTIVE           View đề · Nộp bài · View status · Thuyết trình
+                          offline
+
+  GĐ4    PASSIVE          Nhận notification TEAM_ADVANCED / TEAM_ELIMINATED
+
+  GĐ5    ACTIVE           Nộp bài CK · Thuyết trình + Q&A & Rebuttal (offline)
+
+  GĐ6    PASSIVE + Read   View rankings · Xem prizes · Download cert · Submit
+                          appeal
+  ----------------------------------------------------------------------------
+
+1.3 So sánh Fall 2025 vs Spring 2026 (góc Student)
+
+  ------------------------------------------------------------------------
+  Khía cạnh          Fall 2025                  Spring 2026 (CHUẨN)
+  ------------------ -------------------------- --------------------------
+  Chọn Track         Student tự chọn            Coordinator bốc thăm —
+                     (FR-U-15-F)                Student chỉ xem (FR-U-15)
+
+  Bảng / Track       Nhiều bảng nhỏ ≤ 6 đội     1 bảng = 1 Track, ≤ 8 đội
+
+  Số đội vào CK      6 (2/bảng)                 6 (2/Track) — Workflow
+                                                chốt 6 đội
+
+  Số giải            6 (có Cá nhân xuất sắc)    4 (không có Cá nhân)
+
+  XH Cá nhân         ✓ Có (cumulative cả năm)   ✗ KHÔNG (cờ FALSE)
+  (FR-U-27)                                     
+
+  Workshop online    29/10/2025 đêm             9/4/2026 20h-21h30
+
+  Khai mạc + Lottery 1/11 14h-17h               11/4 14h-17h
+
+  Ngày thi           2/11/2025 (06h-21h)        12/4/2026 (06h-19h)
+
+  Coding duration    07h-14h (7 tiếng)          07h-14h (7 tiếng)
+
+  Thuyết trình SL    5' + 3' Q&A                5' + 3' Q&A
+
+  Thuyết trình CK    7' + 3' Phản biện          7' + 3' Phản biện
+                                                (criterion riêng)
+  ------------------------------------------------------------------------
+
+  -----------------------------------------------------------------------
+  [QUAN TRỌNG cho UI] Frontend dashboard phải đọc cờ
+  hackathons.individual_ranking_enabled TRƯỚC khi render menu 'XH Cá
+  nhân'. Spring 2026: menu ẨN HOÀN TOÀN. Fall 2025: hiển thị. Tránh
+  Student Spring vào menu rồi gặp 404 — UX kém.
+
+  -----------------------------------------------------------------------
+
+2. Mainflow Spring 2026 — Trải nghiệm Student timeline
+
+  -----------------------------------------------------------------------
+  [GHI CHÚ] Đây là kịch bản chi tiết theo dòng thời gian cho Student tham
+  gia Spring 2026. Áp dụng làm acceptance test cho team Frontend + QA.
+
+  -----------------------------------------------------------------------
+
+2.1 Giai đoạn chuẩn bị (1 tháng trước thi)
+
+  -------------------------------------------------------------------------------
+  Thời điểm Student-side                       Hệ thống / Trạng thái DB
+  --------- ---------------------------------- ----------------------------------
+  T-30 đến  Signup tài khoản (FPTU email       users.status='PENDING' →
+  T-7       auto-approve) hoặc Coordinator     'APPROVED'
+            invite (External)                  
+
+  T-7 đến   Browse danh sách Hackathon ONGOING hackathon_registrations(user_id,
+  T-2       → đăng ký                          hackathon_id)
+
+  T-7 đến   Leader: tạo đội → mời 2-4 member   teams(status='PENDING') +
+  T-2       (3-5 thành viên/đội)               team_members(status='INVITED')
+
+  T-7 đến   Member: nhận invite → accept →     team_members.status='ACCEPTED'
+  T-2       teams.status='PENDING'→'ACTIVE'    
+            khi đủ thành viên + Coordinator    
+            approve                            
+
+  T-3 đêm   Workshop online 20h00-21h30 (RAG   Optional — không enforce qua DB
+  (9/4)     training)                          
+
+  T-2       Cron khóa thành viên (FR-13A) chạy teams.is_locked=TRUE; KHÔNG được
+  (10/4)    đêm: teams.is_locked=TRUE cho đội  thay đổi thành viên sau đó
+            đã đủ                              
+  -------------------------------------------------------------------------------
+
+  -----------------------------------------------------------------------
+  [U-BUG-1 phòng tránh] Member nhận invite của đội đã FULL (5 thành viên)
+  → 422 TEAM_FULL. Đã được GĐ2 v3.5 validate ở accept-invite.
+  Student-side UI hiển thị 'Đội đã đủ' và disable nút Accept.
+
+  -----------------------------------------------------------------------
+
+2.2 Ngày 11/4 — Khai mạc + Lottery
+
+  ---------------------------------------------------------------------------------
+  Thời điểm     Student-side                       Hệ thống / Trạng thái DB
+  ------------- ---------------------------------- --------------------------------
+  14h00         Có mặt offline tại địa điểm thi    Coordinator điểm danh (có thể
+                (BẮT BUỘC)                         log qua events)
+
+  14h30         Spring: Coordinator gọi PATCH      team_round_tracks(team_id,
+                /lottery → bốc thăm Track cho từng round_id=Sơ loại, track_id)
+                đội                                
+
+  14h30 (Fall)  Fall: Leader chọn Track 1 hoặc 2 → team_round_tracks
+                POST /tracks/{id}/select           (assigned_group cũng được set)
+
+  15h00         Student xem kết quả Track của đội  GET /me/teams → trả về track
+                mình (mỗi đội biết Track nào)      info
+
+  15h00-16h30   Re-Lottery (nếu cần): Leader đổi   PATCH
+                Track trước khi Round Sơ loại      /teams/{id}/rounds/{rid}/track
+                is_active=TRUE                     (FR-13B-R)
+
+  16h30-17h00   Kiểm tra internet, setup máy tính, Manual — qua form ngoài hệ thống
+                đăng ký repo URL với BTC           
+
+  17h00         Kết thúc khai mạc — về nhà chuẩn   —
+                bị                                 
+  ---------------------------------------------------------------------------------
+
+  -----------------------------------------------------------------------
+  [U-BUG-12 — Re-Lottery sau lock] Sau khi Coordinator kích hoạt Round Sơ
+  loại (rounds.is_active=TRUE — thường sáng 12/4) → KHÔNG cho đổi Track.
+  UI disable nút 'Đổi Track' và backend trả 423 ROUND_ALREADY_ACTIVE.
+
+  -----------------------------------------------------------------------
+
+2.3 Ngày 12/4 — Coding + Thuyết trình + Bế mạc
+
+  ------------------------------------------------------------------------------------
+  Thời điểm     Student-side                       Hệ thống / Trạng thái DB
+  ------------- ---------------------------------- -----------------------------------
+  06h00         Có mặt; đội trễ >60 phút coi như   Coordinator có thể eliminate manual
+                bỏ cuộc                            (FR-21)
+
+  07h00         Notification PROBLEM_RELEASED →    rounds.problem_released_at=NOW();
+                xem đề bài                         rounds.problem_statement_url
+
+  07h00-13h59   Code → push code lên               (Student-side action, không backend
+                GitHub/Notion/Jira (không Google   DB)
+                Drive)                             
+
+  07h00-13h59   Leader có thể POST /submissions    submissions ON CONFLICT(team,
+                nhiều lần (resubmit) trước 14h00   scoring_key) DO UPDATE
+
+  14h00         Submission deadline — sau 14h00 →  Auto-detect LATE → LATE_PENDING
+                status='LATE_PENDING'              (Coordinator review)
+
+  14h00-14h30   Nếu nộp trễ: chờ Coordinator       submissions.status → LATE_APPROVED
+                review → notif                     hoặc REJECTED
+                LATE_SUBMISSION_REVIEWED           
+
+  14h30-17h00   Thuyết trình Sơ loại theo Track    Judge chấm điểm qua giao diện Live
+                (5'+3' Q&A) — OFFLINE              Scoring (FR-18A)
+
+  17h00-17h30   Coordinator force-lock scoring →   rounds.scoring_locked=TRUE →
+                tính Top N + Wild Card → công bố   is_published=TRUE
+                Sơ loại                            
+
+  17h30         Notif TEAM_ADVANCED (vào CK) hoặc  notifications batch insert
+                TEAM_ELIMINATED → xem kết quả Sơ   
+                loại                               
+
+  17h30-18h30   6 đội vào CK: thuyết trình 7'+3'   Judge CK chấm 5 criteria + Phản
+                Phản biện (Q&A & Rebuttal CHẤM     biện
+                ĐIỂM)                              
+
+  18h30-19h00   Coordinator: PENDING_CONFIRM →     hackathons.status='FINISHED' +
+                FINISHED → trao giải               notif RESULT_PUBLISHED
+
+  19h00         Bế mạc + chụp ảnh + download       GET /me/certificates/{id}/download
+                certificate                        
+  ------------------------------------------------------------------------------------
+
+3. FR — Authentication & Profile (cross-stage)
+
+  ----------------------------------------------------------------------------------------
+  FR        Tên                API endpoint                      Pre-condition
+  --------- ------------------ --------------------------------- -------------------------
+  FR-U-01   Signup tài khoản   POST /api/v1/auth/signup          Email không trùng; FPTU
+                                                                 email auto-APPROVED;
+                                                                 non-FPTU = PENDING chờ
+                                                                 Coordinator (link với
+                                                                 FR-11C GĐ1)
+
+  FR-U-02   Login / Forgot     POST /api/v1/auth/login · POST    users.status='APPROVED'
+            password           /api/v1/auth/forgot-password      
+
+  FR-U-03   View / Edit        GET /api/v1/me · PATCH /api/v1/me Đã login
+            profile                                              
+
+  FR-U-04   View notifications GET /api/v1/notifications · PATCH Đã login; chỉ thấy notif
+                               /api/v1/notifications/{id}/read   của chính mình
+  ----------------------------------------------------------------------------------------
+
+FR-U-01 Signup — Đặc tả chi tiết
+
+  -----------------------------------------------------------------------
+  Trường         Validation
+  -------------- --------------------------------------------------------
+  email          NOT NULL UNIQUE; regex hợp lệ; nếu kết thúc @fpt.edu.vn
+                 → auto APPROVED + chapter_id derive từ email pattern
+
+  password       ≥8 ký tự, có chữ số + chữ hoa + ký tự đặc biệt
+
+  full_name,     NOT NULL
+  student_code   
+
+  chapter_id     Auto-fill từ email pattern (SE17_A, SE18_B...);
+  (FPTU)         External: NULL — Coordinator gán sau
+
+  user_type      INTERNAL (FPTU) hoặc EXTERNAL (Coordinator invite)
+
+  status mặc     FPTU email → APPROVED; non-FPTU → PENDING (chờ
+  định           Coordinator approve qua FR-11C)
+  -----------------------------------------------------------------------
+
+  -----------------------------------------------------------------------
+  [Liên kết với GĐ1 FR-11C] Sinh viên trường khác trên địa bàn TP.HCM
+  được 'mời theo thư mời của BTC' — Coordinator dùng FR-11C tạo temp
+  account (is_temp_account=TRUE) → Student nhận email reset password →
+  set password lần đầu. Logic này KHÔNG nằm trong tài liệu Student-side
+  (Coordinator-side).
+
+  -----------------------------------------------------------------------
+
+4. FR — Đăng ký Hackathon (GĐ2)
+
+  --------------------------------------------------------------------------
+  FR        Tên                  API endpoint
+  --------- -------------------- -------------------------------------------
+  FR-U-05   Browse Hackathon     GET /api/v1/hackathons?status=ONGOING
+            ONGOING              
+
+  FR-U-06   Register /           POST /api/v1/hackathons/{id}/register ·
+            Unregister Hackathon DELETE /api/v1/hackathons/{id}/register
+  --------------------------------------------------------------------------
+
+FR-U-06 — Đặc tả
+
+  --------------------------------------------------------------------------
+  Khía cạnh       Đặc tả
+  --------------- ----------------------------------------------------------
+  Pre-condition   hackathons.status='ONGOING'; NOW() trong
+                  [registration_start, registration_end];
+                  user.status='APPROVED'
+
+  Ràng buộc       User chỉ register 1 Hackathon đồng thời? — KHÔNG hạn chế;
+                  1 user có thể register nhiều Hackathon cùng năm
+
+  Đối tượng       Spring 2026: SV FPTU + SV ngoài đã được Coordinator invite
+
+  Sinh viên đã    BLOCK — Coordinator setup khi tạo Hackathon (eligibility
+  tốt nghiệp      rule); chứng minh qua student_status field
+
+  Unregister      Chỉ trước teams.is_locked=TRUE; sau lock → 423
+                  ALREADY_LOCKED
+
+  Side effect     INSERT hackathon_registrations; gửi welcome email với link
+                  team creation
+
+  Error           409 ALREADY_REGISTERED; 422 REGISTRATION_CLOSED; 422
+                  GRADUATED_NOT_ELIGIBLE
+  --------------------------------------------------------------------------
+
+5. FR — Quản lý đội (GĐ2 — chức năng chính của Student)
+
+  ---------------------------------------------------------------------------
+  FR        Tên              Role         Pre-condition
+  --------- ---------------- ------------ -----------------------------------
+  FR-U-07   Tạo đội (Leader  Bất kỳ       Đã register Hackathon; chưa ở đội
+            auto)            Student      nào trong Hackathon đó
+
+  FR-U-08   Mời thành viên   Leader       teams.is_locked=FALSE; chưa đủ 5
+                                          thành viên
+
+  FR-U-09   Accept / Reject  Member       Có lời mời PENDING; chưa ở đội khác
+            invite                        trong Hackathon
+
+  FR-U-10   Kick thành viên  Leader       teams.is_locked=FALSE;
+                                          member.status='ACCEPTED'
+
+  FR-U-11   Leave team (tự   Member       teams.is_locked=FALSE; member ≠
+            nguyện)                       Leader
+
+  FR-U-12   Transfer Leader  Leader       teams.is_locked=FALSE hoặc
+                             (current)    Coordinator override (FR-11C v3.5);
+                                          người nhận phải ACCEPTED member
+
+  FR-U-13   Disband team     Leader       teams.is_locked=FALSE AND chưa đến
+                                          Bước 7 GĐ2 (mentor_team_assignments
+                                          chưa có)
+
+  FR-U-14   View team status Bất kỳ       Member ACCEPTED của đội
+                             member       
+  ---------------------------------------------------------------------------
+
+5.1 FR-U-07 — Tạo đội
+
++-----------------------------------------------------------------------+
+| POST /api/v1/hackathons/{hid}/teams { team_name }                     |
+|                                                                       |
+| @Transactional BEGIN;                                                 |
+|                                                                       |
+| -- Validate                                                           |
+|                                                                       |
+| IF NOT EXISTS hackathon_registrations(user, hackathon) → 422          |
+| NOT_REGISTERED                                                        |
+|                                                                       |
+| IF EXISTS teams t WHERE t.hackathon_id=:hid AND t.leader_id=:uid →    |
+| 409 ALREADY_HAS_TEAM                                                  |
+|                                                                       |
+| IF EXISTS team_members tm WHERE tm.user_id=:uid AND                   |
+| tm.team.hackathon_id=:hid AND tm.status='ACCEPTED'                    |
+|                                                                       |
+| → 409 ALREADY_IN_TEAM                                                 |
+|                                                                       |
+| IF EXISTS teams WHERE name=:name AND hackathon_id=:hid → 409          |
+| TEAM_NAME_EXISTS                                                      |
+|                                                                       |
+| -- Insert (status=PENDING; chuyển ACTIVE sau khi đủ 3-5 thành viên +  |
+| Coordinator approve)                                                  |
+|                                                                       |
+| INSERT teams (hackathon_id, team_name, leader_id, chapter_id,         |
+| status='PENDING')                                                     |
+|                                                                       |
+| VALUES (:hid, :name, :uid, (SELECT chapter_id FROM users WHERE        |
+| id=:uid), 'PENDING');                                                 |
+|                                                                       |
+| INSERT team_members (team_id, user_id, role='LEADER',                 |
+| status='ACCEPTED');                                                   |
+|                                                                       |
+| COMMIT;                                                               |
++-----------------------------------------------------------------------+
+
+  -----------------------------------------------------------------------
+  [Tự động leader_id = creator] Người tạo đội tự động là Leader. KHÔNG
+  cho phép tạo đội rồi gán Leader khác — phải Transfer Leader sau
+  (FR-U-12). chapter_id auto-derive từ users.chapter_id của Leader (GĐ2
+  v3.5 quy định).
+
+  -----------------------------------------------------------------------
+
+5.2 FR-U-08 — Mời thành viên (Leader)
+
++-----------------------------------------------------------------------+
+| POST /api/v1/teams/{tid}/invitations { invitee_email OR               |
+| invitee_user_id }                                                     |
+|                                                                       |
+| IF current_user ≠ team.leader_id → 403 NOT_LEADER                     |
+|                                                                       |
+| IF team.is_locked = TRUE → 423 TEAM_LOCKED                            |
+|                                                                       |
+| IF COUNT(team_members WHERE status IN ('INVITED','ACCEPTED')) >= 5 →  |
+| 422 TEAM_FULL                                                         |
+|                                                                       |
+| IF invitee đã ở team khác trong cùng hackathon (status=ACCEPTED) →    |
+| 422 USER_ALREADY_IN_TEAM                                              |
+|                                                                       |
+| IF invitee đã có invite PENDING từ đội này → 409 INVITATION_EXISTS    |
+|                                                                       |
+| INSERT team_members(team_id, user_id, role='MEMBER',                  |
+| status='INVITED', invited_by=:uid, invited_at=NOW());                 |
+|                                                                       |
+| -- Notification INVITATION_RECEIVED → invitee                         |
++-----------------------------------------------------------------------+
+
+5.3 FR-U-09 — Accept / Reject invite (Member)
+
++-----------------------------------------------------------------------+
+| PATCH /api/v1/invitations/{id}/respond { action: 'ACCEPT' | 'REJECT'  |
+| }                                                                     |
+|                                                                       |
+| IF tm.user_id ≠ current_user → 403 NOT_INVITEE                        |
+|                                                                       |
+| IF tm.status ≠ 'INVITED' → 409 ALREADY_RESPONDED                      |
+|                                                                       |
+| IF action='ACCEPT':                                                   |
+|                                                                       |
+| -- Re-check race condition                                            |
+|                                                                       |
+| IF EXISTS team_members tm2 WHERE tm2.user_id=:uid AND                 |
+| tm2.status='ACCEPTED'                                                 |
+|                                                                       |
+| AND tm2.team.hackathon_id=tm.team.hackathon_id → 422                  |
+| USER_ALREADY_IN_TEAM                                                  |
+|                                                                       |
+| IF team đã đủ 5 (race) → 422 TEAM_FULL                                |
+|                                                                       |
+| UPDATE team_members SET status='ACCEPTED', joined_at=NOW();           |
+|                                                                       |
+| ELSE: UPDATE team_members SET status='REJECTED';                      |
+|                                                                       |
+| -- Notif INVITATION_RESPONDED → Leader                                |
++-----------------------------------------------------------------------+
+
+  -----------------------------------------------------------------------
+  [U-BUG-2 race condition — TEAM_FULL] Member A và B cùng accept invite
+  vào đội đã có 4 người → cả hai cùng thấy 'còn 1 slot' → cả hai accept →
+  đội có 6 người (vi phạm rule 3-5). Fix: UNIQUE check trong
+  @Transactional + SELECT FOR UPDATE trên teams row. 1 trong 2 sẽ thấy đã
+  đủ 5 → 422.
+
+  -----------------------------------------------------------------------
+
+5.4 FR-U-10..13 — Kick, Leave, Transfer, Disband
+
+  ----------------------------------------------------------------------------------
+  FR         Endpoint                     Ràng buộc chính
+  ---------- ---------------------------- ------------------------------------------
+  FR-U-10    DELETE                       current=Leader; team.is_locked=FALSE; uid
+  Kick       /teams/{tid}/members/{uid}   ≠ Leader; uid.status='ACCEPTED'
+
+  FR-U-11    DELETE                       current ≠ Leader; team.is_locked=FALSE
+  Leave      /teams/{tid}/members/me      
+
+  FR-U-12    PATCH /teams/{tid}/leader {  current=Leader; new_leader_id phải
+  Transfer   new_leader_id }              ACCEPTED member; team.is_locked=FALSE OR
+                                          Coordinator override
+
+  FR-U-13    DELETE /teams/{tid}          current=Leader; team.is_locked=FALSE;
+  Disband                                 KHÔNG có mentor_team_assignments (chưa qua
+                                          Bước 7 GĐ2 v3.5 FR-11D)
+  ----------------------------------------------------------------------------------
+
+  -----------------------------------------------------------------------
+  [Đồng bộ GĐ2 v3.5 FR-11D] Đội ACTIVE đã có mentor_team_assignments (qua
+  Bước 7) → KHÔNG disband được. Đến lúc đó, đội chỉ ELIMINATE qua
+  Coordinator (FR-21 GĐ3). Student-side UI: hide nút Disband sau khi
+  Mentor được phân.
+
+  -----------------------------------------------------------------------
+
+Edge case — Leader bị banned/disabled giữa Hackathon (U-BUG-9)
+
+Workflow chưa nói rõ. Đề xuất: auto-transfer leader sang member 'đầu
+tiên joined_at' (oldest member) + ghi audit AUTO_TRANSFER_LEADER.
+Notification gửi cả đội. Member mới được Leader role có quyền refuse →
+khi đó đội chuyển trạng thái ORPHAN_TEAM, Coordinator can DISBAND hoặc
+gán Leader thay thế.
+
+6. FR — Bốc thăm Track (GĐ2)
+
+6.1 Spring 2026 — Coordinator bốc thăm (Student PASSIVE)
+
++-----------------------------------------------------------------------+
+| GET /api/v1/me/teams -- Sau khi Coordinator gọi PATCH /lottery        |
+|                                                                       |
+| Response: [{ team_id, team_name, hackathon_id, track: { id, name,     |
+| topic }, assigned_group: null }]                                      |
+|                                                                       |
+| -- Spring: 1 Track = 1 bảng, assigned_group=NULL                      |
+|                                                                       |
+| -- Student không có quyền POST/PATCH bốc thăm                         |
++-----------------------------------------------------------------------+
+
+6.2 Fall 2025 — Student tự chọn Track
+
++-----------------------------------------------------------------------+
+| POST /api/v1/tracks/{tid}/select { team_id }                          |
+|                                                                       |
+| IF current_user ≠ team.leader_id → 403                                |
+|                                                                       |
+| IF Round.is_active=TRUE → 423 ROUND_ALREADY_ACTIVE                    |
+|                                                                       |
+| IF Track.max_teams_per_track reached → 422 TRACK_FULL                 |
+|                                                                       |
+| -- Insert team_round_tracks; Coordinator sẽ bốc thăm bảng nhỏ sau     |
+|                                                                       |
+| INSERT team_round_tracks(team_id, round_id=Sơ loại, track_id,         |
+| assigned_group=NULL);                                                 |
++-----------------------------------------------------------------------+
+
+6.3 FR-U-16 — Re-Lottery (đổi Track)
+
++-----------------------------------------------------------------------+
+| PATCH /api/v1/teams/{tid}/rounds/{rid}/track { new_track_id }         |
+|                                                                       |
+| IF current_user ≠ team.leader_id → 403                                |
+|                                                                       |
+| IF Round.is_active=TRUE → 423 ROUND_ALREADY_ACTIVE -- giới hạn chính  |
+|                                                                       |
+| IF Round.is_final=TRUE → 422 CANNOT_RELOTTERY_FINAL -- chỉ áp Sơ loại |
+|                                                                       |
+| IF new_track không thuộc cùng Round → 422 TRACK_MISMATCH              |
+|                                                                       |
+| UPDATE team_round_tracks SET track_id=:new_tid WHERE team_id=:tid AND |
+| round_id=:rid;                                                        |
+|                                                                       |
+| -- Audit RELOTTERY                                                    |
++-----------------------------------------------------------------------+
+
+  -----------------------------------------------------------------------
+  [U-BUG-12 → đã chặn bởi FR-13B-R v3.5] Re-Lottery sau Round active sẽ
+  làm sai assigned_group → block 423. UI disable nút 'Đổi Track' khi
+  rounds.is_active=TRUE. Polling realtime hoặc refresh mỗi 30s để bắt
+  thay đổi.
+
+  -----------------------------------------------------------------------
+
+7. FR — Sơ loại (GĐ3 — Student ACTIVE)
+
+  -----------------------------------------------------------------------------
+  FR        Tên                Role        Endpoint
+  --------- ------------------ ----------- ------------------------------------
+  FR-U-17   View đề bài        Bất kỳ      GET /api/v1/rounds/{rid}/problem
+                               member      
+
+  FR-U-18   Submit work        Leader      POST /api/v1/submissions
+            (Leader)                       
+
+  FR-U-19   Resubmit (trước    Leader      PATCH /api/v1/submissions/{id} HOẶC
+            deadline)                      POST lại (ON CONFLICT UPDATE)
+
+  FR-U-20   View submission    Bất kỳ      GET
+            status             member      /api/v1/me/teams/{tid}/submissions
+
+  FR-U-21   View leaderboard   Bất kỳ      GET /api/v1/rounds/{rid}/leaderboard
+            (sau publish)      member      
+  -----------------------------------------------------------------------------
+
+7.1 FR-U-17 — View đề bài
+
++-----------------------------------------------------------------------+
+| GET /api/v1/rounds/{rid}/problem                                      |
+|                                                                       |
+| IF rounds.problem_released_at IS NULL → 404 PROBLEM_NOT_RELEASED      |
+|                                                                       |
+| IF NOT EXISTS team_round_tracks(team of user, round=rid) → 403        |
+| NOT_IN_ROUND                                                          |
+|                                                                       |
+| Response: { problem_url, problem_released_at, coding_duration_hours,  |
+| submission_deadline }                                                 |
++-----------------------------------------------------------------------+
+
+7.2 FR-U-18 — Submit work (Leader)
+
++-----------------------------------------------------------------------+
+| POST /api/v1/submissions { team_id, repo_url, demo_url, slide_url }   |
+|                                                                       |
+| IF current ≠ Leader → 403 NOT_LEADER                                  |
+|                                                                       |
+| IF Round.is_active=FALSE → 422 ROUND_NOT_ACTIVE                       |
+|                                                                       |
+| IF teams.status ≠ 'ACTIVE' OR is_locked=FALSE → 422 TEAM_NOT_READY    |
+|                                                                       |
+| IF repo_url domain = drive.google.com → 422 INVALID_REPO_PLATFORM     |
+|                                                                       |
+| -- Auto-detect LATE                                                   |
+|                                                                       |
+| is_late = NOW() > rounds.submission_deadline                          |
+|                                                                       |
+| status = is_late ? 'LATE_PENDING' : 'SUBMITTED'                       |
+|                                                                       |
+| IF rounds.is_final=TRUE AND is_late → status='REJECTED' -- HARD_LOCK  |
+| CK                                                                    |
+|                                                                       |
+| -- INSERT … ON DUPLICATE KEY UPDATE (scoring_key UNIQUE từ BUG-2      |
+| v4.1)                                                                 |
+|                                                                       |
+| INSERT submissions(team_id, round_id, track_id, repo_url, demo_url,   |
+| slide_url, status, is_late)                                           |
+|                                                                       |
+| ON DUPLICATE KEY UPDATE repo_url=VALUES(repo_url),                    |
+| demo_url=VALUES(demo_url),                                            |
+|                                                                       |
+| slide_url=VALUES(slide_url), updated_at=NOW();                        |
++-----------------------------------------------------------------------+
+
+  -----------------------------------------------------------------------
+  [U-BUG-6 — Double submit network retry] Network lag → Student bấm
+  Submit 2 lần. Backend dùng UNIQUE(team_id, scoring_key) + ON DUPLICATE
+  KEY UPDATE → idempotent. UI nên disable nút Submit 3 giây sau click +
+  show 'Đang gửi…'.
+
+  -----------------------------------------------------------------------
+
+7.3 FR-U-20 — View submission status
+
++-----------------------------------------------------------------------+
+| GET /api/v1/me/teams/{tid}/submissions                                |
+|                                                                       |
+| Response: [{                                                          |
+|                                                                       |
+| submission_id, round_id, round_name, track_name,                      |
+|                                                                       |
+| status:                                                               |
+| 'SUBMITTED'|'LATE_PENDING'|'LATE_APPROVED'|'REJECTED'|'ACCEPTED',     |
+|                                                                       |
+| is_late, submitted_at, review_note (nếu có)                           |
+|                                                                       |
+| }]                                                                    |
+|                                                                       |
+| // UI hiển thị:                                                       |
+|                                                                       |
+| // - SUBMITTED → ✓ Đã nộp đúng hạn                                    |
+|                                                                       |
+| // - LATE_PENDING → ⏳ Đã nộp trễ, chờ Coordinator review             |
+|                                                                       |
+| // - LATE_APPROVED → ✓ Đã được duyệt — sẽ được chấm điểm              |
+|                                                                       |
+| // - REJECTED → ✗ Bài nộp bị từ chối (xem review_note)                |
++-----------------------------------------------------------------------+
+
+7.4 FR-U-21 — View leaderboard (sau is_published)
+
++-----------------------------------------------------------------------+
+| GET /api/v1/rounds/{rid}/leaderboard                                  |
+|                                                                       |
+| IF rounds.is_published=FALSE → 403 RESULT_NOT_PUBLISHED               |
+|                                                                       |
+| Response: [{ rank, team_name, weighted_avg_score, assigned_group }]   |
+|                                                                       |
+| -- KHÔNG trả judge_id, scores per judge (privacy)                     |
++-----------------------------------------------------------------------+
+
+  -----------------------------------------------------------------------
+  [U-BUG-7 — Privacy điểm Judge] Student CHỈ thấy điểm tổng
+  (weighted_avg_score), KHÔNG thấy điểm từng Judge cho bài đội mình (kể
+  cả sau publish). View v_round_leaderboard đã filter sẵn — không SELECT
+  judge_id. Đảm bảo API không leak qua include/joins.
+
+  -----------------------------------------------------------------------
+
+8. FR — Thăng vòng (GĐ4 — Student PASSIVE)
+
+  --------------------------------------------------------------------------
+  FR        Tên                  Mô tả
+  --------- -------------------- -------------------------------------------
+  FR-U-22   Nhận notification    TEAM_ADVANCED (vào CK), TEAM_ELIMINATED (bị
+            kết quả Sơ loại      loại), WILDCARD_SELECTED (vớt)
+
+  FR-U-23   View Sơ loại result  GET /api/v1/rounds/{rid}/leaderboard (đã có
+            đã công bố           ở FR-U-21)
+  --------------------------------------------------------------------------
+
+  -----------------------------------------------------------------------
+  [Student không tham gia GĐ4] Top N, Wild Card, Tiebreak, ELIMINATE_AUTO
+  — đều do Coordinator + System xử lý. Student CHỈ NHẬN notification cuối
+  cùng. Không có API để 'request advance' hay 'apply Wild Card' — minh
+  bạch hoàn toàn.
+
+  -----------------------------------------------------------------------
+
+9. FR — Chung kết (GĐ5 — Student ACTIVE)
+
+  ----------------------------------------------------------------------------------------------------
+  FR        Tên                Endpoint                                         Khác Sơ loại
+  --------- ------------------ ------------------------------------------------ ----------------------
+  FR-U-24   Submit CK work     POST /api/v1/submissions (round_id=FINAL)        round.is_final=TRUE;
+                                                                                HARD_LOCK (LATE →
+                                                                                REJECTED)
+
+  FR-U-25   Thuyết trình + Q&A (offline)                                        7'+3' (3' Phản biện
+            & Rebuttal                                                          CHẤM ĐIỂM)
+
+  FR-U-26   View CK status     GET                                              Giống FR-U-20
+                               /api/v1/me/teams/{tid}/submissions?round=FINAL   
+  ----------------------------------------------------------------------------------------------------
+
+FR-U-24 — Submit CK — Khác biệt với FR-U-18
+
+  ------------------------------------------------------------------------
+  Khía cạnh          Sơ loại (FR-U-18)          Chung kết (FR-U-24)
+  ------------------ -------------------------- --------------------------
+  round.is_final     FALSE                      TRUE
+
+  track_id           NOT NULL (Track của đội)   NULL (Round CK không có
+                                                Track con — D-2 v4.1)
+
+  scoring_key        CONCAT('T', track_id)      CONCAT('R', round_id)
+
+  LATE policy        LATE_PENDING (Coordinator  HARD_LOCK → REJECTED tự
+                     review)                    động
+
+  UI duration        07h-14h (7 tiếng coding)   Sau Sơ loại publish →
+                                                trước thuyết trình CK
+  ------------------------------------------------------------------------
+
+  -----------------------------------------------------------------------
+  [Đồng bộ v4.1 §5.3 — Q&A & Rebuttal] Trong 3 phút phản biện CK: Judge
+  chấm criterion 'Q&A & Rebuttal' (type=SOFT_SKILL, weight=0.10 Spring
+  2026). Student CẦN BIẾT: câu hỏi và chất lượng trả lời được CHẤM ĐIỂM
+  ngay, KHÔNG phải xã giao. Train Leader về điều này trước khi thi.
+
+  -----------------------------------------------------------------------
+
+10. FR — Kết quả & Trao giải (GĐ6)
+
+  --------------------------------------------------------------------------
+  FR        Tên                        Endpoint
+  --------- -------------------------- -------------------------------------
+  FR-U-27   View final rankings        GET /api/v1/hackathons/{hid}/rankings
+
+  FR-U-28   View prizes (đội + cá      GET /api/v1/hackathons/{hid}/prizes ·
+            nhân)                      GET /api/v1/me/prizes
+
+  FR-U-29   Download certificate       GET /api/v1/me/certificates · GET
+                                       /api/v1/certificates/{id}/download
+
+  FR-U-30   Submit appeal              POST /api/v1/appeals
+            (ELIMINATE_MANUAL, 24h)    
+
+  FR-U-31   View personal history      GET /api/v1/me/history
+  --------------------------------------------------------------------------
+
+10.1 FR-U-27 — View final rankings
+
++-----------------------------------------------------------------------+
+| GET /api/v1/hackathons/{hid}/rankings                                 |
+|                                                                       |
+| IF hackathons.status NOT IN ('PENDING_CONFIRM', 'FINISHED') → 403     |
+| RESULT_NOT_AVAILABLE                                                  |
+|                                                                       |
+| Response: {                                                           |
+|                                                                       |
+| team_rankings: [...], -- Luôn có (Fall + Spring)                      |
+|                                                                       |
+| chapter_rankings: [...], -- Luôn có (cumulative theo academic year)   |
+|                                                                       |
+| individual_rankings: [...] -- CHỈ Fall                                |
+| (individual_ranking_enabled=TRUE)                                     |
+|                                                                       |
+| }                                                                     |
+|                                                                       |
+| -- Frontend đọc cờ individual_ranking_enabled trước khi render menu   |
+| Cá nhân (Spring ẨN)                                                   |
++-----------------------------------------------------------------------+
+
+10.2 FR-U-28 — View prizes
+
++-----------------------------------------------------------------------+
+| GET /api/v1/me/prizes                                                 |
+|                                                                       |
+| Response: [{                                                          |
+|                                                                       |
+| prize_id, hackathon_name, prize_type, scope, prize_name, prize_value, |
+| awarded_at,                                                           |
+|                                                                       |
+| team_id (nếu scope=TEAM), user_id (nếu scope=INDIVIDUAL)              |
+|                                                                       |
+| }]                                                                    |
+|                                                                       |
+| // Fall 2025: 1 user có thể có 2 prize (Team Nhất + Cá nhân xuất sắc) |
+| — A-2 v3.2 cho phép                                                   |
+|                                                                       |
+| // Spring 2026: chỉ scope=TEAM                                        |
++-----------------------------------------------------------------------+
+
+10.3 FR-U-29 — Download certificate
+
++-----------------------------------------------------------------------+
+| GET /api/v1/me/certificates                                           |
+|                                                                       |
+| Response: [{ certificate_id, hackathon_name, type:                    |
+| 'PARTICIPATION'|'WINNER', issued_at }]                                |
+|                                                                       |
+| GET /api/v1/certificates/{id}/download                                |
+|                                                                       |
+| IF certificate.user_id ≠ current_user → 403                           |
+|                                                                       |
+| -- Pre-signed URL S3 expiry 1h                                        |
+|                                                                       |
+| Response: 302 redirect to S3 pre-signed URL                           |
++-----------------------------------------------------------------------+
+
+  -----------------------------------------------------------------------
+  [Liên kết MF-06 v3.2 O-NEW-4] Bảng certificates(user_id, hackathon_id,
+  type, issued_at, file_url) chưa có trong DB v2.1 — là open issue cần
+  tạo. v3.2 §13 đã ghi nhận. Student-side endpoint hoạt động khi bảng này
+  được implement.
+
+  -----------------------------------------------------------------------
+
+10.4 FR-U-30 — Submit appeal (24h)
+
++-----------------------------------------------------------------------+
+| POST /api/v1/appeals { round_id, appeal_type='ELIMINATE_MANUAL',      |
+| reason, evidence_url }                                                |
+|                                                                       |
+| IF current ≠ team.leader_id → 403 NOT_LEADER                          |
+|                                                                       |
+| IF team.status ≠ 'ELIMINATED' → 422 NOT_ELIMINATED                    |
+|                                                                       |
+| IF teams.eliminated_at IS NULL → 422 NO_ELIMINATION_RECORD            |
+|                                                                       |
+| IF NOW() > teams.eliminated_at + INTERVAL 24 HOUR → 422               |
+| APPEAL_DEADLINE_EXPIRED                                               |
+|                                                                       |
+| IF EXISTS appeals(team, round, type='ELIMINATE_MANUAL') → 409         |
+| APPEAL_ALREADY_EXISTS                                                 |
+|                                                                       |
+| -- Only ELIMINATE_MANUAL (Coordinator manual action) — KHÔNG cho      |
+| appeal ELIMINATE_AUTO                                                 |
+|                                                                       |
+| -- (rank dưới Top N — điểm là điểm, không cãi)                        |
+|                                                                       |
+| INSERT appeals (...) status='PENDING' deadline=eliminated_at + 24h;   |
++-----------------------------------------------------------------------+
+
+  -----------------------------------------------------------------------
+  [Đồng bộ v4.1 §16.3] Pending #3 đã giải: bảng appeals chỉ chấp nhận
+  ELIMINATE_MANUAL (vi phạm); ELIMINATE_AUTO (dưới Top N) KHÔNG được
+  appeal. Đây là chính sách thực tế — hackathon 1 ngày không có thời gian
+  re-judge điểm.
+
+  -----------------------------------------------------------------------
+
+10.5 FR-U-31 — View personal history
+
++-----------------------------------------------------------------------+
+| GET /api/v1/me/history                                                |
+|                                                                       |
+| Response: {                                                           |
+|                                                                       |
+| hackathons_participated: [...], -- Tất cả Hackathon đã register       |
+|                                                                       |
+| prizes_won: [...], -- Cá nhân + team prizes                           |
+|                                                                       |
+| cumulative_score_this_year: number, -- SUM(score_this_hackathon)      |
+| Fall + Spring + Summer year hiện tại                                  |
+|                                                                       |
+| rank_in_year: number, -- Nếu individual_ranking_enabled cho năm đó    |
+|                                                                       |
+| certificates: [...]                                                   |
+|                                                                       |
+| }                                                                     |
++-----------------------------------------------------------------------+
+
+11. Business Rules cho Student
+
+11.1 Đăng ký & Đội
+
+  --------------------------------------------------------------------------
+  Rule     Mô tả                                             Tầng enforce
+  -------- ------------------------------------------------- ---------------
+  BR-S-1   1 user CHỈ thuộc 1 đội cho mỗi Hackathon          DB UNIQUE + App
+                                                             validate
+
+  BR-S-2   Đội có 3-5 thành viên (3 min, 5 max)              App validate
+                                                             khi accept
+                                                             invite + lock
+                                                             đội
+
+  BR-S-3   Sinh viên đã tốt nghiệp không tham gia            App validate
+                                                             eligibility lúc
+                                                             register
+
+  BR-S-4   1 user chỉ là Leader của tối đa 1 đội per         App: tạo đội
+           Hackathon                                         mới sau khi
+                                                             disband cũ
+
+  BR-S-5   Sau teams.is_locked=TRUE: không thay đổi thành    Trigger DB +
+           viên                                              App
+
+  BR-S-6   Sau Bước 7 GĐ2 (có mentor_team_assignments):      App validate
+           không disband                                     
+
+  BR-S-7   Leader phải transfer trước khi rời đội            App: DELETE
+                                                             /members/me trả
+                                                             422 nếu là
+                                                             Leader
+  --------------------------------------------------------------------------
+
+11.2 Nộp bài & Chấm điểm
+
+  ------------------------------------------------------------------------------------
+  Rule      Mô tả                                             Tầng enforce
+  --------- ------------------------------------------------- ------------------------
+  BR-S-8    CHỈ Leader nộp bài (đại diện đội)                 App: 403 nếu không phải
+                                                              Leader
+
+  BR-S-9    1 đội = 1 submission per (Track Sơ loại HOẶC      DB UNIQUE(team_id,
+            Round CK)                                         scoring_key)
+
+  BR-S-10   Sơ loại trễ → LATE_PENDING; CK trễ → REJECTED     App: rounds.is_final +
+            HARD_LOCK                                         late_submission_policy
+
+  BR-S-11   Repo phải GitHub/GitLab/Jira/Notion — không       App: validate domain
+            Google Drive                                      
+
+  BR-S-12   Student không thấy điểm Judge của bài đội mình    View v_round_leaderboard
+            (privacy)                                         không SELECT judge_id
+
+  BR-S-13   Student không thấy bài/điểm đội khác trước        App: 403
+            is_published                                      RESULT_NOT_PUBLISHED
+
+  BR-S-14   Đội ELIMINATED không thấy menu nộp CK             Frontend hide; backend
+                                                              422 TEAM_ELIMINATED
+  ------------------------------------------------------------------------------------
+
+12. Permissions matrix — Endpoint by Role
+
+  ------------------------------------------------------------------------------------------------------
+  Endpoint                         Student-Leader   Student-Member   Coordinator   Judge      Mentor
+  -------------------------------- ---------------- ---------------- ------------- ---------- ----------
+  POST /signup                     ✓                ✓                ✓             (invite)   (invite)
+
+  POST /teams                      ✓                ✓                ✗             ✗          ✗
+
+  POST /teams/{id}/invitations     ✓                ✗                ✓ override    ✗          ✗
+
+  PATCH /invitations/{id}/respond  ✗ (Leader không  ✓                —             —          —
+                                   nhận invite)                                               
+
+  DELETE /teams/{id}               ✓                ✗                ✓ override    ✗          ✗
+
+  PATCH /teams/{id}/leader         ✓                ✗ (chỉ nhận)     ✓ override    ✗          ✗
+                                                                     (FR-11C)                 
+
+  POST /tracks/{id}/select (Fall)  ✓                ✗                —             —          —
+
+  PATCH                            ✓                ✗                ✓             ✗          ✗
+  /teams/{id}/rounds/{rid}/track                                                              
+
+  POST /submissions                ✓                ✗                ✗             ✗          ✗
+
+  GET /rounds/{rid}/leaderboard    ✓ (sau publish)  ✓ (sau publish)  ✓ (mọi lúc)   ✓ (Round   ✗
+                                                                                   chấm)      
+
+  POST /scores                     ✗                ✗                ✗             ✓          ✗
+
+  POST /prizes                     ✗                ✗                ✓             ✗          ✗
+
+  POST /export-jobs                ✗                ✗                ✓             ✗          ✗
+
+  POST /appeals                    ✓                ✗                —             ✗          ✗
+
+  GET /me/certificates             ✓                ✓                ✓             ✓          ✓
+  ------------------------------------------------------------------------------------------------------
+
+13. State transitions mà Student thấy
+
+  -------------------------------------------------------------------------------------
+  Bảng                         Trạng thái Student thấy            Trigger
+  ---------------------------- ---------------------------------- ---------------------
+  teams.status                 PENDING (đang lập đội) → ACTIVE    Coordinator action
+                               (sau Coordinator approve)          
+
+  teams.status                 ACTIVE → ELIMINATED (vi phạm) →    Coordinator FR-21
+                               ELIMINATED + appeal flag (nếu có)  hoặc auto FR-23
+
+  team_members.status          INVITED (vừa được mời) → ACCEPTED  Member action
+                               hoặc REJECTED → LEFT (rời đội)     FR-U-09/11
+
+  teams.is_locked              FALSE (đang sửa) → TRUE (đã khóa   Cron đêm trước thi
+                               thành viên)                        (FR-13A)
+
+  submissions.status           SUBMITTED ↔ LATE_PENDING →         Leader nộp +
+                               LATE_APPROVED/REJECTED → ACCEPTED  Coordinator review
+
+  rounds.problem_released_at   NULL → DATETIME (đề bài đã phát)   Coordinator FR-15A
+
+  rounds.scoring_locked        FALSE → TRUE (đã lock chấm điểm)   Coordinator FR-20A
+
+  rounds.is_published          FALSE → TRUE (kết quả đã công bố)  Coordinator FR-24
+
+  hackathons.status            ONGOING → PENDING_CONFIRM →        GĐ5 FR-30A + GĐ6
+                               FINISHED                           FR-33
+  -------------------------------------------------------------------------------------
+
+14. Error codes Student hay gặp
+
+  ------------------------------------------------------------------------------
+  Code                      HTTP     Context                    Action
+  ------------------------- -------- -------------------------- ----------------
+  NOT_REGISTERED            422      Tạo đội mà chưa register   Register trước
+                                     Hackathon                  khi tạo đội
+
+  ALREADY_IN_TEAM           409      Tạo/Accept invite khi đã ở Rời đội cũ trước
+                                     đội khác                   (nếu trước lock)
+
+  TEAM_NAME_EXISTS          409      Tạo đội trùng tên          Đổi tên đội
+
+  TEAM_FULL                 422      Đội đã 5 thành viên        —
+
+  TEAM_LOCKED (423)         423      Sửa đội sau is_locked=TRUE Quá deadline —
+                                                                liên hệ
+                                                                Coordinator nếu
+                                                                khẩn
+
+  NOT_LEADER                403      Member cố làm action của   Yêu cầu Leader
+                                     Leader                     thực hiện
+
+  ROUND_NOT_ACTIVE          422      Nộp bài khi Round chưa     Chờ Coordinator
+                                     is_active                  kích hoạt
+
+  INVALID_REPO_PLATFORM     422      Dùng drive.google.com cho  Chuyển sang
+                                     repo                       GitHub/Notion
+
+  ROUND_ALREADY_ACTIVE      423      Re-Lottery sau Round       Không đổi được —
+  (423)                              active                     chấp nhận Track
+                                                                hiện tại
+
+  RESULT_NOT_PUBLISHED      403      Xem leaderboard trước      Chờ Coordinator
+                                     is_published               công bố
+
+  APPEAL_DEADLINE_EXPIRED   422      Submit appeal quá 24h sau  —
+                                     eliminate                  
+
+  TEAM_ELIMINATED           422      Nộp bài khi đội đã         —
+                                     ELIMINATED                 
+
+  CK_SUBMISSION_REJECTED    Auto     Nộp bài CK trễ (HARD_LOCK) —
+  (LATE)                    status                              
+  ------------------------------------------------------------------------------
+
+15. Edge cases & Test cases cho Student
+
+  ------------------------------------------------------------------------------
+  #        Kịch bản                           Kỳ vọng
+  -------- ---------------------------------- ----------------------------------
+  E-U-01   Student tạo đội xong ngay lập tức  OK: disband xóa team_members → có
+           disband — rồi tạo lại đội khác     thể tạo đội mới
+
+  E-U-02   Member nhận invite từ 2 đội cùng   Đội B: 422 USER_ALREADY_IN_TEAM
+           lúc → accept đội A → accept đội B  
+
+  E-U-03   Leader transfer cho member chưa    422: chỉ ACCEPTED member nhận được
+           ACCEPTED                           Leader
+
+  E-U-04   Member rời đội rồi nhận invite lại OK: tạo team_members mới
+           từ ĐÚNG đội cũ                     (status='INVITED'); rule
+                                              1-user-1-team chỉ check ACCEPTED
+
+  E-U-05   Leader bị banned giữa Hackathon    Auto-transfer cho member oldest
+                                              joined_at + notif đội (U-BUG-9 đề
+                                              xuất)
+
+  E-U-06   Student quên password ngày thi     POST /auth/forgot-password → email
+                                              reset link expiry 30 phút
+
+  E-U-07   Leader nộp bài rồi disband đội     Disband xóa submissions CASCADE
+           (trước Bước 7)                     (BUG-1 v4.1) → OK
+
+  E-U-08   Network lag → Student bấm Submit 2 ON DUPLICATE KEY UPDATE →
+           lần (U-BUG-6)                      idempotent, 1 submission
+
+  E-U-09   Re-Lottery sau Round active        423 ROUND_ALREADY_ACTIVE
+           (U-BUG-12)                         
+
+  E-U-10   Spring Student vào menu 'XH Cá     Frontend ẨN menu; backend 404
+           nhân'                              INDIVIDUAL_RANKING_NOT_AVAILABLE
+
+  E-U-11   Đội ELIMINATED_AUTO (dưới Top N)   422 APPEAL_NOT_ALLOWED — chỉ
+           submit appeal                      ELIMINATE_MANUAL được appeal
+
+  E-U-12   Student xem điểm của Judge X cho   API không trả judge_id; UI không
+           bài đội mình                       có chỗ hiển thị
+
+  E-U-13   Member rời đội + Leader chỉ còn 2  Cảnh báo: dưới ngưỡng, có thể bị
+           người → đội < min_size 3           Coordinator ELIMINATE; có thể mời
+                                              thêm trước lock
+
+  E-U-14   Đội đăng ký Hackathon nhưng không  Đội không có team_round_tracks →
+           bốc thăm Track (Spring quên đến)   không nộp bài được →
+                                              ELIMINATE_MANUAL
+
+  E-U-15   Student rời FPTU giữa năm          users.chapter_id giữ nguyên;
+           (transfer trường)                  cumulative_score vẫn cộng vào
+                                              Chapter cũ (academic year
+                                              semantics — D-16 v4.1)
+  ------------------------------------------------------------------------------
+
+16. Liên kết với GĐ1-6 (compatibility check)
+
+  --------------------------------------------------------------------------------
+  GĐ    FR Coordinator-side liên     FR Student-side tương ứng    Khớp?
+        quan                                                      
+  ----- ---------------------------- ---------------------------- ----------------
+  GĐ1   FR-11C (invite temp account) FR-U-01 (signup) — kế thừa   ✓
+                                     luồng                        
+
+  GĐ2   FR-09 (đăng ký), FR-11A (tạo FR-U-06, FR-U-07, FR-U-08    ✓
+        đội), FR-11B (invite)                                     
+
+  GĐ2   FR-13A (lock đội)            BR-S-5 (sau lock không sửa)  ✓
+
+  GĐ2   FR-13B (lottery), FR-13B-R   FR-U-15, FR-U-16             ✓
+        (re-lottery)                                              
+
+  GĐ2   FR-11D (disband — chặn sau   FR-U-13 với điều kiện        ✓
+        Bước 7)                                                   
+
+  GĐ3   FR-15A (phát đề), FR-16 (nộp FR-U-17, FR-U-18             ✓
+        bài)                                                      
+
+  GĐ3   FR-16A (review LATE)         FR-U-20 (xem status sau      ✓
+                                     review)                      
+
+  GĐ3   FR-18..20 (chấm điểm, lock,  FR-U-21 (xem sau publish)    ✓
+        leaderboard)                                              
+
+  GĐ4   FR-22..25 (Top N, Wild Card, FR-U-22, FR-U-23 (PASSIVE)   ✓
+        Tiebreak, publish)                                        
+
+  GĐ5   FR-26 (nộp CK), FR-28 (chấm  FR-U-24, FR-U-26             ✓
+        CK)                                                       
+
+  GĐ6   FR-31..33 (rankings, prizes, FR-U-27, FR-U-28             ✓
+        FINISHED)                                                 
+
+  GĐ6   FR-34/35 (export —           — (Student không có quyền)   ✓
+        Coordinator only)                                         
+
+  GĐ6   v4.1 §16.3 (appeal table)    FR-U-30 (submit appeal)      ✓
+
+  GĐ6   v3.2 §15                     FR-U-29, FR-U-31             ✓ (chờ schema)
+        (annual_individual_awards,                                
+        certificates)                                             
+  --------------------------------------------------------------------------------
+
+  -----------------------------------------------------------------------
+  [ĐÁNH GIÁ TƯƠNG THÍCH] 13/14 endpoint hoàn toàn khớp với schema GĐ1-6
+  đã document. 1 mục TB là FR-U-29 (certificates) và FR-U-31 (history) —
+  cần ALTER TABLE thêm bảng certificates (O-NEW-4 v3.2). Không có lệch
+  nghiêm trọng.
+
+  -----------------------------------------------------------------------
+
+17. Bug audit — Phía Student (U-BUG-1..12)
+
+17.1 U-BUG-1 — Race accept invite khi đội FULL
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         TB
+
+  Kịch bản    2 member A và B cùng accept invite của đội đã có 4 người
+              (dù system thấy 'còn 1 slot'). Cả hai cùng thấy 422 không
+              nhất quán.
+
+  Sửa / Trạng @Transactional + SELECT teams FOR UPDATE + COUNT > 4 check.
+  thái        1 trong 2 sẽ thấy đã FULL → 422 TEAM_FULL. Đã đồng bộ
+              FR-11B GĐ2 v3.5.
+  -----------------------------------------------------------------------
+
+17.2 U-BUG-2 — Accept invite trong khi đang ở đội khác (race)
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         TB
+
+  Kịch bản    Member nhận 2 invite từ đội A, B. Accept A → có
+              team_members(A, ACCEPTED). Đồng thời accept B trước khi UI
+              refresh.
+
+  Sửa / Trạng Re-check trong transaction: NOT EXISTS team_members(user,
+  thái        hackathon, ACCEPTED). 422 USER_ALREADY_IN_TEAM nếu vi phạm.
+              GĐ2 v3.5 đã có guard.
+  -----------------------------------------------------------------------
+
+17.3 U-BUG-3 — Disband sau lock
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         Thấp
+
+  Kịch bản    Leader cố disband đội sau is_locked=TRUE hoặc sau Bước 7
+              (đã có mentor_team_assignments).
+
+  Sửa / Trạng 423 TEAM_LOCKED hoặc 422 TEAM_HAS_MENTOR. FR-11D GĐ2 v3.5
+  thái        đã chặn.
+  -----------------------------------------------------------------------
+
+17.4 U-BUG-4 — Member rời đội sau lock
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         Thấp
+
+  Kịch bản    Sau cron khóa thành viên (FR-13A), member vẫn cố DELETE
+              /members/me.
+
+  Sửa / Trạng 423 TEAM_LOCKED. Trigger DB + App check. Đã có ở GĐ2 v3.5.
+  thái        
+  -----------------------------------------------------------------------
+
+17.5 U-BUG-5 — Submit cho Round không thuộc Track
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         Thấp
+
+  Kịch bản    Leader nộp bài cho round_id của Track khác (vì lỗi UI hoặc
+              curl manual).
+
+  Sửa / Trạng App validate: EXISTS team_round_tracks(team, round). 422
+  thái        TEAM_NOT_IN_ROUND.
+  -----------------------------------------------------------------------
+
+17.6 U-BUG-6 — Double submit network retry
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         TB
+
+  Kịch bản    Network lag → Leader bấm Submit 2 lần → 2 POST requests.
+
+  Sửa / Trạng ON DUPLICATE KEY UPDATE qua scoring_key UNIQUE (BUG-2 v4.1)
+  thái        → idempotent. UI disable nút 3s.
+  -----------------------------------------------------------------------
+
+17.7 U-BUG-7 — Xem điểm Judge của bài đội mình
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         Thấp
+
+  Kịch bản    Leader curl trực tiếp GET /scores?submission_id=X → muốn
+              thấy điểm từng Judge.
+
+  Sửa / Trạng View v_round_leaderboard không SELECT judge_id; API GET
+  thái        /scores chỉ cho Coordinator/Judge (Judge thấy điểm của
+              chính mình).
+  -----------------------------------------------------------------------
+
+17.8 U-BUG-8 — Tải CSV scores
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         Thấp
+
+  Kịch bản    Leader cố GET /export-jobs/{id}/download để tải file điểm
+              thô.
+
+  Sửa / Trạng 403 FORBIDDEN. Endpoint chỉ cho role=COORDINATOR. Audit
+  thái        IP/UA (D-14 v3.1).
+  -----------------------------------------------------------------------
+
+17.9 U-BUG-9 — Leader bị banned giữa Hackathon
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         TB
+
+  Kịch bản    Coordinator/Admin disable users.status='BANNED' cho Leader
+              đang active.
+
+  Sửa / Trạng Đề xuất chính sách: auto-transfer cho member có joined_at
+  thái        sớm nhất + ghi audit AUTO_TRANSFER_LEADER + notif cả đội.
+              Nếu member mới refuse → đội thành ORPHAN_TEAM, Coordinator
+              xử lý.
+  -----------------------------------------------------------------------
+
+17.10 U-BUG-10 — Password reset trong ngày thi
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         Thấp
+
+  Kịch bản    Student quên password ngày 12/4 → request reset.
+
+  Sửa / Trạng Email reset link expiry 30 phút. KHÔNG đăng xuất các
+  thái        session đang chạy của Leader (vì có thể đang nộp bài). Đăng
+              xuất chỉ sau khi đổi password thành công.
+  -----------------------------------------------------------------------
+
+17.11 U-BUG-11 — Xem bài đội khác trước publish
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         Thấp
+
+  Kịch bản    Student curl GET /submissions/{id} với id của đội khác.
+
+  Sửa / Trạng App validate: submission.team_id phải là team của user; nếu
+  thái        khác → 403 NOT_OWN_TEAM. Sau publish (is_final +
+              is_published) → có thể đọc-only.
+  -----------------------------------------------------------------------
+
+17.12 U-BUG-12 — Re-Lottery sau Round active
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         Thấp
+
+  Kịch bản    Leader vào menu 'Đổi Track' khi rounds.is_active=TRUE rồi
+              (UI cache cũ).
+
+  Sửa / Trạng Backend trả 423 ROUND_ALREADY_ACTIVE. Frontend nên poll
+  thái        trạng thái Round 30s/lần và disable nút khi active.
+  -----------------------------------------------------------------------
+
+18. Đánh giá độ hoàn thiện
+
+18.1 Coverage matrix
+
+  ------------------------------------------------------------------------
+  Hạng mục                          Số lượng        Trạng thái
+  --------------------------------- --------------- ----------------------
+  Functional Requirements           31 FR           ✓ Đầy đủ
+  (FR-U-01..31)                                     
+
+  Business Rules (BR-S-1..14)       14 BR           ✓ Đầy đủ
+
+  Bugs phía Student (U-BUG-1..12)   12 bugs         ✓ Đã rà soát
+
+  Edge cases (E-U-01..15)           15 test         ✓ Đầy đủ
+
+  Permissions matrix                15 endpoints ×  ✓ Rõ ràng
+                                    5 roles         
+
+  Tương thích GĐ1-6                 13/14 khớp      ✓ Có 1 cảnh báo
+                                                    (certificates schema)
+
+  So sánh Fall vs Spring            11 khía cạnh    ✓ Rõ
+  ------------------------------------------------------------------------
+
+18.2 Đánh giá tổng
+
+  -----------------------------------------------------------------------
+  [~94% — đạt mục tiêu >90%] Tài liệu Student-side này khớp với
+  Coordinator-side đã làm (MF-01..06) ở 13/14 điểm liên kết. 6% còn lại:
+  (1) Bảng certificates chưa có trong DB v2.1 (O-NEW-4 v3.2 — đang chờ
+  tạo); (2) Chính sách U-BUG-9 (Leader banned) cần BTC xác nhận; (3)
+  FR-U-29 download certificate phụ thuộc schema mới.
+
+  -----------------------------------------------------------------------
+
+18.3 Lỗi tiềm ẩn còn lại (KHÔNG NGHIÊM TRỌNG)
+
+  -------------------------------------------------------------------------
+  #       Vấn đề                                                Mức
+  ------- ----------------------------------------------------- -----------
+  O-S-1   Bảng certificates chưa tồn tại — FR-U-29/U-31 phụ     TB
+          thuộc                                                 
+
+  O-S-2   Chính sách Leader banned (U-BUG-9) cần BTC chốt —     TB
+          auto-transfer vs disband                              
+
+  O-S-3   UI cho Spring ẩn menu 'XH Cá nhân' — phụ thuộc        Thấp
+          frontend đọc cờ                                       
+
+  O-S-4   Workshop attendance không log vào DB (events          Thấp
+          tracking) — chính sách Coordinator                    
+
+  O-S-5   Đội External (chapter_id=NULL) không xuất hiện trong  Thấp
+          Chapter XH — UI cần ghi 'External'                    
+  -------------------------------------------------------------------------
+
+  -----------------------------------------------------------------------
+  [KẾT LUẬN] Tài liệu Student-side v1.0 hoàn chỉnh và khớp với toàn bộ
+  Coordinator-side đã làm (MF-01..06 v3.2/v4.1). Đạt mục tiêu >90% (ước
+  ~94%). 5 open issues O-S-1..5 đều là TB/Thấp, không chặn deploy. Sau
+  khi DB v2.1 bổ sung bảng certificates + appeals (đã đề xuất ở
+  v3.2/v4.1) → đạt ~98%.
+
+  -----------------------------------------------------------------------
+
+19. Đồng bộ với MF-06 v3.2 — phần Student-facing
+
+  -----------------------------------------------------------------------
+  [BỔ SUNG v1.1] v1.0 viết TRƯỚC khi MF-06 v3.2 finalize. v3.2 thêm 2 cơ
+  chế Student-facing chưa có ở v1.0: (1) annual_individual_awards — Giải
+  Cá nhân CẢ NĂM Fall 2025 sau 3 hackathon; (2) hackathon_reopens — notif
+  RESULT_UPDATED khi BTC mở lại kết quả. Mục này bổ sung 2 FR và 1 BR để
+  Student-side đồng bộ 100% với v3.2.
+
+  -----------------------------------------------------------------------
+
+19.1 FR-U-32 — Xem Giải Cá nhân Cả năm (chỉ Fall, sau 3 Hackathon)
+
+  -----------------------------------------------------------------------
+  Khía cạnh    Đặc tả
+  ------------ ----------------------------------------------------------
+  Mô tả        Sau khi Hackathon CUỐI cùng của năm (Fall) chuyển
+               FINISHED, hệ thống tính annual_individual_awards =
+               SUM(score_this_hackathon) qua 3 kỳ Spring+Summer+Fall.
+               Student xem được giải Cá nhân CẢ NĂM của mình + bảng XH cả
+               năm.
+
+  Tiền đề      (1) hackathons.individual_ranking_enabled=TRUE cho cả 3 kỳ
+               trong năm; (2) Fall hackathon đã FINISHED; (3)
+               annual_individual_awards table đã được populate (xem MF-06
+               v3.2 §3.6, B-3)
+
+  API          GET /api/v1/me/annual-awards?year=2025 — trả về { year,
+               total_score, rank_in_year, hackathons_participated,
+               prize_id (nếu đoạt giải) }
+
+  UI           Trang 'Hồ sơ → Thành tích' hiển thị 'Năm học 2025: Hạng X
+               / 50 sinh viên — Tổng điểm Y.YY' + huy hiệu giải nếu có
+
+  Edge case    (a) Year hiện tại chưa kết thúc (Spring/Summer mới
+               FINISHED, Fall chưa) → API trả 'Chờ kỳ Fall kết thúc'; (b)
+               User chỉ tham gia 1-2 kỳ → vẫn tính nhưng
+               hackathons_participated < 3 → có thể không xét giải; (c)
+               Spring 2026 → individual_ranking_enabled=FALSE → API 404
+               cho year 2026 hiện tại
+  -----------------------------------------------------------------------
+
+19.2 FR-U-33 — Notification RESULT_UPDATED khi BTC reopen kết quả
+
+  -----------------------------------------------------------------------
+  Khía cạnh    Đặc tả
+  ------------ ----------------------------------------------------------
+  Mô tả        SUPER_ADMIN có thể reopen Hackathon FINISHED (qua
+               hackathon_reopens — MF-06 v3.2 A-5) khi phát hiện gian lận
+               hoặc sai số sau công bố. Khi reopened: sửa scores/prizes →
+               recalculate chapter_rankings + individual_rankings → gửi
+               RESULT_UPDATED cho người bị ảnh hưởng.
+
+  Đối tượng    Chỉ những Student có thay đổi thực tế: (a) Team đoạt giải
+  nhận         mới/mất giải; (b) Vị trí trong Team XH thay đổi ≥1 hạng;
+               (c) Cá nhân XH thay đổi ≥1 hạng. KHÔNG spam toàn bộ.
+
+  UI           Notification banner đỏ 'Kết quả [Hackathon X] đã được cập
+               nhật: [tóm tắt thay đổi]'. Click → trang chi tiết với so
+               sánh trước/sau.
+
+  Tần suất     Cực hiếm (chỉ khi có gian lận/sai sót nghiêm trọng).
+               Workflow MF-06 v3.2: SUPER_ADMIN phải nhập reason +
+               evidence_url khi reopen.
+
+  Edge case    (a) Student đã graduate → vẫn gửi email (theo
+               users.email); (b) Student đã rời đội
+               (team_members.status=LEFT) trước reopen → không nhận
+               RESULT_UPDATED cho đội đó
+  -----------------------------------------------------------------------
+
+19.3 BR-S-15 — Đồng bộ scope=INDIVIDUAL trong prizes
+
+  -----------------------------------------------------------------------
+  [Đồng bộ MF-06 v3.2 §3.1 + A-1] Bảng prizes mới có scope ENUM (TEAM |
+  INDIVIDUAL). Fall 2025: 'Giải Cá nhân xuất sắc' scope=INDIVIDUAL gắn
+  với user_id (không phải team_id). Student có thể vừa là member đội đoạt
+  'Giải Nhất' (scope=TEAM) vừa nhận 'Giải Cá nhân xuất sắc'
+  (scope=INDIVIDUAL) — 2 prize tách biệt, UNIQUE không vi phạm vì khác
+  scope (xem A-1 prize_unique_key GENERATED). UI Student phải hiển thị cả
+  2 trong /me/prizes.
+
+  -----------------------------------------------------------------------
+
+19.4 Cập nhật Coverage Matrix (sau v1.1)
+
+  -----------------------------------------------------------------------
+  Khu vực                v1.0                   v1.1 (sau §19)
+  ---------------------- ---------------------- -------------------------
+  Tổng FR-U              31 (FR-U-01..31)       33 (FR-U-01..33)
+
+  Tổng BR Student        14 (BR-S-1..14)        15 (BR-S-1..15)
+
+  Đồng bộ MF-06 v3.2     Thiếu                  Đầy đủ
+                         annual_individual +    
+                         reopens                
+
+  U-BUG audit            12 (U-BUG-1..12)       12 — không phát sinh thêm
+
+  Đánh giá tổng          ~94%                   ~96% — đồng bộ trọn vẹn
+                                                với MF-06 v3.2
+  -----------------------------------------------------------------------
+
+  -----------------------------------------------------------------------
+  [KẾT LUẬN v1.1] Sau khi bổ sung §19: Student-side phủ trọn vẹn tất cả
+  Student-facing features của MF-06 v3.2. Không còn lỗ hổng đồng bộ với
+  Coordinator-side. Bộ tài liệu 5 file (MF-01 v3.1, MF-02 v3.5,
+  MF-03/04/05 v4.1, MF-06 v3.2, Student v1.1) đã hoàn chỉnh cho dev triển
+  khai.
+
+  -----------------------------------------------------------------------
+
+— Hết tài liệu —
+
+SEAL Hackathon Management System · Student User Flow v1.1 · Đồng bộ
+Workflow v5.0 / GĐ1 v3.1 / GĐ2 v3.5 / GĐ3-5 v4.1 / GĐ6 v3.2 · MySQL 8 ·
+33 FR + 15 BR + 12 U-BUG + 15 edge case · FPT University HCMC

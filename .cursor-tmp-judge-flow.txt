@@ -1,0 +1,1485 @@
+SEAL HACKATHON MANAGEMENT SYSTEM
+
+Judge User Flow
+
+Góc nhìn người dùng — Vai trò Judge (Nội bộ INTERNAL + Khách mời
+EXTERNAL)
+
+Phiên bản 1.0 — File ĐẦY ĐỦ (gộp 6 GĐ thành 1 file)
+
+Phủ 4 assignment_type: NORMAL · HEAD · CALIBRATION · FINAL_EXTERNAL
+
+Phủ 3 score_type: NORMAL · CALIBRATION (RBL) · PENALTY (tiebreak)
+
+Mùa chuẩn: SPRING 2026 — Sơ loại 5p+3p · CK 100% EXTERNAL · Q&A &
+Rebuttal · HARD_LOCK
+
+Đối chiếu: Workflow v5.0 · GĐ1 v3.1 · GĐ2 v3.5 · GĐ3-5 v4.1 · GĐ6 v3.2 ·
+Student v1.1 · Mentor v1.0 · 2 PDF Fall 2025 + Spring 2026
+
+BA · SA · QA · SRE · DA · Data Engineer · Solution Architect · PM · DBA
+
+Mục lục
+
+0. Mục đích & Định nghĩa vai trò Judge
+
+0.1 Mục đích tài liệu
+
+Đây là tài liệu ĐẦY ĐỦ duy nhất cho góc nhìn Judge (Giám khảo) — đối ứng
+với 4 file Coordinator (MF-01..06), Student v1.1, và Mentor v1.0. Judge
+là role PHỨC TẠP NHẤT trong hệ thống — phủ cả Sơ loại + Chung kết +
+Calibration + Penalty + RBL data contribution + Q&A & Rebuttal + HEAD
+voting cho tiebreak.
+
+0.2 Định nghĩa role JUDGE
+
+  -----------------------------------------------------------------------
+  [Định nghĩa CHẶT] Judge là người CHẤM ĐIỂM thi đấu — KHÁC với Mentor
+  (cố vấn) và Coordinator (quản lý). Judge có user.role='JUDGE' và
+  status='APPROVED'. Judge có thể là INTERNAL (giảng viên FPT) hoặc
+  EXTERNAL (chuyên gia doanh nghiệp). Mỗi Judge có ≥1 judge_assignments —
+  phân vào Track Sơ loại (track_id) hoặc Round Chung kết (round_id). XOR
+  FK: chỉ 1 trong 2 trường có giá trị.
+
+  -----------------------------------------------------------------------
+
+0.3 Phân loại Judge — INTERNAL vs EXTERNAL
+
+  ----------------------------------------------------------------------------------------------
+  Loại       Định nghĩa             Ai duyệt + tài khoản    Quyền chấm
+  ---------- ---------------------- ----------------------- ------------------------------------
+  INTERNAL   Giảng viên FPT         Coordinator approve.    Sơ loại (NORMAL/HEAD/CALIBRATION).
+             University HCMC,       Không có                KHÔNG chấm CK (trừ ngoại lệ
+             user_type='INTERNAL'   is_temp_account. Email  is_dept_head)
+                                    FPT.                    
+
+  EXTERNAL   Chuyên gia doanh       Coordinator tạo (FR-05  Sơ loại + Chung kết. CK 100% phải
+             nghiệp/bên ngoài,      GĐ1):                   EXTERNAL
+             user_type='EXTERNAL'   is_temp_account=TRUE,   (assignment_type='FINAL_EXTERNAL')
+                                    email link 48h.         
+
+  Ngoại lệ   INTERNAL có            PATCH set               Chấm CK với điều kiện KHÔNG mentor
+             is_dept_head=TRUE      is_dept_head=TRUE trước cùng Hackathon. Trigger audit
+             (Trưởng khoa/bộ môn)   phân CK                 DEPT_HEAD_FINAL_JUDGE_EXCEPTION
+  ----------------------------------------------------------------------------------------------
+
+0.4 4 assignment_type — vai trò của Judge
+
+  ---------------------------------------------------------------------------
+  assignment_type   Khi nào          Ai có thể          Ý nghĩa
+  ----------------- ---------------- ------------------ ---------------------
+  NORMAL            GĐ1 FR-05c (Sơ   INTERNAL hoặc      Judge bình thường —
+                    loại)            EXTERNAL           chấm điểm Sơ loại
+
+  HEAD              GĐ1 FR-05c (Sơ   INTERNAL hoặc      Trưởng Judge của
+                    loại)            EXTERNAL           Track — có quyền
+                                                        HEAD_VOTE trong
+                                                        tiebreak (v4.1 §16.1)
+
+  CALIBRATION       GĐ1 FR-05c       Khuyến nghị Judge  Tham gia phiên
+                    (pre-Sơ loại)    mới                calibration với bài
+                                                        mẫu — phục vụ RBL ICC
+
+  FINAL_EXTERNAL    GĐ4 Bước 6       100% EXTERNAL (trừ Judge chấm Chung kết
+                    (KHÔNG ở GĐ1)    ngoại lệ           — gán round_id thay
+                                     is_dept_head)      vì track_id
+  ---------------------------------------------------------------------------
+
+0.5 Judge KHÔNG ĐƯỢC làm gì (Ràng buộc CỨNG)
+
+  -----------------------------------------------------------------------------------------------
+  Hành động                      Lý do BLOCK                Tầng xử lý
+  ------------------------------ -------------------------- -------------------------------------
+  Chấm Track mình mentor (cùng   CONFLICT_SAME_TRACK (BR    DB trigger
+  Track)                         Mentor↔Judge cùng Track)   trg_check_judge_mentor_conflict_ins
+
+  INTERNAL chấm CK (trừ ngoại lệ Rule [FR-05-FINAL]: CK     DB trigger trg_check_final_external
+  is_dept_head)                  100% EXTERNAL              
+
+  Chấm sau scoring_locked=TRUE   Round đã chốt điểm — không DB trigger trg_block_score_after_lock
+                                 sửa                        
+
+  Xem điểm Judge khác trong cùng RBL anonymization — Judge  App Guard 403
+  Track                          chấm độc lập               
+
+  Sửa điểm sau khi đã HARD_LOCK  Chính Judge tự lock —      App Guard 422 JUDGE_ALREADY_LOCKED
+  (cá nhân Judge nhấn nút)       không undo                 
+
+  Quản lý kỳ thi (tạo            Đây là quyền Coordinator   API Guard 403
+  Hackathon/Round/Track)                                    
+
+  Mời/kick member của đội        Đây là quyền Leader        API Guard 403
+
+  Submit dự thi                  Đây là quyền Leader        API Guard 403
+                                 Student                    
+  -----------------------------------------------------------------------------------------------
+
+1. Tổng quan hành trình Judge xuyên suốt 6 GĐ
+
+1.1 Vòng đời Judge trong hệ thống
+
++-----------------------------------------------------------------------+
+| GĐ1 (DRAFT) ─► Coordinator tạo user JUDGE (INTERNAL hoặc EXTERNAL)    |
+|                                                                       |
+| + assign vào Track Sơ loại (NORMAL/HEAD/CALIBRATION)                  |
+|                                                                       |
+| ↓ Judge nhận JUDGE_ASSIGNED                                           |
+|                                                                       |
+| GĐ2 (ONGOING) ─► Đăng ký + Bốc thăm Track. Judge chưa active.         |
+|                                                                       |
+| Có thể có Calibration Session (online) trước event                    |
+|                                                                       |
+| GĐ3 (Sơ loại) ─► [Bước 2 RBL] Calibration Round (tùy chọn): chấm bài  |
+| mẫu                                                                   |
+|                                                                       |
+| → score_type=CALIBRATION (RQ1 ICC)                                    |
+|                                                                       |
+| [Bước 6] Chấm độc lập: scores Sơ loại NORMAL                          |
+|                                                                       |
+| [Bước 8] Coordinator lock điểm Sơ loại                                |
+|                                                                       |
+| GĐ4 (Thăng vòng) ─► [Tiebreak nếu có] Judge HEAD vote (PENALTY)       |
+|                                                                       |
+| [Wild Card] Judge tham gia chọn nếu Coordinator yêu cầu               |
+|                                                                       |
+| [Bước 6] Coordinator phân Judge FINAL_EXTERNAL cho CK                 |
+|                                                                       |
+| → 100% EXTERNAL (ngoại lệ is_dept_head)                               |
+|                                                                       |
+| GĐ5 (Chung kết) ─► [Calibration CK tùy chọn]                          |
+|                                                                       |
+| Chấm CK: 7+3 phút + Q&A & Rebuttal (criterion riêng)                  |
+|                                                                       |
+| Live Scoring + HARD_LOCK (Judge tự chốt khi xong)                     |
+|                                                                       |
+| Coordinator lock điểm CK toàn cục                                     |
+|                                                                       |
+| GĐ6 (Kết quả) ─► Judge nhận HACKATHON_CLOSED                          |
+|                                                                       |
+| Xem rankings (read-only)                                              |
++-----------------------------------------------------------------------+
+
+1.2 Sơ đồ trạng thái — Judge's view qua các GĐ
+
+  -------------------------------------------------------------------------------------------------------
+  GĐ                Trạng thái hệ thống          Judge làm gì               Notification
+  ----------------- ---------------------------- -------------------------- -----------------------------
+  1                 hackathons.status=DRAFT      Chờ Coordinator assign     JUDGE_ASSIGNED (email +
+                                                                            in-app)
+
+  1 (login lần đầu) EXTERNAL: link 48h           Click link → set password  —
+                                                 → status='APPROVED'        
+
+  2                 hackathons.status=ONGOING    Vẫn passive — chờ event    —
+                    (đăng ký mở)                                            
+
+  3 (pre-Sơ loại)   Round Sơ loại sắp diễn ra    Tham gia Calibration       CALIBRATION_SESSION_INVITED
+                                                 Session (nếu có): chấm bài 
+                                                 mẫu                        
+
+  3                 Sơ loại bắt đầu — đội thuyết Chấm theo lịch             —
+                    trình                        presentation_slot          
+
+  3 (kết thúc)      Sơ loại lock                 Submit điểm cuối +         ROUND_LOCKED
+                                                 HARD_LOCK cá nhân (nếu     
+                                                 chưa)                      
+
+  4 (tiebreak nếu   Đồng điểm Top N              Judge HEAD: bỏ phiếu       TIEBREAK_VOTE_REQUIRED (HEAD)
+  có)                                            HEAD_VOTE                  
+                                                 (assignment_type='HEAD')   
+
+  4 (FINAL_EXTERNAL Coordinator phân Judge CK    EXTERNAL: nhận thêm        FINAL_JUDGE_ASSIGNED
+  assign)                                        assignment                 
+
+  5 (Chung kết)     CK diễn ra                   Chấm 7+3 + Q&A & Rebuttal. —
+                                                 HARD_LOCK khi xong         
+
+  5 (lock CK)       Coordinator lock CK toàn cục —                          FINAL_ROUND_LOCKED
+
+  6                 hackathons.status=FINISHED   Xem rankings + cảm ơn      HACKATHON_CLOSED
+  -------------------------------------------------------------------------------------------------------
+
+1.3 So sánh Fall 2025 vs Spring 2026 — góc nhìn Judge
+
+  -----------------------------------------------------------------------
+  Khía cạnh            Fall 2025                 Spring 2026 (CHUẨN)
+  -------------------- ------------------------- ------------------------
+  Số tiêu chí Sơ loại  4 tiêu chí                5 tiêu chí
+                       (30%/30%/20%/20%)         (30%/30%/15%/15%/10%)
+
+  Số tiêu chí CK       5 tiêu chí                5 tiêu chí
+                       (30%/25%/20%/15%/10%)     (30%/20%/20%/20%/10%)
+
+  Thời lượng Sơ        5 phút trình bày + 3 phút 5 phút + 3 phút (như
+  loại/đội             Q&A                       Fall)
+
+  Thời lượng CK/đội    7 phút trình bày + 3 phút 7 phút + 3 phút (như
+                       Q&A                       Fall)
+
+  Q&A & Rebuttal CK    Có (Kỹ năng trình bày và  Có (riêng biệt 'Q&A &
+                       phản biện 10%)            Rebuttal' criterion)
+
+  Số đội vào CK        6 đội                     6 đội
+
+  Số đội đoạt giải CK  6 giải (Nhất/Nhì/Ba/Ý     4 giải (Nhất/Nhì/Ba/Ý
+                       tưởng/Ứng dụng/Cá nhân)   tưởng) — KHÔNG có giải
+                                                 cá nhân
+
+  Tiebreak ranh giới   Penalty Evaluation (mini  Như Fall —
+  Top N                test 10') + HEAD vote nếu tiebreak_level_2 =
+                       vẫn hòa                   SUBMISSION_TIME →
+                                                 HEAD_VOTE →
+                                                 COORDINATOR_DECISION
+                                                 (v4.1 §16.1)
+
+  CK 100% EXTERNAL     Có (FR-05-FINAL)          Có (FR-05-FINAL)
+
+  Khung giờ            07h00-15h00 (8 tiếng)     07h00-14h00 (7 tiếng)
+
+  Số bảng XH           3 (Team + Chapter + Cá    2 (Team + Chapter —
+                       nhân)                     KHÔNG cá nhân)
+  -----------------------------------------------------------------------
+
+2. Mainflow Spring 2026 — Judge timeline cụ thể
+
+2.1 Trước cuộc thi (T-30 → T-1 ngày)
+
+  ------------------------------------------------------------------------
+  Thời điểm       Hệ thống               Judge làm gì
+  --------------- ---------------------- ---------------------------------
+  T-30 ngày       Coordinator GĐ1 Bước   EXTERNAL: nhận email link 48h.
+  (Coordinator    5: tạo user JUDGE      Click → set password →
+  setup)                                 status='APPROVED'
+
+  T-21 ngày (GĐ1  Coordinator assign vào Nhận JUDGE_ASSIGNED. Login, xem
+  FR-05c)         Track Sơ loại          Track + đội sẽ chấm
+                  (NORMAL/HEAD)          
+
+  T-7 ngày        Coordinator có thể tạo Tham gia chấm bài mẫu
+  (pre-event)     Calibration Session    (CALIBRATION_INVITED) —
+                                         score_type=CALIBRATION
+
+  T-2 ngày (Bốc   Bốc thăm Track cho đội Vẫn chưa active — chỉ chuẩn bị
+  thăm —          (GĐ2 Bước 6)           
+  Coordinator)                           
+
+  T-1 ngày (Khai  Khai mạc 14h-17h       Có thể đến gặp Coordinator + hiểu
+  mạc 11/4)                              schedule chấm
+  ------------------------------------------------------------------------
+
+2.2 Ngày thi đấu 12/4/2026 — Sơ loại
+
+  --------------------------------------------------------------------------------
+  Giờ            Hệ thống              Judge làm gì
+  -------------- --------------------- -------------------------------------------
+  06h00          Đội đến địa điểm      Judge đến địa điểm chấm (online hoặc
+                                       offline)
+
+  07h00-14h00    Đội code (7 tiếng)    Judge KHÔNG active — đợi đội thuyết trình
+
+  14h00          Bắt đầu thuyết trình  Mở giao diện Live Scoring
+                 Sơ loại               
+
+  14h00-15h00    Đội thuyết trình      Chấm theo 5 criteria. INSERT scores với
+                 5'+3' / đội (8        score_type='NORMAL', is_final=FALSE
+                 đội/bảng max)         
+
+  ~15h00         Sau khi tất cả đội    Chấm điểm cuối + nhấn HARD_LOCK cá nhân
+                 xong                  (Judge tự chốt)
+
+  ~15h00-15h30   Coordinator           Nếu Judge chưa COMPLETE → completion_status
+                 force-lock Round (nếu SKIPPED (v4.1 §16.2)
+                 cần)                  
+
+  15h30-16h00    Hệ thống tổng hợp +   Nhận ROUND_LOCKED + xem leaderboard Sơ loại
+                 thông báo 6 đội vào   
+                 CK                    
+  --------------------------------------------------------------------------------
+
+2.3 Ngày thi đấu 12/4/2026 — Tiebreak (nếu có) + CK
+
+  -------------------------------------------------------------------------
+  Giờ           Hệ thống               Judge làm gì
+  ------------- ---------------------- ------------------------------------
+  ~16h00 (nếu   Phát hiện tiebreak     PENALTY: Judge HEAD bỏ phiếu
+  đồng điểm)    ranh giới Top 6        HEAD_VOTE (assignment_type='HEAD')
+
+  ~16h30        Coordinator phân Judge EXTERNAL Judge nhận
+                FINAL_EXTERNAL cho CK  FINAL_JUDGE_ASSIGNED (chỉ EXTERNAL —
+                                       ngoại lệ is_dept_head)
+
+  17h00         Bắt đầu Chung kết (6   Mở Live Scoring CK
+                đội)                   
+
+  17h00-18h00   6 đội thuyết trình     Chấm 5 criteria CK + Q&A & Rebuttal.
+                7'+3' (60 phút)        is_final=FALSE → TRUE sau lock
+
+  18h00-18h30   Coordinator lock CK    HARD_LOCK cá nhân + đợi lock toàn
+                                       cục
+
+  18h30-19h00   Bế mạc + trao giải     Quan sát công bố kết quả
+  -------------------------------------------------------------------------
+
+2.4 Sau cuộc thi
+
+  -------------------------------------------------------------------------------------
+  Thời điểm       Hệ thống                            Judge làm gì
+  --------------- ----------------------------------- ---------------------------------
+  19h00 ngày 12/4 hackathons.status=PENDING_CONFIRM   Đợi Coordinator confirm
+
+  20h00-23h00     Coordinator → FINISHED              Nhận HACKATHON_CLOSED
+  ngày 12/4                                           
+
+  T+1 → T+7 ngày  Hackathon FINISHED                  Xem rankings team/chapter qua GET
+                                                      /hackathons/{id}/team-rankings
+
+  T+1 (RBL)       Researcher có thể request RBL       Judge KHÔNG có quyền export RBL —
+                  export                              chỉ Coordinator/Super_Admin
+  -------------------------------------------------------------------------------------
+
+  -----------------------------------------------------------------------
+  [Khác biệt với Mentor + Student post-FINISHED] Judge nhận
+  HACKATHON_CLOSED giống Mentor — không phải RESULT_PUBLISHED
+  (Student/Leader đội). Judge KHÔNG access RBL dataset (không phải
+  researcher). Dữ liệu RBL từ Judge sẽ được Coordinator anonymize +
+  export qua v_rbl_anonymized.
+
+  -----------------------------------------------------------------------
+
+3. FR — Đăng nhập & Hồ sơ (FR-J-01..04)
+
+3.1 FR-J-01 — Login + EXTERNAL link 48h
+
+  --------------------------------------------------------------------------
+  Khía cạnh       Đặc tả
+  --------------- ----------------------------------------------------------
+  INTERNAL        POST /api/v1/auth/login { email (FPT), password }. Đăng
+                  nhập như user thường.
+
+  EXTERNAL        Lần đầu: click link email 48h → set password →
+                  is_temp_account chuyển FALSE → login bình thường. Link hết
+                  48h → 410 INVITATION_EXPIRED — Coordinator resend.
+
+  Pre-condition   users.role='JUDGE' AND users.status='APPROVED'
+                  (Coordinator duyệt GĐ1 FR-05)
+
+  BR-J-1          Judge với is_temp_account=TRUE và đã quá 48h từ created_at
+                  → BLOCK login. Logout tất cả session cũ.
+  --------------------------------------------------------------------------
+
+3.2 FR-J-02 — Xem hồ sơ
+
+GET /api/v1/me — trả full_name, email, role='JUDGE', user_type
+(INTERNAL|EXTERNAL), is_temp_account, is_dept_head, status, organization
+(cho EXTERNAL).
+
+3.3 FR-J-03 — Cập nhật hồ sơ
+
+PATCH /api/v1/me { full_name, phone, avatar_url } — KHÔNG sửa email,
+role, user_type, is_dept_head (Coordinator quản lý). is_dept_head do
+Coordinator PATCH riêng trước phân CK.
+
+3.4 FR-J-04 — Đổi mật khẩu
+
+POST /api/v1/me/change-password { old_password, new_password }. EXTERNAL
+set lần đầu: KHÔNG cần old_password.
+
+4. FR — Xem phân công (FR-J-05..08)
+
+  -----------------------------------------------------------------------
+  [XOR FK — Sơ loại VS Chung kết] judge_assignments có XOR FK: hoặc
+  track_id (Sơ loại) hoặc round_id (Chung kết) — không cả hai. Generated
+  column track_uk + round_uk cho UNIQUE. Mỗi Judge có thể có NHIỀU bản
+  ghi: 1 ở Track A Sơ loại + 1 ở Round CK (chỉ EXTERNAL).
+
+  -----------------------------------------------------------------------
+
+4.1 FR-J-05 — Xem Track Sơ loại được phân
+
+  -----------------------------------------------------------------------
+  Khía cạnh    Đặc tả
+  ------------ ----------------------------------------------------------
+  API          GET /api/v1/me/judge-track-assignments
+
+  Response     Array of { hackathon_id, hackathon_name, track_id,
+               track_name, topic, assignment_type
+               (NORMAL/HEAD/CALIBRATION), criteria: [{ id, name, type,
+               weight, max_score }] }
+
+  UI           Trang chính 'Sơ loại tôi chấm' — liệt kê Track + 5 tiêu
+               chí Spring 2026 (30+30+15+15+10)
+
+  BR-J-2       Judge xem được tiêu chí Track mình chấm — để chuẩn bị
+               trước
+  -----------------------------------------------------------------------
+
+4.2 FR-J-06 — Xem Round Chung kết được phân (chỉ EXTERNAL)
+
+  -----------------------------------------------------------------------
+  Khía cạnh    Đặc tả
+  ------------ ----------------------------------------------------------
+  API          GET /api/v1/me/judge-final-assignments
+
+  Response     Array of { hackathon_id, round_id,
+               assignment_type='FINAL_EXTERNAL', criteria: [...] }
+
+  UI           Trang 'Chung kết tôi chấm' — 5 tiêu chí CK Spring 2026
+               (30/20/20/20/10)
+
+  BR-J-3       Chỉ Judge EXTERNAL hoặc INTERNAL + is_dept_head=TRUE mới
+               có bản ghi này. INTERNAL khác → 404 NOT_ASSIGNED_TO_FINAL.
+  -----------------------------------------------------------------------
+
+4.3 FR-J-07 — Xem mình có là HEAD không
+
+  -----------------------------------------------------------------------
+  Khía cạnh    Đặc tả
+  ------------ ----------------------------------------------------------
+  API          Phần response FR-J-05 trả assignment_type. Frontend filter
+               assignment_type='HEAD'
+
+  Ý nghĩa      HEAD có quyền bỏ phiếu HEAD_VOTE trong tiebreak Level 2
+               (v4.1 §16.1)
+
+  UI           Badge 'HEAD' trên giao diện chấm Track. Khi tiebreak xảy
+               ra: nút 'Vote' xuất hiện
+
+  BR-J-4       Mỗi Track có thể có 0 hoặc 1 HEAD. Coordinator chọn. Không
+               có HEAD → tiebreak fallback COORDINATOR_DECISION
+  -----------------------------------------------------------------------
+
+4.4 FR-J-08 — Xem mình có Cross-Mentor không
+
+  -----------------------------------------------------------------------
+  [Đặc thù: Mentor → Judge Cross-Track] Theo GĐ2 v3.5 §13.1: Mentor M của
+  Track A có thể được phân làm Judge Track B (Cross-Mentor). Khi đó M có
+  2 role: Mentor Track A + Judge Track B. UI cần tách bạch — M-BUG-2
+  (Mentor v1.0) đã đề cập.
+
+  -----------------------------------------------------------------------
+
+  -----------------------------------------------------------------------
+  Khía cạnh    Đặc tả
+  ------------ ----------------------------------------------------------
+  API          GET /api/v1/me — trả role list. Nếu có cả MENTOR + JUDGE →
+               frontend hiển thị 2 sidebar separate
+
+  BR-J-5       Mentor cùng Track không được làm Judge cùng Track đó
+               (BLOCK CỨNG ở trigger). Cross-Track = hợp lệ + khuyến nghị
+
+  Edge case    M là Mentor Track A + Judge Track B + Mentor Track C cùng
+               Hackathon — vẫn hợp lệ. UI phải hiển thị 3 mục riêng
+  -----------------------------------------------------------------------
+
+5. FR — Calibration Session (RBL — FR-J-09..11)
+
+  -----------------------------------------------------------------------
+  [Tại sao cần Calibration] Phiên Calibration giúp các Judge thống nhất
+  thang điểm TRƯỚC khi chấm thật — đặc biệt quan trọng cho Judge MỚI hoàn
+  toàn (EXTERNAL chưa quen thang điểm SEAL). Workflow v5.0 GĐ3 Bước 2:
+  'Judge EXTERNAL chấm bài mẫu để thống nhất thang điểm. Tùy chọn — không
+  block nếu bỏ qua.' Đây là nguồn dữ liệu RQ1 (ICC) trong RBL.
+
+  -----------------------------------------------------------------------
+
+5.1 FR-J-09 — Nhận lời mời Calibration
+
+  --------------------------------------------------------------------------
+  Khía cạnh       Đặc tả
+  --------------- ----------------------------------------------------------
+  API tạo         POST /api/v1/hackathons/{hid}/calibration-sessions {
+  (Coordinator)   round_id, judge_ids[], sample_submission_ids[], starts_at,
+                  ends_at }
+
+  Judge nhận      Notification CALIBRATION_SESSION_INVITED với link join
+
+  BR-J-6          Calibration tùy chọn — Judge có thể skip. Nhưng càng nhiều
+                  Judge tham gia → ICC càng chính xác (RQ1)
+  --------------------------------------------------------------------------
+
+5.2 FR-J-10 — Chấm bài mẫu (score_type=CALIBRATION)
+
+  -----------------------------------------------------------------------
+  Khía cạnh    Đặc tả
+  ------------ ----------------------------------------------------------
+  API          POST /api/v1/scores { submission_id, criterion_id,
+               score_value, score_type: 'CALIBRATION',
+               calibration_session_id }
+
+  Khác NORMAL  score_type='CALIBRATION' + calibration_session_id NOT
+               NULL. KHÔNG tính vào weighted_avg_score (loại khỏi
+               v_round_leaderboard)
+
+  UI giống     Cùng giao diện chấm — chỉ khác badge 'CALIBRATION' nhắc
+  NORMAL       Judge
+
+  BR-J-7       UNIQUE(submission_id, judge_id, criterion_id, score_type)
+               — Judge có thể CALIBRATION cùng submission rồi vẫn NORMAL
+               ở Sơ loại thật (score_type khác)
+  -----------------------------------------------------------------------
+
+5.3 FR-J-11 — Xem phương sai Calibration (nếu có quyền RBL Coordinator)
+
+  -----------------------------------------------------------------------------------
+  Khía cạnh                Đặc tả
+  ------------------------ ----------------------------------------------------------
+  API                      GET /api/v1/calibration-sessions/{id}/variance — chỉ
+                           Coordinator/Super_Admin xem
+
+  Judge xem được?          KHÔNG — Judge không access variance để giữ độc lập chấm
+
+  v_judge_score_variance   View tổng hợp STDDEV_SAMP cho RBL — chỉ Coordinator dùng
+                           để monitor.
+
+  BR-J-8                   Judge chỉ thấy ĐIỂM CỦA MÌNH trong Calibration — không
+                           thấy điểm Judge khác (RBL anonymization principle)
+  -----------------------------------------------------------------------------------
+
+6. FR — Chấm điểm Sơ loại (FR-J-12..16) — HEAVIEST 1
+
+6.1 FR-J-12 — Xem lịch chấm Sơ loại
+
+  -----------------------------------------------------------------------
+  Khía cạnh    Đặc tả
+  ------------ ----------------------------------------------------------
+  API          GET /api/v1/me/scoring-schedule?round_id=<sơ loại>
+
+  Response     Array of { team_id, team_name, sequence_order_in_track,
+               scheduled_at, duration_minutes (5+3) }
+
+  UI           Trang 'Lịch chấm Sơ loại' — danh sách đội thuyết trình
+               theo thứ tự + giờ
+  -----------------------------------------------------------------------
+
+6.2 FR-J-13 — Xem submissions của đội
+
+  -----------------------------------------------------------------------
+  Khía cạnh    Đặc tả
+  ------------ ----------------------------------------------------------
+  API          GET /api/v1/teams/{team_id}/submissions?round_id=<sơ loại>
+
+  Response     { submission_id, repo_url, slide_url, submitted_at,
+               version }
+
+  BR-J-9       Judge xem submission để chuẩn bị câu hỏi. KHÔNG được
+               commit/edit.
+
+  Mở khi nào   Khi đội đang thuyết trình (Judge xem slide + repo)
+  -----------------------------------------------------------------------
+
+6.3 FR-J-14 — Live Scoring Sơ loại
+
+  -----------------------------------------------------------------------
+  Khía cạnh    Đặc tả
+  ------------ ----------------------------------------------------------
+  API          POST /api/v1/scores { submission_id, criterion_id,
+               score_value, score_type='NORMAL', is_final: false }
+
+  Autosave     Mỗi field thay đổi → POST sau 500ms (debounce).
+               is_final=FALSE cho phép sửa lại
+
+  5 tiêu chí   Tính chính xác + Kiến trúc Agentic RAG + Ý tưởng + Khả
+  Spring 2026  năng thực thi + UX (30+30+15+15+10)
+
+  UI           Slider hoặc input numeric 0-max_score. Mỗi criterion 1
+               dòng. Đếm ngược 5+3 phút.
+
+  Race         v4.1 §16.4: last-write-wins backend + BroadcastChannel
+  condition    frontend tab lock. Cùng Judge không mở 2 tab cùng lúc
+  -----------------------------------------------------------------------
+
+6.4 FR-J-15 — Comment per submission (tùy chọn)
+
+  -----------------------------------------------------------------------
+  Khía cạnh    Đặc tả
+  ------------ ----------------------------------------------------------
+  API          PATCH /api/v1/scores/{id} { comment }
+
+  BR-J-10      Comment là tự nguyện. Lưu vào scores.comment. Không hiển
+               thị cho Student. Hiển thị cho Coordinator (audit) và Judge
+               khác chỉ sau lock.
+
+  RBL          Comment có thể giúp giải thích phương sai chấm — nguồn dữ
+               liệu định tính cho RBL
+  -----------------------------------------------------------------------
+
+6.5 FR-J-16 — HARD_LOCK cá nhân
+
+  -----------------------------------------------------------------------
+  [HARD_LOCK cá nhân vs Round lock] Có 2 cấp lock: (1) Judge tự nhấn
+  'Hoàn thành chấm' → completion_status='COMPLETE' (v4.1 §16.2). (2)
+  Coordinator lock toàn bộ Round → scoring_locked=TRUE (tất cả scores set
+  is_final=TRUE, không sửa nữa). Judge HARD_LOCK cá nhân giúp Coordinator
+  biết Judge đã xong vs chưa.
+
+  -----------------------------------------------------------------------
+
+  ------------------------------------------------------------------------------
+  Khía cạnh           Đặc tả
+  ------------------- ----------------------------------------------------------
+  API                 PATCH /api/v1/me/scoring-completion { round_id, status:
+                      'COMPLETE' }
+
+  BR-J-11             Khi Judge nhấn HARD_LOCK cá nhân →
+                      completion_status='COMPLETE'. Vẫn có thể sửa điểm cho đến
+                      khi Coordinator scoring_locked=TRUE
+
+  Validate            Khi Judge HARD_LOCK: kiểm tra đã chấm ĐỦ (submissions ×
+                      criteria) chưa. Nếu thiếu → 422 SCORING_INCOMPLETE
+
+  completion_status   PENDING (chưa chấm gì) → PARTIAL (đang chấm) → COMPLETE
+  enum                (Judge tự lock) → SKIPPED (Coordinator skip khi
+                      force-lock)
+  ------------------------------------------------------------------------------
+
+6.6 Edge case force-lock (v4.1 §16.2)
+
+  ------------------------------------------------------------------------
+  Tình huống              Hành động
+  ----------------------- ------------------------------------------------
+  Judge chấm xong toàn    completion_status='COMPLETE'. Sẵn sàng cho Round
+  bộ + HARD_LOCK          lock
+
+  Judge chấm dở (giữa     completion_status='PARTIAL'. Coordinator thấy
+  chừng)                  badge cảnh báo
+
+  Đến deadline + 30 phút  Notification JUDGE_SCORING_REMINDER_30 gửi Judge
+
+  Đến deadline + 60 phút  Notification COORDINATOR_JUDGE_OVERDUE gửi
+                          Coordinator
+
+  Coordinator             completion_status='SKIPPED'. Điểm Judge J KHÔNG
+  force-lock +            tính vào weighted_avg. Phải áp dụng đều cho mọi
+  skipped_judge_ids=[J]   đội trong Track
+
+  Judge sửa điểm sau      Trigger trg_block_score_after_lock → 422
+  scoring_locked=TRUE     ROUND_ALREADY_LOCKED
+  ------------------------------------------------------------------------
+
+7. FR — Chấm điểm Chung kết (FR-J-17..21) — HEAVIEST 2
+
+  -----------------------------------------------------------------------
+  [CK = 100% EXTERNAL + HARD_LOCK + Q&A & Rebuttal] CK khác Sơ loại ở 3
+  điểm: (1) 100% Judge EXTERNAL (FR-05-FINAL); (2)
+  late_submission_policy=HARD_LOCK (không cho nộp muộn); (3) Q&A &
+  Rebuttal là criterion riêng — Judge phản biện + đội bảo vệ.
+
+  -----------------------------------------------------------------------
+
+7.1 FR-J-17 — Xem lịch chấm CK
+
+GET /api/v1/me/scoring-schedule?round_id=<CK>. Response: 6 đội × 10 phút
+(7'+3') = 60 phút tổng. Spring 2026: 17h00-18h00.
+
+7.2 FR-J-18 — Live Scoring CK + Q&A & Rebuttal
+
+  -----------------------------------------------------------------------
+  Khía cạnh    Đặc tả
+  ------------ ----------------------------------------------------------
+  API          POST /api/v1/scores { submission_id, criterion_id,
+               score_value, score_type='NORMAL', is_final: false } (giống
+               Sơ loại)
+
+  5 tiêu chí   Chất lượng Xử lý & Truy xuất Dữ liệu (30%) + Độ tin cậy &
+  Spring 2026  Chống ảo giác (20%) + Tư duy Agent (20%) + Tính thực tế
+  CK           (20%) + Khả năng mở rộng (10%)
+
+  Q&A &        Là 1 criterion riêng (Fall 2025: 'Kỹ năng trình bày và
+  Rebuttal     phản biện' 10%). Judge đặt câu hỏi → đội trả lời/bảo vệ →
+               Judge chấm dựa trên cả phản biện
+
+  BR-J-12      Judge CK PHẢI tham gia Q&A — không được im lặng. Đặt ≥1
+               câu hỏi/đội
+
+  UI gợi ý     Nút 'Đã đặt câu hỏi' bên cạnh điểm Q&A — soft enforce
+               (không block)
+  -----------------------------------------------------------------------
+
+7.3 FR-J-19 — Discussion phase (consensus building)
+
+  -----------------------------------------------------------------------
+  Khía cạnh    Đặc tả
+  ------------ ----------------------------------------------------------
+  PDF Spring   'Sau khi thống nhất số điểm từ Ban giám khảo, BTC công bố
+  2026         điểm'
+
+  Cơ chế       Sau khi mỗi Judge chấm xong → có thể có phiên thảo luận
+               giữa các Judge (offline) → Judge có thể quay lại sửa điểm
+
+  BR-J-13      Trước scoring_locked=TRUE: Judge tự do sửa. Sau lock:
+               không sửa được. App phải để cửa sổ 'sửa điểm sau thảo
+               luận' rõ ràng
+
+  UI           Sau lần HARD_LOCK đầu: hiển thị 'Đang chờ thống nhất với
+               Judge khác. Bạn có thể unlock + sửa điểm nếu cần'
+  -----------------------------------------------------------------------
+
+7.4 FR-J-20 — Unlock cá nhân (trước Round lock)
+
+  --------------------------------------------------------------------------
+  Khía cạnh       Đặc tả
+  --------------- ----------------------------------------------------------
+  API             PATCH /api/v1/me/scoring-completion { round_id, status:
+                  'PARTIAL' }
+
+  Khi nào         Sau thảo luận giữa Judges, Judge muốn quay lại sửa điểm
+
+  Pre-condition   scoring_locked=FALSE (chưa lock Round). Nếu lock → 422
+                  ROUND_ALREADY_LOCKED
+
+  BR-J-14         Mỗi lần unlock + sửa: ghi audit JUDGE_SCORE_REVISED với
+                  diff trước/sau
+  --------------------------------------------------------------------------
+
+7.5 FR-J-21 — HARD_LOCK cuối cùng + chờ Round lock
+
+Khi tất cả Judge HARD_LOCK + thống nhất → Coordinator PATCH
+/rounds/{id}/lock → tất cả scores set is_final=TRUE. Judge nhận
+FINAL_ROUND_LOCKED.
+
+8. FR — Penalty Evaluation (Tiebreak — FR-J-22..23)
+
+  -----------------------------------------------------------------------
+  [Pending #1 v4.1 §16.1 — tiebreak_level_2] Khi phát hiện đồng điểm ở
+  ranh giới Top N (Sơ loại) hoặc giữa 2 đội ở CK: áp dụng tuần tự
+  SUBMISSION_TIME → HEAD_VOTE → COORDINATOR_DECISION. Judge HEAD có vai
+  trò ở bước HEAD_VOTE.
+
+  -----------------------------------------------------------------------
+
+8.1 FR-J-22 — Penalty Score (mini test 10 phút)
+
+  -----------------------------------------------------------------------
+  Khía cạnh    Đặc tả
+  ------------ ----------------------------------------------------------
+  Khi nào      Coordinator phát hiện 2 đội đồng điểm + chọn chế độ
+               PENALTY_SCORE → tạo phiên mini test 10 phút (theo PDF:
+               'chấm nhanh qua câu hỏi hoặc mini test 10 phút')
+
+  API          POST /api/v1/scores { ..., score_type='PENALTY' }
+
+  BR-J-15      score_type='PENALTY' KHÔNG cộng vào weighted_avg_score
+               gốc. Chỉ dùng để rank tiebreak
+
+  UI           Hiển thị 2 đội đồng điểm cần penalty. Judge chấm nhanh
+               theo Q&A hoặc test
+  -----------------------------------------------------------------------
+
+8.2 FR-J-23 — HEAD_VOTE (nếu Penalty không phân thắng)
+
+  --------------------------------------------------------------------------
+  Khía cạnh       Đặc tả
+  --------------- ----------------------------------------------------------
+  Pre-condition   (1) Đã chạy SUBMISSION_TIME — vẫn hòa; (2)
+                  assignment_type='HEAD' của Track liên quan
+
+  API             POST /api/v1/tiebreak-evaluations { team_id, judge_id,
+                  penalty_score: 10 OR 0, is_casting_vote: true,
+                  tiebreak_level: 2 }
+
+  Notification    TIEBREAK_VOTE_REQUIRED
+  gửi HEAD        
+
+  UI              Modal khẩn cấp: '2 đội X và Y đồng điểm. Bạn (Judge HEAD)
+                  cần chọn 1 đội thắng.' 2 nút lớn
+
+  BR-J-16         Chỉ Judge HEAD có thể vote. Vote BẮT BUỘC + ghi audit +
+                  IP/UA
+
+  Fallback        Nếu Track không có HEAD HOẶC HEAD vắng mặt →
+                  COORDINATOR_DECISION (Coordinator chọn + reason bắt buộc)
+  --------------------------------------------------------------------------
+
+9. FR — Sau khi lock + Notifications (FR-J-24..26)
+
+9.1 FR-J-24 — Xem điểm sau lock (read-only)
+
+  --------------------------------------------------------------------------------
+  Khía cạnh             Đặc tả
+  --------------------- ----------------------------------------------------------
+  API                   GET /api/v1/me/scores?round_id=<id> — Judge xem điểm CHÍNH
+                        MÌNH đã chấm
+
+  BR-J-17               Judge KHÔNG xem được điểm Judge khác (RBL anonymization).
+                        Chỉ Coordinator thấy variance qua v_judge_score_variance
+
+  Sau                   Judge xem được leaderboard Track (Sơ loại) hoặc CK qua GET
+  scoring_locked=TRUE   /hackathons/{id}/team-rankings
+  --------------------------------------------------------------------------------
+
+9.2 FR-J-25 — Nhận HACKATHON_CLOSED
+
+  -----------------------------------------------------------------------
+  Khía cạnh    Đặc tả
+  ------------ ----------------------------------------------------------
+  Khi nào      Coordinator confirm hackathons.status=PENDING_CONFIRM →
+               FINISHED (MF-06 v3.2 FR-33)
+
+  Đối tượng    Tất cả Judge có judge_assignments trong Hackathon đó
+
+  Nội dung     Hackathon X đã kết thúc. Cảm ơn đóng góp.
+
+  BR-J-18      Khác RESULT_PUBLISHED (Student/Leader): notification Judge
+               là HACKATHON_CLOSED — không có chi tiết về đội ai đoạt
+               giải gì (Judge xem qua leaderboard public)
+  -----------------------------------------------------------------------
+
+9.3 FR-J-26 — Lịch sử chấm
+
+GET /api/v1/me/judge-history?year=2025. Trả về danh sách Hackathon đã
+chấm + Track/Round + số đội. Phục vụ Judge tự kiểm tra activity.
+
+10. Business Rules cho Judge (BR-J-1..20)
+
+  --------------------------------------------------------------------------
+  Mã        Business Rule
+  --------- ----------------------------------------------------------------
+  BR-J-1    Judge với is_temp_account=TRUE và quá 48h → BLOCK login + logout
+            session cũ
+
+  BR-J-2    Judge xem được tiêu chí Track mình chấm — chuẩn bị trước
+
+  BR-J-3    Chỉ Judge EXTERNAL hoặc INTERNAL+is_dept_head=TRUE có
+            judge_assignments với FINAL_EXTERNAL
+
+  BR-J-4    Mỗi Track có 0 hoặc 1 HEAD. Coordinator chọn
+
+  BR-J-5    Mentor Track A KHÔNG thể làm Judge Track A (cùng Track) —
+            trigger BLOCK. Cross-Track hợp lệ
+
+  BR-J-6    Calibration tùy chọn. Càng nhiều tham gia → ICC RQ1 càng chính
+            xác
+
+  BR-J-7    UNIQUE(submission_id, judge_id, criterion_id, score_type) — cùng
+            Judge có thể CALIBRATION rồi NORMAL cùng submission
+
+  BR-J-8    Judge chỉ thấy điểm CHÍNH MÌNH trong Calibration + Sơ loại + CK
+            (RBL anonymization)
+
+  BR-J-9    Judge xem submission read-only — không commit/edit
+
+  BR-J-10   Comment per submission là tự nguyện. Lưu scores.comment. Không
+            hiển thị cho Student
+
+  BR-J-11   completion_status enum: PENDING → PARTIAL → COMPLETE (Judge
+            lock) → SKIPPED (Coordinator force-lock)
+
+  BR-J-12   Judge CK phải tham gia Q&A — đặt ≥1 câu hỏi/đội (soft enforce)
+
+  BR-J-13   Trước scoring_locked=TRUE: Judge tự do sửa. Sau lock: 422
+            ROUND_ALREADY_LOCKED
+
+  BR-J-14   Mỗi unlock + sửa: ghi audit JUDGE_SCORE_REVISED với diff
+
+  BR-J-15   score_type='PENALTY' KHÔNG cộng vào weighted_avg_score — chỉ
+            tiebreak
+
+  BR-J-16   Chỉ Judge HEAD bỏ phiếu HEAD_VOTE. Vote BẮT BUỘC + audit IP/UA
+
+  BR-J-17   Judge KHÔNG xem điểm Judge khác. Chỉ Coordinator thấy
+            v_judge_score_variance
+
+  BR-J-18   Judge nhận HACKATHON_CLOSED (không phải RESULT_PUBLISHED)
+
+  BR-J-19   v4.1 §16.5: KHÔNG dùng judge_weight. Mọi Judge có trọng số = 1.0
+            trong công thức weighted_avg_score
+
+  BR-J-20   v4.1 §16.4: Race Live Scoring dùng last-write-wins backend +
+            BroadcastChannel frontend tab lock. Backend KHÔNG có
+            scores.version
+  --------------------------------------------------------------------------
+
+11. Permissions matrix — Judge vs 4 role khác
+
+  --------------------------------------------------------------------------------------------------
+  Endpoint                              Judge                    Student    Mentor     Coordinator
+  ------------------------------------- ------------------------ ---------- ---------- -------------
+  GET /me                               ✓                        ✓          ✓          ✓
+
+  PATCH /me (basic)                     ✓                        ✓          ✓          ✓
+
+  GET /me/judge-track-assignments       ✓                        ✗          ✗          ✓
+
+  GET /me/judge-final-assignments       ✓ (EXTERNAL/dept_head)   ✗          ✗          ✓
+
+  GET /me/scoring-schedule              ✓                        ✗          ✗          ✓
+
+  GET /teams/{id}                       ✓ (đội Track mình chấm)  ✓ (đội     ✓ (đội     ✓
+                                                                 mình)      mình       
+                                                                            mentor)    
+
+  GET /teams/{id}/submissions           ✓ (Track mình chấm)      ✓ (đội     ✓ (đội     ✓
+                                                                 mình)      mình       
+                                                                            mentor)    
+
+  POST /scores (NORMAL)                 ✓ (Track mình chấm)      ✗          ✗ cùng     ✗
+                                                                            Track | ✓  
+                                                                            Cross      
+
+  POST /scores (CALIBRATION)            ✓ (trong session)        ✗          ✗          ✗
+
+  POST /scores (PENALTY)                ✓ (tiebreak)             ✗          ✗          ✗
+
+  POST /tiebreak-evaluations            ✓ (assignment_type=HEAD) ✗          ✗          ✗
+  (HEAD_VOTE)                                                                          
+
+  PATCH /me/scoring-completion          ✓                        ✗          ✗          ✗
+  (HARD_LOCK)                                                                          
+
+  GET /me/scores                        ✓ (chính mình)           ✗          ✗          ✓
+
+  GET /scores (Judge khác)              ✗ (RBL anonymity)        ✗          ✗          ✓
+
+  GET                                   ✗                        ✗          ✗          ✓
+  /calibration-sessions/{id}/variance                                                  
+
+  GET /hackathons/{id}/team-rankings    ✓                        ✓          ✓          ✓
+  (FINISHED)                                                                           
+
+  POST /export-jobs (RBL)               ✗                        ✗          ✗          ✓
+
+  GET /me/judge-history                 ✓                        ✗          ✗          —
+  --------------------------------------------------------------------------------------------------
+
+  -----------------------------------------------------------------------
+  [Quan trọng — Judge permissions] Judge có quyền GHI nhiều hơn 3 role
+  khác: POST scores (3 score_type), POST tiebreak_evaluations (HEAD),
+  PATCH completion. Đây là role 'ACTIVE WRITER' trong hệ thống thi đấu —
+  Coordinator chỉ MANAGE, Student chỉ SUBMIT 1 lần, Mentor chỉ READ.
+
+  -----------------------------------------------------------------------
+
+12. State transitions mà Judge thấy
+
+  ------------------------------------------------------------------------------------
+  Trạng thái                   Judge thấy gì                   Judge làm được
+  ---------------------------- ------------------------------- -----------------------
+  judge_assignments INSERTED   Notif JUDGE_ASSIGNED +          Login, xem assignments
+                               Track/Round xuất hiện           
+
+  calibration_sessions         Notif                           Tham gia (tùy chọn) —
+  INSERTED                     CALIBRATION_SESSION_INVITED     POST scores CALIBRATION
+
+  Round Sơ loại bắt đầu        Schedule presentation mở        Mở Live Scoring khi đội
+                                                               thuyết trình
+
+  Judge nhấn HARD_LOCK cá nhân completion_status='COMPLETE'.   Vẫn có thể UNLOCK + sửa
+                               Hiển thị 'Đã hoàn thành'        (PATCH PARTIAL) cho đến
+                                                               khi scoring_locked
+
+  Tiebreak phát hiện           (HEAD only) Notif               Vote 1 đội thắng
+                               TIEBREAK_VOTE_REQUIRED          
+
+  scoring_locked=TRUE Sơ loại  Notif ROUND_LOCKED + xem        Read-only — không sửa
+                               leaderboard                     được
+
+  FINAL_EXTERNAL assigned      Notif FINAL_JUDGE_ASSIGNED      Login, xem CK
+  (EXTERNAL only)                                              assignment
+
+  Round CK diễn ra             Schedule CK mở                  Live Scoring CK + Q&A &
+                                                               Rebuttal
+
+  scoring_locked=TRUE CK       Notif FINAL_ROUND_LOCKED        Read-only — chờ
+                                                               Coordinator FINISHED
+
+  hackathons.status=FINISHED   Notif HACKATHON_CLOSED          Xem rankings + lịch sử
+                                                               chấm vĩnh viễn
+  ------------------------------------------------------------------------------------
+
+13. Error codes Judge hay gặp
+
+  -------------------------------------------------------------------------------------
+  Code                            HTTP   Khi nào                   Cách xử lý
+  ------------------------------- ------ ------------------------- --------------------
+  INVITATION_EXPIRED              410    Judge EXTERNAL click link Liên hệ Coordinator
+                                         48h sau khi hết hạn       resend
+
+  JUDGE_NOT_APPROVED              403    status='PENDING' cố login Đợi Coordinator
+                                                                   duyệt
+
+  CONFLICT_SAME_TRACK             422    Mentor + Judge cùng Track Coordinator chọn
+                                         (BR-J-5)                  Track khác
+
+  INVALID_ASSIGNMENT_TYPE         422    Cố INSERT FINAL_EXTERNAL  FINAL_EXTERNAL phải
+                                         với track_id NOT NULL     có round_id,
+                                                                   track_id NULL
+
+  INTERNAL_NOT_ALLOWED_IN_FINAL   422    INTERNAL (không           Coordinator chọn
+                                         dept_head) cố làm CK      EXTERNAL
+
+  DEPT_HEAD_MENTOR_CONFLICT       422    is_dept_head=TRUE + đã    Chọn người khác hoặc
+                                         mentor cùng Hackathon     bỏ
+                                                                   mentor_assignments
+                                                                   trước
+
+  NOT_ASSIGNED_TO_TRACK           403    Cố POST scores Track      Chỉ chấm Track được
+                                         không thuộc assignment    phân
+
+  SCORING_INCOMPLETE              422    Nhấn HARD_LOCK nhưng chưa Hoàn thành chấm
+                                         chấm đủ                   trước
+
+  ROUND_ALREADY_LOCKED            422    Cố sửa điểm sau           Không thể — đã chốt
+                                         scoring_locked=TRUE       
+
+  JUDGE_ALREADY_LOCKED            409    Cố HARD_LOCK lần 2 khi đã PATCH PARTIAL trước
+                                         COMPLETE                  để unlock
+
+  TIEBREAK_NOT_FOR_NON_HEAD       403    Non-HEAD cố POST          Chỉ HEAD vote
+                                         tiebreak-evaluations      
+
+  FORBIDDEN_OTHER_JUDGE_SCORES    403    Cố GET scores của Judge   RBL anonymity
+                                         khác (BR-J-17)            
+
+  FORBIDDEN_RBL_EXPORT            403    Cố POST /export-jobs      Chỉ Coordinator
+                                         (RBL)                     
+  -------------------------------------------------------------------------------------
+
+14. Edge cases cho Judge (E-J-01..20)
+
+  ----------------------------------------------------------------------------------
+  #        Kịch bản                           Kỳ vọng
+  -------- ---------------------------------- --------------------------------------
+  E-J-01   Judge EXTERNAL active sau 48h      410 INVITATION_EXPIRED + Coordinator
+                                              resend
+
+  E-J-02   Mentor M Track A. Coordinator cố   422 CONFLICT_SAME_TRACK (trigger
+           assign M làm Judge Track A         trg_check_judge_mentor_conflict_ins)
+
+  E-J-03   INTERNAL không dept_head cố vào CK Không có judge_assignments
+           chấm                               FINAL_EXTERNAL → 404
+                                              NOT_ASSIGNED_TO_FINAL
+
+  E-J-04   is_dept_head=TRUE + đã mentor      422 DEPT_HEAD_MENTOR_CONFLICT —
+           Hackathon X → cố làm Judge CK X    Coordinator chọn người khác
+
+  E-J-05   Judge mở 2 tab cùng lúc, sửa điểm  v4.1 §16.4: BroadcastChannel detect →
+           khác nhau                          tab 2 thành read-only banner.
+                                              Last-write-wins ở backend.
+
+  E-J-06   Judge chấm Sơ loại 3 đội rồi quên  completion_status='PARTIAL'. Reminder
+           5 đội còn lại                      30+60 phút sau deadline (v4.1 §16.2)
+
+  E-J-07   Coordinator force-lock + skip      Judge X completion_status='SKIPPED'.
+           Judge X (chưa chấm đội nào)        weighted_avg loại Judge X cho TẤT CẢ
+                                              đội trong Track
+
+  E-J-08   Coordinator cố skip Judge X (đã có App validate: nếu đã có score → KHÔNG
+           ≥1 score)                          được skip → 422 (v4.1 §16.2 nguyên
+                                              tắc)
+
+  E-J-09   2 đội đồng điểm sau Penalty mini   Escalate Level 2: HEAD vote. HEAD vắng
+           test                               → COORDINATOR_DECISION (v4.1 §16.1)
+
+  E-J-10   Judge HEAD chấm cả PENALTY +       OK — PENALTY là chấm điểm, HEAD_VOTE
+           HEAD_VOTE cho cùng 2 đội           là phiếu cuối. Khác step
+
+  E-J-11   Judge CK đặt 0 câu hỏi cho 1 đội   Cảnh báo UI 'Bạn chưa đặt câu hỏi Q&A
+           (BR-J-12 soft)                     cho đội X'. Không block submit
+
+  E-J-12   Judge sửa điểm sau lock (qua API   Trigger trg_block_score_after_lock →
+           trực tiếp bypass UI)               422 + ghi audit FAILED_WRITE_ATTEMPT
+
+  E-J-13   Judge tham gia Calibration nhưng   Vẫn hợp lệ — Calibration tùy chọn. Sơ
+           skip Sơ loại thật                  loại có completion_status='PENDING'
+
+  E-J-14   Cross-Mentor: M Mentor Track A +   Hợp lệ. UI sidebar 2 mục riêng
+           Judge Track B                      (M-BUG-2 fix)
+
+  E-J-15   Judge nghỉ giữa kỳ                 Coordinator chuyển sang Judge khác —
+                                              DELETE old + INSERT new
+                                              judge_assignments + audit
+
+  E-J-16   Notification reminder không gửi    Worker retry max 3 lần. Cảnh báo
+           đến Judge bị block email           Coordinator nếu fail
+
+  E-J-17   Judge xem điểm của mình trước      ✓ Cho phép — Judge tự thấy điểm mình
+           scoring_locked                     đã chấm để revise
+
+  E-J-18   Judge cố GET /scores của Track     403 FORBIDDEN
+           không được phân                    
+
+  E-J-19   Sau FINISHED + 1 năm: Judge xem    ✓ /me/judge-history?year=2025 trả về
+           lại lịch sử                        
+
+  E-J-20   Judge cố POST /export-jobs (RBL)   403 — chỉ Coordinator/Super_Admin
+  ----------------------------------------------------------------------------------
+
+15. Liên kết với GĐ1-6 (compatibility check)
+
+  ------------------------------------------------------------------------------------------------
+  Endpoint Judge                   Source          Schema                                Trạng
+                                                                                         thái
+  -------------------------------- --------------- ------------------------------------- ---------
+  GET /me/judge-track-assignments  GĐ1 v3.1 FR-05c judge_assignments                     ✓ Sẵn
+                                                                                         sàng
+
+  GET /me/judge-final-assignments  GĐ4 v4.1 FR-26b judge_assignments (FINAL_EXTERNAL)    ✓ Sẵn
+                                                                                         sàng
+
+  GET /me/scoring-schedule         GĐ3 schedule    (derive từ rounds + tracks +          Cần view
+                                                   team_round_tracks)                    phái sinh
+
+  GET /teams/{id} (Judge)          GĐ2 teams       teams                                 ✓ Sẵn
+                                                                                         sàng
+
+  GET /teams/{id}/submissions      GĐ3 submissions submissions                           ✓ Sẵn
+                                                                                         sàng
+
+  POST /scores                     GĐ3 v4.1 scores scores (UNIQUE 4 cột)                 ✓ Sẵn
+  (NORMAL/CALIBRATION/PENALTY)                                                           sàng
+                                                                                         (v4.1
+                                                                                         §16.4)
+
+  POST /calibration-sessions       Workflow v5.0   calibration_sessions                  Cần
+                                   GĐ3 Bước 2                                            CREATE
+                                                                                         TABLE (đã
+                                                                                         đề xuất
+                                                                                         v4.1)
+
+  POST /tiebreak-evaluations       v4.1 §16.1      tiebreak_evaluations                  ✓ Sẵn
+  (HEAD_VOTE)                                      (is_casting_vote + tiebreak_level)    sàng
+                                                                                         (v4.1
+                                                                                         §16.1)
+
+  PATCH /me/scoring-completion     v4.1 §16.2      judge_assignments.completion_status   ✓ Sẵn
+                                                                                         sàng
+                                                                                         (v4.1
+                                                                                         §16.2)
+
+  GET /me/scores                   GĐ3 scores      scores WHERE judge_id=:me             ✓ Sẵn
+                                   filter                                                sàng
+
+  GET                              GĐ6 v3.2 FR-33A v_round_leaderboard                   ✓ Sẵn
+  /hackathons/{id}/team-rankings                                                         sàng
+
+  GET /me/judge-history            (mới)           judge_assignments + scores +          Cần view
+                                                   hackathons                            tổng hợp
+
+  GET /me/notifications            Cross-module    notifications                         ✓ Sẵn
+                                                                                         sàng
+  ------------------------------------------------------------------------------------------------
+
+  -----------------------------------------------------------------------
+  [Đánh giá tương thích] 10/13 endpoint Judge map cleanly. 3 endpoint cần
+  view phái sinh + 1 cần CREATE TABLE (calibration_sessions — đã đề xuất
+  ở v4.1 RBL nhưng có thể chưa tạo).
+
+  -----------------------------------------------------------------------
+
+16. RBL contribution — Judge's data perspective
+
+  -----------------------------------------------------------------------
+  [Judge là NGUỒN dữ liệu nghiên cứu] Mọi điểm Judge chấm
+  (score_type='NORMAL', is_final=TRUE) đều vào v_rbl_anonymized cho 3
+  Research Questions. Judge KHÔNG access dataset này, nhưng dữ liệu Judge
+  tạo ra LÀ chính dataset. Đây là nguyên tắc cốt lõi RBL.
+
+  -----------------------------------------------------------------------
+
+16.1 Judge → RQ mapping
+
+  -----------------------------------------------------------------------------
+  RQ    Câu hỏi            Dữ liệu Judge cung cấp     Cách phân tích
+  ----- ------------------ -------------------------- -------------------------
+  RQ1   Inter-rater        score_type='CALIBRATION'   ICC, Krippendorff's α —
+        Reliability tổng   với multiple Judges cùng   cần thêm rater_id_hash
+        (Calibration)      bài mẫu                    (v3.2 O-NEW-1)
+
+  RQ2   TECHNICAL vs       score_value +              STDDEV_SAMP GROUP BY
+        SOFT_SKILL         criterion_type của mọi     type; Mann-Whitney U
+        variance           điểm NORMAL                
+
+  RQ3   INTERNAL vs        score_value + judge_type   Independent t-test;
+        EXTERNAL Judge     (user_type)                Cohen's d; ANOVA
+        difference                                    
+  -----------------------------------------------------------------------------
+
+16.2 Ẩn danh ở v_rbl_anonymized
+
+  -----------------------------------------------------------------------
+  [Researcher KHÔNG biết Judge ID] v_rbl_anonymized chỉ giữ judge_type
+  (INTERNAL|EXTERNAL) — KHÔNG có judge_id, full_name, email. Trong nội bộ
+  Coordinator có thể trace để xác minh. Khi export ra ngoài (file CSV) →
+  tuyệt đối không có thông tin nhận dạng.
+
+  -----------------------------------------------------------------------
+
+16.3 Judge weight = 1.0 (v4.1 §16.5)
+
+  -----------------------------------------------------------------------
+  Quyết định                     Lý do
+  ------------------------------ ----------------------------------------
+  KHÔNG dùng judge_weight        (1) PDF không quy định; (2) Phức tạp RBL
+  INTERNAL/EXTERNAL khác nhau    RQ3 bias; (3) CK đã 100% EXTERNAL đồng
+                                 đều
+
+  Schema giữ sẵn cột             Không dùng — phòng tương lai BTC đổi
+  judge_weight DEFAULT 1.0       
+
+  weighted_avg_score công thức   SUM(score × criterion.weight) /
+                                 COUNT(DISTINCT judge_id) — KHÔNG nhân
+                                 judge_weight
+  -----------------------------------------------------------------------
+
+17. Bug audit — Phía Judge (J-BUG-1..12)
+
+17.1 J-BUG-1 — INTERNAL Judge bypass CK qua API trực tiếp
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         Cao
+
+  Triệu chứng UI chỉ hiển thị nút 'Chấm CK' cho EXTERNAL. Nhưng INTERNAL
+              Judge gọi POST /scores với round_id (CK) qua Postman → có
+              thể bypass.
+
+  Sửa v1.0    Backend validate: SELECT 1 FROM judge_assignments WHERE
+              judge_id=:me AND round_id=:rid AND
+              assignment_type='FINAL_EXTERNAL'. Không có → 403
+              NOT_ASSIGNED_TO_FINAL. KHÔNG dựa vào UI.
+  -----------------------------------------------------------------------
+
+17.2 J-BUG-2 — Race điểm khi 2 Judge cùng chấm 1 submission (cùng
+criterion khác score)
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         Cao
+
+  Triệu chứng Judge A và Judge B cùng chấm Submission S, Criterion C. Cả
+              2 INSERT cùng lúc. UNIQUE(submission_id, judge_id,
+              criterion_id, score_type) đã ngăn ghi đè liên Judge — nhưng
+              nếu lỗ hổng schema (thiếu score_type trong UNIQUE) → A đè
+              B.
+
+  Sửa v1.0    v4.1 đã sửa: UNIQUE 4 cột (submission_id, judge_id,
+              criterion_id, score_type). Đảm bảo dev không bỏ score_type
+              khi tạo schema.
+  -----------------------------------------------------------------------
+
+17.3 J-BUG-3 — Judge HEAD vote 2 lần khác nhau cho cùng tiebreak
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         Cao
+
+  Triệu chứng HEAD vote đội X thắng. 5 phút sau đổi ý → vote đội Y thắng.
+              2 bản ghi tiebreak_evaluations với is_casting_vote=TRUE →
+              ambiguous.
+
+  Sửa v1.0    UNIQUE(round_id, judge_id, tiebreak_level) khi
+              is_casting_vote=TRUE. ON DUPLICATE KEY UPDATE — cho phép
+              sửa nhưng giữ 1 vote. Audit JUDGE_HEAD_VOTE_REVISED.
+  -----------------------------------------------------------------------
+
+17.4 J-BUG-4 — Calibration session leak điểm Judge khác qua API
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         TB
+
+  Triệu chứng GET /calibration-sessions/{id}/scores có thể trả full list
+              không filter judge_id. Judge X xem được điểm Judge Y trong
+              cùng session → vi phạm BR-J-8.
+
+  Sửa v1.0    Filter ở backend: nếu role='JUDGE' → WHERE judge_id=:me.
+              Nếu role='COORDINATOR' → trả full. Đảm bảo middleware
+              enforce.
+  -----------------------------------------------------------------------
+
+17.5 J-BUG-5 — Q&A & Rebuttal criterion bị chấm trước khi đội trả lời
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         TB
+
+  Triệu chứng UI render tất cả 5 criteria cùng lúc. Judge có thể chấm Q&A
+              & Rebuttal = 5/10 NGAY KHI đội bắt đầu trình bày — trước
+              phase Q&A.
+
+  Sửa v1.0    UI workflow: disable Q&A & Rebuttal criterion cho đến khi
+              Judge nhấn 'Bắt đầu Q&A'. Backend không enforce — chỉ UX
+              guide.
+  -----------------------------------------------------------------------
+
+17.6 J-BUG-6 — completion_status không tự update từ PENDING → PARTIAL
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         TB
+
+  Triệu chứng Trigger v4.1 §16.2: completion_status auto-update khi
+              INSERT scores. Nhưng nếu Judge chỉ DRAFT điểm (UI state)
+              không POST → vẫn PENDING. Reminder chính xác?
+
+  Sửa v1.0    Reminder dựa trên SCORES THẬT trong DB (không phải UI
+              state). Judge phải POST autosave để được tính PARTIAL.
+  -----------------------------------------------------------------------
+
+17.7 J-BUG-7 — Judge xem score_type=PENALTY của Judge khác qua
+leaderboard
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         TB
+
+  Triệu chứng v_round_leaderboard filter score_type='NORMAL' nên không
+              leak. Nhưng nếu có endpoint GET /rounds/{id}/penalty-scores
+              → Judge X xem PENALTY của Judge Y.
+
+  Sửa v1.0    Chỉ Coordinator có quyền GET /rounds/{id}/tiebreak-summary.
+              Judge: 403.
+  -----------------------------------------------------------------------
+
+17.8 J-BUG-8 — Notification CALIBRATION_SESSION_INVITED không retry khi
+fail
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         TB
+
+  Triệu chứng Worker gửi notif 1 lần. Email service down → notif mất →
+              Judge không biết có session.
+
+  Sửa v1.0    Worker retry max 3 lần với exponential backoff. Cảnh báo
+              Coordinator nếu sau 3 lần vẫn fail.
+  -----------------------------------------------------------------------
+
+17.9 J-BUG-9 — Judge active sau 48h vẫn login do soft check
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         Thấp
+
+  Triệu chứng Login check chỉ is_temp_account=TRUE. Nếu đã active rồi →
+              bypass. Edge case: Judge active đúng giờ 48h, sau đó muốn
+              login lại.
+
+  Sửa v1.0    Login flow: nếu is_temp_account=TRUE → kiểm tra
+              created_at + 48h vs NOW(). Khi active thành công → SET
+              is_temp_account=FALSE.
+  -----------------------------------------------------------------------
+
+17.10 J-BUG-10 — UI Cross-Mentor không phân biệt context
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         Thấp
+
+  Triệu chứng Judge M có 2 role: Mentor Track A + Judge Track B. Vào UI
+              Track B chấm → có thể thấy thông tin Track A leak.
+
+  Sửa v1.0    Sidebar separate. Mỗi context tải data riêng từ API tương
+              ứng (mentor-track-assignments vs judge-track-assignments).
+              KHÔNG mix.
+  -----------------------------------------------------------------------
+
+17.11 J-BUG-11 — Comment per submission bị format lỗi với multi-line
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         Thấp
+
+  Triệu chứng scores.comment lưu TEXT. Nếu Judge nhập multi-line (Enter)
+              → có thể bị strip ở UI render lại.
+
+  Sửa v1.0    Frontend dùng <pre> hoặc whitespace-preserve. Backend lưu
+              nguyên với JSON encode an toàn.
+  -----------------------------------------------------------------------
+
+17.12 J-BUG-12 — Đội External (chapter_id=NULL) hiển thị 'null' trong
+giao diện chấm
+
+  -----------------------------------------------------------------------
+  Khía cạnh   Nội dung
+  ----------- -----------------------------------------------------------
+  Mức         Thấp
+
+  Triệu chứng Khi chấm: thấy 'Đội X - Chapter null' → khó hiểu.
+
+  Sửa v1.0    UI format: chapter_id=NULL → hiển thị 'External'. Đồng nhất
+              với Student v1.1 O-S-5 + Mentor v1.0 M-BUG-10.
+  -----------------------------------------------------------------------
+
+18. Đánh giá độ hoàn thiện
+
+18.1 Coverage matrix
+
+  -----------------------------------------------------------------------
+  Khu vực                     Coverage
+  --------------------------- -------------------------------------------
+  Tổng FR-J                   26 (FR-J-01..26)
+
+  Tổng BR Judge               20 (BR-J-1..20)
+
+  J-BUG audit                 12 (J-BUG-1..12)
+
+  Edge cases                  20 (E-J-01..20)
+
+  Permissions matrix          5 role × 18 endpoint
+
+  Tương thích GĐ1-6           10/13 endpoint sẵn sàng + 3 cần view phái
+                              sinh + 1 cần calibration_sessions table
+
+  Đồng bộ Student v1.1 +      ✓ Khớp role/permission
+  Mentor v1.0                 
+
+  Đồng bộ v4.1 §16 (5         ✓ tiebreak_level_2, completion_status,
+  Pending)                    last-write-wins, judge_weight=1.0, race
+
+  RBL coverage                3 RQ + score_type 3 enum + v_rbl_anonymized
+  -----------------------------------------------------------------------
+
+18.2 Đánh giá tổng
+
+  -----------------------------------------------------------------------
+  [Đánh giá độ hoàn thiện] ~94% — Judge là role có scope LỚN NHẤT trong 3
+  user role (Student/Mentor/Judge). Tài liệu này phủ trọn vẹn 6 GĐ +
+  RBL + Pending Items. 6% còn lại là 4 open issues O-J-1..4.
+
+  -----------------------------------------------------------------------
+
+18.3 Open issues O-J-1..4
+
+  -------------------------------------------------------------------------
+  #       Vấn đề                                                Mức
+  ------- ----------------------------------------------------- -----------
+  O-J-1   calibration_sessions table — Workflow v5.0 GĐ3 Bước 2 TB
+          nhắc, v4.1 RBL đề xuất, nhưng chưa thấy CREATE TABLE  
+          chính thức. Cần BTC/Dev confirm có triển khai hay bỏ  
+
+  O-J-2   rater_id_hash cho RQ1 ICC — v3.2 O-NEW-1 đề xuất view TB
+          v_rbl_anonymized_with_rater_hash. Cần DA quyết design 
+
+  O-J-3   v_judge_history view tổng hợp cho FR-J-26. Đề xuất    Thấp
+          CREATE VIEW + index                                   
+
+  O-J-4   Q&A & Rebuttal soft enforce — BTC có muốn track 'đã   Thấp
+          đặt câu hỏi' để audit chất lượng Judge?               
+  -------------------------------------------------------------------------
+
+  -----------------------------------------------------------------------
+  [KẾT LUẬN — bộ tài liệu hệ thống] Tài liệu Judge v1.0 hoàn chỉnh — song
+  song với Student v1.1 + Mentor v1.0 + 4 file Coordinator (MF-01..06).
+  Bộ 7 file (4 MF + 3 User) phủ TOÀN BỘ user role của hệ thống SEAL
+  Hackathon. Sẵn sàng cho dev triển khai end-to-end.
+
+  -----------------------------------------------------------------------
+
+— Hết tài liệu —
+
+SEAL Hackathon Management System · Judge User Flow v1.0 · Đồng bộ
+Workflow v5.0 / GĐ1 v3.1 / GĐ2 v3.5 / GĐ3-5 v4.1 / GĐ6 v3.2 / Student
+v1.1 / Mentor v1.0 · MySQL 8 · 26 FR + 20 BR + 12 J-BUG + 20 edge case ·
+FPT University HCMC

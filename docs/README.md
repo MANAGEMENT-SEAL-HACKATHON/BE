@@ -8,6 +8,7 @@
 4. [MF-02 Auth & Users](mf02/README.md) — JWT, đăng ký, đội, lottery
 5. [MF-03 Thi & chấm điểm](mf03/README.md) — GĐ3–GĐ6: submission, score, ranking, prizes
 6. [Ma trận phân quyền MF-03 v4.1](api-authorization-matrix.md)
+7. [User role portals (Student / Judge / Mentor)](user-role/README.md)
 
 ## Cấu trúc thư mục
 
@@ -19,6 +20,7 @@ docs/
 │   └── api/         # Chi tiết API theo FR
 ├── mf02/            # Mainflow 02 — Auth, users, teams (GĐ2)
 └── mf03/            # Mainflow 03 — Thi, chấm, chuyển vòng (GĐ3–GĐ6)
+└── user-role/       # Portal Student / Judge / Mentor (/api/v1/me/*)
 ```
 
 Thư mục `workflow/` và `api/` cũ chỉ còn stub redirect — dùng `mf01/`, `mf02/`, `mf03/`.

@@ -1,0 +1,86 @@
+package com.sealhackathon.api.me.controller;
+
+import com.sealhackathon.api.common.response.ApiResponse;
+import com.sealhackathon.api.common.security.JudgeOnly;
+import com.sealhackathon.api.config.OpenApiConfig;
+import com.sealhackathon.api.me.judge.dto.request.JudgeScoreCommentRequest;
+import com.sealhackathon.api.me.judge.dto.request.JudgeScoringCompletionRequest;
+import com.sealhackathon.api.me.judge.dto.request.TiebreakVoteRequest;
+import com.sealhackathon.api.me.judge.dto.response.*;
+import com.sealhackathon.api.me.judge.service.JudgePortalService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@Tag(name = "Judge Portal", description = "FR-J — Portal giám khảo /api/v1/me/*")
+@RestController
+@RequestMapping("/api/v1/me")
+@RequiredArgsConstructor
+@JudgeOnly
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
+public class JudgeMeController {
+
+    private final JudgePortalService judgePortalService;
+
+    @GetMapping("/judge-track-assignments")
+    @Operation(summary = "FR-J-05 — Phân công track")
+    public ResponseEntity<ApiResponse<List<JudgeTrackAssignmentResponse>>> trackAssignments() {
+        return ResponseEntity.ok(ApiResponse.ok(judgePortalService.listTrackAssignments()));
+    }
+
+    @GetMapping("/judge-final-assignments")
+    @Operation(summary = "FR-J-06 — Phân công chung kết")
+    public ResponseEntity<ApiResponse<List<JudgeFinalAssignmentResponse>>> finalAssignments() {
+        return ResponseEntity.ok(ApiResponse.ok(judgePortalService.listFinalAssignments()));
+    }
+
+    @GetMapping("/scoring-schedule")
+    @Operation(summary = "FR-J-12 — Lịch chấm")
+    public ResponseEntity<ApiResponse<List<JudgeScoringScheduleItemResponse>>> scoringSchedule(
+            @RequestParam(required = false) Integer roundId) {
+        return ResponseEntity.ok(ApiResponse.ok(judgePortalService.getScoringSchedule(roundId)));
+    }
+
+    @PatchMapping("/scoring-completion")
+    @Operation(summary = "FR-J-16/20/21 — Cập nhật hoàn thành chấm")
+    public ResponseEntity<ApiResponse<Void>> scoringCompletion(
+            @Valid @RequestBody JudgeScoringCompletionRequest request) {
+        judgePortalService.updateScoringCompletion(request);
+        return ResponseEntity.ok(ApiResponse.ok(null, "Updated"));
+    }
+
+    @GetMapping("/scores")
+    @Operation(summary = "FR-J-24 — Điểm đã chấm (judge view)")
+    public ResponseEntity<ApiResponse<List<JudgeScoreSummaryResponse>>> myScores(
+            @RequestParam(required = false) Integer roundId) {
+        return ResponseEntity.ok(ApiResponse.ok(judgePortalService.listMyScores(roundId)));
+    }
+
+    @PatchMapping("/scores/{id}/comment")
+    @Operation(summary = "FR-J-15 — Sửa comment điểm")
+    public ResponseEntity<ApiResponse<JudgeScoreSummaryResponse>> updateComment(
+            @PathVariable Integer id,
+            @Valid @RequestBody JudgeScoreCommentRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(judgePortalService.updateScoreComment(id, request)));
+    }
+
+    @PostMapping("/tiebreak-evaluations")
+    @Operation(summary = "FR-J-22/23 — HEAD vote tiebreak")
+    public ResponseEntity<ApiResponse<TiebreakVoteResponse>> tiebreakVote(
+            @Valid @RequestBody TiebreakVoteRequest request) {
+        return ResponseEntity.ok(ApiResponse.created(judgePortalService.submitTiebreakVote(request)));
+    }
+
+    @GetMapping("/judge-history")
+    @Operation(summary = "FR-J-26 — Lịch sử chấm")
+    public ResponseEntity<ApiResponse<JudgeHistoryResponse>> history(
+            @RequestParam(required = false) Integer year) {
+        return ResponseEntity.ok(ApiResponse.ok(judgePortalService.getHistory(year)));
+    }
+}
