@@ -13,6 +13,8 @@ import com.sealhackathon.api.submissions.repository.SubmissionRepository;
 import com.sealhackathon.api.team_round_tracks.entity.TeamRoundTrack;
 import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.team_round_participation.value_object.ParticipationStatus;
+import com.sealhackathon.api.tiebreak_evaluations.entity.TiebreakEvaluation;
+import com.sealhackathon.api.tiebreak_evaluations.repository.TiebreakEvaluationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /** FR-20 — xếp hạng có trọng số, BUG-4 COALESCE cho criterion chưa chấm. */
 @Component
@@ -34,6 +37,7 @@ public class RoundRankingQueryService {
     private final ScoreRepository scoreRepository;
     private final CriteriaRepository criteriaRepository;
     private final TeamRoundTrackRepository teamRoundTrackRepository;
+    private final TiebreakEvaluationRepository tiebreakEvaluationRepository;
 
     public List<RoundRankingItemResponse> rankingForRound(Integer roundId, boolean livePreview) {
         List<Submission> submissions = mergeRoundSubmissions(roundId);
@@ -46,12 +50,16 @@ public class RoundRankingQueryService {
             trackAssignmentByTeam.put(trt.getTeam().getId(), trt);
         }
 
+        // Tối ưu Query: Lấy toàn bộ Tiebreak Penalty của Round trong 1 lần query (tránh N+1)
+        Map<Integer, Double> penaltyByTeam = tiebreakEvaluationRepository.findByRound_Id(roundId).stream()
+                .collect(Collectors.groupingBy(
+                        te -> te.getTeam().getId(),
+                        Collectors.summingDouble(TiebreakEvaluation::getPenaltyScore)
+                ));
+
         List<RankRow> rows = new ArrayList<>();
         for (Submission submission : submissions) {
-            if (!SubmissionGradablePolicy.isGradable(submission)) {
-                continue;
-            }
-            if (submission.getTrack() == null) {
+            if (!SubmissionGradablePolicy.isGradable(submission) || submission.getTrack() == null) {
                 continue;
             }
             TeamRoundTrack trt = trackAssignmentByTeam.get(submission.getTeam().getId());
@@ -63,15 +71,17 @@ public class RoundRankingQueryService {
             List<Criteria> criteria = criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(trackId).stream()
                     .filter(c -> c.getType() != CriteriaType.PENALTY)
                     .toList();
-            if (criteria.isEmpty()) {
-                continue;
-            }
+            if (criteria.isEmpty()) continue;
 
             double total = 0.0;
             for (Criteria criterion : criteria) {
                 double avg = averageScore(submission.getId(), criterion.getId(), livePreview);
                 total += avg * criterion.getWeight();
             }
+
+            // TRỪ ĐIỂM PHẠT TIEBREAK TỪ DATABASE
+            double penalty = penaltyByTeam.getOrDefault(submission.getTeam().getId(), 0.0);
+            total -= penalty;
 
             rows.add(new RankRow(
                     submission.getTeam().getId(),
@@ -104,7 +114,7 @@ public class RoundRankingQueryService {
                     .trackId(row.trackId())
                     .assignedGroup(row.assignedGroup())
                     .totalScore(row.totalScore())
-                    .tiebreakRequired(false)
+                    .tiebreakRequired(false) // Mặc định là false, RoundProgressionService sẽ set lại sau.
                     .build());
         }
         return result;

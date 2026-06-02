@@ -92,10 +92,15 @@ public final class AuditAction {
     public static final String ROUND_RELEASE_PROBLEM        = "ROUND_RELEASE_PROBLEM";
     public static final String ROUND_PUBLISH                = "ROUND_PUBLISH";
     public static final String ROUND_ADVANCE_TEAMS          = "ROUND_ADVANCE_TEAMS";
+    public static final String ROUND_TIEBREAK_RESOLVED      = "ROUND_TIEBREAK_RESOLVED";
     public static final String TEAM_ELIMINATE_MANUAL        = "TEAM_ELIMINATE_MANUAL";
 
     // ---------- MF-03 GĐ6 PRIZES ----------
     public static final String PRIZE_AWARDED              = "PRIZE_AWARDED";
+
+    // ---------- MF-03 GĐ5 CALIBRATION ----------
+    public static final String CALIBRATION_SESSION_CREATED  = "CALIBRATION_SESSION_CREATED";
+    public static final String CALIBRATION_SESSION_UPDATED  = "CALIBRATION_SESSION_UPDATED";
 
     // ---------- WARNINGS ----------
     public static final String WARNING_CONFLICT_CHECK_SKIPPED = "WARNING_CONFLICT_CHECK_SKIPPED";

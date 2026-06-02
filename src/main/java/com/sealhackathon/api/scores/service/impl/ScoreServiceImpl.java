@@ -1,5 +1,8 @@
 package com.sealhackathon.api.scores.service.impl;
 
+import com.sealhackathon.api.calibration_sessions.entity.CalibrationSession;
+import com.sealhackathon.api.calibration_sessions.repository.CalibrationSessionRepository;
+import com.sealhackathon.api.calibration_sessions.value_object.CalibrationStatus;
 import com.sealhackathon.api.common.audit.AuditAction;
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
@@ -51,6 +54,7 @@ public class ScoreServiceImpl implements ScoreService {
     private final TeamRoundTrackRepository teamRoundTrackRepository;
     private final AuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
+    private final CalibrationSessionRepository calibrationSessionRepository;
 
     @Override
     public ScoreResponse submitScore(SubmitScoreRequest req) {
@@ -121,10 +125,56 @@ public class ScoreServiceImpl implements ScoreService {
         return response;
     }
 
+    // LOGIC ĐƯỢC BỔ SUNG CHO PHIÊN CHẤM CALIBRATION
     @Override
     public ScoreResponse submitCalibrationScore(SubmitCalibrationScoreRequest req) {
-        // TODO: FR-29 calibration — GĐ5
-        return ScoreResponse.builder().build();
+        Integer judgeId = currentUserAccessor.currentUserId();
+        Submission submission = submissionRepository.findById(req.getSubmissionId())
+                .orElseThrow(() -> new ResourceNotFoundException("Submission", req.getSubmissionId()));
+        Criteria criterion = criteriaRepository.findById(req.getCriterionId())
+                .orElseThrow(() -> new ResourceNotFoundException("Criteria", req.getCriterionId()));
+
+        validateCriterionForSubmission(submission, criterion);
+
+        if (req.getScoreValue() > criterion.getMaxScore()) {
+            throw new BusinessRuleException(ErrorCode.SCORE_EXCEEDS_MAX,
+                    "Điểm vượt max_score của tiêu chí",
+                    Map.of("maxScore", criterion.getMaxScore(), "given", req.getScoreValue()));
+        }
+
+        CalibrationSession session = calibrationSessionRepository.findById(req.getCalibrationSessionId())
+                .orElseThrow(() -> new ResourceNotFoundException("CalibrationSession", req.getCalibrationSessionId()));
+
+        if (session.getStatus() == CalibrationStatus.CLOSED) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Phiên hiệu chuẩn điểm này đã bị ĐÓNG");
+        }
+
+        User judge = userRepository.findById(judgeId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", judgeId));
+
+        Score score = scoreRepository
+                .findBySubmission_IdAndJudge_IdAndCriterion_IdAndScoreType(
+                        submission.getId(), judgeId, criterion.getId(), ScoreType.CALIBRATION)
+                .orElseGet(() -> Score.builder()
+                        .submission(submission)
+                        .judge(judge)
+                        .criterion(criterion)
+                        .scoreType(ScoreType.CALIBRATION)
+                        .calibrationSession(session)
+                        .build());
+
+        score.setScoreValue(req.getScoreValue());
+        score.setComment(req.getComment());
+        score.setIsFinal(false);
+        score.setScoredAt(LocalDateTime.now());
+        score.setUpdatedAt(LocalDateTime.now());
+
+        Score saved = scoreRepository.save(score);
+
+        auditService.log(AuditAction.SCORE_UPSERT, "scores", saved.getId(),
+                Map.of("submissionId", submission.getId(), "criterionId", criterion.getId(), "type", "CALIBRATION"));
+
+        return toResponse(saved);
     }
 
     private void validateCriterionForSubmission(Submission submission, Criteria criterion) {

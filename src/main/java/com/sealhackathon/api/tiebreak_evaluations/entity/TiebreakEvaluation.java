@@ -50,6 +50,15 @@ public class TiebreakEvaluation {
     @Column(name = "penalty_score", nullable = false)
     private Float penaltyScore = 0f;
 
+    // BỔ SUNG 2 TRƯỜNG THEO ĐÁP ÁN PENDING #1 (MF-04 v4.1)
+    @Builder.Default
+    @Column(name = "is_casting_vote", nullable = false)
+    private Boolean isCastingVote = false;
+
+    @Builder.Default
+    @Column(name = "tiebreak_level", nullable = false)
+    private Integer tiebreakLevel = 1;
+
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 

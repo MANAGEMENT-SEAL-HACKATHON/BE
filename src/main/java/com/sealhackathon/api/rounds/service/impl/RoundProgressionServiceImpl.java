@@ -4,6 +4,7 @@ import com.sealhackathon.api.common.audit.AuditAction;
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ErrorCode;
+import com.sealhackathon.api.common.exception.ResourceNotFoundException;
 import com.sealhackathon.api.common.response.Warning;
 import com.sealhackathon.api.common.response.WarningCode;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
@@ -45,6 +46,8 @@ import com.sealhackathon.api.team_round_tracks.entity.TeamRoundTrack;
 import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.team_round_participation.value_object.ParticipationStatus;
 import com.sealhackathon.api.teams.entity.Team;
+import com.sealhackathon.api.tiebreak_evaluations.entity.TiebreakEvaluation;
+import com.sealhackathon.api.tiebreak_evaluations.repository.TiebreakEvaluationRepository;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.tracks.value_object.TrackStatus;
@@ -52,6 +55,8 @@ import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
 import com.sealhackathon.api.wildcard_reviews.dto.request.WildcardReviewDecisionRequest;
 import com.sealhackathon.api.wildcard_reviews.dto.response.WildcardReviewResponse;
+import com.sealhackathon.api.wildcard_reviews.entity.WildcardReview;
+import com.sealhackathon.api.wildcard_reviews.repository.WildcardReviewRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -59,11 +64,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -87,6 +89,9 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
     private final TeamRoundTrackRepository teamRoundTrackRepository;
     private final TeamRoundParticipationRepository teamRoundParticipationRepository;
     private final JudgeAssignmentService judgeAssignmentService;
+    private final TiebreakEvaluationRepository tiebreakEvaluationRepository;
+    private final com.sealhackathon.api.teams.repository.TeamRepository teamRepository; // Để lấy Entity Team
+    private final WildcardReviewRepository wildcardReviewRepository;
 
     @Override
     public RoundSummaryResponse releaseProblem(Integer roundId, ReleaseProblemRequest req) {
@@ -205,21 +210,194 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         return roundRankingQueryService.rankingForRound(roundId, true);
     }
 
+    // =========================================================================
+    // NHIỆM VỤ 1.1: TÌM KIẾM CÁC ĐỘI ĐỒNG ĐIỂM TẠI RANH GIỚI CUT-OFF
+    // =========================================================================
     @Override
     @Transactional(readOnly = true)
     public List<TiebreakItemResponse> tiebreak(Integer roundId) {
-        return List.of();
+        Round round = roundAccessGuard.requireRound(roundId);
+        Integer topNAdvance = round.getTopNAdvance();
+
+        // Chung kết không có chỉ tiêu thăng vòng, bỏ qua Tiebreak
+        if (Boolean.TRUE.equals(round.getIsFinal()) || topNAdvance == null || topNAdvance <= 0) {
+            return List.of();
+        }
+
+        List<RoundRankingItemResponse> ranking = roundRankingQueryService.rankingForRound(roundId, false);
+        if (ranking.isEmpty()) return List.of();
+
+        // Gom nhóm Ranking theo Bảng đấu (Partition Key)
+        Map<String, List<RoundRankingItemResponse>> partitionedRanking = ranking.stream()
+                .collect(Collectors.groupingBy(item -> {
+                    String trackPart = item.getTrackId() != null ? item.getTrackId().toString() : "0";
+                    String groupPart = item.getAssignedGroup() != null ? item.getAssignedGroup() : "DEFAULT";
+                    return trackPart + "_" + groupPart;
+                }));
+
+        List<TiebreakItemResponse> tiebreakItems = new ArrayList<>();
+
+        // Thuật toán dò tìm Tiebreak cho từng Bảng
+        for (Map.Entry<String, List<RoundRankingItemResponse>> entry : partitionedRanking.entrySet()) {
+            List<RoundRankingItemResponse> groupRanking = entry.getValue();
+            if (groupRanking.size() <= topNAdvance) {
+                continue; // Bảng này có số lượng đội <= chỉ tiêu, không cần tiebreak
+            }
+
+            // Lấy điểm của đội đang đứng chính xác tại vị trí Cut-off (Chỉ tiêu)
+            Double cutoffScore = groupRanking.get(topNAdvance - 1).getTotalScore();
+
+            // Đếm số lượng đội nằm TRÊN mức điểm Cut-off (chắc chắn an toàn)
+            long safeCount = groupRanking.stream().filter(r -> r.getTotalScore() > cutoffScore).count();
+
+            // Lấy danh sách TẤT CẢ các đội có điểm BẰNG CHÍNH XÁC điểm Cut-off
+            List<Integer> borderlineTeamIds = groupRanking.stream()
+                    .filter(r -> r.getTotalScore().equals(cutoffScore))
+                    .map(RoundRankingItemResponse::getTeamId)
+                    .toList();
+
+            // Tính số "Ghế" còn trống cho các đội bằng điểm
+            long remainingSlots = topNAdvance - safeCount;
+
+            // NẾU số đội bằng điểm LỚN HƠN số ghế còn trống => Phát sinh Tiebreak!
+            if (borderlineTeamIds.size() > remainingSlots) {
+                tiebreakItems.add(TiebreakItemResponse.builder()
+                        .partitionKey(entry.getKey())
+                        .cutoffRank(topNAdvance)
+                        .candidateTeamIds(borderlineTeamIds)
+                        .build());
+            }
+        }
+        return tiebreakItems;
     }
 
+    // =========================================================================
+    // NHIỆM VỤ 1.2: CẬP NHẬT KẾT QUẢ PHÂN XỬ ĐỒNG ĐIỂM (COORDINATOR DECISION)
+    // =========================================================================
     @Override
     public List<RoundRankingItemResponse> resolveTiebreak(Integer roundId, ResolveTiebreakRequest req) {
-        return List.of();
+        Round round = roundAccessGuard.requireRound(roundId);
+        if (!Boolean.TRUE.equals(round.getScoringLocked())) {
+            throw new BusinessRuleException(ErrorCode.ROUND_NOT_SCORING_LOCKED, "Phải khóa chấm điểm trước khi giải quyết Tiebreak");
+        }
+
+        User coordinator = userRepository.findById(currentUserAccessor.currentUserId()).orElseThrow();
+        List<Integer> orderedIds = req.getOrderedTeamIds();
+
+        // Áp dụng điểm Penalty tăng dần để tách top (VD: Đội 1: 0đ, Đội 2: -0.01đ, Đội 3: -0.02đ)
+        // Đội xếp đầu tiên trong Request sẽ giữ nguyên điểm, các đội sau sẽ bị trừ dần để tụt hạng.
+        float penaltyIncrement = 0.01f;
+        float currentPenalty = 0.0f;
+
+        List<TiebreakEvaluation> evaluationsToSave = new ArrayList<>();
+
+        for (Integer teamId : orderedIds) {
+            Team team = teamRepository.findById(teamId).orElseThrow();
+
+            // Xóa Tiebreak cũ của Coordinator cho đội này ở Vòng này (nếu đã từng làm) để ghi đè
+            tiebreakEvaluationRepository.findByRound_IdAndTeam_IdAndJudge_Id(roundId, teamId, coordinator.getId())
+                    .ifPresent(tiebreakEvaluationRepository::delete);
+
+            if (currentPenalty > 0) {
+                evaluationsToSave.add(TiebreakEvaluation.builder()
+                        .round(round)
+                        .team(team)
+                        .judge(coordinator) // Ở mức Coordinator Decision, Judge chính là Coordinator
+                        .penaltyScore(currentPenalty)
+                        .isCastingVote(true)
+                        .tiebreakLevel(2) // Level 2: Quyết định của BTC
+                        .notes(req.getNote())
+                        .evaluatedAt(LocalDateTime.now())
+                        .build());
+            }
+            currentPenalty += penaltyIncrement;
+        }
+
+        if (!evaluationsToSave.isEmpty()) {
+            tiebreakEvaluationRepository.saveAll(evaluationsToSave);
+            auditService.log(AuditAction.ROUND_TIEBREAK_RESOLVED, "tiebreak_evaluations", roundId,
+                    java.util.Map.of("orderedTeamIds", orderedIds, "note", req.getNote()));
+        }
+
+        // Trả về Bảng Xếp Hạng mới ngay lập tức để FE render lại UI
+        return roundRankingQueryService.rankingForRound(roundId, false);
     }
 
+    // =========================================================================
+    // NHIỆM VỤ 2.1: TỰ ĐỘNG QUÉT VÀ ĐỀ XUẤT VÉ VỚT (WILDCARD CANDIDATES)
+    // =========================================================================
     @Override
-    @Transactional(readOnly = true)
     public List<WildcardCandidateResponse> wildcardCandidates(Integer roundId) {
-        return List.of();
+        Round round = roundAccessGuard.requireRound(roundId);
+        Hackathon hackathon = round.getHackathon();
+
+        // 1. Gate: Tính năng vé vớt phải được bật ở cả Hackathon và Round
+        if (!Boolean.TRUE.equals(hackathon.getWildcardEnabled()) || !Boolean.TRUE.equals(round.getWildcardEnabled())) {
+            return List.of();
+        }
+
+        Integer minTeamsFinal = round.getMinTeamsFinal();
+        Integer topNAdvance = round.getTopNAdvance();
+        if (minTeamsFinal == null || topNAdvance == null || topNAdvance <= 0) {
+            return List.of();
+        }
+
+        // 2. Lấy danh sách bảng xếp hạng chính thức
+        List<RoundRankingItemResponse> ranking = roundRankingQueryService.rankingForRound(roundId, false);
+        if (ranking.isEmpty()) return List.of();
+
+        // 3. Tách nhóm: Đội đậu tự nhiên (Top N) và Đội rớt
+        List<RoundRankingItemResponse> topNTeams = new ArrayList<>();
+        List<RoundRankingItemResponse> remainingTeams = new ArrayList<>();
+
+        for (RoundRankingItemResponse item : ranking) {
+            if (item.getRank() != null && item.getRank() <= topNAdvance) {
+                topNTeams.add(item);
+            } else {
+                remainingTeams.add(item);
+            }
+        }
+
+        // Tính số lượng Slot vé vớt cần bù đắp
+        int slots = minTeamsFinal - topNTeams.size();
+        if (slots <= 0 || remainingTeams.isEmpty()) {
+            return List.of(); // Đã đủ chỉ tiêu hoặc không còn đội nào để vớt
+        }
+
+        // 4. Lọc Top điểm cao nhất từ nhóm rớt (Sort Toàn Cục)
+        remainingTeams.sort(java.util.Comparator.comparing(RoundRankingItemResponse::getTotalScore).reversed());
+        List<RoundRankingItemResponse> candidates = remainingTeams.stream().limit(slots).toList();
+
+        List<WildcardCandidateResponse> responses = new ArrayList<>();
+
+        // 5. Khởi tạo/Lấy bản ghi WildcardReview trong Database cho Coord duyệt
+        for (RoundRankingItemResponse candidate : candidates) {
+            Team team = teamRepository.findById(candidate.getTeamId()).orElseThrow();
+            Track track = candidate.getTrackId() != null ? trackRepository.findById(candidate.getTrackId()).orElse(null) : null;
+
+            WildcardReview review = wildcardReviewRepository.findByRound_IdAndTeam_Id(roundId, team.getId())
+                    .orElseGet(() -> WildcardReview.builder()
+                            .round(round)
+                            .team(team)
+                            .track(track)
+                            .avgScore(candidate.getTotalScore() != null ? candidate.getTotalScore().floatValue() : 0f)
+                            .build());
+
+            // Lưu vào DB nếu là đề xuất mới
+            if (review.getId() == null) {
+                review = wildcardReviewRepository.save(review);
+            }
+
+            responses.add(WildcardCandidateResponse.builder()
+                    .reviewId(review.getId())
+                    .teamId(team.getId())
+                    .teamName(team.getTeamName())
+                    .totalScore(candidate.getTotalScore())
+                    .reason("Hệ thống tự động đề xuất: Thuộc Top " + slots + " điểm cao nhất ngoài chỉ tiêu thăng vòng")
+                    .build());
+        }
+
+        return responses;
     }
 
     @Override
@@ -232,15 +410,58 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         return List.of();
     }
 
+    // =========================================================================
+    // NHIỆM VỤ 2.2: LƯU QUYẾT ĐỊNH CỦA BAN TỔ CHỨC (DUYỆT VÉ VỚT)
+    // =========================================================================
     @Override
     public WildcardReviewResponse decideWildcardReview(Integer reviewId, WildcardReviewDecisionRequest req) {
-        return WildcardReviewResponse.builder().id(reviewId).coordinatorApproved(req.getApproved()).build();
+        WildcardReview review = wildcardReviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("WildcardReview", reviewId));
+
+        if (!Boolean.TRUE.equals(review.getRound().getScoringLocked())) {
+            throw new BusinessRuleException(ErrorCode.ROUND_NOT_SCORING_LOCKED, "Phải khóa chấm điểm trước khi xét duyệt vé vớt");
+        }
+
+        User coordinator = userRepository.findById(currentUserAccessor.currentUserId()).orElseThrow();
+
+        // Cập nhật trạng thái duyệt
+        review.setCoordinatorApproved(req.getApproved());
+        review.setCoordinatorNote(req.getCoordinatorNote());
+        review.setReviewedBy(coordinator);
+        review.setReviewedAt(LocalDateTime.now());
+
+        WildcardReview saved = wildcardReviewRepository.save(review);
+
+        // Ghi Audit Log cho hành động quyết định vé vớt
+        auditService.log(AuditAction.ROUND_UPDATE, "wildcard_reviews", saved.getId(),
+                java.util.Map.of("coordinatorApproved", req.getApproved(), "teamId", saved.getTeam().getId()));
+
+        return WildcardReviewResponse.builder()
+                .id(saved.getId())
+                .roundId(saved.getRound().getId())
+                .teamId(saved.getTeam().getId())
+                .avgScore(saved.getAvgScore())
+                .coordinatorApproved(saved.getCoordinatorApproved())
+                .coordinatorNote(saved.getCoordinatorNote())
+                .reviewedAt(saved.getReviewedAt())
+                .build();
     }
 
+    // =========================================================================
+    // NHIỆM VỤ 1.3: CÀI GATE BẢO VỆ CHO ADVANCE_TEAMS (Không cho thăng vòng nếu còn Tiebreak)
+    // =========================================================================
     @Override
     public AdvanceTeamsResponse advanceTeams(Integer roundId, AdvanceTeamsRequest req) {
         Round round = requirePreliminaryRoundForProgression(roundId);
         requireScoringLockedAndPublished(round);
+
+        // RÀO CHẮN (GATE): NẾU CÒN ĐỘI CHƯA TIEBREAK THÌ CHẶN LẠI
+        List<TiebreakItemResponse> unresolvedTiebreaks = tiebreak(roundId);
+        if (!unresolvedTiebreaks.isEmpty()) {
+            throw new BusinessRuleException(ErrorCode.TIEBREAK_REQUIRED,
+                    "Vẫn còn đội đồng điểm tại ranh giới thăng vòng. Vui lòng giải quyết Tiebreak trước khi Advance.",
+                    java.util.Map.of("unresolvedItems", unresolvedTiebreaks));
+        }
 
         Round finalRound = roundRepository.findByHackathon_IdAndIsFinalTrue(round.getHackathon().getId())
                 .orElseThrow(() -> new BusinessRuleException(ErrorCode.INVALID_FINAL_ROUND,
@@ -324,12 +545,30 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                 .build();
     }
 
+    // =========================================================================
+    // NHIỆM VỤ 3: SCOREBOARD PUBLIC - BẢNG ĐIỂM CÔNG KHAI (FR-20)
+    // =========================================================================
     @Override
     @Transactional(readOnly = true)
     public RoundScoreboardResponse scoreboard(Integer roundId) {
+        // 1. Lấy thông tin Round (không yêu cầu đăng nhập)
+        Round round = roundAccessGuard.requireRound(roundId);
+
+        // 2. Gate Bảo Mật: Chặn tuyệt đối nếu BTC chưa nhấn "Công Bố"
+        if (!Boolean.TRUE.equals(round.getIsPublished())) {
+            throw new BusinessRuleException(ErrorCode.RESULT_NOT_PUBLISHED,
+                    "Kết quả vòng thi này chưa được Ban Tổ Chức công bố.",
+                    java.util.Map.of("roundId", roundId, "isPublished", false));
+        }
+
+        // 3. Tận dụng lại hàm tính Xếp hạng (Đã xử lý trừ điểm Penalty ở Nhiệm vụ 1)
+        List<RoundRankingItemResponse> ranking = roundRankingQueryService.rankingForRound(roundId, false);
+
+        // 4. Bọc data trả về cho Frontend render Landing Page
         return RoundScoreboardResponse.builder()
-                .roundId(roundId)
-                .ranking(List.of())
+                .roundId(round.getId())
+                .roundName(round.getName())
+                .ranking(ranking)
                 .build();
     }
 

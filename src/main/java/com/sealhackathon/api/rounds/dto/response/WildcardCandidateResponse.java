@@ -11,6 +11,8 @@ import lombok.NoArgsConstructor;
 @Builder
 public class WildcardCandidateResponse {
 
+    // BỔ SUNG TRƯỜNG NÀY ĐỂ FE GỌI API PATCH
+    private Integer reviewId;
     private Integer teamId;
     private String teamName;
     private Double totalScore;
