@@ -32,6 +32,7 @@ public final class AuditAction {
     public static final String ROUND_LOCK               = "ROUND_LOCK";
     public static final String ROUND_FORCE_LOCK         = "ROUND_FORCE_LOCK";
 
+
     // ---------- FR-04 CRITERIA ----------
     public static final String CRITERIA_CREATE          = "CRITERIA_CREATE";
     public static final String CRITERIA_CLONE           = "CRITERIA_CLONE";
@@ -97,6 +98,7 @@ public final class AuditAction {
 
     // ---------- MF-03 GĐ6 PRIZES ----------
     public static final String PRIZE_AWARDED              = "PRIZE_AWARDED";
+    public static final String PRIZE_REVOKED              = "PRIZE_REVOKED";
 
     // ---------- MF-03 GĐ5 CALIBRATION ----------
     public static final String CALIBRATION_SESSION_CREATED  = "CALIBRATION_SESSION_CREATED";

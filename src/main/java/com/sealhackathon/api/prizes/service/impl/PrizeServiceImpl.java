@@ -29,7 +29,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.List;
 
@@ -117,16 +116,51 @@ public class PrizeServiceImpl implements PrizeService {
         return prizeMapper.toResponse(saved);
     }
 
+    // LOGIC LẤY DANH SÁCH GIẢI THƯỞNG
     @Override
     @Transactional(readOnly = true)
     public List<PrizeResponse> listByHackathon(Integer hackathonId) {
-        // TODO: FR-32 — list prizes; gate PENDING_CONFIRM+
-        return Collections.emptyList();
+        Hackathon hackathon = hackathonRepository.findById(hackathonId)
+                .orElseThrow(() -> new ResourceNotFoundException("Hackathon", hackathonId));
+
+        // Gate: Chỉ được xem giải khi Hackathon đang chờ xác nhận hoặc đã kết thúc
+        if (hackathon.getStatus() != HackathonStatus.PENDING_CONFIRM && hackathon.getStatus() != HackathonStatus.FINISHED) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Chỉ có thể xem danh sách giải thưởng khi Hackathon ở trạng thái PENDING_CONFIRM hoặc FINISHED");
+        }
+
+        return prizeRepository.findByRound_Hackathon_IdOrderByAwardedAtDesc(hackathonId)
+                .stream()
+                .map(prizeMapper::toResponse)
+                .toList();
     }
 
+    // LOGIC THU HỒI GIẢI THƯỞNG
     @Override
     public void revoke(Integer prizeId) {
-        // TODO: FR-32 — chặn nếu hackathon FINISHED; DELETE + audit FR-36
+        Prize prize = prizeRepository.findById(prizeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Prize", prizeId));
+
+        Hackathon hackathon = prize.getHackathon();
+
+        // Chặn cứng: Không được phép thu hồi nếu Hackathon đã hạ màn
+        if (hackathon.getStatus() == HackathonStatus.FINISHED) {
+            throw new ConflictException(ErrorCode.HACKATHON_ARCHIVED,
+                    "Hackathon đã kết thúc — không thể thu hồi giải thưởng",
+                    Map.of("hackathonId", hackathon.getId(), "status", hackathon.getStatus().name()));
+        }
+
+        Map<String, Object> auditDetails = Map.of(
+                "hackathonId", hackathon.getId(),
+                "teamId", prize.getTeam().getId(),
+                "prizeName", prize.getPrizeName(),
+                "prizeRank", prize.getPrizeRank() != null ? prize.getPrizeRank().name() : "NONE"
+        );
+
+        prizeRepository.delete(prize);
+
+        // FR-36: Audit log việc xóa dữ liệu
+        auditService.log(AuditAction.PRIZE_REVOKED, "prizes", prizeId, auditDetails);
     }
 
     private void assertNoDuplicate(Integer hackathonId, Integer roundId, Integer teamId, PrizeRank prizeRank) {
