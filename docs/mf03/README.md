@@ -45,9 +45,13 @@
 | 6 | [06-live-scoring-websocket.md](06-live-scoring-websocket.md) | FE | STOMP/SockJS FR-18A |
 | 7 | **[07-fe-api-flow-gd3.md](07-fe-api-flow-gd3.md)** | **FE** | **Luồng API từng bước GĐ3 (đọc đầu tiên)** |
 | 8 | **[08-fe-api-flow-gd4.md](08-fe-api-flow-gd4.md)** | **FE** | **Luồng API GĐ4: publish → advance → judge CK → activate** |
-| 9 | **[09-be-backlog-gd4-gd5.md](09-be-backlog-gd4-gd5.md)** | **BE** | **Checklist còn thiếu GĐ4/GĐ5/GĐ6 — tránh trùng/lệch** |
+| 9 | **[09-be-backlog-gd4-gd5-gd6.md](09-be-backlog-gd4-gd5-gd6.md)** | **BE** | **Checklist còn thiếu GĐ4/GĐ5/GĐ6 — tránh trùng/lệch** |
 | 10 | [01-business-rules-gd6.md](01-business-rules-gd6.md) | BE / BA | FR-31…36 (MF-06 v3.2) |
 | 11 | **[10-fe-api-flow-gd6.md](10-fe-api-flow-gd6.md)** | **FE** | **Luồng API GĐ6: rankings → prizes → confirm → export** |
+| 12 | **[11-fe-mock-landing-gd3-gd5.md](11-fe-mock-landing-gd3-gd5.md)** | **FE** | **Mock/MSW + map màn hình — làm UI trước khi BE logic xong** |
+| 13 | **[12-fe-api-catalog-gd3-gd5.md](12-fe-api-catalog-gd3-gd5.md)** | **FE** | **Hướng dẫn tích hợp API GĐ3→GĐ5 — request/response JSON (giống fe-auth-integration)** |
+
+**FE đọc đầu tiên (GĐ3–5):** [12-fe-api-catalog-gd3-gd5.md](12-fe-api-catalog-gd3-gd5.md) · Mock UI: [11-fe-mock-landing-gd3-gd5.md](11-fe-mock-landing-gd3-gd5.md)
 
 **Swagger:** tag Submissions, Scores, Round Progression, Live Scoring (WebSocket), Wildcard Reviews, Calibration Sessions, RBL Dashboard, Prizes.
 

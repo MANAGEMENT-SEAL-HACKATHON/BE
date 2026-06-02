@@ -2,7 +2,7 @@
 
 Tài liệu cho **Frontend**: màn hình gợi ý, thứ tự gọi API, và lưu ý khi BE còn stub.
 
-**Contract đầy đủ:** [03-api-reference-gd3.md](03-api-reference-gd3.md)  
+**Contract đầy đủ:** [03-api-reference-gd3.md](03-api-reference-gd3.md) · **Catalog GĐ3–5:** [12-fe-api-catalog-gd3-gd5.md](12-fe-api-catalog-gd3-gd5.md) · **Mock UI:** [11-fe-mock-landing-gd3-gd5.md](11-fe-mock-landing-gd3-gd5.md)  
 **Auth:** [mf02/fe-auth-integration.md](../mf02/fe-auth-integration.md)
 
 ---

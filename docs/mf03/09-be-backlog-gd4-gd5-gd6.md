@@ -118,7 +118,7 @@
 | G5-9 | FR-29 | `GET /calibration-sessions?roundId=` | ⏳ | List sessions. | cùng file |
 | G5-10 | FR-29 | `POST /scores/calibration` | ⏳ empty DTO | Validate session OPEN; lưu `ScoreType.CALIBRATION`. | `ScoreServiceImpl.submitCalibrationScore` |
 | G5-11 | FR-30 | `GET /rounds/{id}/rbl/variance` | ⏳ | Query view `v_judge_score_variance`. | `RblDashboardServiceImpl` |
-| G5-12 | FR-30 | `GET /rounds/{id}/rbl/scoring-progress` | ⏳ | Query view `v_scoring_progress`. | cùng file |
+| G5-12 | FR-30 | `GET /rounds/{id}/rbl/progress` | ⏳ | Query view `v_scoring_progress`. | cùng file |
 
 **DB:** Views RBL + bảng `calibration_sessions` — kiểm tra migration `Gd03V41SchemaMigration` / SQL delta đã có trước khi query.
 

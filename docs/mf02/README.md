@@ -46,6 +46,12 @@
 
 ---
 
-## Tiếp theo — MF-03
+## Tiếp theo — MF-03 (Thi & chấm GĐ3–5)
 
-Sau GĐ2 (đội ACTIVE + lottery): [mf03/README.md](../mf03/README.md) — nộp bài, chấm điểm, ranking, trao giải.
+Sau GĐ2 (đội ACTIVE + lottery): [mf03/README.md](../mf03/README.md)
+
+| FE ưu tiên | File |
+|------------|------|
+| Catalog API GĐ3→GĐ5 | [mf03/12-fe-api-catalog-gd3-gd5.md](../mf03/12-fe-api-catalog-gd3-gd5.md) |
+| Mock + landing page | [mf03/11-fe-mock-landing-gd3-gd5.md](../mf03/11-fe-mock-landing-gd3-gd5.md) |
+| Luồng từng bước GĐ3 | [mf03/07-fe-api-flow-gd3.md](../mf03/07-fe-api-flow-gd3.md) |

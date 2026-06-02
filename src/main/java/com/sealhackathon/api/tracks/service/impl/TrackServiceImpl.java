@@ -37,6 +37,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -153,9 +154,10 @@ public class TrackServiceImpl implements TrackService {
                 && !req.getTopic().trim().equals(
                 before.getTopic() == null ? "" : before.getTopic().trim());
         if (topicChanged) {
-            auditService.log(AuditAction.TRACK_TOPIC_UPDATE, "tracks", saved.getId(), Map.of(
-                    "oldTopic", before.getTopic(),
-                    "newTopic", after.getTopic()));
+            Map<String, Object> topicAudit = new HashMap<>();
+            topicAudit.put("oldTopic", before.getTopic());
+            topicAudit.put("newTopic", after.getTopic());
+            auditService.log(AuditAction.TRACK_TOPIC_UPDATE, "tracks", saved.getId(), topicAudit);
         } else {
             auditService.logBeforeAfter(AuditAction.TRACK_UPDATE, "tracks", saved.getId(), before, after);
         }
