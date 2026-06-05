@@ -45,4 +45,16 @@ public interface ScoreRepository extends JpaRepository<Score, Integer> {
                 OR (s.submission.track IS NOT NULL AND s.submission.track.round.id = :roundId)
             """)
     long countByRoundId(@Param("roundId") Integer roundId);
+
+    @Query("""
+            SELECT s FROM Score s
+            WHERE s.judge.id = :judgeId
+              AND s.scoreType = :scoreType
+              AND (:roundId IS NULL
+                   OR (s.submission.round IS NOT NULL AND s.submission.round.id = :roundId)
+                   OR (s.submission.track IS NOT NULL AND s.submission.track.round.id = :roundId))
+            """)
+    List<Score> findMyScores(@Param("judgeId") Integer judgeId,
+                             @Param("scoreType") com.sealhackathon.api.scores.value_object.ScoreType scoreType,
+                             @Param("roundId") Integer roundId);
 }

@@ -66,4 +66,13 @@ public class JudgeAssignment {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assigned_by")
     private User assignedBy;
+
+    // BỔ SUNG THEO ĐẶC TẢ JUDGE (FR-J-16/20/21)
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "completion_status", nullable = false, length = 20)
+    private com.sealhackathon.api.judge_assignments.value_object.CompletionStatus completionStatus = com.sealhackathon.api.judge_assignments.value_object.CompletionStatus.NOT_STARTED;
+
+    @Column(name = "completion_updated_at")
+    private LocalDateTime completionUpdatedAt;
 }
