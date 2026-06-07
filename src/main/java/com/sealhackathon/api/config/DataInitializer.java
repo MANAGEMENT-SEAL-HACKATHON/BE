@@ -3,6 +3,10 @@ package com.sealhackathon.api.config;
 import com.sealhackathon.api.config.seed.Gd1DataSeeder;
 import com.sealhackathon.api.config.seed.Gd1SeedConstants;
 import com.sealhackathon.api.config.seed.Gd2DataSeeder;
+import com.sealhackathon.api.config.seed.Gd3DataSeeder;
+import com.sealhackathon.api.config.seed.Gd5FinalRoundDataSeeder;
+import com.sealhackathon.api.config.seed.Gd6PendingConfirmDataSeeder;
+import com.sealhackathon.api.config.seed.HackathonDevSeedHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -32,6 +36,10 @@ public class DataInitializer implements CommandLineRunner {
 
     private final Gd1DataSeeder gd1DataSeeder;
     private final Gd2DataSeeder gd2DataSeeder;
+    private final Gd3DataSeeder gd3DataSeeder;
+    private final Gd5FinalRoundDataSeeder gd5FinalRoundDataSeeder;
+    private final Gd6PendingConfirmDataSeeder gd6PendingConfirmDataSeeder;
+    private final HackathonDevSeedHelper hackathonDevSeedHelper;
 
     @Override
     public void run(String... args) {
@@ -47,5 +55,9 @@ public class DataInitializer implements CommandLineRunner {
             gd1DataSeeder.seedAll();
         }
         gd2DataSeeder.ensureSeed();
+        gd3DataSeeder.ensureSeed();
+        gd5FinalRoundDataSeeder.ensureSeed();
+        gd6PendingConfirmDataSeeder.ensureSeed();
+        hackathonDevSeedHelper.repairAllDevHackathonRoundSchedules();
     }
 }

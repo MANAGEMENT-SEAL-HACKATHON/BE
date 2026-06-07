@@ -37,6 +37,7 @@ public class TeamLockServiceImpl implements TeamLockService {
         // 1. Tìm các Hackathon đang ONGOING và đã đi qua hạn đăng ký
         List<Hackathon> ongoingHackathons = hackathonRepository.findAll().stream()
                 .filter(h -> h.getStatus() == HackathonStatus.ONGOING)
+                // Khớp FR-13A + TeamServiceImpl: khóa khi today > registrationEnd (sau ngày cuối đăng ký)
                 .filter(h -> h.getRegistrationEnd() != null && h.getRegistrationEnd().isBefore(today))
                 .toList();
 

@@ -48,6 +48,7 @@ public class Event {
     @Column(name = "ends_at")
     private LocalDateTime endsAt;
 
+    @Builder.Default
     @Column(name = "is_public", nullable = false)
     private Boolean isPublic = true;
 

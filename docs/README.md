@@ -9,6 +9,8 @@
 5. [MF-03 Thi & chấm điểm](mf03/README.md) — GĐ3–GĐ6: submission, score, ranking, prizes
 6. [Ma trận phân quyền MF-03 v4.1](api-authorization-matrix.md)
 7. [User role portals (Student / Judge / Mentor)](user-role/README.md)
+8. **[Workflow test API GĐ0→GĐ6 (playbook + JSON)](testing/full-workflow-api-test-gd1-gd6.md)** — E2E happy path + catalog **166** endpoint (request/response)
+9. **[Seed coverage & SQL verify](testing/seed-coverage-audit.md)** — Dữ liệu dev theo GĐ3/GĐ4/GĐ6 + script kiểm tra DB
 
 ## Cấu trúc thư mục
 
@@ -21,6 +23,7 @@ docs/
 ├── mf02/            # Mainflow 02 — Auth, users, teams (GĐ2)
 └── mf03/            # Mainflow 03 — Thi, chấm, chuyển vòng (GĐ3–GĐ6)
 └── user-role/       # Portal Student / Judge / Mentor (/api/v1/me/*)
+└── testing/         # QA — workflow test toàn API theo 6 giai đoạn
 ```
 
 Thư mục `workflow/` và `api/` cũ chỉ còn stub redirect — dùng `mf01/`, `mf02/`, `mf03/`.

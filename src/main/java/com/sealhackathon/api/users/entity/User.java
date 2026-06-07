@@ -50,6 +50,7 @@ public class User {
     @Column(name = "student_code", length = 50)
     private String studentCode;
 
+    @Builder.Default
     @Column(name = "is_temp_account", nullable = false)
     private Boolean isTempAccount = false;
 
@@ -69,6 +70,7 @@ public class User {
     @Column(name = "must_change_password", nullable = false)
     private Boolean mustChangePassword = false;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private UserStatus status = UserStatus.PENDING;

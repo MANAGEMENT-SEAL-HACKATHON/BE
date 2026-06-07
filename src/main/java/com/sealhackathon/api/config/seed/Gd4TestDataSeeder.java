@@ -2,8 +2,7 @@ package com.sealhackathon.api.config.seed;
 
 import com.sealhackathon.api.criteria.entity.Criteria;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
-import com.sealhackathon.api.hackathons.entity.Hackathon;
-import com.sealhackathon.api.hackathons.repository.HackathonRepository;
+import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.scores.entity.Score;
@@ -16,7 +15,6 @@ import com.sealhackathon.api.team_round_tracks.entity.TeamRoundTrack;
 import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.repository.TeamRepository;
-import com.sealhackathon.api.teams.value_object.TeamStatus;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
@@ -31,12 +29,19 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * Seed GĐ4 tùy chọn — tiebreak 3-way + wildcard trên {@link GdExtendedSeedConstants#SLUG_GD4_TIEBREAK}.
+ *
+ * <p>Bật: {@code app.seed.gd4.enabled=true} (mặc định {@code false}).
+ */
 @Slf4j
 @Component
 @Profile("dev")
 @RequiredArgsConstructor
 public class Gd4TestDataSeeder {
 
+    private final DevSeedProperties devSeedProperties;
+    private final HackathonDevSeedHelper seedHelper;
     private final TeamRepository teamRepository;
     private final RoundRepository roundRepository;
     private final CriteriaRepository criteriaRepository;
@@ -44,81 +49,108 @@ public class Gd4TestDataSeeder {
     private final SubmissionRepository submissionRepository;
     private final ScoreRepository scoreRepository;
     private final TeamRoundTrackRepository teamRoundTrackRepository;
-    private final HackathonRepository hackathonRepository;
 
     @Transactional
     @EventListener(ApplicationReadyEvent.class)
     public void seedTiebreakAndWildcardData() {
-        Hackathon hackathon = hackathonRepository.findBySlug(Gd1SeedConstants.SLUG_ONGOING).orElse(null);
-        if (hackathon == null) return;
-
-        Round prelim = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathon.getId()).stream()
-                .filter(r -> !Boolean.TRUE.equals(r.getIsFinal()))
-                .findFirst()
-                .orElseThrow();
-
-        // Lấy 5 đội để tạo kịch bản
-        Team team04 = getTeamByLeaderEmail(Gd2SeedConstants.STU_EXT_LEADER_04);
-        Team team07 = getTeamByLeaderEmail(Gd2SeedConstants.STU_HCM_LEADER_07);
-        Team team08 = getTeamByLeaderEmail(Gd2SeedConstants.STU_HCM_LEADER_08);
-        Team team05 = getTeamByLeaderEmail(Gd2SeedConstants.STU_HCM_LEADER_05);
-        Team team09 = getTeamByLeaderEmail(Gd2SeedConstants.STU_EXT_LEADER_09);
-
-        if (team04 == null || team07 == null || team08 == null || team05 == null || team09 == null) return;
-
-        // Phục sinh Team 08 để làm kịch bản 3 bên
-        if (team08.getStatus() != TeamStatus.ACTIVE) {
-            team08.setStatus(TeamStatus.ACTIVE);
-            teamRepository.save(team08);
+        if (!devSeedProperties.isGd4Enabled()) {
+            log.debug("[Gd4TestDataSeeder] Bỏ qua — app.seed.gd4.enabled=false");
+            return;
         }
 
-        TeamRoundTrack trt04 = teamRoundTrackRepository.findByTeam_IdAndTrack_Round_Id(team04.getId(), prelim.getId()).orElseThrow();
-        Track track1 = trt04.getTrack();
+        var structure = seedHelper.ensureHackathonStructure(
+                GdExtendedSeedConstants.SLUG_GD4_TIEBREAK,
+                "SEAL GĐ4 Tiebreak & Wildcard",
+                HackathonStatus.ONGOING,
+                "Seed GĐ4 — đồng điểm tiebreak + wildcard (opt-in).",
+                new HackathonDevSeedHelper.PrelimState(false, true, false, false, 1, 3),
+                new HackathonDevSeedHelper.FinalState(false, false));
 
-        // === GOM TEAM 04, 07, 08 VÀO CHUNG BẢNG A ===
-        moveToGroup(team07, prelim, track1, "Bảng A");
-        moveToGroup(team08, prelim, track1, "Bảng A");
+        ensureGd4Teams(structure);
 
-        // === GOM TEAM 05, 09 VÀO CHUNG BẢNG B ===
+        Round prelim = structure.prelim();
+        Track track1 = structure.track1();
+        int hackathonId = structure.hackathon().getId();
+
+        Team team01 = teamByName(hackathonId, GdExtendedSeedConstants.GD4_TEAM_01);
+        Team team02 = teamByName(hackathonId, GdExtendedSeedConstants.GD4_TEAM_02);
+        Team team03 = teamByName(hackathonId, GdExtendedSeedConstants.GD4_TEAM_03);
+        Team team04 = teamByName(hackathonId, GdExtendedSeedConstants.GD4_TEAM_04);
+        Team team05 = teamByName(hackathonId, GdExtendedSeedConstants.GD4_TEAM_05);
+
+        moveToGroup(team02, prelim, track1, "Bảng A");
+        moveToGroup(team03, prelim, track1, "Bảng A");
+
+        moveToGroup(team04, prelim, track1, "Bảng B");
         moveToGroup(team05, prelim, track1, "Bảng B");
-        moveToGroup(team09, prelim, track1, "Bảng B");
 
         User judge1 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_JUDGE1).orElseThrow();
 
-        // === ĐỔ ĐIỂM: 3 ĐỘI BẢNG A ĐỒNG ĐIỂM TUYỆT ĐỐI 10.0 ===
-        upsertSubmissionAndScore(team04, prelim, track1, judge1, 10.0);
-        upsertSubmissionAndScore(team07, prelim, track1, judge1, 10.0);
-        upsertSubmissionAndScore(team08, prelim, track1, judge1, 10.0);
+        upsertSubmissionAndScore(team01, prelim, track1, judge1, 10.0);
+        upsertSubmissionAndScore(team02, prelim, track1, judge1, 10.0);
+        upsertSubmissionAndScore(team03, prelim, track1, judge1, 10.0);
 
-        // === ĐỔ ĐIỂM BẢNG B: TEAM 09 THẮNG, TEAM 05 ĐIỂM CAO NHƯNG RỚT ===
-        upsertSubmissionAndScore(team09, prelim, track1, judge1, 9.5);
-        upsertSubmissionAndScore(team05, prelim, track1, judge1, 9.0);
+        upsertSubmissionAndScore(team05, prelim, track1, judge1, 9.5);
+        upsertSubmissionAndScore(team04, prelim, track1, judge1, 9.0);
 
-        // Thiết lập luật: Chỉ lấy 1 đội, cần 3 đội vào CK -> Bảng A(1) + Bảng B(1) = 2 -> Vớt 1 đội (Team 05)
         prelim.setTopNAdvance(1);
         prelim.setMinTeamsFinal(3);
         prelim.setWildcardEnabled(true);
         prelim.setScoringLocked(true);
         prelim.setIsPublished(true);
+        prelim.setScoringLockedAt(LocalDateTime.now());
+        prelim.setPublishedAt(LocalDateTime.now());
         roundRepository.save(prelim);
 
-        log.info("[Gd4TestDataSeeder] Đã nhồi data test Tiebreak 3-way & Wildcard bằng UPSERT an toàn!");
+        log.info("[Gd4TestDataSeeder] Tiebreak/wildcard seed trên slug={} (app.seed.gd4.enabled=true)",
+                GdExtendedSeedConstants.SLUG_GD4_TIEBREAK);
     }
 
-    private Team getTeamByLeaderEmail(String email) {
-        User leader = userRepository.findByEmail(email).orElse(null);
-        if (leader == null) return null;
-        return teamRepository.findByLeader_Id(leader.getId()).stream().findFirst().orElse(null);
+    private void ensureGd4Teams(HackathonDevSeedHelper.HackathonStructure structure) {
+        if (teamRepository.existsByHackathon_IdAndTeamNameIgnoreCase(
+                structure.hackathon().getId(), GdExtendedSeedConstants.GD4_TEAM_01)) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        var hcm = seedHelper.requireChapter(Gd1SeedConstants.CHAPTER_FPT_HCM);
+        User coordinator = seedHelper.requireCoordinator();
+        String[] names = {
+                GdExtendedSeedConstants.GD4_TEAM_01,
+                GdExtendedSeedConstants.GD4_TEAM_02,
+                GdExtendedSeedConstants.GD4_TEAM_03,
+                GdExtendedSeedConstants.GD4_TEAM_04,
+                GdExtendedSeedConstants.GD4_TEAM_05
+        };
+        String[] emails = {
+                GdExtendedSeedConstants.GD4_STU_01,
+                GdExtendedSeedConstants.GD4_STU_02,
+                GdExtendedSeedConstants.GD4_STU_03,
+                GdExtendedSeedConstants.GD4_STU_04,
+                GdExtendedSeedConstants.GD4_STU_05
+        };
+        for (int i = 0; i < names.length; i++) {
+            User leader = seedHelper.upsertStudent(emails[i], "GD4 Leader " + (i + 1), hcm);
+            Team team = seedHelper.ensureActiveTeam(structure.hackathon(), names[i], leader, hcm, now);
+            seedHelper.ensureLottery(structure.hackathon(), structure.prelim(), structure.track1(),
+                    i < 3 ? "Bảng A" : "Bảng B", team, coordinator, now);
+        }
+    }
+
+    private Team teamByName(Integer hackathonId, String teamName) {
+        return teamRepository.findByHackathon_Id(hackathonId).stream()
+                .filter(t -> teamName.equals(t.getTeamName()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Thiếu team seed: " + teamName));
     }
 
     private void moveToGroup(Team team, Round round, Track track, String group) {
-        TeamRoundTrack trt = teamRoundTrackRepository.findByTeam_IdAndTrack_Round_Id(team.getId(), round.getId()).orElseThrow();
+        TeamRoundTrack trt = teamRoundTrackRepository.findByTeam_IdAndTrack_Round_Id(team.getId(), round.getId())
+                .orElseThrow();
         trt.setTrack(track);
         trt.setAssignedGroup(group);
         teamRoundTrackRepository.save(trt);
     }
 
-    // Hàm Update-or-Insert (UPSERT) tránh lỗi Foreign Key
     private void upsertSubmissionAndScore(Team team, Round round, Track track, User judge, double targetScore) {
         Submission sub = submissionRepository.findByRound_Id(round.getId()).stream()
                 .filter(s -> s.getTeam().getId().equals(team.getId()))
@@ -133,18 +165,16 @@ public class Gd4TestDataSeeder {
                     .track(track)
                     .status(SubmissionStatus.SUBMITTED)
                     .submittedAt(LocalDateTime.now())
-                    .repoUrl("https://github.com/test/" + team.getId())
+                    .repoUrl("https://github.com/test/gd4-" + team.getId())
                     .build());
         }
 
-        Criteria crit = criteriaRepository.findAll().stream()
-                .filter(c -> c.getTrack() != null && c.getTrack().getId().equals(track.getId()))
-                .findFirst().orElseThrow();
+        Criteria crit = criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(track.getId()).stream()
+                .findFirst()
+                .orElseThrow();
 
-        List<Score> existingScores = scoreRepository.findBySubmission_IdAndCriterion_IdAndScoreTypeAndIsFinal(
-                sub.getId(), crit.getId(), ScoreType.NORMAL, true);
-
-        if (existingScores.isEmpty()) {
+        if (scoreRepository.findBySubmission_IdAndCriterion_IdAndScoreTypeAndIsFinal(
+                sub.getId(), crit.getId(), ScoreType.NORMAL, true).isEmpty()) {
             scoreRepository.save(Score.builder()
                     .submission(sub)
                     .criterion(crit)
@@ -155,7 +185,8 @@ public class Gd4TestDataSeeder {
                     .scoredAt(LocalDateTime.now())
                     .build());
         } else {
-            Score score = existingScores.get(0);
+            Score score = scoreRepository.findBySubmission_IdAndCriterion_IdAndScoreTypeAndIsFinal(
+                    sub.getId(), crit.getId(), ScoreType.NORMAL, true).get(0);
             score.setScoreValue((float) targetScore);
             scoreRepository.save(score);
         }

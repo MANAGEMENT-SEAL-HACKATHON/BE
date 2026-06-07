@@ -279,7 +279,9 @@ public class Gd1DataSeeder {
         LocalDateTime kickoffEnd = LocalDate.of(2026, 6, 7).atTime(17, 0);
         LocalDateTime awardsStart = eventEnd.atTime(17, 30);
         LocalDateTime awardsEnd = eventEnd.atTime(19, 0);
-        LocalDateTime prelimDeadline = eventStart.atTime(11, 30);
+        LocalDateTime prelimExamAt = eventStart.atTime(8, 0);
+        int prelimHours = RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS;
+        LocalDateTime prelimDeadline = RoundScheduleSeedUtil.submissionDeadline(prelimExamAt, prelimHours);
         LocalDateTime finalDeadline = eventStart.atTime(16, 30);
         return new SeedDates(
                 regStart,
@@ -310,7 +312,9 @@ public class Gd1DataSeeder {
         LocalDateTime kickoffEnd = LocalDate.of(2025, 10, 23).atTime(17, 0);
         LocalDateTime awardsStart = eventEnd.atTime(17, 30);
         LocalDateTime awardsEnd = eventEnd.atTime(19, 0);
-        LocalDateTime prelimDeadline = eventStart.atTime(12, 0);
+        LocalDateTime prelimExamAt = eventStart.atTime(8, 0);
+        int prelimHours = RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS;
+        LocalDateTime prelimDeadline = RoundScheduleSeedUtil.submissionDeadline(prelimExamAt, prelimHours);
         LocalDateTime finalDeadline = eventStart.atTime(16, 30);
         return new SeedDates(
                 regStart,
@@ -1028,14 +1032,22 @@ public class Gd1DataSeeder {
                     round.setExamAt(targetExam);
                     changed = true;
                 }
-                if (round.getSubmissionOpen() == null
-                        || !round.getSubmissionOpen().equals(dates.prelimSubmissionOpen())) {
-                    round.setSubmissionOpen(dates.prelimSubmissionOpen());
+                int hours = round.getCodingDurationHours() != null && round.getCodingDurationHours() > 0
+                        ? round.getCodingDurationHours()
+                        : RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS;
+                LocalDateTime exam = round.getExamAt();
+                LocalDateTime expectedOpen = RoundScheduleSeedUtil.submissionOpen(exam, hours);
+                LocalDateTime expectedDeadline = RoundScheduleSeedUtil.submissionDeadline(exam, hours);
+                if (round.getCodingDurationHours() == null) {
+                    round.setCodingDurationHours(hours);
                     changed = true;
                 }
-                if (round.getSubmissionDeadline() == null
-                        || !round.getSubmissionDeadline().equals(dates.prelimDeadline())) {
-                    round.setSubmissionDeadline(dates.prelimDeadline());
+                if (round.getSubmissionOpen() == null || !round.getSubmissionOpen().equals(expectedOpen)) {
+                    round.setSubmissionOpen(expectedOpen);
+                    changed = true;
+                }
+                if (round.getSubmissionDeadline() == null || !round.getSubmissionDeadline().equals(expectedDeadline)) {
+                    round.setSubmissionDeadline(expectedDeadline);
                     changed = true;
                 }
             }
@@ -1107,18 +1119,20 @@ public class Gd1DataSeeder {
             return eventStart.atTime(8, 0);
         }
 
-        /** Ngày giờ thi chung kết — cùng ngày thi, sau sơ loại. */
+        /** Ngày giờ thi chung kết — sau khi Sơ loại kết thúc (examAt + codingDurationHours). */
         LocalDateTime finalExamAt() {
-            return eventStart.atTime(13, 0);
+            return RoundScheduleSeedUtil.minFinalExamAt(
+                    prelimExamAt(), RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS);
         }
 
-        /** Mở nộp bài sơ loại — sau examAt sơ loại. */
+        /** Mở nộp bài sơ loại — examAt + 2/3 codingDurationHours (khớp API). */
         LocalDateTime prelimSubmissionOpen() {
-            return eventStart.atTime(9, 0);
+            return RoundScheduleSeedUtil.submissionOpen(
+                    prelimExamAt(), RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS);
         }
 
         LocalDateTime finalSubmissionOpen() {
-            return eventStart.atTime(14, 0);
+            return finalExamAt();
         }
     }
 
