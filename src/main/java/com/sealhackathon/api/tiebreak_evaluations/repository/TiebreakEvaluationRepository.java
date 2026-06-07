@@ -16,4 +16,7 @@ public interface TiebreakEvaluationRepository extends JpaRepository<TiebreakEval
 
     Optional<TiebreakEvaluation> findByRound_IdAndTeam_IdAndJudge_Id(
             Integer roundId, Integer teamId, Integer judgeId);
+
+    // Dùng để xóa các vote cũ của cùng HEAD Judge trong cùng một Round trước khi lưu vote mới
+    void deleteByRound_IdAndJudge_IdAndIsCastingVoteTrue(Integer roundId, Integer judgeId);
 }
