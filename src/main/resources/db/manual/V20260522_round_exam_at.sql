@@ -1,5 +1,5 @@
 -- Migration rounds: sequence_order → exam_at
--- Chạy THỦ CÔNG nếu app không start được (ddl-auto) HOẶC để app tự chạy RoundExamAtSchemaMigration sau khi Hibernate thêm cột nullable.
+-- Chạy THỦ CÔNG nếu app không start được (ddl-auto); hoặc để Hibernate thêm cột nullable rồi backfill qua seed/SQL.
 
 -- Bước 1: thêm cột NULL (không NOT NULL — tránh '0000-00-00' trên row cũ)
 ALTER TABLE rounds ADD COLUMN exam_at DATETIME(6) NULL;

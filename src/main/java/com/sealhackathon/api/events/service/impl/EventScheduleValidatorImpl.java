@@ -31,7 +31,8 @@ import java.util.Map;
 /**
  * FR-06A validator 3 lớp.
  *
- * <p>Milestone: WORKSHOP → KICKOFF → AWARDS. PRESENTATION không còn là milestone —
+ * <p>POST order: KICKOFF → WORKSHOP → AWARDS (KICKOFF làm gốc). Trên lịch: WORKSHOP → KICKOFF → AWARDS.
+ * PRESENTATION không còn là milestone —
  * validate như event phụ (OTHER) trong [eventStart, eventEnd].
  *
  * <p>Hackathon → Round → Track/Criteria. Event thuộc Hackathon, không ràng buộc chéo validation với Round qua validator này.

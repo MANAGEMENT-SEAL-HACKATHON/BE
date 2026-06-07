@@ -813,12 +813,12 @@ public class Gd1DataSeeder {
 
     private void seedEvents(Hackathon hackathon, User createdBy, SeedDates dates) {
         List<Event> events = new ArrayList<>();
-        events.add(event(hackathon, createdBy, "Workshop: RAG & AI Agent Fundamentals",
-                EventType.WORKSHOP, "Online (Teams)",
-                dates.workshopStart(), dates.workshopEnd()));
         events.add(event(hackathon, createdBy, "Lễ Khai mạc & Bốc thăm chia Track",
                 EventType.KICKOFF, "FPT HCM — Hội trường A",
                 dates.kickoffStart(), dates.kickoffEnd()));
+        events.add(event(hackathon, createdBy, "Workshop: RAG & AI Agent Fundamentals",
+                EventType.WORKSHOP, "Online (Teams)",
+                dates.workshopStart(), dates.workshopEnd()));
         events.add(event(hackathon, createdBy, "Vòng Chung kết & Trao giải",
                 EventType.AWARDS, "FPT HCM — Hội trường A",
                 dates.awardsStart(), dates.awardsEnd()));
@@ -938,18 +938,18 @@ public class Gd1DataSeeder {
             if (createdBy == null) {
                 return updated;
             }
-            if (!hasWorkshop) {
-                eventRepository.save(event(hackathon, createdBy,
-                        "Workshop: RAG & AI Agent Fundamentals",
-                        EventType.WORKSHOP, "Online (Teams)",
-                        dates.workshopStart(), dates.workshopEnd()));
-                updated++;
-            }
             if (!hasKickoff) {
                 eventRepository.save(event(hackathon, createdBy,
                         "Lễ Khai mạc & Bốc thăm chia Track",
                         EventType.KICKOFF, "FPT HCM — Hội trường A",
                         dates.kickoffStart(), dates.kickoffEnd()));
+                updated++;
+            }
+            if (!hasWorkshop) {
+                eventRepository.save(event(hackathon, createdBy,
+                        "Workshop: RAG & AI Agent Fundamentals",
+                        EventType.WORKSHOP, "Online (Teams)",
+                        dates.workshopStart(), dates.workshopEnd()));
                 updated++;
             }
             if (!hasAwards) {

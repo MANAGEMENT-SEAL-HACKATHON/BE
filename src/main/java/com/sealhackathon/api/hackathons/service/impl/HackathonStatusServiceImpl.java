@@ -16,6 +16,7 @@ import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.service.HackathonReadinessService;
 import com.sealhackathon.api.hackathons.service.HackathonStatusService;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
+import com.sealhackathon.api.hackathons.value_object.ReadinessTarget;
 import com.sealhackathon.api.notifications.service.NotificationService;
 import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
@@ -77,7 +78,7 @@ public class HackathonStatusServiceImpl implements HackathonStatusService {
         }
 
         if (to == HackathonStatus.ONGOING) {
-            HackathonReadinessResponse readiness = readinessService.check(hackathonId, HackathonStatus.ONGOING);
+            HackathonReadinessResponse readiness = readinessService.check(hackathonId, ReadinessTarget.ONGOING);
             if (!readiness.isReady()) {
                 throw new BusinessRuleException(ErrorCode.READINESS_NOT_PASSED,
                         "Hackathon chưa sẵn sàng chuyển ONGOING (%d blocker)"

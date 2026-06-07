@@ -5,12 +5,15 @@ import com.sealhackathon.api.common.security.CoordinatorOnly;
 import com.sealhackathon.api.common.security.StudentOnly;
 import com.sealhackathon.api.common.security.SubmissionListAccess;
 import com.sealhackathon.api.config.OpenApiConfig;
+import com.sealhackathon.api.submissions.dto.request.RejectLateSubmissionRequest;
 import com.sealhackathon.api.submissions.dto.request.ResubmitSubmissionRequest;
 import com.sealhackathon.api.submissions.dto.request.ReviewLateSubmissionRequest;
 import com.sealhackathon.api.submissions.dto.request.ReviewSubmissionRequest;
 import com.sealhackathon.api.submissions.dto.request.SubmitSubmissionRequest;
 import com.sealhackathon.api.submissions.dto.response.SubmissionResponse;
 import com.sealhackathon.api.submissions.service.SubmissionService;
+import com.sealhackathon.api.submissions.value_object.LateReviewDecision;
+import com.sealhackathon.api.submissions.value_object.SubmissionStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -49,8 +52,9 @@ public class SubmissionController {
     @Operation(summary = "Danh sách bài nộp theo team/round")
     public ResponseEntity<ApiResponse<List<SubmissionResponse>>> list(
             @RequestParam(required = false) Integer teamId,
-            @RequestParam(required = false) Integer roundId) {
-        return ResponseEntity.ok(ApiResponse.ok(submissionService.list(teamId, roundId)));
+            @RequestParam(required = false) Integer roundId,
+            @RequestParam(required = false) SubmissionStatus status) {
+        return ResponseEntity.ok(ApiResponse.ok(submissionService.list(teamId, roundId, status)));
     }
 
     @Deprecated
@@ -70,6 +74,27 @@ public class SubmissionController {
             @PathVariable Integer id,
             @Valid @RequestBody ReviewLateSubmissionRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(submissionService.reviewLate(id, req)));
+    }
+
+    @PatchMapping("/{id}/approve")
+    @CoordinatorOnly
+    @Operation(summary = "GĐ3 — Alias duyệt bài nộp trễ")
+    public ResponseEntity<ApiResponse<SubmissionResponse>> approveLate(@PathVariable Integer id) {
+        return ResponseEntity.ok(ApiResponse.ok(submissionService.reviewLate(id,
+                ReviewLateSubmissionRequest.builder().decision(LateReviewDecision.APPROVE).build())));
+    }
+
+    @PatchMapping("/{id}/reject")
+    @CoordinatorOnly
+    @Operation(summary = "GĐ3 — Alias từ chối bài nộp trễ")
+    public ResponseEntity<ApiResponse<SubmissionResponse>> rejectLate(
+            @PathVariable Integer id,
+            @Valid @RequestBody RejectLateSubmissionRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(submissionService.reviewLate(id,
+                ReviewLateSubmissionRequest.builder()
+                        .decision(LateReviewDecision.REJECT)
+                        .note(req.getReason())
+                        .build())));
     }
 
     @Deprecated

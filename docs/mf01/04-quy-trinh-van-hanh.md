@@ -352,8 +352,9 @@ PRESENTATION (tùy chọn — không milestone, trong `[eventStart, eventEnd]`).
 ### Ràng buộc nhanh (Lớp 3 — block)
 
 - WORKSHOP / KICKOFF / AWARDS: **bắt buộc `endsAt`** (milestone)
-- WORKSHOP **kết thúc** trước KICKOFF **bắt đầu**; WS/KO **khác ngày**
-- KICKOFF trong gap `(registrationEnd, eventStart)` — **không** trùng `eventStart`
+- **POST:** KICKOFF → WORKSHOP → AWARDS (WORKSHOP cần đã có KICKOFF trong DB)
+- **Lịch:** WORKSHOP **kết thúc** trước KICKOFF **bắt đầu**; KO/WS **khác ngày**
+- WS/KO trong gap `(registrationEnd, eventStart)` — **không** trùng `eventStart`
 - KICKOFF **kết thúc** trước AWARDS **bắt đầu**
 - `round.examAt`: sau `KICKOFF.endsAt`; trong `[eventStart, eventEnd]`; `examAt` **trước** `submissionOpen`
 - Hạn CK **&lt;** `AWARDS.startsAt`; tạo AWARDS: `startsAt` **&gt;** hạn CK (strict, vd 16:31 sau 16:30)  
@@ -417,7 +418,7 @@ Thứ tự tối thiểu sau khi có `hackathonId`, `prelimRoundId`, `finalRound
 5. `POST /rounds/{finalId}/criteria` — tổng weight=1
 6. `POST /users/temp-judges` (tuỳ chọn)
 7. `POST /mentor-assignments`, `POST /judge-assignments` (tuỳ chọn cho gate; mentor thiếu = warning)
-8. `POST /hackathons/{id}/events` ×3 (WORKSHOP → KICKOFF → AWARDS)
+8. `POST /hackathons/{id}/events` ×2 tối thiểu (KICKOFF → WORKSHOP); AWARDS ở GĐ6
 9. `GET /hackathons/{id}/readiness?target=ONGOING`
 10. `PATCH /hackathons/{id}/status` `{ "status": "ONGOING" }`
 
@@ -455,5 +456,5 @@ Thứ tự tối thiểu sau khi có `hackathonId`, `prelimRoundId`, `finalRound
 
 **Nguồn sự thật (timeline v3.3 trên nhánh `dev`):** [../workflow/mf01-gd1-timeline-events.md](../workflow/mf01-gd1-timeline-events.md)
 
-Tóm tắt: hackathon 1 ngày thi (seed 10/06/2026); WORKSHOP + KICKOFF trong gap đăng ký (WS/KO khác ngày); milestone WS → KO → AWARDS; `examAt` trước `submissionOpen`; hạn CK **&lt;** `AWARDS.startsAt` (strict).
+Tóm tắt: hackathon 1 ngày thi (seed 10/06/2026); WS + KO trong gap đăng ký (lịch WS→KO, khác ngày); POST KO→WS→AWARDS (AWARDS không blocker ONGOING); `examAt` trước `submissionOpen`; hạn CK **&lt;** `AWARDS.startsAt` (strict).
 

@@ -3,9 +3,12 @@ package com.sealhackathon.api.me.mentor.service.impl;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.events.repository.PresentationSlotRepository;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
+import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.me.mentor.dto.response.*;
 import com.sealhackathon.api.me.mentor.service.MentorPortalService;
 import com.sealhackathon.api.me.support.MentorAccessGuard;
+import com.sealhackathon.api.presentation.support.PresentationSlotHelper;
+import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.mentor_assignments.entity.MentorAssignment;
 import com.sealhackathon.api.mentor_assignments.repository.MentorAssignmentRepository;
 import com.sealhackathon.api.mentor_team_assignments.entity.MentorTeamAssignment;
@@ -16,9 +19,11 @@ import com.sealhackathon.api.submissions.repository.SubmissionRepository;
 import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.teams.repository.TeamRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -58,6 +63,95 @@ public class MentorPortalServiceImpl implements MentorPortalService {
                         .trackName(ma.getTrack().getName())
                         .build())
                 .toList();
+    }
+
+    @Override
+    public List<MentorRoundResponse> getMentorRounds() {
+        Integer mentorId = currentUserAccessor.currentUserId();
+        List<MentorTeamAssignment> assignments = mentorTeamAssignmentRepository.findByMentor_Id(mentorId);
+        Integer hackathonId = null;
+
+        if (!assignments.isEmpty()) {
+            hackathonId = assignments.get(0).getHackathon().getId();
+        } else {
+            var ongoingPage = hackathonRepository.search(
+                    HackathonStatus.ONGOING, null, null, null, PageRequest.of(0, 1));
+            if (ongoingPage.hasContent()) {
+                hackathonId = ongoingPage.getContent().get(0).getId();
+            }
+        }
+        if (hackathonId == null) {
+            return Collections.emptyList();
+        }
+
+        List<Round> rounds = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathonId);
+        return rounds.stream()
+                .map(r -> {
+                    List<MentorTeamAssignment> roundAssignments = assignments.stream()
+                            .filter(a -> a.getRound().getId().equals(r.getId()))
+                            .toList();
+
+                    List<MentorRoundResponse.TeamInfo> teamInfos = roundAssignments.stream()
+                            .map(a -> MentorRoundResponse.TeamInfo.builder()
+                                    .teamId(a.getTeam().getId())
+                                    .teamName(a.getTeam().getTeamName())
+                                    .build())
+                            .toList();
+
+                    String status = resolveRoundStatus(r, roundAssignments);
+                    String desc = resolveRoundDescription(r, status);
+
+                    return MentorRoundResponse.builder()
+                            .roundId(r.getId())
+                            .roundName(r.getName())
+                            .status(status)
+                            .description(desc)
+                            .teamCount(teamInfos.size())
+                            .teams(teamInfos)
+                            .build();
+                })
+                .toList();
+    }
+
+    @Override
+    public MentorAssignedTeamsResponse getAssignedTeamsForRound(Integer roundId) {
+        Integer mentorId = currentUserAccessor.currentUserId();
+        Round round = roundRepository.findById(roundId)
+                .orElseThrow(() -> new com.sealhackathon.api.common.exception.ResourceNotFoundException("Round", roundId));
+
+        List<MentorTeamAssignment> assignments =
+                mentorTeamAssignmentRepository.findByMentor_IdAndRound_Id(mentorId, roundId);
+
+        List<MentorAssignedTeamsResponse.TeamItem> teams = assignments.stream()
+                .map(mta -> {
+                    var trtOpt = teamRoundTrackRepository.findByTeam_IdAndTrack_Round_Id(
+                            mta.getTeam().getId(), roundId);
+                    var slotOpt = presentationSlotRepository.findByRound_IdAndTeam_Id(
+                            roundId, mta.getTeam().getId());
+                    var trt = trtOpt.orElse(null);
+                    var slot = slotOpt.orElse(null);
+
+                    LocalDateTime start = PresentationSlotHelper.resolveStart(trt, slot);
+                    LocalDateTime end = PresentationSlotHelper.resolveEnd(trt, slot);
+
+                    return MentorAssignedTeamsResponse.TeamItem.builder()
+                            .teamId(mta.getTeam().getId())
+                            .teamName(mta.getTeam().getTeamName())
+                            .groupNumber(trt != null
+                                    ? PresentationSlotHelper.parseGroupNumber(trt.getAssignedGroup())
+                                    : 1)
+                            .status(mta.getTeam().getStatus().name())
+                            .presentationSchedule(PresentationSlotHelper.formatSchedule(start, end))
+                            .location(PresentationSlotHelper.resolveLocation(trt, slot))
+                            .build();
+                })
+                .toList();
+
+        return MentorAssignedTeamsResponse.builder()
+                .roundName(round.getName())
+                .roundStatus(resolveRoundStatus(round, assignments))
+                .teams(teams)
+                .build();
     }
 
     @Override
@@ -301,5 +395,28 @@ public class MentorPortalServiceImpl implements MentorPortalService {
                 .toList();
 
         return MentorHistoryResponse.builder().items(items).build();
+    }
+
+    private static String resolveRoundStatus(Round round, List<MentorTeamAssignment> roundAssignments) {
+        if (!roundAssignments.isEmpty()) {
+            return "ACTIVE";
+        }
+        if (Boolean.TRUE.equals(round.getIsActive())) {
+            return "ACTIVE";
+        }
+        if (Boolean.TRUE.equals(round.getScoringLocked())) {
+            return "ENDED";
+        }
+        return "UPCOMING";
+    }
+
+    private static String resolveRoundDescription(Round round, String status) {
+        if ("ACTIVE".equals(status)) {
+            return "Vòng đấu loại trực tiếp của dự án SEAL Hackathon. Hạn nộp bài đang diễn ra.";
+        }
+        if (Boolean.TRUE.equals(round.getIsFinal())) {
+            return "Chung kết xếp hạng và thuyết trình trực tiếp trước hội đồng giám khảo.";
+        }
+        return "Vòng bán kết đánh giá dự án thực tế. Sắp diễn ra.";
     }
 }

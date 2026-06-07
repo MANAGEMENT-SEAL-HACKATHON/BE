@@ -1,6 +1,7 @@
 package com.sealhackathon.api.submissions.repository;
 
 import com.sealhackathon.api.submissions.entity.Submission;
+import com.sealhackathon.api.submissions.value_object.SubmissionStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -33,4 +34,8 @@ public interface SubmissionRepository extends JpaRepository<Submission, Integer>
                 OR (s.track IS NOT NULL AND s.track.round.id = :roundId)
             """)
     long countByRoundId(@Param("roundId") Integer roundId);
+
+    List<Submission> findByStatus(SubmissionStatus status);
+
+    List<Submission> findByStatusAndRound_Id(SubmissionStatus status, Integer roundId);
 }

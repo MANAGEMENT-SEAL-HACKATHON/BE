@@ -47,6 +47,33 @@
 ]
 ```
 
+### GET `/me/rounds/current/deadline` (GĐ3)
+
+```json
+{
+  "roundId": 12,
+  "deadline": "2026-06-07T15:00:00"
+}
+```
+
+### GET `/me/submission?teamId=&roundId=` (GĐ3)
+
+```json
+{
+  "submissionId": 15,
+  "roundId": 12,
+  "repoUrl": "https://github.com/org/repo",
+  "demoUrl": "https://demo.example.com",
+  "slideUrl": "https://docs.google.com/presentation/d/abc",
+  "status": "ON_TIME",
+  "submittedAt": "2026-06-07T10:00:00"
+}
+```
+
+### GET `/me/teams/{teamId}/submissions?roundId=` (GĐ3)
+
+Danh sách bài nộp theo đội (cùng schema như trên, mảng).
+
 ### GET `/me/rounds/{roundId}/problem`
 
 ```json

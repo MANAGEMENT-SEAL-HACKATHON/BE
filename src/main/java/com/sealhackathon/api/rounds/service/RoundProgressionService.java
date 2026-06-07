@@ -7,6 +7,7 @@ import com.sealhackathon.api.rounds.dto.request.ReleaseProblemRequest;
 import com.sealhackathon.api.rounds.dto.request.ResolveTiebreakRequest;
 import com.sealhackathon.api.rounds.dto.request.WildcardDecisionRequest;
 import com.sealhackathon.api.rounds.dto.response.AdvanceTeamsResponse;
+import com.sealhackathon.api.rounds.dto.response.AssignFinalJudgesResult;
 import com.sealhackathon.api.rounds.dto.response.FinalJudgeAssignmentResponse;
 import com.sealhackathon.api.rounds.dto.response.LockScoringResult;
 import com.sealhackathon.api.rounds.dto.response.RoundRankingItemResponse;
@@ -54,7 +55,7 @@ public interface RoundProgressionService {
 
     WildcardReviewResponse decideWildcardReview(Integer reviewId, WildcardReviewDecisionRequest req);
 
-    FinalJudgeAssignmentResponse assignFinalJudges(Integer roundId, AssignFinalJudgesRequest req);
+    AssignFinalJudgesResult assignFinalJudges(Integer roundId, AssignFinalJudgesRequest req);
 
     RoundScoreboardResponse scoreboard(Integer roundId);
 }

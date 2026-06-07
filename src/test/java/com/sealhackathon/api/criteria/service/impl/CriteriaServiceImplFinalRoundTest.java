@@ -9,7 +9,7 @@ import com.sealhackathon.api.criteria.service.WeightSummaryService;
 import com.sealhackathon.api.criteria.value_object.CriteriaType;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
-import com.sealhackathon.api.scores.repository.ScorePlaceholderRepository;
+import com.sealhackathon.api.scores.repository.ScoreRepository;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,7 +36,7 @@ class CriteriaServiceImplFinalRoundTest {
     @Mock private CriteriaMapper criteriaMapper;
     @Mock private AuditService auditService;
     @Mock private WeightSummaryService weightSummaryService;
-    @Mock private ScorePlaceholderRepository scoreRepository;
+    @Mock private ScoreRepository scoreRepository;
 
     @InjectMocks
     private CriteriaServiceImpl criteriaService;

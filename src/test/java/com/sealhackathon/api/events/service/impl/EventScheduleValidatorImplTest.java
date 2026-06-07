@@ -35,7 +35,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 /**
- * Milestone chain: WORKSHOP → KICKOFF → AWARDS.
+ * POST order: KICKOFF → WORKSHOP → AWARDS. Trên lịch: WORKSHOP → KICKOFF → AWARDS.
  * PRESENTATION không còn là milestone — validate như event phụ trong [eventStart, eventEnd].
  */
 @ExtendWith(MockitoExtension.class)
@@ -50,11 +50,12 @@ class EventScheduleValidatorImplTest {
 
     @BeforeEach
     void setUp() {
-        WorkshopWindowRule workshop = new WorkshopWindowRule();
+        WorkshopWindowRule workshop = new WorkshopWindowRule(eventRepository);
         KickoffWindowRule kickoff = new KickoffWindowRule();
         AwardsWindowRule awards = new AwardsWindowRule();
         validator = new EventScheduleValidatorImpl(eventRepository, roundRepository, workshop, kickoff, awards);
         validator.initRules();
+        when(roundRepository.findPreliminaryLikeByHackathonId(1)).thenReturn(Collections.emptyList());
 
         hackathon = Hackathon.builder()
                 .id(1)
@@ -106,13 +107,30 @@ class EventScheduleValidatorImplTest {
 
     @Test
     void workshop_inGapAfterRegEndBeforeEventStart_isAllowed() {
+        when(eventRepository.findByHackathonIdAndType(1, EventType.KICKOFF))
+                .thenReturn(List.of(kickoffEvent(5,
+                        LocalDateTime.of(2026, 4, 11, 14, 0),
+                        LocalDateTime.of(2026, 4, 11, 17, 0))));
         assertDoesNotThrow(() -> validator.validateBlocking(hackathon,
                 workshop(LocalDateTime.of(2026, 4, 9, 20, 0),
                         LocalDateTime.of(2026, 4, 9, 21, 30)), 0));
     }
 
     @Test
+    void workshop_withoutKickoff_isBlocked() {
+        assertEquals(ErrorCode.EVENT_OUT_OF_HACKATHON,
+                assertThrows(BusinessRuleException.class,
+                        () -> validator.validateBlocking(hackathon,
+                                workshop(LocalDateTime.of(2026, 4, 10, 20, 0),
+                                        LocalDateTime.of(2026, 4, 10, 21, 30)), 0)).getCode());
+    }
+
+    @Test
     void workshop_onRegistrationEndDay_isBlocked() {
+        when(eventRepository.findByHackathonIdAndType(1, EventType.KICKOFF))
+                .thenReturn(List.of(kickoffEvent(5,
+                        LocalDateTime.of(2026, 4, 11, 14, 0),
+                        LocalDateTime.of(2026, 4, 11, 17, 0))));
         assertEquals(ErrorCode.EVENT_OUT_OF_HACKATHON,
                 assertThrows(BusinessRuleException.class,
                         () -> validator.validateBlocking(hackathon,
@@ -122,6 +140,10 @@ class EventScheduleValidatorImplTest {
 
     @Test
     void workshop_onEventStartDay_isBlocked() {
+        when(eventRepository.findByHackathonIdAndType(1, EventType.KICKOFF))
+                .thenReturn(List.of(kickoffEvent(5,
+                        LocalDateTime.of(2026, 4, 11, 14, 0),
+                        LocalDateTime.of(2026, 4, 11, 17, 0))));
         assertEquals(ErrorCode.EVENT_OUT_OF_HACKATHON,
                 assertThrows(BusinessRuleException.class,
                         () -> validator.validateBlocking(hackathon,
@@ -257,7 +279,7 @@ class EventScheduleValidatorImplTest {
         assertDoesNotThrow(() -> validator.validateBlocking(hackathon, req, 0));
     }
 
-    // ------------ LAYER 3 (WORKSHOP → KICKOFF → AWARDS) ------------
+    // ------------ LAYER 3 (lịch: WORKSHOP → KICKOFF → AWARDS) ------------
 
     @Test
     void kickoff_beforeAwardsStart_layer3_passes() {
@@ -273,16 +295,16 @@ class EventScheduleValidatorImplTest {
 
     @Test
     void workshopAndKickoff_sameCalendarDay_blocked() {
-        when(eventRepository.findByHackathonIdAndType(1, EventType.WORKSHOP))
-                .thenReturn(List.of(Event.builder().id(5).type(EventType.WORKSHOP)
-                        .startsAt(LocalDateTime.of(2026, 4, 9, 20, 0))
-                        .endsAt(LocalDateTime.of(2026, 4, 9, 21, 30)).build()));
+        when(eventRepository.findByHackathonIdAndType(1, EventType.KICKOFF))
+                .thenReturn(List.of(kickoffEvent(5,
+                        LocalDateTime.of(2026, 4, 10, 14, 0),
+                        LocalDateTime.of(2026, 4, 10, 17, 0))));
 
         assertEquals(ErrorCode.EVENT_ORDER_VIOLATION,
                 assertThrows(BusinessRuleException.class,
                         () -> validator.validateBlocking(hackathon,
-                                kickoff(LocalDateTime.of(2026, 4, 9, 14, 0),
-                                        LocalDateTime.of(2026, 4, 9, 17, 0)), 0)).getCode());
+                                workshop(LocalDateTime.of(2026, 4, 10, 20, 0),
+                                        LocalDateTime.of(2026, 4, 10, 21, 30)), 0)).getCode());
     }
 
     @Test

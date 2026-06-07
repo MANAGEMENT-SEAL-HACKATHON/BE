@@ -30,6 +30,19 @@ public class MentorMeController {
         return ResponseEntity.ok(ApiResponse.ok(mentorPortalService.listTrackAssignments()));
     }
 
+    @GetMapping("/mentor/rounds")
+    @Operation(summary = "GĐ3 — Danh sách vòng thi của mentor")
+    public ResponseEntity<ApiResponse<List<MentorRoundResponse>>> mentorRounds() {
+        return ResponseEntity.ok(ApiResponse.ok(mentorPortalService.getMentorRounds()));
+    }
+
+    @GetMapping("/mentor/rounds/{roundId}/assigned-teams")
+    @Operation(summary = "GĐ3 — Đội được phân công theo vòng (enriched)")
+    public ResponseEntity<ApiResponse<MentorAssignedTeamsResponse>> assignedTeams(
+            @PathVariable Integer roundId) {
+        return ResponseEntity.ok(ApiResponse.ok(mentorPortalService.getAssignedTeamsForRound(roundId)));
+    }
+
     @GetMapping("/mentor-team-assignments")
     @Operation(summary = "FR-M-06 — Phân công đội")
     public ResponseEntity<ApiResponse<List<MentorTeamAssignmentResponse>>> teamAssignments(

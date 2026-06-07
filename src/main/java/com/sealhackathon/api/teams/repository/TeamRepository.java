@@ -20,6 +20,8 @@ public interface TeamRepository extends JpaRepository<Team, Integer> {
 
     boolean existsByHackathon_IdAndTeamNameIgnoreCase(Integer hackathonId, String teamName);
 
+    Optional<Team> findByHackathon_IdAndTeamNameIgnoreCase(Integer hackathonId, String teamName);
+
     long countByHackathon_IdAndStatusIn(Integer hackathonId, Collection<TeamStatus> statuses);
 
     @Query("""

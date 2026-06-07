@@ -153,6 +153,7 @@ public class HackathonDevSeedHelper {
                 Gd1SeedConstants.SLUG_ONGOING,
                 Gd1SeedConstants.SLUG_FINISHED,
                 GdExtendedSeedConstants.SLUG_GD3_PRELIM_OPEN,
+                GdExtendedSeedConstants.SLUG_GD4_ADVANCE_READY,
                 GdExtendedSeedConstants.SLUG_GD4_TIEBREAK,
                 GdExtendedSeedConstants.SLUG_GD5_FINAL_ACTIVE,
                 GdExtendedSeedConstants.SLUG_GD6_PENDING_CONFIRM
@@ -657,20 +658,102 @@ public class HackathonDevSeedHelper {
                 .build());
     }
 
-    private void ensureMinimalEvents(Hackathon hackathon, User coordinator, SeedDates dates) {
-        if (!eventRepository.findByHackathonIdOrderByStartsAtAsc(hackathon.getId()).isEmpty()) {
-            return;
+    /**
+     * Milestone đủ KO+WS+AWARDS; lịch WS → KO (gap sau regEnd, trước eventStart).
+     */
+    @Transactional
+    public int repairAllDevHackathonMilestoneEvents() {
+        List<String> slugs = List.of(
+                Gd1SeedConstants.SLUG_INCOMPLETE,
+                Gd1SeedConstants.SLUG_READY,
+                Gd1SeedConstants.SLUG_ONGOING,
+                Gd1SeedConstants.SLUG_FINISHED,
+                GdExtendedSeedConstants.SLUG_GD3_PRELIM_OPEN,
+                GdExtendedSeedConstants.SLUG_GD4_ADVANCE_READY,
+                GdExtendedSeedConstants.SLUG_GD4_TIEBREAK,
+                GdExtendedSeedConstants.SLUG_GD5_FINAL_ACTIVE,
+                GdExtendedSeedConstants.SLUG_GD6_PENDING_CONFIRM);
+        int fixed = 0;
+        for (String slug : slugs) {
+            Optional<Hackathon> maybe = hackathonRepository.findBySlug(slug);
+            if (maybe.isEmpty() || Gd1SeedConstants.SLUG_INCOMPLETE.equals(slug)) {
+                continue;
+            }
+            fixed += ensureMilestoneEvents(maybe.get(), requireCoordinator());
         }
-        LocalDateTime ws = dates.eventStart().minusDays(5).atTime(20, 0);
-        eventRepository.save(Event.builder()
-                .hackathon(hackathon)
-                .title("Seed Workshop")
-                .type(EventType.WORKSHOP)
-                .location("Online")
-                .startsAt(ws)
-                .endsAt(ws.plusHours(2))
-                .isPublic(true)
-                .createdBy(coordinator)
-                .build());
+        if (fixed > 0) {
+            log.info("[HackathonDevSeedHelper] Repair milestone events: {} thay đổi", fixed);
+        }
+        return fixed;
+    }
+
+    private int ensureMilestoneEvents(Hackathon hackathon, User coordinator) {
+        LocalDate regEnd = hackathon.getRegistrationEnd();
+        LocalDate eventStart = hackathon.getEventStart();
+        LocalDate eventEnd = hackathon.getEventEnd() != null ? hackathon.getEventEnd() : eventStart;
+        if (regEnd == null || eventStart == null) {
+            return 0;
+        }
+        LocalDate wsDay = regEnd.plusDays(1);
+        LocalDate koDay = regEnd.plusDays(2);
+        if (!koDay.isBefore(eventStart)) {
+            koDay = eventStart.minusDays(1);
+            wsDay = koDay.minusDays(1);
+        }
+        LocalDateTime wsStart = wsDay.atTime(20, 0);
+        LocalDateTime wsEnd = wsDay.atTime(21, 30);
+        LocalDateTime koStart = koDay.atTime(14, 0);
+        LocalDateTime koEnd = koDay.atTime(17, 0);
+        LocalDateTime awardsStart = eventEnd.atTime(17, 30);
+        LocalDateTime awardsEnd = eventEnd.atTime(19, 0);
+
+        int count = 0;
+        count += upsertMilestoneEvent(hackathon, coordinator, EventType.KICKOFF,
+                "Lễ Khai mạc (seed)", "FPT HCM — Hội trường A", koStart, koEnd);
+        count += upsertMilestoneEvent(hackathon, coordinator, EventType.WORKSHOP,
+                "Workshop (seed)", "Online", wsStart, wsEnd);
+        count += upsertMilestoneEvent(hackathon, coordinator, EventType.AWARDS,
+                "Lễ trao giải (seed)", "FPT HCM — Hội trường A", awardsStart, awardsEnd);
+        return count;
+    }
+
+    private int upsertMilestoneEvent(Hackathon hackathon, User coordinator, EventType type,
+                                     String title, String location,
+                                     LocalDateTime startsAt, LocalDateTime endsAt) {
+        List<Event> existing = eventRepository.findByHackathonIdAndType(hackathon.getId(), type);
+        if (existing.isEmpty()) {
+            eventRepository.save(Event.builder()
+                    .hackathon(hackathon)
+                    .title(title)
+                    .type(type)
+                    .location(location)
+                    .startsAt(startsAt)
+                    .endsAt(endsAt)
+                    .isPublic(true)
+                    .createdBy(coordinator)
+                    .build());
+            return 1;
+        }
+        int count = 0;
+        for (Event event : existing) {
+            boolean changed = false;
+            if (!startsAt.equals(event.getStartsAt())) {
+                event.setStartsAt(startsAt);
+                changed = true;
+            }
+            if (!endsAt.equals(event.getEndsAt())) {
+                event.setEndsAt(endsAt);
+                changed = true;
+            }
+            if (changed) {
+                eventRepository.save(event);
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private void ensureMinimalEvents(Hackathon hackathon, User coordinator, SeedDates dates) {
+        ensureMilestoneEvents(hackathon, coordinator);
     }
 }

@@ -92,28 +92,31 @@ public class HackathonLotteryServiceImpl implements HackathonLotteryService {
             Collections.shuffle(eligibleTeams);
 
             List<HackathonLotteryRequest.Assignment> autoAssignments = new ArrayList<>();
-            int[] trackCounts = new int[openTracks.size()];
+            int trackCount = openTracks.size();
+            int[] teamsPerTrack = new int[trackCount];
+            int[] indexOnTrack = new int[trackCount];
 
-            // 4. Phân bổ Round-Robin
+            for (int i = 0; i < eligibleTeams.size(); i++) {
+                teamsPerTrack[i % trackCount]++;
+            }
+
+            // 4. Phân bổ Track round-robin + Bảng chia đều trong từng Track
             for (int i = 0; i < eligibleTeams.size(); i++) {
                 Team team = eligibleTeams.get(i);
-                int trackIdx = i % openTracks.size();
+                int trackIdx = i % trackCount;
                 Track track = openTracks.get(trackIdx);
 
-                int currentTrackTeamCount = trackCounts[trackIdx];
                 int maxPerGroup = track.getMaxTeamsPerGroup() != null ? track.getMaxTeamsPerGroup() : 5;
-                int groupNumber = (currentTrackTeamCount / maxPerGroup) + 1;
-
-                // Tự động tạo tên Bảng (Bảng A, Bảng B, C...)
-                String assignedGroup = "Bảng " + (char) ('A' + groupNumber - 1);
+                int totalOnTrack = teamsPerTrack[trackIdx];
+                int slotOnTrack = indexOnTrack[trackIdx]++;
+                int numGroups = resolveGroupCount(totalOnTrack, maxPerGroup);
+                String assignedGroup = "Bảng " + (char) ('A' + (slotOnTrack % numGroups));
 
                 autoAssignments.add(HackathonLotteryRequest.Assignment.builder()
                         .teamId(team.getId())
                         .trackId(track.getId())
                         .assignedGroup(assignedGroup)
                         .build());
-
-                trackCounts[trackIdx]++;
             }
             // Gán lại vào request để tiếp tục luồng lưu DB bên dưới
             req.setAssignments(autoAssignments);
@@ -126,6 +129,7 @@ public class HackathonLotteryServiceImpl implements HackathonLotteryService {
 
         int assignedCount = 0;
         List<Integer> teamIds = new ArrayList<>();
+        List<HackathonLotteryResponse.AssignmentResult> results = new ArrayList<>();
 
         for (HackathonLotteryRequest.Assignment assignment : req.getAssignments()) {
             Team team = teamRepository.findById(assignment.getTeamId())
@@ -183,6 +187,12 @@ public class HackathonLotteryServiceImpl implements HackathonLotteryService {
 
             assignedCount++;
             teamIds.add(team.getId());
+            results.add(HackathonLotteryResponse.AssignmentResult.builder()
+                    .teamId(team.getId())
+                    .trackId(track.getId())
+                    .trackName(track.getName())
+                    .assignedGroup(assignment.getAssignedGroup())
+                    .build());
         }
 
         return HackathonLotteryResponse.builder()
@@ -190,6 +200,22 @@ public class HackathonLotteryServiceImpl implements HackathonLotteryService {
                 .roundId(round.getId())
                 .assignedCount(assignedCount)
                 .teamIds(teamIds)
+                .assignments(results)
                 .build();
+    }
+
+    /**
+     * Số bảng trong một Track — chia đều khi ít đội (vd. 4 đội / max 8 → Bảng A + B, mỗi bảng ~2).
+     */
+    static int resolveGroupCount(int teamCountOnTrack, int maxPerGroup) {
+        if (teamCountOnTrack <= 0) {
+            return 1;
+        }
+        int safeMax = Math.max(1, maxPerGroup);
+        int byCapacity = (int) Math.ceil((double) teamCountOnTrack / safeMax);
+        if (teamCountOnTrack >= 2 && teamCountOnTrack <= safeMax * 2L) {
+            return Math.max(byCapacity, 2);
+        }
+        return Math.max(1, byCapacity);
     }
 }

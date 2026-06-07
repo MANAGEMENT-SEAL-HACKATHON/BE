@@ -11,7 +11,7 @@ import com.sealhackathon.api.hackathons.dto.response.HackathonReadinessResponse;
 import com.sealhackathon.api.hackathons.dto.response.HackathonResponse;
 import com.sealhackathon.api.hackathons.service.HackathonReadinessService;
 import com.sealhackathon.api.hackathons.service.HackathonStatusService;
-import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
+import com.sealhackathon.api.hackathons.value_object.ReadinessTarget;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -44,9 +44,9 @@ public class HackathonStatusController {
     @Operation(summary = "Kiểm tra readiness của hackathon trước khi đổi trạng thái", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<HackathonReadinessResponse>> readiness(
             @PathVariable Integer id,
-            @RequestParam(required = false, defaultValue = "ONGOING") HackathonStatus target
+            @RequestParam(required = false, defaultValue = "ONGOING") String target
     ) {
-        return ResponseEntity.ok(ApiResponse.ok(readinessService.check(id, target)));
+        return ResponseEntity.ok(ApiResponse.ok(readinessService.check(id, ReadinessTarget.fromParam(target))));
     }
 
     @PatchMapping("/{id}/status")

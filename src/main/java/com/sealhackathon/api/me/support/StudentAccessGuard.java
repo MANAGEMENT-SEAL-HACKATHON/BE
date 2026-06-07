@@ -1,19 +1,28 @@
 package com.sealhackathon.api.me.support;
 
+import com.sealhackathon.api.common.exception.AuthException;
+import com.sealhackathon.api.common.exception.ErrorCode;
+import com.sealhackathon.api.common.security.CurrentUserAccessor;
+import com.sealhackathon.api.team_members.repository.TeamMemberRepository;
+import com.sealhackathon.api.team_members.value_object.TeamMemberStatus;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
-/**
- * Kiểm tra quyền Student trên team/round (ownership).
- * TODO: FR-U-15..21 — team membership, hackathon registration, round window.
- */
 @Component
+@RequiredArgsConstructor
 public class StudentAccessGuard {
 
-    public void assertTeamMember(Integer teamId) {
-        // TODO: FR-U-15 — current user in team_members
-    }
+    private final CurrentUserAccessor currentUserAccessor;
+    private final TeamMemberRepository teamMemberRepository;
 
-    public void assertRegisteredForHackathon(Integer hackathonId) {
-        // TODO: FR-U-06 — hackathon_registrations
+    public void assertTeamMember(Integer teamId) {
+        Integer userId = currentUserAccessor.currentUserId();
+        if (!teamMemberRepository.existsByUser_IdAndTeam_IdAndStatus(
+                userId, teamId, TeamMemberStatus.ACCEPTED)) {
+            throw new AuthException(ErrorCode.FORBIDDEN,
+                    "Bạn không thuộc đội này",
+                    HttpStatus.FORBIDDEN);
+        }
     }
 }

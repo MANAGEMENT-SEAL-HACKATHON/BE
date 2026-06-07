@@ -15,6 +15,9 @@ public class StudentSubmissionStatusResponse {
 
     private Integer submissionId;
     private Integer roundId;
+    private String repoUrl;
+    private String demoUrl;
+    private String slideUrl;
     private String status;
     private LocalDateTime submittedAt;
 }

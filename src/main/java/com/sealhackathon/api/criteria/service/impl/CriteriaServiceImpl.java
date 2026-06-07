@@ -25,7 +25,7 @@ import com.sealhackathon.api.criteria.service.WeightSummaryService;
 import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
-import com.sealhackathon.api.scores.repository.ScorePlaceholderRepository;
+import com.sealhackathon.api.scores.repository.ScoreRepository;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import lombok.RequiredArgsConstructor;
@@ -50,7 +50,7 @@ public class CriteriaServiceImpl implements CriteriaService {
     private final CriteriaMapper criteriaMapper;
     private final AuditService auditService;
     private final WeightSummaryService weightSummaryService;
-    private final ScorePlaceholderRepository scoreRepository;
+    private final ScoreRepository scoreRepository;
     private final HackathonArchiveGuard archiveGuard;
 
     @Override

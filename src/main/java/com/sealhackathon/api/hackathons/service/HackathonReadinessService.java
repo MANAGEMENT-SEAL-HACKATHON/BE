@@ -1,7 +1,7 @@
 package com.sealhackathon.api.hackathons.service;
 
 import com.sealhackathon.api.hackathons.dto.response.HackathonReadinessResponse;
-import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
+import com.sealhackathon.api.hackathons.value_object.ReadinessTarget;
 
 /**
  * FR-06 — Tổng hợp kiểm tra readiness của Hackathon trước khi chuyển status.
@@ -27,5 +27,5 @@ public interface HackathonReadinessService {
      * @param target      target status muốn check; null → mặc định ONGOING
      * @return response đầy đủ {@code ready, blockers, warnings, summary}
      */
-    HackathonReadinessResponse check(Integer hackathonId, HackathonStatus target);
+    HackathonReadinessResponse check(Integer hackathonId, ReadinessTarget target);
 }

@@ -1,6 +1,7 @@
 package com.sealhackathon.api.scores.controller;
 
 import com.sealhackathon.api.common.response.ApiResponse;
+import com.sealhackathon.api.common.security.JudgeOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
 import com.sealhackathon.api.scores.dto.request.SubmitCalibrationScoreRequest;
 import com.sealhackathon.api.scores.dto.request.SubmitScoreRequest;
@@ -12,7 +13,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,15 +28,15 @@ public class ScoreController {
     private final ScoreService scoreService;
 
     @PostMapping
-    @PreAuthorize("hasRole('JUDGE') and authentication.principal.status.name() == 'APPROVED'")
-    @Operation(summary = "FR-18/18A — Judge chấm điểm bài nộp (upsert nháp)")
+    @JudgeOnly
+    @Operation(summary = "FR-18/18A — Judge/Mentor (đã phân công) chấm điểm bài nộp (upsert nháp)")
     public ResponseEntity<ApiResponse<ScoreResponse>> submit(@Valid @RequestBody SubmitScoreRequest req) {
         return ResponseEntity.status(201).body(ApiResponse.created(scoreService.submitScore(req)));
     }
 
     @PostMapping("/calibration")
-    @PreAuthorize("hasRole('JUDGE') and authentication.principal.status.name() == 'APPROVED'")
-    @Operation(summary = "FR-29 — Judge chấm calibration session")
+    @JudgeOnly
+    @Operation(summary = "FR-29 — Judge/Mentor (đã phân công) chấm calibration session")
     public ResponseEntity<ApiResponse<ScoreResponse>> submitCalibration(
             @Valid @RequestBody SubmitCalibrationScoreRequest req) {
         return ResponseEntity.status(201).body(ApiResponse.created(scoreService.submitCalibrationScore(req)));

@@ -118,7 +118,7 @@ Xem [04-quy-trinh-van-hanh.md §0](04-quy-trinh-van-hanh.md#0-tiền-đề-khi-g
 | `eventStart` | Hôm nay + 14 ngày |
 | `eventEnd` | eventStart + 45 ngày |
 | Round `submissionDeadline` | **> NOW** (vd. hôm nay + 30 ngày) |
-| Events | WORKSHOP → KICKOFF → PRESENTATION → AWARDS (xem §5) |
+| Events | POST KICKOFF → WORKSHOP → AWARDS; lịch WS → KO → AWARDS (xem §5) |
 
 ---
 
@@ -305,8 +305,8 @@ Expected: **201** (mentor track1 + judge track2 — hợp lệ mf01 §6.4).
 
 `POST /api/v1/hackathons/{{hackathonId}}/events` ×4:
 
-1. **WORKSHOP** — `2026-05-28T20:00:00` … `21:30:00`, `location`: `"Online (Teams)"`
-2. **KICKOFF** — `2026-06-02T14:00:00` … `17:00:00`, `location`: `"FPT HCM — Hội trường A"`
+1. **KICKOFF** — `2026-06-02T14:00:00` … `17:00:00`, `location`: `"FPT HCM — Hội trường A"`
+2. **WORKSHOP** — `2026-06-03T20:00:00` … `21:30:00`, `location`: `"Online (Teams)"`
 3. **PRESENTATION** — `2026-06-20T06:00:00` … `19:00:00`
 4. **AWARDS** — `2026-07-12T08:00:00` … `18:00:00`
 
@@ -579,11 +579,41 @@ Expected: **200**, list rỗng `[]`.
 
 ### 7.5 Events
 
-#### TC-GD1-N14 — Thứ tự event sai
+#### TC-GD1-N14 — WORKSHOP trước KICKOFF
 
-Tạo **AWARDS** trước **KICKOFF** (hackathon mới đến bước 6).
+Tạo **WORKSHOP** khi chưa có **KICKOFF** (hackathon mới đến bước 6).
+
+Expected: **422** `EVENT_KICKOFF_MISSING` hoặc `EVENT_OUT_OF_HACKATHON`
+
+#### TC-GD1-N14b — AWARDS trước WORKSHOP
+
+Đã có KICKOFF, tạo **AWARDS** trước **WORKSHOP**.
 
 Expected: **422** `EVENT_ORDER_VIOLATION`
+
+#### TC-GD1-N25 — ONGOING không cần AWARDS
+
+Greenfield: KO + WS + đủ G1–G5, **không** tạo AWARDS → `GET readiness?target=ONGOING`.
+
+Expected: `ready: true`
+
+#### TC-GD1-N26 — DELETE KICKOFF khi còn WORKSHOP
+
+Sau khi có KO + WS → `DELETE` event KICKOFF.
+
+Expected: **422** `EVENT_ORDER_VIOLATION`
+
+#### TC-GD1-N27 — Readiness FINAL_ROUND
+
+Hackathon ONGOING, chưa judge CK → `GET readiness?target=FINAL_ROUND`.
+
+Expected: `ready: false` (thiếu `FINAL_EXTERNAL` hoặc đội CK)
+
+#### TC-GD1-N28 — Readiness AWARDS
+
+Chưa có event AWARDS → `GET readiness?target=AWARDS`.
+
+Expected: `ready: false`, `EVENT_AWARDS_MISSING`
 
 #### TC-GD1-N15 — Thiếu location và meetUrl
 

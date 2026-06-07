@@ -11,6 +11,40 @@
 
 ## Portal mới
 
+### GET `/me/mentor/rounds` (GĐ3)
+
+```json
+[
+  {
+    "roundId": 12,
+    "roundName": "Vòng Sơ loại",
+    "status": "ACTIVE",
+    "description": "...",
+    "teamCount": 4,
+    "teams": [{ "teamId": 41, "teamName": "Team Alpha" }]
+  }
+]
+```
+
+### GET `/me/mentor/rounds/{roundId}/assigned-teams` (GĐ3)
+
+```json
+{
+  "roundName": "Vòng Sơ loại",
+  "roundStatus": "ACTIVE",
+  "teams": [
+    {
+      "teamId": 41,
+      "teamName": "Team Alpha",
+      "groupNumber": 1,
+      "status": "ACTIVE",
+      "presentationSchedule": "08:00 - 08:15 ngày 07/06",
+      "location": "Online (Teams) - Phòng 2"
+    }
+  ]
+}
+```
+
 ### GET `/me/mentor-track-assignments`
 
 ```json

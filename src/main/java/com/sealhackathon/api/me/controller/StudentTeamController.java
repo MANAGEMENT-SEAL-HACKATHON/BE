@@ -29,8 +29,17 @@ public class StudentTeamController {
     @GetMapping("/teams/{teamId}/submissions")
     @Operation(summary = "FR-U-20 — Trạng thái nộp bài theo đội")
     public ResponseEntity<ApiResponse<List<StudentSubmissionStatusResponse>>> listSubmissions(
-            @PathVariable Integer teamId) {
-        return ResponseEntity.ok(ApiResponse.ok(studentPortalService.listTeamSubmissions(teamId)));
+            @PathVariable Integer teamId,
+            @RequestParam(required = false) Integer roundId) {
+        return ResponseEntity.ok(ApiResponse.ok(studentPortalService.listTeamSubmissions(teamId, roundId)));
+    }
+
+    @GetMapping("/submission")
+    @Operation(summary = "GĐ3 — Bài nộp mới nhất của đội (student)")
+    public ResponseEntity<ApiResponse<StudentSubmissionStatusResponse>> latestSubmission(
+            @RequestParam Integer teamId,
+            @RequestParam(required = false) Integer roundId) {
+        return ResponseEntity.ok(ApiResponse.ok(studentPortalService.getLatestSubmission(teamId, roundId)));
     }
 
     @PatchMapping("/teams/{teamId}/rounds/{roundId}/track")

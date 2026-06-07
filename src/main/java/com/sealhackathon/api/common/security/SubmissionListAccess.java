@@ -8,12 +8,12 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * GET /submissions — Coordinator, Judge hoặc Student đã duyệt (GD03 §8).
+ * GET /submissions — Coordinator, Judge/Mentor (phân công chấm) hoặc Student đã duyệt (GD03 §8).
  */
 @Target({ElementType.METHOD, ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 @PreAuthorize("""
-        (hasRole('COORDINATOR') or hasRole('JUDGE') or hasRole('STUDENT'))
+        (hasRole('COORDINATOR') or hasRole('JUDGE') or hasRole('MENTOR') or hasRole('STUDENT'))
         and authentication.principal.status.name() == 'APPROVED'
         """)
 public @interface SubmissionListAccess {

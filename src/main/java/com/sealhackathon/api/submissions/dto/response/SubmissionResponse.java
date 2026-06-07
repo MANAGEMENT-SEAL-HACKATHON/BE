@@ -16,6 +16,7 @@ public class SubmissionResponse {
 
     private Integer id;
     private Integer teamId;
+    private String teamName;
     private Integer trackId;
     private Integer roundId;
     private String repoUrl;

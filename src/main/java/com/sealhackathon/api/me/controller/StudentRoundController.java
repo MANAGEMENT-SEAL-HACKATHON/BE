@@ -5,6 +5,7 @@ import com.sealhackathon.api.common.security.StudentOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
 import com.sealhackathon.api.me.student.dto.response.StudentLeaderboardItemResponse;
 import com.sealhackathon.api.me.student.dto.response.StudentProblemResponse;
+import com.sealhackathon.api.me.student.dto.response.StudentRoundDeadlineResponse;
 import com.sealhackathon.api.me.student.service.StudentPortalService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -24,6 +25,12 @@ import java.util.List;
 public class StudentRoundController {
 
     private final StudentPortalService studentPortalService;
+
+    @GetMapping("/current/deadline")
+    @Operation(summary = "GĐ3 — Deadline nộp bài vòng đang active")
+    public ResponseEntity<ApiResponse<StudentRoundDeadlineResponse>> currentDeadline() {
+        return ResponseEntity.ok(ApiResponse.ok(studentPortalService.getCurrentDeadline()));
+    }
 
     @GetMapping("/{roundId}/problem")
     @Operation(summary = "FR-U-17 — Đề bài (student view)")

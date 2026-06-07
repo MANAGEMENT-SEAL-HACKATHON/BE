@@ -5,6 +5,7 @@ import com.sealhackathon.api.submissions.dto.request.ReviewLateSubmissionRequest
 import com.sealhackathon.api.submissions.dto.request.ReviewSubmissionRequest;
 import com.sealhackathon.api.submissions.dto.request.SubmitSubmissionRequest;
 import com.sealhackathon.api.submissions.dto.response.SubmissionResponse;
+import com.sealhackathon.api.submissions.value_object.SubmissionStatus;
 
 import java.util.List;
 
@@ -12,7 +13,7 @@ public interface SubmissionService {
 
     SubmissionResponse submit(SubmitSubmissionRequest req);
 
-    List<SubmissionResponse> list(Integer teamId, Integer roundId);
+    List<SubmissionResponse> list(Integer teamId, Integer roundId, SubmissionStatus status);
 
     SubmissionResponse resubmit(Integer submissionId, ResubmitSubmissionRequest req);
 

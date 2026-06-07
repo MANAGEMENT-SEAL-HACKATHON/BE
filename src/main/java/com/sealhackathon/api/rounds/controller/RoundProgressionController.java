@@ -10,6 +10,7 @@ import com.sealhackathon.api.rounds.dto.request.ReleaseProblemRequest;
 import com.sealhackathon.api.rounds.dto.request.ResolveTiebreakRequest;
 import com.sealhackathon.api.rounds.dto.request.WildcardDecisionRequest;
 import com.sealhackathon.api.rounds.dto.response.AdvanceTeamsResponse;
+import com.sealhackathon.api.rounds.dto.response.AssignFinalJudgesResult;
 import com.sealhackathon.api.rounds.dto.response.FinalJudgeAssignmentResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundRankingItemResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoreboardResponse;
@@ -195,11 +196,11 @@ public class RoundProgressionController {
     public ResponseEntity<ApiResponse<FinalJudgeAssignmentResponse>> assignFinalJudges(
             @PathVariable Integer id,
             @Valid @RequestBody AssignFinalJudgesRequest req) {
-        FinalJudgeAssignmentResponse result = progressionService.assignFinalJudges(id, req);
+        AssignFinalJudgesResult result = progressionService.assignFinalJudges(id, req);
         if (result.getWarnings() == null || result.getWarnings().isEmpty()) {
-            return ResponseEntity.ok(ApiResponse.ok(result));
+            return ResponseEntity.ok(ApiResponse.ok(result.getAssignment()));
         }
-        return ResponseEntity.ok(ApiResponse.okWithWarnings(result, result.getWarnings()));
+        return ResponseEntity.ok(ApiResponse.okWithWarnings(result.getAssignment(), result.getWarnings()));
     }
 
     @GetMapping("/{id}/scoreboard")

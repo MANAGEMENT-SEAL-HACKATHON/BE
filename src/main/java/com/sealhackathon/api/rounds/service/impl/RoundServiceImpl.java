@@ -13,9 +13,12 @@ import com.sealhackathon.api.events.service.HackathonTimelineService;
 import com.sealhackathon.api.events.value_object.EventType;
 import com.sealhackathon.api.events.entity.Event;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
+import com.sealhackathon.api.config.seed.RoundScheduleSeedUtil;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
+import com.sealhackathon.api.hackathons.service.HackathonRoundTimelineSyncService;
 import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
+import com.sealhackathon.api.presentation.service.PresentationSlotCascadeService;
 import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.notifications.service.NotificationService;
@@ -29,8 +32,8 @@ import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.service.RoundService;
 import com.sealhackathon.api.rounds.value_object.LateSubmissionPolicy;
 import com.sealhackathon.api.rounds.value_object.RoundType;
-import com.sealhackathon.api.scores.repository.ScorePlaceholderRepository;
-import com.sealhackathon.api.submissions.repository.SubmissionPlaceholderRepository;
+import com.sealhackathon.api.scores.repository.ScoreRepository;
+import com.sealhackathon.api.submissions.repository.SubmissionRepository;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -64,19 +67,22 @@ public class RoundServiceImpl implements RoundService {
     private final RoundMapper roundMapper;
     private final AuditService auditService;
     private final WeightSummaryService weightSummaryService;
-    private final SubmissionPlaceholderRepository submissionRepository;
-    private final ScorePlaceholderRepository scoreRepository;
+    private final SubmissionRepository submissionRepository;
+    private final ScoreRepository scoreRepository;
     private final JudgeAssignmentRepository judgeAssignmentRepository;
     private final NotificationService notificationService;
     private final HackathonTimelineService hackathonTimelineService;
     private final EventRepository eventRepository;
     private final HackathonArchiveGuard archiveGuard;
+    private final HackathonRoundTimelineSyncService hackathonRoundTimelineSyncService;
+    private final PresentationSlotCascadeService presentationSlotCascadeService;
 
     @Override
     public RoundResponse createByHackathon(Integer hackathonId, CreateRoundRequest req) {
         Hackathon h = hackathonRepository.findById(hackathonId)
                 .orElseThrow(() -> new ResourceNotFoundException("Hackathon", hackathonId));
         guardHackathonMutable(h);
+        applySubmissionWindowFromExam(req);
         validateDeadline(req.getSubmissionOpen(), req.getSubmissionDeadline());
         validateSubmissionWindowByCodingDuration(req.getExamAt(), req.getCodingDurationHours(),
                 req.getSubmissionOpen(), req.getSubmissionDeadline());
@@ -94,6 +100,7 @@ public class RoundServiceImpl implements RoundService {
         RoundResponse response = roundMapper.toResponse(saved);
         auditService.log(AuditAction.ROUND_CREATE, "rounds", saved.getId(),
                 Map.of("hackathonId", hackathonId, "snapshot", response));
+        hackathonRoundTimelineSyncService.syncFromRounds(hackathonId);
         return response;
     }
 
@@ -123,6 +130,7 @@ public class RoundServiceImpl implements RoundService {
         if (r.getHackathon() != null) {
             guardHackathonMutable(r.getHackathon());
         }
+        applySubmissionWindowFromExam(req);
         validateDeadline(req.getSubmissionOpen(), req.getSubmissionDeadline());
         validateSubmissionWindowByCodingDuration(req.getExamAt(), req.getCodingDurationHours(),
                 req.getSubmissionOpen(), req.getSubmissionDeadline());
@@ -158,6 +166,10 @@ public class RoundServiceImpl implements RoundService {
                     Map.of("reason", saved.getForceLockReason()));
         }
         auditService.logBeforeAfter(AuditAction.ROUND_UPDATE, "rounds", saved.getId(), before, after);
+        if (saved.getHackathon() != null) {
+            hackathonRoundTimelineSyncService.syncFromRounds(saved.getHackathon().getId());
+        }
+        presentationSlotCascadeService.rescheduleForRound(saved.getId());
         return after;
     }
 
@@ -209,7 +221,11 @@ public class RoundServiceImpl implements RoundService {
             judgeAssignmentRepository.deleteByRoundId(id);
         }
 
+        Integer hackathonId = r.getHackathon() != null ? r.getHackathon().getId() : null;
         roundRepository.delete(r);
+        if (hackathonId != null) {
+            hackathonRoundTimelineSyncService.syncFromRounds(hackathonId);
+        }
         Map<String, Object> deleteDetails = new java.util.LinkedHashMap<>();
         deleteDetails.put("snapshot", snapshot);
         deleteDetails.put("judgeCount", judges.size());
@@ -482,6 +498,24 @@ public class RoundServiceImpl implements RoundService {
                     "submissionDeadline (%s) phải > hiện tại".formatted(deadline),
                     Map.of("submissionDeadline", deadline, "now", LocalDateTime.now()));
         }
+    }
+
+    private void applySubmissionWindowFromExam(CreateRoundRequest req) {
+        if (req.getExamAt() == null || req.getCodingDurationHours() == null || req.getCodingDurationHours() <= 0) {
+            return;
+        }
+        int hours = req.getCodingDurationHours();
+        req.setSubmissionOpen(RoundScheduleSeedUtil.submissionOpen(req.getExamAt(), hours));
+        req.setSubmissionDeadline(RoundScheduleSeedUtil.submissionDeadline(req.getExamAt(), hours));
+    }
+
+    private void applySubmissionWindowFromExam(UpdateRoundRequest req) {
+        if (req.getExamAt() == null || req.getCodingDurationHours() == null || req.getCodingDurationHours() <= 0) {
+            return;
+        }
+        int hours = req.getCodingDurationHours();
+        req.setSubmissionOpen(RoundScheduleSeedUtil.submissionOpen(req.getExamAt(), hours));
+        req.setSubmissionDeadline(RoundScheduleSeedUtil.submissionDeadline(req.getExamAt(), hours));
     }
 
     private void validateSubmissionWindowByCodingDuration(LocalDateTime examAt, Integer codingDurationHours,

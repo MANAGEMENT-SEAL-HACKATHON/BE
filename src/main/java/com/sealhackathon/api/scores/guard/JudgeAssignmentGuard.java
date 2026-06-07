@@ -24,7 +24,7 @@ public class JudgeAssignmentGuard {
             return;
         }
         Integer roundId = submission.getRound().getId();
-        if (!judgeAssignmentRepository.existsByJudgeIdAndRoundScope(judgeId, roundId)) {
+        if (!judgeAssignmentRepository.existsByJudgeIdAndRoundId(judgeId, roundId)) {
             throw new AuthException(ErrorCode.JUDGE_NOT_ASSIGNED,
                     "Judge chưa được phân công cho round này", HttpStatus.FORBIDDEN);
         }

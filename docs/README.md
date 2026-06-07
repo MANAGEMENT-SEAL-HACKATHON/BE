@@ -10,6 +10,7 @@
 6. [Ma trận phân quyền MF-03 v4.1](api-authorization-matrix.md)
 7. [User role portals (Student / Judge / Mentor)](user-role/README.md)
 8. **[Workflow test API GĐ0→GĐ6 (playbook + JSON)](testing/full-workflow-api-test-gd1-gd6.md)** — E2E happy path + catalog **166** endpoint (request/response)
+8b. **[FE mapping GĐ1–3 (gate BTC)](testing/fe-gd1-gd2-gd3-workflow-mapping.md)** — readiness targets, timeline sync
 9. **[Seed coverage & SQL verify](testing/seed-coverage-audit.md)** — Dữ liệu dev theo GĐ3/GĐ4/GĐ6 + script kiểm tra DB
 
 ## Cấu trúc thư mục

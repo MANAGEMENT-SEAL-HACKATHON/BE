@@ -533,14 +533,14 @@ Lớp	Tên	Điều kiện	Hành động khi vi phạm
 Lớp 1a	WORKSHOP trong khung	`starts_at >= registration_start`; **được** trước `event_start`	BLOCK CỨNG 422
 Lớp 1b	Milestone khác	`starts_at >= event_start`; `ends_at <= event_end + 1d`	BLOCK CỨNG 422
 Lớp 2	Không chồng / trùng	Tối đa 1 milestone/type; không overlap cùng type; OTHER không chồng milestone	BLOCK CỨNG 422
-Lớp 3	Thứ tự giai đoạn	WORKSHOP → KICKOFF → PRESENTATION → AWARDS (`effectiveEnd` trước `startsAt` sau)	BLOCK CỨNG 422
+Lớp 3	Thứ tự giai đoạn (lịch)	WORKSHOP → KICKOFF → AWARDS (`effectiveEnd` trước `startsAt` sau). POST: KICKOFF → WORKSHOP → AWARDS	BLOCK CỨNG 422
 Lớp 3d	Gợi ý KICKOFF	`KICKOFF.starts_at ∈ [event_start, event_start+1d]`	WARN MỀM
 **Runbook timeline (PDF, JSON, test):** [04-quy-trinh-van-hanh.md#timeline--events](04-quy-trinh-van-hanh.md#timeline--events). Chi tiết §7.5; `round.examAt` đồng bộ readiness/PUT milestone (FR-03).
 
 7.4 Thực tế 2 mùa — Lịch sự kiện
 Sự kiện	Fall 2025	Spring 2026
-WORKSHOP	Online 19h30–21h30 ngày 29/10	Online 20h–21h30 ngày 9/4
-KICKOFF	Offline 14h–17h ngày 1/11 — bốc thăm chia Track + họp đội	Offline 14h–17h ngày 11/4
+KICKOFF	Offline 14h–17h ngày 1/11 — bốc thăm chia Track + họp đội	Offline 14h–17h ngày 6/6
+WORKSHOP	Online 19h30–21h30 ngày 29/10 (sau KO)	Online 20h–21h30 ngày 7/6 (sau KO)
 PRESENTATION	Ngày thi Sơ loại (ngày 2/11)	Ngày thi Sơ loại (12/4 — cả 2 vòng)
 AWARDS	Lễ trao giải Chung kết (cuối tháng 11)	Lễ trao giải Chung kết (cuối tháng 4)
 7.5 Ràng buộc nghiệp vụ
@@ -550,12 +550,12 @@ Lớp 1a: WORKSHOP starts_at ≥ registration_start (được trước event_sta
 Lớp 1b: KICKOFF/PRESENTATION/AWARDS starts_at ≥ event_start	App	422 Block cứng
 Lớp 1: ends_at ≤ hackathons.event_end + 1d	App	422 Block cứng
 Lớp 2: Không 2 KICKOFF/AWARDS song song	App	422 Block cứng
-Lớp 3: WORKSHOP→KICKOFF→PRESENTATION→AWARDS (endsAt nối tiếp)	App	422 Block cứng
+Lớp 3: lịch WS→KO→AWARDS; POST KO→WS→AWARDS	App	422 Block cứng
 Lớp 3d: KICKOFF trong [event_start, event_start+1d]	App	Warn mềm
 Mỗi hackathon 1 milestone/type	App	422 EVENT_MILESTONE_DUPLICATE
 OTHER ↔ milestone không chồng giờ	App	422 EVENT_CONFLICTS_WITH_MILESTONE
 Có round sơ loại → bắt buộc PRESENTATION	App	422 EVENT_PRESENTATION_MISSING
-Có round CK → bắt buộc AWARDS	App	422 EVENT_AWARDS_MISSING
+Có round CK → AWARDS (checklist GĐ6 / `readiness?target=AWARDS`, không block ONGOING)	App	422 tại target AWARDS
 DELETE milestone → revalidate round.examAt	App	422 ROUND_EXAM_* / EVENT_*_MISSING
 round.examAt vs events (readiness)	App	422 ROUND_EXAM_*
 type chỉ trong ('KICKOFF','WORKSHOP','PRESENTATION','AWARDS','OTHER')	DB (CHECK)	DB reject

@@ -2,6 +2,8 @@ package com.sealhackathon.api.events.service.impl;
 
 import com.sealhackathon.api.common.audit.AuditAction;
 import com.sealhackathon.api.common.audit.AuditService;
+import com.sealhackathon.api.common.exception.BusinessRuleException;
+import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
 import com.sealhackathon.api.common.response.Warning;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
@@ -61,6 +63,7 @@ public class EventServiceImpl implements EventService {
         Hackathon h = hackathonRepository.findById(hackathonId)
                 .orElseThrow(() -> new ResourceNotFoundException("Hackathon", hackathonId));
         archiveGuard.assertNotArchived(h);
+        assertCreateDependencies(hackathonId, req.getType());
 
         scheduleValidator.validateBlocking(h, req, 0);
         List<Warning> warnings = scheduleValidator.computeLayer3Warnings(h, req);
@@ -150,6 +153,7 @@ public class EventServiceImpl implements EventService {
         Event e = eventRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Event", id));
         archiveGuard.assertNotArchived(e.getHackathon());
+        assertDeleteDependencies(e);
         EventResponse snapshot = eventMapper.toResponse(e);
         Integer hackathonId = e.getHackathon().getId();
 
@@ -167,6 +171,51 @@ public class EventServiceImpl implements EventService {
             hackathonTimelineService.assertAllRoundsExamAtValid(hackathonId);
         }
         return id;
+    }
+
+    private void assertCreateDependencies(Integer hackathonId, EventType type) {
+        if (type == EventType.WORKSHOP
+                && !eventRepository.existsByHackathonIdAndType(hackathonId, EventType.KICKOFF)) {
+            throw new BusinessRuleException(ErrorCode.EVENT_KICKOFF_MISSING,
+                    "Phải tạo KICKOFF trước khi tạo WORKSHOP",
+                    Map.of("hackathonId", hackathonId, "requiredType", "KICKOFF"));
+        }
+        if (type == EventType.AWARDS
+                && !eventRepository.existsByHackathonIdAndType(hackathonId, EventType.WORKSHOP)) {
+            throw new BusinessRuleException(ErrorCode.EVENT_ORDER_VIOLATION,
+                    "Phải tạo WORKSHOP trước khi tạo AWARDS",
+                    Map.of("hackathonId", hackathonId, "requiredType", "WORKSHOP"));
+        }
+    }
+
+    private void assertDeleteDependencies(Event event) {
+        Integer hackathonId = event.getHackathon().getId();
+        Integer eventId = event.getId();
+        switch (event.getType()) {
+            case KICKOFF -> {
+                if (hasOtherMilestone(hackathonId, EventType.WORKSHOP, eventId)
+                        || hasOtherMilestone(hackathonId, EventType.AWARDS, eventId)) {
+                    throw new BusinessRuleException(ErrorCode.EVENT_ORDER_VIOLATION,
+                            "Không thể xóa KICKOFF khi còn WORKSHOP hoặc AWARDS",
+                            Map.of("eventId", eventId, "hackathonId", hackathonId));
+                }
+            }
+            case WORKSHOP -> {
+                if (hasOtherMilestone(hackathonId, EventType.AWARDS, eventId)) {
+                    throw new BusinessRuleException(ErrorCode.EVENT_ORDER_VIOLATION,
+                            "Không thể xóa WORKSHOP khi còn AWARDS",
+                            Map.of("eventId", eventId, "hackathonId", hackathonId));
+                }
+            }
+            default -> {
+                // AWARDS và các loại khác — cho phép xóa
+            }
+        }
+    }
+
+    private boolean hasOtherMilestone(Integer hackathonId, EventType type, Integer excludeEventId) {
+        return eventRepository.findByHackathonIdAndType(hackathonId, type).stream()
+                .anyMatch(e -> !e.getId().equals(excludeEventId));
     }
 
     private void fanoutReminder(Event event) {

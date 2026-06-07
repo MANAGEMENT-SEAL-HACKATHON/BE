@@ -46,7 +46,7 @@ public class Round {
 
     /**
      * Ngày và giờ thi (dùng sắp xếp trình tự vòng trong hackathon; khác deadline nộp bài).
-     * DB có thể nullable tạm khi migrate; {@link com.sealhackathon.api.config.RoundExamAtSchemaMigration} backfill + NOT NULL.
+     * Nullable trên DB cũ; seed dev / Hibernate ddl-auto backfill trước khi enforce NOT NULL.
      */
     @Column(name = "exam_at", nullable = true)
     private LocalDateTime examAt;

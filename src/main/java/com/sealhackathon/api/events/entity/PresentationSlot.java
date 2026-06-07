@@ -1,5 +1,6 @@
 package com.sealhackathon.api.events.entity;
 
+import com.sealhackathon.api.presentation.value_object.PresentationQueueStatus;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.teams.entity.Team;
 import jakarta.persistence.*;
@@ -42,4 +43,9 @@ public class PresentationSlot {
 
     @Column(name = "sequence_order")
     private Integer sequenceOrder;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "queue_status", length = 20)
+    private PresentationQueueStatus queueStatus = PresentationQueueStatus.WAITING;
 }

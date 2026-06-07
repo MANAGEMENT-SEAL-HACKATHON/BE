@@ -14,6 +14,9 @@ public interface MentorTeamAssignmentRepository extends JpaRepository<MentorTeam
 
     boolean existsByTeam_Id(Integer teamId);
 
-    // Truy vấn danh sách đội do một Mentor phụ trách (Phục vụ FR-M-06)
+    boolean existsByMentor_IdAndTeam_Id(Integer mentorId, Integer teamId);
+
     List<MentorTeamAssignment> findByMentor_Id(Integer mentorId);
+
+    List<MentorTeamAssignment> findByMentor_IdAndRound_Id(Integer mentorId, Integer roundId);
 }

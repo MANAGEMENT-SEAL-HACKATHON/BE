@@ -19,6 +19,7 @@ import com.sealhackathon.api.rounds.mapper.RoundMapper;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.service.RoundActivationService;
 import com.sealhackathon.api.team_round_participation.repository.TeamRoundParticipationRepository;
+import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.tracks.value_object.TrackStatus;
@@ -52,6 +53,7 @@ public class RoundActivationServiceImpl implements RoundActivationService {
     private final WeightSummaryService weightSummaryService;
     private final NotificationService notificationService;
     private final TeamRoundParticipationRepository teamRoundParticipationRepository;
+    private final TeamRoundTrackRepository teamRoundTrackRepository;
 
     @Override
     public RoundResponse activate(Integer roundId, String note) {
@@ -90,7 +92,9 @@ public class RoundActivationServiceImpl implements RoundActivationService {
     }
 
     private void validateTeamsInRound(Round round) {
-        if (teamRoundParticipationRepository.countByRound_Id(round.getId()) == 0) {
+        long participation = teamRoundParticipationRepository.countByRound_Id(round.getId());
+        long trackAssignments = teamRoundTrackRepository.findByTrack_Round_Id(round.getId()).size();
+        if (participation == 0 && trackAssignments == 0) {
             throw new BusinessRuleException(ErrorCode.NO_TEAMS_IN_ROUND,
                     "Không có đội tham gia round này",
                     Map.of("roundId", round.getId()));

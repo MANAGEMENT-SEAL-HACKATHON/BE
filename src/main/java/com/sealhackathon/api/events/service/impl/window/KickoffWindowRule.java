@@ -13,6 +13,8 @@ import java.util.Map;
 /**
  * FR-06A KICKOFF window — trong gap (registrationEnd, eventStart), exclusive cả hai đầu.
  * Phải sau ngày đóng đăng ký và trước ngày thi (eventStart).
+ *
+ * <p>Cho phép tạo KICKOFF trước WORKSHOP (POST order) dù trên lịch KICKOFF diễn ra sau WORKSHOP.
  */
 @Component
 public class KickoffWindowRule implements EventWindowRule {

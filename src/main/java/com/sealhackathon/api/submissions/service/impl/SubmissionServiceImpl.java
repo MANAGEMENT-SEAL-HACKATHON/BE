@@ -136,6 +136,7 @@ public class SubmissionServiceImpl implements SubmissionService {
         }
 
         validateRepoUrl(req.getRepoUrl());
+        validateSlideUrl(req.getSlideUrl());
 
         LocalDateTime now = LocalDateTime.now();
         boolean afterDeadline = now.isAfter(round.getSubmissionDeadline());
@@ -181,12 +182,12 @@ public class SubmissionServiceImpl implements SubmissionService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<SubmissionResponse> list(Integer teamId, Integer roundId) {
+    public List<SubmissionResponse> list(Integer teamId, Integer roundId, SubmissionStatus status) {
         CurrentUserStub user = currentUserAccessor.currentUser();
         List<Submission> rows = switch (user.getRole()) {
-            case COORDINATOR -> listForCoordinator(teamId, roundId);
-            case JUDGE -> listForJudge(user.getUserId(), teamId, roundId);
-            case STUDENT -> listForStudent(user.getUserId(), teamId, roundId);
+            case COORDINATOR -> listForCoordinator(teamId, roundId, status);
+            case JUDGE, MENTOR -> listForJudge(user.getUserId(), teamId, roundId, status);
+            case STUDENT -> listForStudent(user.getUserId(), teamId, roundId, status);
             default -> throw forbidden("Role không được xem danh sách bài nộp");
         };
         return rows.stream().map(SubmissionServiceImpl::toResponse).toList();
@@ -290,34 +291,51 @@ public class SubmissionServiceImpl implements SubmissionService {
         }
     }
 
-    private List<Submission> listForCoordinator(Integer teamId, Integer roundId) {
-        if (teamId != null && roundId != null) {
-            return mergeSubmissions(
-                    submissionRepository.findByTeam_IdAndRound_Id(teamId, roundId),
-                    submissionRepository.findByTeam_IdAndTrack_Round_Id(teamId, roundId));
+    private void validateSlideUrl(String slideUrl) {
+        if (slideUrl != null && slideUrl.trim().toLowerCase().endsWith(".pdf")) {
+            throw new BusinessRuleException(ErrorCode.INVALID_SLIDE_FORMAT,
+                    "slideUrl không chấp nhận file PDF — dùng Google Slides hoặc link khác");
         }
-        if (roundId != null) {
-            return mergeSubmissions(
-                    submissionRepository.findByRound_Id(roundId),
-                    submissionRepository.findByTrack_Round_Id(roundId));
-        }
-        if (teamId != null) {
-            return submissionRepository.findByTeam_Id(teamId);
-        }
-        return List.of();
     }
 
-    private List<Submission> listForJudge(Integer judgeId, Integer teamId, Integer roundId) {
+    private List<Submission> listForCoordinator(Integer teamId, Integer roundId, SubmissionStatus status) {
+        if (status != null && teamId == null && roundId == null) {
+            return submissionRepository.findByStatus(status);
+        }
+        if (status != null && roundId != null && teamId == null) {
+            return submissionRepository.findByStatusAndRound_Id(status, roundId);
+        }
+        List<Submission> rows;
+        if (teamId != null && roundId != null) {
+            rows = mergeSubmissions(
+                    submissionRepository.findByTeam_IdAndRound_Id(teamId, roundId),
+                    submissionRepository.findByTeam_IdAndTrack_Round_Id(teamId, roundId));
+        } else if (roundId != null) {
+            rows = mergeSubmissions(
+                    submissionRepository.findByRound_Id(roundId),
+                    submissionRepository.findByTrack_Round_Id(roundId));
+        } else if (teamId != null) {
+            rows = submissionRepository.findByTeam_Id(teamId);
+        } else {
+            rows = List.of();
+        }
+        if (status == null) {
+            return rows;
+        }
+        return rows.stream().filter(s -> s.getStatus() == status).toList();
+    }
+
+    private List<Submission> listForJudge(Integer judgeId, Integer teamId, Integer roundId, SubmissionStatus status) {
         if (roundId == null) {
             throw forbidden("Judge phải truyền roundId khi xem danh sách bài nộp");
         }
         if (!judgeAssignmentRepository.existsByJudgeIdAndRoundScope(judgeId, roundId)) {
             throw forbidden("Judge chưa được phân công cho round này");
         }
-        return listForCoordinator(teamId, roundId);
+        return listForCoordinator(teamId, roundId, status);
     }
 
-    private List<Submission> listForStudent(Integer userId, Integer teamId, Integer roundId) {
+    private List<Submission> listForStudent(Integer userId, Integer teamId, Integer roundId, SubmissionStatus status) {
         if (teamId == null) {
             throw forbidden("Student phải truyền teamId khi xem danh sách bài nộp");
         }
@@ -325,7 +343,7 @@ public class SubmissionServiceImpl implements SubmissionService {
                 userId, teamId, TeamMemberStatus.ACCEPTED)) {
             throw forbidden("Bạn không thuộc đội này");
         }
-        return listForCoordinator(teamId, roundId);
+        return listForCoordinator(teamId, roundId, status);
     }
 
     private static List<Submission> mergeSubmissions(List<Submission> a, List<Submission> b) {
@@ -350,6 +368,7 @@ public class SubmissionServiceImpl implements SubmissionService {
         return SubmissionResponse.builder()
                 .id(s.getId())
                 .teamId(s.getTeam() != null ? s.getTeam().getId() : null)
+                .teamName(s.getTeam() != null ? s.getTeam().getTeamName() : null)
                 .trackId(s.getTrack() != null ? s.getTrack().getId() : null)
                 .roundId(s.getRound() != null ? s.getRound().getId() : null)
                 .repoUrl(s.getRepoUrl())

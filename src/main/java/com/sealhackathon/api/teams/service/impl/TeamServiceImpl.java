@@ -27,6 +27,7 @@ import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.mapper.TeamMapper;
 import com.sealhackathon.api.teams.repository.TeamRepository;
 import com.sealhackathon.api.teams.service.TeamService;
+import com.sealhackathon.api.teams.support.TeamAccessGuard;
 import com.sealhackathon.api.team_round_participation.value_object.ParticipationStatus;
 import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.teams.value_object.TeamStatus;
@@ -59,6 +60,7 @@ public class TeamServiceImpl implements TeamService {
     private final CurrentUserAccessor currentUserAccessor;
     private final AuditService auditService;
     private final TeamMapper teamMapper;
+    private final TeamAccessGuard teamAccessGuard;
 
     @Override
     public TeamResponse createTeam(CreateTeamRequest req) {
@@ -131,6 +133,7 @@ public class TeamServiceImpl implements TeamService {
     @Override
     @Transactional(readOnly = true)
     public TeamDetailResponse getTeam(Integer teamId) {
+        teamAccessGuard.assertCanViewTeamDetails(teamId);
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new ResourceNotFoundException("Team", teamId));
 
@@ -601,6 +604,7 @@ public class TeamServiceImpl implements TeamService {
     @Override
     @Transactional(readOnly = true)
     public TeamMentorHistoryResponse listMentorHistory(Integer teamId) {
+        teamAccessGuard.assertCanViewTeamDetails(teamId);
         java.util.List<com.sealhackathon.api.mentor_team_assignments.entity.MentorTeamAssignment> assignments = mentorTeamAssignmentRepository.findByTeam_IdOrderByRound_IdAsc(teamId);
 
         java.util.List<TeamMentorHistoryResponse.Item> items = assignments.stream()

@@ -26,6 +26,7 @@ import com.sealhackathon.api.rounds.dto.request.ReleaseProblemRequest;
 import com.sealhackathon.api.rounds.dto.request.ResolveTiebreakRequest;
 import com.sealhackathon.api.rounds.dto.request.WildcardDecisionRequest;
 import com.sealhackathon.api.rounds.dto.response.AdvanceTeamsResponse;
+import com.sealhackathon.api.rounds.dto.response.AssignFinalJudgesResult;
 import com.sealhackathon.api.rounds.dto.response.FinalJudgeAssignmentResponse;
 import com.sealhackathon.api.rounds.dto.response.LockScoringResult;
 import com.sealhackathon.api.rounds.dto.response.RoundRankingItemResponse;
@@ -505,7 +506,7 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
     }
 
     @Override
-    public FinalJudgeAssignmentResponse assignFinalJudges(Integer roundId, AssignFinalJudgesRequest req) {
+    public AssignFinalJudgesResult assignFinalJudges(Integer roundId, AssignFinalJudgesRequest req) {
         Round round = roundAccessGuard.requireRound(roundId);
         if (!Boolean.TRUE.equals(round.getIsFinal())) {
             throw new BusinessRuleException(ErrorCode.INVALID_FINAL_ROUND,
@@ -538,9 +539,11 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                     .build());
         }
 
-        return FinalJudgeAssignmentResponse.builder()
-                .roundId(roundId)
-                .judgeIds(assigned)
+        return AssignFinalJudgesResult.builder()
+                .assignment(FinalJudgeAssignmentResponse.builder()
+                        .roundId(roundId)
+                        .judgeIds(assigned)
+                        .build())
                 .warnings(warnings.isEmpty() ? null : warnings)
                 .build();
     }

@@ -17,7 +17,7 @@ import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.mapper.RoundMapper;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.value_object.RoundType;
-import com.sealhackathon.api.submissions.repository.SubmissionPlaceholderRepository;
+import com.sealhackathon.api.submissions.repository.SubmissionRepository;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,7 +47,7 @@ class RoundServiceImplSequenceTest {
     @Mock private RoundMapper roundMapper;
     @Mock private AuditService auditService;
     @Mock private WeightSummaryService weightSummaryService;
-    @Mock private SubmissionPlaceholderRepository submissionRepository;
+    @Mock private SubmissionRepository submissionRepository;
     @Mock private JudgeAssignmentRepository judgeAssignmentRepository;
     @Mock private NotificationService notificationService;
     @Mock private HackathonTimelineService hackathonTimelineService;

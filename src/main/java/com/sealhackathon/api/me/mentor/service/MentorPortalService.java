@@ -8,6 +8,10 @@ public interface MentorPortalService {
 
     List<MentorTrackAssignmentResponse> listTrackAssignments();
 
+    List<MentorRoundResponse> getMentorRounds();
+
+    MentorAssignedTeamsResponse getAssignedTeamsForRound(Integer roundId);
+
     List<MentorTeamAssignmentResponse> listTeamAssignments(Integer roundId);
 
     MentorPresentationSlotResponse getPresentationSlot(Integer teamId);

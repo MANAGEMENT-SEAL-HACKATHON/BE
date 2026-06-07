@@ -1,4 +1,4 @@
--- MF-03 schema delta (GD03 §6) — chạy THỦ CÔNG hoặc để Mf03SchemaMigration tự áp khi app start.
+-- MF-03 schema delta (GD03 §6) — LEGACY; dùng V20260529_gd03_v4_1_delta.sql hoặc Gd03V41SchemaMigration.
 -- An toàn: chỉ ADD nullable / DEFAULT, không đổi cột hiện có.
 
 -- FR-20/32: thời điểm kích hoạt Round

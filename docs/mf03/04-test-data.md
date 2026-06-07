@@ -201,15 +201,15 @@ curl -s "http://localhost:8080/api/v1/rounds/2/scoreboard"
 
 ---
 
-## 8. Migration MF-03
+## 8. Migration MF-03 / GD03 v4.1
 
-Chạy thủ công (MySQL):
+Chạy thủ công (MySQL) nếu DB cũ thiếu cột:
 
 ```bash
-mysql -u ... -p seal_db < src/main/resources/db/manual/V20260528_mf03_schema_delta.sql
+mysql -u ... -p seal_db < src/main/resources/db/manual/V20260529_gd03_v4_1_delta.sql
 ```
 
-Hoặc start app với profile dev — `Mf03SchemaMigration` tự thêm cột nếu thiếu.
+Hoặc start app — `Gd03V41SchemaMigration` (@Order 0) tự áp delta idempotent.
 
 ---
 

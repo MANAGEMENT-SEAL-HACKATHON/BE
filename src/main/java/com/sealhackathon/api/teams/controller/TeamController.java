@@ -78,7 +78,7 @@ public class TeamController {
 
     @GetMapping("/{teamId}")
     @ApprovedOnly
-    @Operation(summary = "Chi tiết đội + danh sách thành viên")
+    @Operation(summary = "Chi tiết đội + danh sách thành viên (leader/member PENDING|ACCEPTED, mentor được gán, coordinator)")
     public ResponseEntity<ApiResponse<TeamDetailResponse>> get(@PathVariable Integer teamId) {
         return ResponseEntity.ok(ApiResponse.ok(teamService.getTeam(teamId)));
     }

@@ -41,4 +41,15 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, TeamMemb
             @Param("memberStatuses") Collection<TeamMemberStatus> memberStatuses);
 
     boolean existsByUser_IdAndTeam_IdAndStatus(Integer userId, Integer teamId, TeamMemberStatus status);
+
+    @Query("""
+            SELECT COUNT(tm) > 0 FROM TeamMember tm
+            WHERE tm.user.id = :userId AND tm.team.id = :teamId AND tm.status IN :statuses
+            """)
+    boolean existsByUser_IdAndTeam_IdAndMemberStatusIn(
+            @Param("userId") Integer userId,
+            @Param("teamId") Integer teamId,
+            @Param("statuses") Collection<TeamMemberStatus> statuses);
+
+    List<TeamMember> findByUser_IdAndStatus(Integer userId, TeamMemberStatus status);
 }

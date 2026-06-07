@@ -3,6 +3,7 @@ package com.sealhackathon.api.config;
 import com.sealhackathon.api.config.seed.Gd1DataSeeder;
 import com.sealhackathon.api.config.seed.Gd1SeedConstants;
 import com.sealhackathon.api.config.seed.Gd2DataSeeder;
+import com.sealhackathon.api.config.seed.Gd4AdvanceDataSeeder;
 import com.sealhackathon.api.config.seed.Gd3DataSeeder;
 import com.sealhackathon.api.config.seed.Gd5FinalRoundDataSeeder;
 import com.sealhackathon.api.config.seed.Gd6PendingConfirmDataSeeder;
@@ -17,7 +18,7 @@ import org.springframework.stereotype.Component;
 /**
  * Dev profile: seed MF-01 Giai đoạn 1 (chapters → users → hackathons → …).
  *
- * <p>Thứ tự startup: {@link Gd03V41SchemaMigration} (0) → {@link Mf03SchemaMigration} (1)
+ * <p>Thứ tự startup: {@link Gd03V41SchemaMigration} (0) → {@link CriteriaCloneSourceUnlinkMigration} (1)
  * → DataInitializer (2).
  *
  * <p>Mỗi lần start: repair timeline (đăng ký 24/05–05/06, WS 06/06, KO 07/06, thi 10/06),
@@ -37,6 +38,7 @@ public class DataInitializer implements CommandLineRunner {
     private final Gd1DataSeeder gd1DataSeeder;
     private final Gd2DataSeeder gd2DataSeeder;
     private final Gd3DataSeeder gd3DataSeeder;
+    private final Gd4AdvanceDataSeeder gd4AdvanceDataSeeder;
     private final Gd5FinalRoundDataSeeder gd5FinalRoundDataSeeder;
     private final Gd6PendingConfirmDataSeeder gd6PendingConfirmDataSeeder;
     private final HackathonDevSeedHelper hackathonDevSeedHelper;
@@ -56,8 +58,10 @@ public class DataInitializer implements CommandLineRunner {
         }
         gd2DataSeeder.ensureSeed();
         gd3DataSeeder.ensureSeed();
+        gd4AdvanceDataSeeder.ensureSeed();
         gd5FinalRoundDataSeeder.ensureSeed();
         gd6PendingConfirmDataSeeder.ensureSeed();
         hackathonDevSeedHelper.repairAllDevHackathonRoundSchedules();
+        hackathonDevSeedHelper.repairAllDevHackathonMilestoneEvents();
     }
 }

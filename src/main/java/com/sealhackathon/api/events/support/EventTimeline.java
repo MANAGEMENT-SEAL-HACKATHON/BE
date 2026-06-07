@@ -30,6 +30,7 @@ public final class EventTimeline {
         return endsAt != null ? endsAt : startsAt;
     }
 
+    /** Thứ tự trên lịch thực tế (Spring 2026: WS 9/4 → KO 11/4 → AWARDS). */
     public static int phaseOrder(EventType type) {
         return switch (type) {
             case WORKSHOP -> 0;

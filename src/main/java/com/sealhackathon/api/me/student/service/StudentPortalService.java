@@ -18,7 +18,11 @@ public interface StudentPortalService {
 
     StudentProblemResponse getRoundProblem(Integer roundId);
 
-    List<StudentSubmissionStatusResponse> listTeamSubmissions(Integer teamId);
+    List<StudentSubmissionStatusResponse> listTeamSubmissions(Integer teamId, Integer roundId);
+
+    StudentSubmissionStatusResponse getLatestSubmission(Integer teamId, Integer roundId);
+
+    StudentRoundDeadlineResponse getCurrentDeadline();
 
     List<StudentLeaderboardItemResponse> getRoundLeaderboard(Integer roundId);
 

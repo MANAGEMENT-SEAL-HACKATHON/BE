@@ -221,6 +221,7 @@ public final class ErrorCode {
     public static final String CRITERION_WRONG_TRACK                      = "CRITERION_WRONG_TRACK";
     public static final String CRITERION_WRONG_ROUND                      = "CRITERION_WRONG_ROUND";
     public static final String INVALID_REPO_PLATFORM                      = "INVALID_REPO_PLATFORM";
+    public static final String INVALID_SLIDE_FORMAT                       = "INVALID_SLIDE_FORMAT";
     public static final String REVIEW_NOTE_REQUIRED                       = "REVIEW_NOTE_REQUIRED";
     public static final String SUBMISSION_NOT_LATE_PENDING                = "SUBMISSION_NOT_LATE_PENDING";
     public static final String LATE_PENDING_NOT_ALLOWED                   = "LATE_PENDING_NOT_ALLOWED";

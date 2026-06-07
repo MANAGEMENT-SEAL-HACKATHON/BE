@@ -19,11 +19,13 @@ import com.sealhackathon.api.hackathons.dto.response.HackathonReadinessResponse;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.service.HackathonReadinessService;
-import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
+import com.sealhackathon.api.hackathons.value_object.ReadinessTarget;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
+import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
 import com.sealhackathon.api.mentor_assignments.repository.MentorAssignmentRepository;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
+import com.sealhackathon.api.team_round_participation.repository.TeamRoundParticipationRepository;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.tracks.value_object.TrackStatus;
@@ -60,10 +62,11 @@ public class HackathonReadinessServiceImpl implements HackathonReadinessService 
     private final EventScheduleValidator eventScheduleValidator;
     private final HackathonTimelineService hackathonTimelineService;
     private final AuditService auditService;
+    private final TeamRoundParticipationRepository teamRoundParticipationRepository;
 
     @Override
-    public HackathonReadinessResponse check(Integer hackathonId, HackathonStatus target) {
-        HackathonStatus effectiveTarget = (target != null) ? target : HackathonStatus.ONGOING;
+    public HackathonReadinessResponse check(Integer hackathonId, ReadinessTarget target) {
+        ReadinessTarget effectiveTarget = (target != null) ? target : ReadinessTarget.ONGOING;
         Hackathon h = hackathonRepository.findById(hackathonId)
                 .orElseThrow(() -> new ResourceNotFoundException("Hackathon", hackathonId));
 
@@ -71,10 +74,10 @@ public class HackathonReadinessServiceImpl implements HackathonReadinessService 
         List<Warning> warnings = new ArrayList<>();
         Map<String, Object> summary = new LinkedHashMap<>();
 
-        if (effectiveTarget == HackathonStatus.ONGOING) {
-            checkOngoingReadiness(h, blockers, warnings, summary);
-        } else {
-            log.info("[Readiness] target={} ngoài scope MF-01 — ready=true (no-op)", effectiveTarget);
+        switch (effectiveTarget) {
+            case ONGOING -> checkOngoingReadiness(h, blockers, warnings, summary);
+            case FINAL_ROUND -> checkFinalRoundReadiness(h, blockers, warnings, summary);
+            case AWARDS, PENDING_CONFIRM -> checkAwardsReadiness(h, blockers, warnings, summary);
         }
 
         boolean ready = blockers.isEmpty();
@@ -153,7 +156,13 @@ public class HackathonReadinessServiceImpl implements HackathonReadinessService 
                             "Track '%s' chưa có Mentor".formatted(t.getName()),
                             Map.of("trackId", t.getId())));
                 }
-                totalJudge += judgeAssignmentRepository.findByTrackId(t.getId()).size();
+                int judges = judgeAssignmentRepository.findByTrackId(t.getId()).size();
+                totalJudge += judges;
+                if (judges == 0) {
+                    warnings.add(Warning.of(CODE_READINESS_WARNING,
+                            "Track '%s' chưa có Judge NORMAL".formatted(t.getName()),
+                            Map.of("trackId", t.getId())));
+                }
             }
         }
 
@@ -175,7 +184,6 @@ public class HackathonReadinessServiceImpl implements HackathonReadinessService 
         }
 
         validateMilestoneEventsGate(h, hackathonId, blockers);
-        validateMilestoneEventsRequiredForRounds(hackathonId, preliminaryRounds, finalRound, blockers);
         validateRoundsExamAtGate(hackathonId, blockers);
 
         summary.put("tracksCount", trackCount);
@@ -186,6 +194,84 @@ public class HackathonReadinessServiceImpl implements HackathonReadinessService 
         summary.put("eventsCount", eventRepository.findByHackathonIdOrderByStartsAtAsc(hackathonId).size());
         summary.put("tempJudgesCount", userRepository.searchTempJudges(null, null, PageRequest.of(0, 1))
                 .getTotalElements());
+    }
+
+    private void checkFinalRoundReadiness(Hackathon h,
+                                          List<HackathonReadinessResponse.Blocker> blockers,
+                                          List<Warning> warnings,
+                                          Map<String, Object> summary) {
+        Integer hackathonId = h.getId();
+        Optional<Round> finalRound = roundRepository.findByHackathon_IdAndIsFinalTrue(hackathonId);
+        if (finalRound.isEmpty()) {
+            blockers.add(blocker(ErrorCode.MISSING_FINAL_ROUND,
+                    "Thiếu Round Chung kết (is_final=TRUE)",
+                    Map.of("hackathonId", hackathonId)));
+            return;
+        }
+
+        Round fr = finalRound.get();
+        long normalFinal = criteriaRepository.countNormalByFinalRoundId(fr.getId());
+        if (normalFinal == 0) {
+            blockers.add(blocker(ErrorCode.ROUND_NO_CRITERIA,
+                    "Round Chung kết chưa có Criteria",
+                    Map.of("roundId", fr.getId())));
+        } else if (!weightSummaryService.isValidForFinalRound(fr.getId())) {
+            double raw = weightSummaryService.rawTotalForFinalRound(fr.getId()).orElse(0.0);
+            blockers.add(blocker(ErrorCode.FINAL_CRITERIA_WEIGHT,
+                    "Round Chung kết: tổng weight = %.4f, cần 1.0".formatted(raw),
+                    Map.of("roundId", fr.getId(), "total", raw)));
+        }
+
+        long finalJudges = judgeAssignmentRepository.findByRoundId(fr.getId()).stream()
+                .filter(ja -> ja.getAssignmentType() == JudgeAssignmentType.FINAL_EXTERNAL)
+                .count();
+        if (finalJudges == 0) {
+            blockers.add(blocker(ErrorCode.JUDGE_FINAL_AT_PHASE1,
+                    "Chưa phân Judge Chung kết (FINAL_EXTERNAL)",
+                    Map.of("roundId", fr.getId(), "hackathonId", hackathonId)));
+        }
+
+        long teamCount = teamRoundParticipationRepository.countByRound_Id(fr.getId());
+        if (teamCount == 0) {
+            blockers.add(blocker(ErrorCode.NO_TEAMS_IN_ROUND,
+                    "Chưa có đội tham gia Round Chung kết — cần advance từ GĐ4",
+                    Map.of("roundId", fr.getId(), "hackathonId", hackathonId)));
+        }
+
+        if (!eventRepository.existsByHackathonIdAndType(hackathonId, EventType.AWARDS)) {
+            warnings.add(Warning.of(CODE_READINESS_WARNING,
+                    "Chưa có sự kiện AWARDS (lễ trao giải) — khuyến nghị trước GĐ6",
+                    Map.of("hackathonId", hackathonId)));
+        }
+
+        summary.put("finalRoundId", fr.getId());
+        summary.put("finalExternalJudgeCount", finalJudges);
+        summary.put("finalTeamCount", teamCount);
+    }
+
+    private void checkAwardsReadiness(Hackathon h,
+                                      List<HackathonReadinessResponse.Blocker> blockers,
+                                      List<Warning> warnings,
+                                      Map<String, Object> summary) {
+        Integer hackathonId = h.getId();
+        if (!eventRepository.existsByHackathonIdAndType(hackathonId, EventType.AWARDS)) {
+            blockers.add(blocker(ErrorCode.EVENT_AWARDS_MISSING,
+                    "Thiếu sự kiện AWARDS (lễ trao giải)",
+                    Map.of("hackathonId", hackathonId)));
+        } else {
+            for (Event event : eventRepository.findByHackathonIdAndType(hackathonId, EventType.AWARDS)) {
+                try {
+                    eventScheduleValidator.validateBlocking(h, toCreateRequest(event), event.getId());
+                } catch (BusinessRuleException ex) {
+                    blockers.add(blocker(ex.getCode(),
+                            "AWARDS #%d: %s".formatted(event.getId(), ex.getMessage()),
+                            Map.of("eventId", event.getId(),
+                                    "hackathonId", hackathonId,
+                                    "details", ex.getDetails() == null ? Map.of() : ex.getDetails())));
+                }
+            }
+        }
+        summary.put("eventsCount", eventRepository.findByHackathonIdOrderByStartsAtAsc(hackathonId).size());
     }
 
     private void validateMilestoneEventsGate(Hackathon h, Integer hackathonId,
@@ -208,20 +294,6 @@ public class HackathonReadinessServiceImpl implements HackathonReadinessService 
                                     "details", ex.getDetails() == null ? Map.of() : ex.getDetails())));
                 }
             }
-        }
-    }
-
-    private void validateMilestoneEventsRequiredForRounds(Integer hackathonId,
-                                                        List<Round> preliminaryRounds,
-                                                        Optional<Round> finalRound,
-                                                        List<HackathonReadinessResponse.Blocker> blockers) {
-        // FR-06A v3.2 — PRESENTATION là tuỳ chọn cho cả Sơ loại và Chung kết
-        // (không còn block readiness vì thiếu PRESENTATION).
-        if (finalRound.isPresent()
-                && !eventRepository.existsByHackathonIdAndType(hackathonId, EventType.AWARDS)) {
-            blockers.add(blocker(ErrorCode.EVENT_AWARDS_MISSING,
-                    "Đã có Round Chung kết — cần sự kiện AWARDS (lễ trao giải)",
-                    Map.of("hackathonId", hackathonId, "finalRoundId", finalRound.get().getId())));
         }
     }
 

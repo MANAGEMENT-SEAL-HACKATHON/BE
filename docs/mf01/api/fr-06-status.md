@@ -43,7 +43,7 @@ Endpoint dry-run gate — chạy mọi rule của transition mục tiêu, KHÔNG
 preview trước khi bấm "Mở cổng đăng ký".
 
 ### Query params
-- `target` (default `ONGOING`) — transition đang muốn kiểm.
+- `target` (default `ONGOING`) — `ONGOING` | `FINAL_ROUND` | `AWARDS` | `PENDING_CONFIRM`
 
 ### Response 200
 ```json

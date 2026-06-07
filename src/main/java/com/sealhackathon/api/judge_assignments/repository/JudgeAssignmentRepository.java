@@ -17,10 +17,16 @@ public interface JudgeAssignmentRepository extends JpaRepository<JudgeAssignment
 
     boolean existsByJudgeIdAndTrackId(Integer judgeId, Integer trackId);
 
+    /**
+     * Judge gán trực tiếp round CK ({@code ja.round}) hoặc track thuộc round Sơ loại ({@code ja.track}).
+     * Phải LEFT JOIN track — path {@code ja.track.round.id} tạo INNER JOIN và loại assignment CK (track_id NULL).
+     */
     @Query("""
-            SELECT COUNT(ja) > 0 FROM JudgeAssignment ja
+            SELECT CASE WHEN COUNT(ja) > 0 THEN true ELSE false END
+            FROM JudgeAssignment ja
+            LEFT JOIN ja.track t
             WHERE ja.judge.id = :judgeId
-              AND (ja.round.id = :roundId OR ja.track.round.id = :roundId)
+              AND (ja.round.id = :roundId OR t.round.id = :roundId)
             """)
     boolean existsByJudgeIdAndRoundScope(@Param("judgeId") Integer judgeId, @Param("roundId") Integer roundId);
 
