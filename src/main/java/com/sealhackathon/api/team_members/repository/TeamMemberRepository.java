@@ -42,6 +42,10 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, TeamMemb
 
     boolean existsByUser_IdAndTeam_IdAndStatus(Integer userId, Integer teamId, TeamMemberStatus status);
 
+    // ========================================================================
+    // ĐOẠN CODE ĐÃ ĐƯỢC MERGE
+    // ========================================================================
+
     @Query("""
             SELECT COUNT(tm) > 0 FROM TeamMember tm
             WHERE tm.user.id = :userId AND tm.team.id = :teamId AND tm.status IN :statuses
@@ -51,5 +55,13 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, TeamMemb
             @Param("teamId") Integer teamId,
             @Param("statuses") Collection<TeamMemberStatus> statuses);
 
+    // Hàm dùng chung cho Student Portal
+    // Lấy danh sách các đội mà User đang tham gia (trạng thái ACCEPTED)
     List<TeamMember> findByUser_IdAndStatus(Integer userId, TeamMemberStatus status);
+
+    // Hàm phục vụ Guard Hủy đăng ký
+    @Query("SELECT COUNT(tm) > 0 FROM TeamMember tm WHERE tm.user.id = :userId AND tm.team.hackathon.id = :hackathonId AND tm.status = 'ACCEPTED'")
+    boolean isUserInAnyActiveTeamForHackathon(
+            @Param("userId") Integer userId,
+            @Param("hackathonId") Integer hackathonId);
 }

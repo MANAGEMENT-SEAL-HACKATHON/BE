@@ -18,6 +18,9 @@ public interface PrizeRepository extends JpaRepository<Prize, Integer> {
 
     boolean existsByRound_IdAndPrizeRank(Integer roundId, PrizeRank prizeRank);
 
+    // Hàm lấy danh sách giải thưởng dựa trên danh sách Team ID
+    List<Prize> findByTeam_IdIn(List<Integer> teamIds);
+
     @Query("""
             SELECT COUNT(p) > 0
               FROM Prize p
