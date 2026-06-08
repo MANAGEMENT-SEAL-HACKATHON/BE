@@ -76,8 +76,8 @@ public class Gd1DataSeeder {
             Gd1SeedConstants.SLUG_FINISHED);
 
     /**
-     * Đồng bộ lịch seed mẫu 24/05–10/06/2026 lên DB dev đã tồn tại (hackathon, events, rounds).
-     * Gọi mỗi lần start dev, idempotent.
+     * Đồng bộ lịch seed theo {@link LocalDate#now()} (đăng ký mở ~14 ngày tới, thi sơ loại sau ~15 ngày).
+     * Gọi mỗi lần start dev, idempotent — FE không cần sửa DB khi ngày thực trôi qua.
      */
     @Transactional
     public void repairSeededTimeline() {
@@ -266,17 +266,24 @@ public class Gd1DataSeeder {
     }
 
     /**
-     * Lịch mẫu SEAL 2026 GĐ1: đăng ký 24/05–05/06, WS 06/06, KO 07/06, thi+trao giải 10/06.
+     * Lịch tương đối theo hôm nay — đăng ký còn mở, milestone WS/KO giữa regEnd và eventStart.
      */
     private SeedDates computeDates() {
-        LocalDate regStart = LocalDate.of(2026, 5, 24);
-        LocalDate regEnd = LocalDate.of(2026, 6, 5);
-        LocalDate eventStart = LocalDate.of(2026, 6, 10);
+        LocalDate today = LocalDate.now();
+        LocalDate regStart = today.minusDays(14);
+        LocalDate regEnd = today.plusDays(14);
+        LocalDate eventStart = today.plusDays(15);
         LocalDate eventEnd = eventStart;
-        LocalDateTime workshopStart = LocalDate.of(2026, 6, 6).atTime(20, 0);
-        LocalDateTime workshopEnd = LocalDate.of(2026, 6, 6).atTime(21, 30);
-        LocalDateTime kickoffStart = LocalDate.of(2026, 6, 7).atTime(14, 0);
-        LocalDateTime kickoffEnd = LocalDate.of(2026, 6, 7).atTime(17, 0);
+        LocalDate wsDay = regEnd.plusDays(1);
+        LocalDate koDay = regEnd.plusDays(2);
+        if (!koDay.isBefore(eventStart)) {
+            koDay = eventStart.minusDays(1);
+            wsDay = koDay.minusDays(1);
+        }
+        LocalDateTime workshopStart = wsDay.atTime(20, 0);
+        LocalDateTime workshopEnd = wsDay.atTime(21, 30);
+        LocalDateTime kickoffStart = koDay.atTime(14, 0);
+        LocalDateTime kickoffEnd = koDay.atTime(17, 0);
         LocalDateTime awardsStart = eventEnd.atTime(17, 30);
         LocalDateTime awardsEnd = eventEnd.atTime(19, 0);
         LocalDateTime prelimExamAt = eventStart.atTime(8, 0);

@@ -37,6 +37,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -76,6 +77,78 @@ public class Gd2DataSeeder {
             return;
         }
         seedAll(hackathon.get());
+    }
+
+    /**
+     * Mỗi lần start dev: đảm bảo GĐ2 test được — đăng ký còn mở, prelim chưa active, unlock teams (trừ demo locked).
+     */
+    @Transactional
+    public void repairForFeTesting() {
+        Optional<Hackathon> hackathon = hackathonRepository.findBySlug(Gd1SeedConstants.SLUG_ONGOING);
+        if (hackathon.isEmpty() || hackathon.get().getStatus() != HackathonStatus.ONGOING) {
+            return;
+        }
+        Hackathon h = hackathon.get();
+        if (!teamRepository.existsByHackathon_IdAndTeamNameIgnoreCase(h.getId(), Gd2SeedConstants.TEAM_01)) {
+            return;
+        }
+
+        roundRepository.findByHackathon_IdOrderByExamAtAsc(h.getId()).stream()
+                .filter(r -> r.getRoundType() == RoundType.PRELIMINARY)
+                .findFirst()
+                .ifPresent(prelim -> {
+                    if (Boolean.TRUE.equals(prelim.getIsActive())) {
+                        prelim.setIsActive(false);
+                        prelim.setActivatedAt(null);
+                        roundRepository.save(prelim);
+                    }
+                });
+
+        LocalDateTime now = LocalDateTime.now();
+        int unlocked = 0;
+        int lockedDemo = 0;
+        for (Team team : teamRepository.findByHackathon_Id(h.getId())) {
+            if (!Gd2SeedConstants.TEAM_05.equals(team.getTeamName())) {
+                if (Boolean.TRUE.equals(team.getIsLocked())) {
+                    team.setIsLocked(false);
+                    team.setLockedAt(null);
+                    teamRepository.save(team);
+                    unlocked++;
+                }
+                continue;
+            }
+            if (team.getStatus() == TeamStatus.ACTIVE && !Boolean.TRUE.equals(team.getIsLocked())) {
+                team.setIsLocked(true);
+                team.setLockedAt(now);
+                teamRepository.save(team);
+                lockedDemo++;
+            }
+        }
+
+        log.info("""
+                [Gd2DataSeeder] FE repair slug={} hackathonId={}:
+                  registration: {} → {} (today={}) — đăng ký {}
+                  prelim: inactive (GĐ2 — chưa gate activate)
+                  teams unlocked={} | demo locked ({}): 1
+                  Password SV: {} | Chi tiết: docs/testing/fe-gd1-gd2-gd3-workflow-mapping.md
+                """,
+                h.getSlug(),
+                h.getId(),
+                h.getRegistrationStart(),
+                h.getRegistrationEnd(),
+                LocalDate.now(),
+                isRegistrationOpen(h) ? "ĐANG MỞ" : "ĐÃ ĐÓNG",
+                unlocked,
+                Gd2SeedConstants.TEAM_05,
+                Gd2SeedConstants.DEV_STUDENT_PASSWORD);
+    }
+
+    private static boolean isRegistrationOpen(Hackathon h) {
+        LocalDate today = LocalDate.now();
+        return h.getRegistrationStart() != null
+                && h.getRegistrationEnd() != null
+                && !today.isBefore(h.getRegistrationStart())
+                && !today.isAfter(h.getRegistrationEnd());
     }
 
     private void seedAll(Hackathon hackathon) {

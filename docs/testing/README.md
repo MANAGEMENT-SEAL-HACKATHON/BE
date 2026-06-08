@@ -7,7 +7,8 @@
 | **[full-workflow-api-test-gd1-gd6.md](full-workflow-api-test-gd1-gd6.md)** | **File chính** — hướng dẫn tester, E2E GĐ0→6, catalog 166 API (request/response JSON) |
 | **[gate-regression-test-matrix-gd1-gd6.md](gate-regression-test-matrix-gd1-gd6.md)** | **Regression GĐ1–6** — testcase gate, negative, E2E full path |
 | **[fe-gd1-gd2-gd3-workflow-mapping.md](fe-gd1-gd2-gd3-workflow-mapping.md)** | **FE GĐ1–3** — gate BTC, readiness targets, timeline sync |
-| **[fe-gd3-api-mapping.md](fe-gd3-api-mapping.md)** | **FE GĐ3** — mapping `BE_API_Requirements_PersonB` → path BE `/api/v1/me/*` |
+| **[fe-gd1-gd2-structure-and-fields.md](fe-gd1-gd2-structure-and-fields.md)** | **FE GĐ1/GĐ2** — Round/Track/Bảng, field từng form |
+| **[fe-gd3-api-mapping.md](fe-gd3-api-mapping.md)** | **FE GĐ3 — file gửi FE** (portal + coordinator + judge + seed + PersonB) |
 | **[seed-coverage-audit.md](seed-coverage-audit.md)** | **Seed DB dev** — slug theo GĐ, SQL verify, bật/tắt Gd4 |
 | **[gd4-gd5-e2e-seed-data.md](gd4-gd5-e2e-seed-data.md)** | **GĐ4/GĐ5** — ma trận teams, Postman vars, SQL verify |
 | [api-catalog-with-json.md](api-catalog-with-json.md) | Bản rút Phần III (cùng nội dung) — mở tab riêng khi chỉ tra API |

@@ -109,6 +109,8 @@ public class Gd3DataSeeder {
         seedCalibrationIfAbsent(structure, sub1, coordinator, CalibrationStatus.CLOSED);
 
         ensureMentorAndPresentation(structure, List.of(t1, t2, t3, t4, t5, t6), mentor, coordinator, now);
+        repairSubmissionTimestamps(structure);
+        repairPresentationSlots(structure);
 
         log.info("""
                 [Gd3DataSeeder] GĐ3 seed slug={} hackathonId={} prelimRoundId={} track1Id={} track2Id={}
@@ -136,6 +138,117 @@ public class Gd3DataSeeder {
                 subLate.getId(), GdExtendedSeedConstants.GD3_STU_LEADER_02,
                 GdExtendedSeedConstants.GD3_STU_LEADER_01, GdExtendedSeedConstants.DEV_STUDENT_PASSWORD,
                 Gd1SeedConstants.EMAIL_MENTOR, Gd1SeedConstants.DEV_MENTOR_PASSWORD);
+    }
+
+    /**
+     * Mỗi lần start dev: sync lịch GĐ3 (sơ loại hôm nay) + timestamps bài nộp + presentation queue.
+     */
+    @Transactional
+    public void repairForFeTesting() {
+        seedHelper.syncHackathonCalendarFromDates(
+                GdExtendedSeedConstants.SLUG_GD3_PRELIM_OPEN,
+                seedHelper.computeGd3ActivePrelimDates());
+
+        var structure = seedHelper.ensureHackathonStructure(
+                GdExtendedSeedConstants.SLUG_GD3_PRELIM_OPEN,
+                "SEAL GĐ3 Prelim Open",
+                HackathonStatus.ONGOING,
+                "Seed GĐ3 — test nộp bài / chấm / late / calibration / ranking / presentation queue.",
+                new HackathonDevSeedHelper.PrelimState(true, true, false, false, 2, 6),
+                new HackathonDevSeedHelper.FinalState(false, false));
+
+        repairSubmissionTimestamps(structure);
+        repairPresentationSlots(structure);
+
+        log.info("""
+                [Gd3DataSeeder] FE repair slug={} prelimRoundId={} examAt={} deadline={}
+                  team04 chưa nộp → POST submit | team02 LATE_PENDING → coord approve
+                  Hướng dẫn: docs/testing/fe-gd3-api-mapping.md §18
+                """,
+                GdExtendedSeedConstants.SLUG_GD3_PRELIM_OPEN,
+                structure.prelim().getId(),
+                structure.prelim().getExamAt(),
+                structure.prelim().getSubmissionDeadline());
+    }
+
+    private void repairSubmissionTimestamps(HackathonDevSeedHelper.HackathonStructure structure) {
+        LocalDateTime deadline = structure.prelim().getSubmissionDeadline();
+        if (deadline == null) {
+            return;
+        }
+        LocalDateTime onTimeAt = deadline.minusHours(2);
+        LocalDateTime lateAt = deadline.plusHours(1);
+        LocalDateTime now = LocalDateTime.now();
+        if (!now.isAfter(deadline) && now.isAfter(onTimeAt)) {
+            onTimeAt = now.minusMinutes(30);
+        }
+
+        for (Submission sub : submissionRepository.findByRound_Id(structure.prelim().getId())) {
+            String teamName = sub.getTeam().getTeamName();
+            boolean changed = false;
+            if (GdExtendedSeedConstants.GD3_TEAM_LATE_PENDING.equals(teamName)
+                    || (Boolean.TRUE.equals(sub.getIsLate()) && sub.getStatus() == SubmissionStatus.LATE_PENDING)) {
+                if (sub.getSubmittedAt() == null || !sub.getSubmittedAt().isAfter(deadline)) {
+                    sub.setSubmittedAt(lateAt);
+                    sub.setIsLate(true);
+                    sub.setStatus(SubmissionStatus.LATE_PENDING);
+                    changed = true;
+                }
+            } else if (sub.getStatus() == SubmissionStatus.LATE_APPROVED) {
+                if (sub.getSubmittedAt() == null || !sub.getSubmittedAt().isAfter(deadline)) {
+                    sub.setSubmittedAt(lateAt);
+                    sub.setIsLate(true);
+                    changed = true;
+                }
+            } else if (sub.getStatus() == SubmissionStatus.SUBMITTED) {
+                if (sub.getSubmittedAt() == null || sub.getSubmittedAt().isAfter(deadline)) {
+                    sub.setSubmittedAt(onTimeAt);
+                    sub.setIsLate(false);
+                    changed = true;
+                }
+            }
+            if (changed) {
+                submissionRepository.save(sub);
+            }
+        }
+    }
+
+    private void repairPresentationSlots(HackathonDevSeedHelper.HackathonStructure structure) {
+        LocalDateTime examAt = structure.prelim().getExamAt();
+        if (examAt == null) {
+            return;
+        }
+        List<PresentationSlot> slots = presentationSlotRepository
+                .findByRound_IdOrderBySequenceOrderAsc(structure.prelim().getId());
+        int order = 1;
+        for (PresentationSlot slot : slots) {
+            LocalDateTime start = examAt.plusMinutes((long) (order - 1) * 15);
+            boolean changed = false;
+            if (slot.getStartsAt() == null || !slot.getStartsAt().equals(start)) {
+                slot.setStartsAt(start);
+                changed = true;
+            }
+            LocalDateTime end = start.plusMinutes(15);
+            if (slot.getEndsAt() == null || !slot.getEndsAt().equals(end)) {
+                slot.setEndsAt(end);
+                changed = true;
+            }
+            if (slot.getSequenceOrder() == null || slot.getSequenceOrder() != order) {
+                slot.setSequenceOrder(order);
+                changed = true;
+            }
+            if (order == 1 && slot.getQueueStatus() != PresentationQueueStatus.PRESENTING) {
+                slot.setQueueStatus(PresentationQueueStatus.PRESENTING);
+                changed = true;
+            } else if (order > 1 && slot.getQueueStatus() == null) {
+                slot.setQueueStatus(PresentationQueueStatus.WAITING);
+                changed = true;
+            }
+            if (changed) {
+                presentationSlotRepository.save(slot);
+            }
+            order++;
+        }
     }
 
     private Submission ensureSubmission(

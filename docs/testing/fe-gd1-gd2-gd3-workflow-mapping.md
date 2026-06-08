@@ -7,6 +7,7 @@
 
 | Tài liệu | Nội dung |
 |----------|----------|
+| **[fe-gd1-gd2-structure-and-fields.md](fe-gd1-gd2-structure-and-fields.md)** | **Cấu trúc Round/Track/Bảng + field từng form GĐ1/GĐ2** |
 | [fe-gd3-api-mapping.md](fe-gd3-api-mapping.md) | Portal GĐ3 — Student/Mentor/Coordinator (path `/api/v1/me/*`, submission, queue) |
 | [full-workflow-api-test-gd1-gd6.md](full-workflow-api-test-gd1-gd6.md) | E2E tester — request/response JSON đầy đủ |
 | [gate-regression-test-matrix-gd1-gd6.md](gate-regression-test-matrix-gd1-gd6.md) | Testcase gate & negative GĐ1–6 |
@@ -32,6 +33,7 @@
 | `POST /hackathons/{id}/lottery` | **`PATCH /hackathons/{id}/lottery`** |
 | Body `{ "targetStatus": "ONGOING" }` only | Cả `"status"` và `"targetStatus"` đều được (`@JsonAlias`) — khuyến nghị `"status"` |
 | Gán judge CK (`FINAL_EXTERNAL`) ở GĐ1 | Chỉ ở **GĐ4** — GĐ1 dùng `NORMAL` + `trackId` (Sơ loại) |
+| UI gán mentor/judge **theo đội** ở GĐ1 | Gán **theo track** — xem §3.4 |
 | POST WORKSHOP trước KICKOFF | POST order: **KICKOFF → WORKSHOP → AWARDS** (AWARDS chỉ GĐ6) |
 | Bốc thăm trong ngày `registrationEnd` | Khóa đội + lottery từ **ngày hôm sau** `registrationEnd` |
 
@@ -149,17 +151,115 @@ Response `data.status` phải là `"ONGOING"`. Field `note` optional (max 1000 k
 
 > BE chấp nhận cả `"targetStatus"` (alias) — FE có thể dùng một trong hai, nhưng doc tester dùng `"status"`.
 
-### 3.4 Judge assignment GĐ1
+### 3.4 Phân công Mentor & Judge (theo Track — không theo đội)
 
-```json
-{
-  "judgeId": 3,
-  "trackId": 5,
-  "assignmentType": "NORMAL"
-}
+> **Quy tắc cốt lõi cho FE:** Màn setup GĐ1 gán mentor/judge theo **Track**, không cần (và không nên) UI chọn từng đội.  
+> Sau lottery, đội thuộc track nào thì tự động nằm trong phạm vi mentor/judge của track đó.
+
+#### Tóm tắt mô hình
+
+| Vai trò | Gán chính (GĐ1) | Gán phụ | Có gán theo đội? |
+|---------|-----------------|---------|------------------|
+| **Judge Sơ loại** | `trackId` | — | **Không** |
+| **Judge Chung kết** | `roundId` (GĐ4) | — | **Không** |
+| **Mentor** | `trackId` | team + round (GĐ2+, tùy chọn) | Chỉ khi BTC gọi API riêng |
+
+```mermaid
+flowchart TB
+  subgraph gd1 [GĐ1 Setup — Coordinator]
+    T1[Track A]
+    T2[Track B]
+    M1[Mentor → Track A]
+    M2[Mentor → Track B]
+    J1[Judge NORMAL → Track A]
+    J2[Judge NORMAL → Track B]
+  end
+  subgraph gd2 [GĐ2 Lottery]
+    Team1[Team GD2-01]
+    Team2[Team GD2-02]
+  end
+  T1 --> M1
+  T1 --> J1
+  T2 --> M2
+  T2 --> J2
+  Team1 -->|team_round_tracks| T1
+  Team2 -->|team_round_tracks| T2
 ```
 
-Gán judge với `roundId` CK + `FINAL_EXTERNAL` ở GĐ1 → `422 JUDGE_FINAL_AT_PHASE1`.
+#### Judge
+
+| Vòng | FK gán | API | Body mẫu |
+|------|--------|-----|----------|
+| **Sơ loại** | `judge_assignments.track_id` | `POST /judge-assignments` | `{ "judgeId", "trackId", "assignmentType": "NORMAL" }` |
+| **Chung kết** | `judge_assignments.round_id` | GĐ4 — `POST /rounds/{finalId}/assign-final-judges` | `FINAL_EXTERNAL` — **không** gán ở GĐ1 |
+
+**Khi chấm điểm (`POST /scores`):** BE kiểm tra judge được gán **track** của submission (SL) hoặc **round** CK (final) — không có bảng gán judge ↔ team.
+
+**Negative GĐ1:** gán judge CK (`roundId` + `FINAL_EXTERNAL`) → `422 JUDGE_FINAL_AT_PHASE1`.
+
+**List judge theo track (Coordinator):**
+
+```http
+GET /api/v1/tracks/{trackId}/judges
+```
+
+**Portal judge — track đã gán:**
+
+```http
+GET /api/v1/me/judge-track-assignments
+```
+
+#### Mentor
+
+**Gán chính — GĐ1 (theo track):**
+
+```http
+POST /api/v1/mentor-assignments
+```
+
+```json
+{ "mentorId": 4, "trackId": 5 }
+```
+
+Bảng `mentor_assignments` — unique `(mentor_id, track_id)`. Readiness ONGOING chỉ **warning** nếu track thiếu mentor (không block gate).
+
+**Gán phụ — tùy chọn GĐ2+ (theo đội + vòng):**
+
+```http
+POST /api/v1/teams/{teamId}/rounds/{roundId}/mentor
+```
+
+```json
+{ "mentorId": 4 }
+```
+
+- Bảng `mentor_team_assignments` — dùng khi BTC muốn mentor cố định **từng đội** trong một vòng.
+- **Không** tự sinh khi lottery — seed dev tạo thủ công cho test portal.
+- **Không** áp dụng vòng Chung kết → `422 MENTOR_ASSIGNMENT_NOT_FOR_FINAL_ROUND`.
+
+#### Quyền truy cập & Portal mentor
+
+`MentorAccessGuard` cho phép mentor xem đội nếu **một trong hai**:
+
+1. Có `mentor_team_assignments` trực tiếp với đội đó, **hoặc**
+2. Có `mentor_assignments` với **track** mà đội đang tham gia (`team_round_tracks`).
+
+| Endpoint portal | Nguồn dữ liệu hiện tại | Ghi chú FE |
+|-----------------|------------------------|------------|
+| `GET /me/mentor/rounds` | `mentor_team_assignments` | Nếu chỉ gán track (GĐ1) mà chưa gán team → `teams[]` có thể **trống** |
+| `GET /me/mentor/rounds/{roundId}/assigned-teams` | `mentor_team_assignments` | Tương tự — cần derive từ track hoặc gọi thêm API |
+| `GET /me/mentor-track-assignments` | `mentor_assignments` | Danh sách track mentor được gán ở GĐ1 |
+
+**Gợi ý UI mentor portal:** Sau lottery, lấy danh sách đội bằng một trong hai cách:
+
+- **Cách A (khuyến nghị):** FE derive — lấy `trackId` từ `mentor_assignments` → query teams thuộc track qua `team_round_tracks` / API teams-by-track.
+- **Cách B:** BTC gọi `POST /teams/{id}/rounds/{roundId}/mentor` cho từng đội (nặng, không bắt buộc).
+
+#### Xung đột Mentor ↔ Judge
+
+DB trigger + BE enforce: **cùng một user không được vừa là Mentor vừa là Judge của cùng track** (Sơ loại). FE nên disable chọn user đã là mentor của track khi gán judge (và ngược lại).
+
+---
 
 ### 3.5 Seed dev GĐ1
 
@@ -362,6 +462,8 @@ Format lỗi đầy đủ: xem §0 và [fe-gd3-api-mapping.md §6](fe-gd3-api-ma
 - [ ] Nút "Mở đăng ký": gọi readiness trước → hiển thị blockers/warnings → PATCH `status: ONGOING`
 - [ ] Không hiện gán judge CK / activate CK ở GĐ1
 - [ ] Form event: validate POST order KICKOFF → WORKSHOP; date picker WS trước KO
+- [ ] Form gán **Mentor + Judge theo Track** (dropdown track, không chọn đội) — §3.4
+- [ ] Disable user đã là mentor của track khi gán judge cùng track (và ngược lại)
 
 ### GĐ2 UI
 
@@ -376,6 +478,11 @@ Format lỗi đầy đủ: xem §0 và [fe-gd3-api-mapping.md §6](fe-gd3-api-ma
 - [ ] Late review dùng `/submissions/{id}/approve|reject`
 - [ ] Presentation queue: `GET` + `PATCH …/next`
 
+### Mentor portal
+
+- [ ] Danh sách đội: derive từ **track assignment** sau lottery nếu `assigned-teams` trống — §3.4
+- [ ] Không expect API gán mentor/judge theo từng đội ở wizard GĐ1
+
 ---
 
 ## 10. Phạm vi ngoài file này
@@ -388,4 +495,4 @@ Format lỗi đầy đủ: xem §0 và [fe-gd3-api-mapping.md §6](fe-gd3-api-ma
 
 ---
 
-*Revision: 2026-06-07 — lottery PATCH; events POST vs lịch; readiness phased; seed slugs; link fe-gd3-api-mapping; FE checklist.*
+*Revision: 2026-06-07 — lottery PATCH; events POST vs lịch; readiness phased; seed slugs; §3.4 mentor/judge theo track; link fe-gd3-api-mapping; FE checklist.*

@@ -21,7 +21,7 @@ import org.springframework.stereotype.Component;
  * <p>Thứ tự startup: {@link Gd03V41SchemaMigration} (0) → {@link CriteriaCloneSourceUnlinkMigration} (1)
  * → DataInitializer (2).
  *
- * <p>Mỗi lần start: repair timeline (đăng ký 24/05–05/06, WS 06/06, KO 07/06, thi 10/06),
+ * <p>Mỗi lần start: repair timeline theo ngày hiện tại (đăng ký ~14 ngày tới, thi sau ~15 ngày),
  * repair/bổ sung hackathon {@link Gd1SeedConstants#SLUG_FINISHED} (dataset archive đầy đủ),
  * repair criteria/track seed (gỡ {@code source_criteria_id} cũ, bổ sung Track 3 trống để test clone 2→3).
  *
@@ -57,7 +57,9 @@ public class DataInitializer implements CommandLineRunner {
             gd1DataSeeder.seedAll();
         }
         gd2DataSeeder.ensureSeed();
+        gd2DataSeeder.repairForFeTesting();
         gd3DataSeeder.ensureSeed();
+        gd3DataSeeder.repairForFeTesting();
         gd4AdvanceDataSeeder.ensureSeed();
         gd5FinalRoundDataSeeder.ensureSeed();
         gd6PendingConfirmDataSeeder.ensureSeed();
