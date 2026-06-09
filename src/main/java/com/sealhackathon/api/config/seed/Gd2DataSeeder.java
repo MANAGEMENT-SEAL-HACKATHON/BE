@@ -205,7 +205,7 @@ public class Gd2DataSeeder {
         addMember(t05, students.get(Gd2SeedConstants.STU_HCM_12), TeamMemberRole.MEMBER, TeamMemberStatus.ACCEPTED, now);
         addMember(t05, students.get(Gd2SeedConstants.STU_EXT_13), TeamMemberRole.MEMBER, TeamMemberStatus.ACCEPTED, now);
         addMember(t05, students.get(Gd2SeedConstants.STU_HN_14), TeamMemberRole.MEMBER, TeamMemberStatus.ACCEPTED, now);
-        seedLottery(hackathon, prelim, track1, "Bảng B", t05, coordinator, now);
+        seedLottery(hackathon, prelim, track1, "Bảng A", t05, coordinator, now);
         seedMentor(hackathon, prelim, mentor, t05, coordinator, now);
 
         Team t06 = saveTeam(hackathon, Gd2SeedConstants.TEAM_06, students.get(Gd2SeedConstants.STU_HCM_LEADER_06),
@@ -220,7 +220,7 @@ public class Gd2DataSeeder {
         addMember(t07, students.get(Gd2SeedConstants.STU_HCM_LEADER_07), TeamMemberRole.LEADER, TeamMemberStatus.ACCEPTED, now);
         addMember(t07, students.get(Gd2SeedConstants.STU_HN_17), TeamMemberRole.MEMBER, TeamMemberStatus.ACCEPTED, now);
         addMember(t07, students.get(Gd2SeedConstants.STU_EXT_18), TeamMemberRole.MEMBER, TeamMemberStatus.ACCEPTED, now);
-        seedLottery(hackathon, prelim, track2, "Bảng A", t07, coordinator, now);
+        seedLottery(hackathon, prelim, track2, "Bảng B", t07, coordinator, now);
         seedMentor(hackathon, prelim, mentor, t07, coordinator, now);
 
         Team t08 = saveTeam(hackathon, Gd2SeedConstants.TEAM_08, students.get(Gd2SeedConstants.STU_HCM_LEADER_08),
@@ -240,7 +240,7 @@ public class Gd2DataSeeder {
         seedLottery(hackathon, prelim, track2, "Bảng B", t09, coordinator, now);
         seedMentor(hackathon, prelim, mentor, t09, coordinator, now);
 
-        seedLottery(hackathon, prelim, track1, "Bảng C", t08, coordinator, now);
+        seedLottery(hackathon, prelim, track1, "Bảng A", t08, coordinator, now);
         seedMentor(hackathon, prelim, mentor, t03, coordinator, now);
 
         addMember(t02, students.get(Gd2SeedConstants.STU_EXT_23), TeamMemberRole.MEMBER, TeamMemberStatus.LEFT, now);

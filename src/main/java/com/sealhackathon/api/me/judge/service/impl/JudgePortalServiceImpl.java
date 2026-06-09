@@ -13,6 +13,10 @@ import com.sealhackathon.api.me.judge.dto.request.JudgeScoringCompletionRequest;
 import com.sealhackathon.api.me.judge.dto.request.TiebreakVoteRequest;
 import com.sealhackathon.api.me.judge.dto.response.*;
 import com.sealhackathon.api.me.judge.service.JudgePortalService;
+import com.sealhackathon.api.submissions.entity.Submission;
+import com.sealhackathon.api.submissions.policy.SubmissionGradablePolicy;
+import com.sealhackathon.api.submissions.repository.SubmissionRepository;
+import com.sealhackathon.api.submissions.support.SubmissionSlideStorage;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.scores.entity.Score;
@@ -44,6 +48,7 @@ public class JudgePortalServiceImpl implements JudgePortalService {
     private final TiebreakEvaluationRepository tiebreakEvaluationRepository;
     private final TeamRepository teamRepository;
     private final RoundRepository roundRepository;
+    private final SubmissionRepository submissionRepository;
 
     @Override
     public List<JudgeTrackAssignmentResponse> listTrackAssignments() {
@@ -95,9 +100,56 @@ public class JudgePortalServiceImpl implements JudgePortalService {
                 .map(score -> JudgeScoreSummaryResponse.builder()
                         .scoreId(score.getId())
                         .submissionId(score.getSubmission().getId())
-                        .teamId(score.getSubmission().getTeam().getId())
+                        .displayCode("#" + score.getSubmission().getId())
                         .totalScore(BigDecimal.valueOf(score.getScoreValue()))
                         .comment(score.getComment())
+                        .build())
+                .toList();
+    }
+
+    @Override
+    public List<JudgeSubmissionListItemResponse> listSubmissions(Integer roundId, Integer trackId) {
+        Integer judgeId = currentUserAccessor.currentUserId();
+        if (roundId == null) {
+            throw new AuthException(ErrorCode.VALIDATION_FAILED, "roundId bắt buộc", HttpStatus.BAD_REQUEST);
+        }
+        if (!judgeAssignmentRepository.existsByJudgeIdAndRoundScope(judgeId, roundId)) {
+            throw new AuthException(ErrorCode.FORBIDDEN, "Judge chưa được phân công round này", HttpStatus.FORBIDDEN);
+        }
+
+        List<JudgeAssignment> assignments = judgeAssignmentRepository.findByJudgeId(judgeId);
+        var assignedTrackIds = assignments.stream()
+                .filter(ja -> ja.getTrack() != null && ja.getTrack().getRound().getId().equals(roundId))
+                .map(ja -> ja.getTrack().getId())
+                .collect(java.util.stream.Collectors.toSet());
+
+        boolean finalRound = assignments.stream()
+                .anyMatch(ja -> ja.getRound() != null && ja.getRound().getId().equals(roundId));
+
+        List<Submission> submissions = submissionRepository.findByTrack_Round_Id(roundId);
+        if (submissions.isEmpty()) {
+            submissions = submissionRepository.findByRound_Id(roundId);
+        }
+
+        return submissions.stream()
+                .filter(SubmissionGradablePolicy::isGradable)
+                .filter(s -> {
+                    if (trackId != null) {
+                        return s.getTrack() != null && s.getTrack().getId().equals(trackId);
+                    }
+                    if (s.getTrack() != null) {
+                        return assignedTrackIds.contains(s.getTrack().getId());
+                    }
+                    return finalRound;
+                })
+                .map(s -> JudgeSubmissionListItemResponse.builder()
+                        .submissionId(s.getId())
+                        .displayCode("#" + s.getId())
+                        .trackId(s.getTrack() != null ? s.getTrack().getId() : null)
+                        .trackName(s.getTrack() != null ? s.getTrack().getName() : "Chung kết")
+                        .status(s.getStatus())
+                        .slideFile(SubmissionSlideStorage.displayFilename(s))
+                        .repoUrl(s.getRepoUrl())
                         .build())
                 .toList();
     }
@@ -195,7 +247,7 @@ public class JudgePortalServiceImpl implements JudgePortalService {
         return JudgeScoreSummaryResponse.builder()
                 .scoreId(score.getId())
                 .submissionId(score.getSubmission().getId())
-                .teamId(score.getSubmission().getTeam().getId())
+                .displayCode("#" + score.getSubmission().getId())
                 .totalScore(BigDecimal.valueOf(score.getScoreValue()))
                 .comment(score.getComment())
                 .build();

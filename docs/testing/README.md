@@ -9,6 +9,9 @@
 | **[fe-gd1-gd2-gd3-workflow-mapping.md](fe-gd1-gd2-gd3-workflow-mapping.md)** | **FE GĐ1–3** — gate BTC, readiness targets, timeline sync |
 | **[fe-gd1-gd2-structure-and-fields.md](fe-gd1-gd2-structure-and-fields.md)** | **FE GĐ1/GĐ2** — Round/Track/Bảng, field từng form |
 | **[fe-gd3-api-mapping.md](fe-gd3-api-mapping.md)** | **FE GĐ3 — file gửi FE** (portal + coordinator + judge + seed + PersonB) |
+| **[postman-playbook-gd2-gd3-integration.md](postman-playbook-gd2-gd3-integration.md)** | **Postman GĐ2+GĐ3** — 7 integration test + **§0.5 quy trình Presentation/timer cho FE** |
+| **[e2e-gd2-gd3-v41-manual-test.md](e2e-gd2-gd3-v41-manual-test.md)** | E2E manual GĐ2→GĐ3 v4.1 (multipart, shuffle, timer, negative) |
+| **[test-strategy-gd1-gd6-unit-to-e2e.md](test-strategy-gd1-gd6-unit-to-e2e.md)** | Chiến lược unit → integration → E2E GĐ1–6 |
 | **[seed-coverage-audit.md](seed-coverage-audit.md)** | **Seed DB dev** — slug theo GĐ, SQL verify, bật/tắt Gd4 |
 | **[gd4-gd5-e2e-seed-data.md](gd4-gd5-e2e-seed-data.md)** | **GĐ4/GĐ5** — ma trận teams, Postman vars, SQL verify |
 | [api-catalog-with-json.md](api-catalog-with-json.md) | Bản rút Phần III (cùng nội dung) — mở tab riêng khi chỉ tra API |

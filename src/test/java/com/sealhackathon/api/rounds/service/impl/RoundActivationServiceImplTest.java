@@ -13,6 +13,7 @@ import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.mapper.RoundMapper;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.team_round_participation.repository.TeamRoundParticipationRepository;
+import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.tracks.value_object.TrackStatus;
@@ -45,6 +46,7 @@ class RoundActivationServiceImplTest {
     @Mock private WeightSummaryService weightSummaryService;
     @Mock private NotificationService notificationService;
     @Mock private TeamRoundParticipationRepository teamRoundParticipationRepository;
+    @Mock private TeamRoundTrackRepository teamRoundTrackRepository;
 
     @InjectMocks
     private RoundActivationServiceImpl activationService;
@@ -64,6 +66,7 @@ class RoundActivationServiceImplTest {
         when(criteriaRepository.countNormalByTrackId(10)).thenReturn(2L);
         when(weightSummaryService.isValidForTrack(10)).thenReturn(true);
         when(judgeAssignmentRepository.findByTrackId(10)).thenReturn(List.of());
+        when(teamRoundTrackRepository.findByTrack_Round_Id(5)).thenReturn(List.of());
 
         BusinessRuleException ex = assertThrows(BusinessRuleException.class,
                 () -> activationService.activate(5, "test"));

@@ -2,9 +2,17 @@
 
 > **File gửi Frontend** — gom toàn bộ API, contract, seed, luồng GĐ3.  
 > Đối chiếu gốc FE: [`BE_API_Requirements_PersonB.md`](../../../seal-hackathon-fe/src/docs/BE_API_Requirements_PersonB.md)  
-> Cập nhật: **2026-06-07**
+> Cập nhật: **2026-06-09** (GĐ3 v4.1 — multipart PDF, judge ẩn danh, shuffle/timer)
 
-**Liên quan (ngoài GĐ3):** [fe-gd1-gd2-gd3-workflow-mapping.md](fe-gd1-gd2-gd3-workflow-mapping.md) (gate GĐ1→2) · [fe-gd1-gd2-structure-and-fields.md](fe-gd1-gd2-structure-and-fields.md) (Round/Track)
+**Bộ 3 tài liệu FE bắt đầu tích hợp GĐ3:**
+
+| File | Dùng khi |
+|------|----------|
+| **[fe-gd3-api-mapping.md](fe-gd3-api-mapping.md)** (file này) | Contract API, workflow §9, màn hình §12, JSON mẫu §19 |
+| **[postman-playbook-gd2-gd3-integration.md](postman-playbook-gd2-gd3-integration.md)** | IT-01→08 từng request/assert; §0.5 presentation workflow |
+| **[e2e-gd2-gd3-v41-manual-test.md](e2e-gd2-gd3-v41-manual-test.md)** | E2E tay đầu-cuối + negative + WS; smoke ~15 phút |
+
+**Liên quan (ngoài GĐ3):** [fe-gd1-gd2-gd3-workflow-mapping.md](fe-gd1-gd2-gd3-workflow-mapping.md) (gate GĐ1→2) · [fe-gd1-gd2-structure-and-fields.md](fe-gd1-gd2-structure-and-fields.md) (Round/Track) · WS chi tiết: [../mf03/06-live-scoring-websocket.md](../mf03/06-live-scoring-websocket.md)
 
 ### Mục lục
 
@@ -19,7 +27,7 @@
 | 6 | Student portal |
 | 7 | Mentor portal |
 | 8 | Late submission |
-| 9 | Presentation queue |
+| 9 | Presentation queue — **§9.0 quy trình FE (timer/chấm)** |
 | 10 | Judge scoring |
 | 11 | Calibration (tùy chọn) |
 | 12 | Ma trận màn hình ↔ API |
@@ -146,7 +154,8 @@ Seed shortcut: copy log `[Gd3DataSeeder]` khi start app `profile=dev`.
 | 4 | `PRESENTING` lưu DB? | Có — `presentation_slots.queue_status` |
 | 5 | `LATE_PENDING` ai set? | BE tự khi nộp sau `submissionDeadline` |
 | 6 | Mentor stats (Efficiency, Avg Response)? | ❌ Chưa có — backlog |
-| 7 | `slideUrl` `.pdf` reject? | Có — `INVALID_SLIDE_FORMAT` |
+| 7 | Slide nộp thế nào? | **Multipart PDF** `slideFile` (không còn Google Slides URL) |
+| 8 | Judge thấy tên đội? | **Không** — chỉ `submissionId` / `displayCode` (`#31`) |
 
 **Login dev:** `POST /api/v1/auth/login` `{ "email", "password" }` → `data.accessToken`.
 
@@ -320,35 +329,29 @@ GET /api/v1/me/submission?teamId={teamId}&roundId={prelimRoundId}
 | `LATE_PENDING` | `LATE_PENDING` |
 | `REJECTED` | `REJECTED` |
 
-### 6.4 POST nộp bài (upsert)
+### 6.4 POST nộp bài (multipart — canonical GĐ3 v4.1)
 
 ```http
 POST /api/v1/submissions
 Authorization: Bearer {studentToken}
+Content-Type: multipart/form-data
 ```
 
-```json
-{
-  "teamId": 42,
-  "trackId": 8,
-  "repoUrl": "https://github.com/org/repo",
-  "demoUrl": "https://demo.example.com",
-  "slideUrl": "https://docs.google.com/presentation/d/abc"
-}
-```
-
-| Field | Ghi chú |
-|-------|---------|
-| `teamId` | **Bắt buộc** |
-| `trackId` | **Bắt buộc** prelim (từ lottery) |
-| `roundId` | Optional — BE suy từ track |
-| `reportUrl` | Optional |
+| Part | Type | Bắt buộc | Ghi chú |
+|------|------|----------|---------|
+| `teamId` | text | ✅ | Từ `GET /me/teams` |
+| `trackId` | text | ✅ prelim | Từ lottery |
+| `repoUrl` | text | ✅ | `https://github.com/{owner}/{repo}` — **public** |
+| `slideFile` | file | ✅ | PDF (`application/pdf`), max 25MB |
 
 **Validation:**
 
-- `slideUrl` kết thúc `.pdf` → `400` `INVALID_SLIDE_FORMAT`
-- `repoUrl` chứa `drive.google.com` → `400` `INVALID_REPO_PLATFORM`
-- Nộp sau deadline → BE tự `LATE_PENDING` (không gửi flag)
+- Thiếu `slideFile` → `400` `SLIDE_FILE_REQUIRED`
+- File không phải PDF → `400` `INVALID_SLIDE_FILE`
+- `repoUrl` không phải GitHub / private → `400` `INVALID_REPO_PLATFORM` / `REPO_NOT_PUBLIC`
+- Nộp sau deadline → BE tự `LATE_PENDING`
+
+`slideFile` trong response = **tên file gốc** lúc upload (`MultipartFile.getOriginalFilename()`), không phải tên object trong storage — để student/judge xác nhận đúng bản PDF. `GET …/slide` trả `Content-Disposition` cùng tên đó.
 
 **Response `201`:**
 
@@ -357,10 +360,36 @@ Authorization: Bearer {studentToken}
   "id": 15,
   "teamId": 42,
   "trackId": 8,
+  "displayCode": "#15",
+  "slideFile": "SEAL-Pitch-Final-v3.pdf",
+  "slideDownloadPath": "/api/v1/submissions/15/slide",
   "status": "LATE_PENDING",
   "submittedAt": "2026-06-07T16:30:00"
 }
 ```
+
+### 6.4b GET slide PDF — xem hoặc tải
+
+```http
+GET /api/v1/submissions/{submissionId}/slide
+Authorization: Bearer {token}
+```
+
+→ `200` `Content-Type: application/pdf`, `Content-Disposition: inline; filename="{slideFile gốc}"` — mở xem trên trình duyệt / iframe.
+
+**Tải file (save as):**
+
+```http
+GET /api/v1/submissions/{submissionId}/slide?download=true
+```
+
+→ cùng body PDF, `Content-Disposition: attachment; filename="…"` — trình duyệt tải xuống.
+
+Key lưu storage: `submissions/{hackathonId}/{roundId}/{submissionId}/slide.pdf` (tên hiển thị = tên upload).
+
+### 6.4c POST JSON (legacy — dev only)
+
+Body JSON cũ (`slideUrl`, `demoUrl`) vẫn nhận nếu `Content-Type: application/json` — **FE production dùng multipart**.
 
 ### 6.5 Xem đề bài (sau release-problem)
 
@@ -515,30 +544,140 @@ PATCH /api/v1/submissions/{id}/review-late
 
 ---
 
-## 9. Presentation Queue
+## 9. Presentation Queue & Timer (theo **track**)
 
-Lịch + trạng thái lưu bảng **`presentation_slots`** (`starts_at`, `ends_at`, `location`, `queue_status`).
+- Queue **theo track** (sơ loại), **round-level** khi chung kết (`trackId=null`, label `"Chung kết"`).
+- Slot **tạo khi shuffle** (`POST …/shuffle`), không tạo lúc activate round.
+- Judge GET queue: **ẩn danh** — `teamId`/`teamName` = `null`, chỉ `submissionId` + `displayCode`.
+
+### 9.0 Quy trình FE: Presentation + Timer + Chấm điểm
+
+> Postman từng bước: [postman-playbook-gd2-gd3-integration.md §0.5](postman-playbook-gd2-gd3-integration.md#05-quy-trình-presentation--timer--fe-đọc-trước-it-04--it-07)
+
+#### Câu hỏi FE hay gặp
+
+| Câu hỏi | Trả lời ngắn |
+|---------|--------------|
+| Bấm timer biết đang cho **bài nào**? | Mỗi track chỉ có **1 slot `PRESENTING`**. `GET /presentation/queue` hoặc response timer trả `submissionId` + item có `displayCode` (`#26`). |
+| Có cần `submissionId` trên `timer/start`? | **Không.** Chỉ `roundId` + `trackId`. Backend tìm slot `PRESENTING` trong DB. |
+| `displayCode` có random không? | **Không.** Luôn `#` + `submissionId`. Thứ tự random là field `order` sau **shuffle**. |
+| Judge chấm bài nào? | Body `POST /scores` bắt buộc `submissionId` = bài queue `PRESENTING` **và** `timer.phase` không phải `IDLE`/`SETUP`. |
+| 3 track song song? | 3 queue độc lập — mỗi màn controller truyền `trackId` riêng. |
+| Chuyển đội 1 → đội 2? | **Presentation Controller** gọi `PATCH queue/next` → đội 2 `SETUP` → controller `timer/start` khi setup xong. |
+| Coordinator bấm next? | **Không** trên UI — Coordinator chỉ setup (shuffle, grant controller). |
+| `timer/next`? | Chỉ advance queue (như `queue/next`), **không** auto-start timer. |
+
+#### Phân vai (FE)
+
+> **Quyền điều khiển timer/next không phải vai trò riêng** — track có **N judge** (không cố định 2). **Một** judge trên track giữ quyền (HEAD mặc định, hoặc coordinator `PUT …/controller` grant). Người đó **vừa** bấm timer **vừa** `POST /scores` (cùng JWT). Các judge khác cùng track chỉ chấm.
+
+| Vai trò | Việc |
+|---------|------|
+| **Coordinator** | Setup: activate, shuffle, `PUT …/controller` khi cần đổi judge giữ quyền |
+| **Judge giữ quyền track** | `timer/*`, `PATCH queue/next` **+** chấm điểm như judge bình thường |
+| **Judge khác cùng track** | Chỉ `POST /scores` (không timer/next → `403`) |
+
+#### Luồng UI — Coordinator (setup)
+
+```text
+activate → POST queue/shuffle → [PUT tracks/{id}/controller nếu HEAD vắng / đổi người]
+```
+
+#### Luồng UI — Judge giữ quyền (màn track — một login)
+
+```text
+GET queue → timer/start → pause/resume/qa → POST /scores (cùng session)
+         → PATCH queue/next → đội kế SETUP → [setup máy] → timer/start → lặp
+```
+
+#### Luồng UI — Judge phụ cùng track
+
+```text
+GET /me/judge/submissions → GET queue → POST /scores (timer ≠ IDLE/SETUP)
+```
+
+#### Bảng API — tham số `submissionId`
+
+| API | `submissionId` trên request | `submissionId` trên response |
+|-----|----------------------------|------------------------------|
+| `GET /presentation/queue` | — | Mỗi `items[]` |
+| `POST …/timer/start\|pause\|resume\|qa\|reset` | **Không** (chỉ query round/track) | `data.submissionId` |
+| `PATCH …/queue/next` | Body `currentSubmissionId` (khuyến nghị) | `nextSubmissionId`; slot mới `timer.phase=SETUP` |
+| `POST /scores` | Body **bắt buộc** | `data.submissionId`; cần timer ≠ IDLE/SETUP |
+
+#### State `items[].status`
+
+| Status | FE hiển thị gợi ý |
+|--------|-------------------|
+| `WAITING` | Chờ lượt — disable chấm / timer |
+| `PRESENTING` + timer `IDLE` | Lên lượt lần đầu — chờ `start` |
+| `PRESENTING` + timer `SETUP` | **Chuyển tiếp** — hiển thị setup, disable chấm |
+| `PRESENTING` + timer `PRESENTING`/`PAUSED`/… | **Đang thi** — bật form chấm |
+| `DONE` | Đã xong — read-only |
+| `ELIMINATED` | Loại — ẩn hoặc gạch ngang |
+
+#### WebSocket
+
+```
+/topic/rounds/{roundId}/tracks/{trackId}/presentation-queue
+```
+
+Payload = full queue sau shuffle / next / mọi action timer. FE có thể **không poll** `GET queue` nếu đã subscribe.
+
+#### Ví dụ state local FE (React)
+
+```ts
+// Sau GET queue hoặc WS message:
+const presenting = track.items.find(i => i.status === 'PRESENTING');
+setPresentingSubmissionId(presenting?.submissionId ?? null);
+setPresentingLabel(presenting?.displayCode ?? null); // "#26"
+
+const canScore = presenting && ['PRESENTING','PAUSED','QA','ENDED'].includes(presenting.timer?.phase);
+
+// Sau queue/next — đội mới ở SETUP, chờ start:
+if (presenting?.timer?.phase === 'SETUP') {
+  showBanner('Đang chuyển tiếp — chờ bắt đầu thuyết trình');
+}
+
+await api.post(`/presentation/timer/start?roundId=${roundId}&trackId=${trackId}`);
+
+if (canScore) {
+  await api.post('/scores', { submissionId: presentingSubmissionId, criterionId, scoreValue });
+}
+```
 
 ### 9.1 GET queue
 
 ```http
-GET /api/v1/presentation/queue?roundId={prelimRoundId}
+GET /api/v1/presentation/queue?roundId={prelimRoundId}&trackId={trackId}
 Authorization: Bearer {token}
 ```
 
 ```json
 {
-  "groups": [
+  "roundId": 12,
+  "tracks": [
     {
-      "groupName": "Bảng A",
-      "teams": [
+      "trackId": 8,
+      "trackName": "EVSWAP",
+      "shuffled": true,
+      "items": [
         {
+          "submissionId": 31,
+          "displayCode": "#31",
           "teamId": 41,
-          "teamName": "GD3-01 SUBMITTED + scored",
+          "teamName": "GD3-01",
           "order": 1,
           "status": "PRESENTING",
           "presentationSchedule": "08:00 - 08:15 ngày 07/06",
-          "location": "Online (Teams) - Phòng 2"
+          "location": "Online (Teams) - Phòng 2",
+          "timer": {
+            "phase": "PRESENTING",
+            "presentationMinutes": 10,
+            "qaMinutes": 5,
+            "remainingSeconds": 540,
+            "presentationStartedAt": "2026-06-09T10:00:00"
+          }
         }
       ]
     }
@@ -549,25 +688,129 @@ Authorization: Bearer {token}
 
 `status`: `WAITING` | `PRESENTING` | `DONE` | `ELIMINATED`.
 
-### 9.2 PATCH next (Coordinator)
+### 9.2 POST shuffle (tạo slot + Fisher-Yates)
 
 ```http
-PATCH /api/v1/presentation/queue/next?roundId={prelimRoundId}
+POST /api/v1/presentation/queue/shuffle
+Authorization: Bearer {controllerToken}
 ```
-
-Body optional:
 
 ```json
-{ "currentTeamId": 41 }
+{ "roundId": 12, "trackIds": [8] }
 ```
 
-Response:
+→ Slot đầu `PRESENTING`, còn lại `WAITING`. WS: `/topic/rounds/{roundId}/tracks/{trackId}/presentation-queue`.
+
+### 9.3 PATCH next — chuyển đội
+
+**Ai gọi:** Một trong các judge trên track đang giữ quyền điều khiển (HEAD mặc định hoặc grant) — **cùng người** vẫn chấm điểm; không phải Coordinator trên UI.
+
+```http
+PATCH /api/v1/presentation/queue/next?roundId={prelimRoundId}&trackId={trackId}
+Authorization: Bearer {controllerToken}
+Content-Type: application/json
+
+{ "currentSubmissionId": 31 }
+```
+
+**Guard trước `next` (BE — FE nên confirm):**
+
+| Tình huống | HTTP | `error.code` | FE |
+|------------|------|--------------|-----|
+| Chưa có điểm NORMAL nào cho bài đang `PRESENTING` | 422 | `SCORING_INCOMPLETE_BEFORE_NEXT` (`reason: NO_SCORES`) | Chặn nút Next / báo “chưa chấm” |
+| Có điểm nhưng **chưa đủ judge** trên track chấm ≥1 lần (N judge, không xiết từng criterion) | 422 | `SCORING_INCOMPLETE_BEFORE_NEXT` (`reason: MISSING_JUDGE_SCORES`) | Dialog xác nhận → gửi lại với `acknowledgeIncompleteScoring: true` |
 
 ```json
-{ "nextTeamId": 42 }
+{
+  "currentSubmissionId": 31,
+  "acknowledgeIncompleteScoring": true
+}
 ```
 
-FE có thể fire-and-forget; refresh bằng GET queue.
+**Response:**
+
+```json
+{
+  "trackId": 8,
+  "nextSubmissionId": 32,
+  "nextTeamId": 42,
+  "completedSubmissionScoring": {
+    "submissionId": 31,
+    "judgesAssigned": 2,
+    "judgesScored": 2,
+    "scoreCount": 4,
+    "incomplete": false
+  }
+}
+```
+
+**Hậu quả:** đội hiện tại → `DONE` (**không chấm được nữa**); đội kế → queue `PRESENTING`, `timer.phase` = **`SETUP`** (chờ setup máy, chưa chấm) → controller `timer/start` khi sẵn sàng.
+
+**Alias:** `POST /api/v1/presentation/timer/next` (cùng query + body).
+
+> Coordinator vẫn bypass guard BE (dev/test) — **UI production chỉ hiện Next cho judge giữ quyền**, không gán cho màn Coordinator.
+
+### 9.4 Timer (presentation controller)
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| POST | `/api/v1/presentation/timer/start?roundId=&trackId=` | Bắt đầu đếm thuyết trình |
+| POST | `…/pause` | Pause — set `pausedAt` |
+| POST | `…/resume` | Resume — cộng `pausedAccumulatedSeconds` |
+| POST | `…/qa` | Chuyển sang Q&A |
+| POST | `…/reset` | Reset timer slot hiện tại |
+| POST | `…/next` | Kết thúc slot + chuyển tiếp (alias `PATCH queue/next`; **không** auto-start) |
+
+**Query:** chỉ `roundId` (+ `trackId` bắt buộc ở sơ loại). **Không** có `submissionId` — áp dụng lên slot `PRESENTING` duy nhất của track đó.
+
+**Phase `SETUP`:** sau `next`, đội kế tiếp có `queue.status=PRESENTING` nhưng `timer.phase=SETUP` — cửa sổ setup trước `start`.
+
+**Response** (`PresentationTimerActionResponse`):
+
+```json
+{
+  "roundId": 5,
+  "trackId": 10,
+  "submissionId": 26,
+  "timer": {
+    "phase": "PRESENTING",
+    "presentationMinutes": 10,
+    "qaMinutes": 5,
+    "remainingSeconds": 540,
+    "presentationStartedAt": "2026-06-09T16:00:00"
+  }
+}
+```
+
+FE: hiển thị `displayCode` từ queue; dùng `submissionId` response để đối chiếu với form chấm.
+
+Thời lượng: `round.defaultPresentationMinutes` / `defaultQaMinutes`, override trên `track.presentationMinutes` / `qaMinutes`.
+
+### 9.5 Trao quyền điều khiển
+
+| Scope | API | Mặc định |
+|-------|-----|----------|
+| Track (sơ loại) | `PUT /api/v1/presentation/tracks/{trackId}/controller` | HEAD judge của track |
+| Round (chung kết) | `PUT /api/v1/presentation/rounds/{roundId}/controller` | Coordinator gán `FINAL_EXTERNAL` |
+
+| Hành động | UI gán cho | BE guard |
+|-----------|------------|----------|
+| `shuffle` | Coordinator (setup) | Judge giữ quyền hoặc Coordinator |
+| `timer/*`, `queue/next` | **Judge đang giữ quyền** trên track (HEAD/grant) — cùng màn chấm | Judge đó hoặc Coordinator* |
+
+\*Coordinator bypass test/dev — **FE** gắn nút timer/next vào màn judge giữ quyền, không tách operator.
+
+Judge phụ cùng track (không giữ quyền) → `403` timer/next; vẫn `POST /scores` bình thường.
+
+**FE — biết judge hiện tại có nút timer không:**
+
+```http
+GET /api/v1/me/judge-track-assignments
+```
+
+→ `assignmentType === "HEAD"` trên `trackId` → hiển thị panel timer/next (mặc định).
+
+Nếu coordinator **grant** quyền cho judge không phải HEAD: không có API public cho judge đọc `controller_judge_id`. Gợi ý UI: (a) coordinator thông báo sau grant, hoặc (b) hiển thị panel cho mọi judge track, ẩn khi `403` lần đầu gọi timer.
 
 ---
 
@@ -592,15 +835,35 @@ Authorization: Bearer {judgeToken}
 
 Judge phải được gán track của submission → nếu không: `403 JUDGE_NOT_ASSIGNED_TO_TRACK`.
 
+**Gate chấm NORMAL (GĐ3 v4.1):** round phase `JUDGING` **và** slot `PRESENTING` **và** `timer.phase` ∉ {`IDLE`,`SETUP`} — nếu không → **`422`** `SCORING_NOT_OPEN`. Calibration (`POST /scores/calibration`) không bị gate.
+
+**Nhiều judge / nhiều criterion:** mỗi judge gọi `POST /scores` độc lập (upsert theo `submissionId` + `criterionId` + `judgeId`). Tổng điểm đội (coordinator `GET …/ranking`): với mỗi criterion lấy **trung bình** điểm các judge đã chấm × `weight`, cộng lại, trừ penalty tiebreak (GĐ4+).
+
 Prelim: scores `isFinal=false` cho đến khi lock CK (GĐ5).
 
 **Lấy `criterionId`:** `GET /api/v1/tracks/{trackId}/criteria` (Coordinator/Judge đã gán track).
 
-**Judge portal bổ sung:**
+**Judge portal — danh sách bài ẩn danh:**
 
 ```http
-GET /api/v1/me/judge-track-assignments
+GET /api/v1/me/judge/submissions?roundId={prelimRoundId}&trackId={trackId}
 ```
+
+```json
+[
+  {
+    "submissionId": 31,
+    "displayCode": "#31",
+    "trackId": 8,
+    "trackName": "EVSWAP",
+    "status": "SUBMITTED",
+    "slideFile": "pitch-v3-final.pdf",
+    "repoUrl": "https://github.com/org/repo"
+  }
+]
+```
+
+Không có `teamId` / `teamName`. `JudgeScoreSummaryResponse` dùng `displayCode` thay `teamId`.
 
 ---
 
@@ -628,10 +891,14 @@ PersonB **không** yêu cầu — chỉ tích hợp nếu FE có màn calibratio
 | Đề bài | `GET /me/rounds/{roundId}/problem` | STUDENT |
 | Late review list | `GET /submissions?status=LATE_PENDING` | COORDINATOR |
 | Late approve/reject | `PATCH /submissions/{id}/approve\|reject` | COORDINATOR |
-| Presentation queue | `GET /presentation/queue?roundId=` | APPROVED+ |
-| Queue next | `PATCH /presentation/queue/next?roundId=` | COORDINATOR |
+| Presentation queue | `GET /presentation/queue?roundId=&trackId=` | APPROVED+ |
+| Shuffle queue | `POST /presentation/queue/shuffle` | Controller / COORD |
+| Queue next | `PATCH /presentation/queue/next?roundId=&trackId=` | Controller / COORD |
+| Presentation timer | `POST /presentation/timer/{start\|pause\|resume\|qa\|reset}` | Controller / COORD |
+| Judge bài ẩn danh | `GET /me/judge/submissions?roundId=&trackId=` | JUDGE |
+| Xem / tải slide | `GET /submissions/{id}/slide` (`?download=true` để tải) | STUDENT / JUDGE / COORD |
 | BTC lock/ranking | `PATCH .../lock-scoring`, `GET .../ranking` | COORDINATOR |
-| Judge chấm | `POST /scores` | JUDGE |
+| Judge chấm | `POST /scores` (khi slot PRESENTING) | JUDGE |
 
 ---
 
@@ -639,8 +906,13 @@ PersonB **không** yêu cầu — chỉ tích hợp nếu FE có màn calibratio
 
 | Code | HTTP | Khi nào |
 |------|------|---------|
-| `INVALID_SLIDE_FORMAT` | 400 | slideUrl `.pdf` |
-| `INVALID_REPO_PLATFORM` | 400 | repo Google Drive |
+| `SLIDE_FILE_REQUIRED` | 400 | Thiếu `slideFile` multipart |
+| `INVALID_SLIDE_FILE` | 400 | File không phải PDF |
+| `REPO_NOT_PUBLIC` | 400 | GitHub repo private / 404 |
+| `INVALID_REPO_PLATFORM` | 400 | repo không phải GitHub |
+| `SCORING_NOT_OPEN` | 422 | Chấm khi chưa PRESENTING / chưa JUDGING / timer IDLE hoặc SETUP |
+| `SCORING_INCOMPLETE_BEFORE_NEXT` | 422 | `queue/next` khi chưa chấm hoặc thiếu judge (xem §9.3) |
+| `NOT_TRACK_CONTROLLER` | 403 | Judge không có quyền timer/next |
 | `SUBMISSION_NOT_LATE_PENDING` | 422 | Approve/reject sai status |
 | `JUDGE_NOT_ASSIGNED_TO_TRACK` | 403 | Judge chưa gán track |
 | `TEAM_NOT_LOCKED` | 422 | Lottery sớm (GĐ2) |
@@ -834,22 +1106,23 @@ Chi tiết gate GĐ1→2: [fe-gd1-gd2-gd3-workflow-mapping.md](fe-gd1-gd2-gd3-wo
 |------|-------|----------------|---------|
 | **04 chưa nộp** | `student.gd3.leader04@fpt.edu.vn` | `GET /me/teams` → `teamId`, `trackId` | Có track lottery |
 | | | `GET /me/rounds/current/deadline` | Countdown > 0 hoặc đã qua deadline |
-| | | `POST /api/v1/submissions` + `teamId`, `trackId`, slide Google Slides URL | 201 `SUBMITTED` hoặc `LATE_PENDING` nếu sau deadline |
+| | | `POST /api/v1/submissions` multipart: `teamId`, `trackId`, `repoUrl`, `slideFile` (PDF) | 201 `SUBMITTED` hoặc `LATE_PENDING` |
 | **01 đã nộp** | `leader01@` | `GET /me/submission?roundId=` | `status=SUBMITTED`, đã có scores seed |
 | **02 LATE_PENDING** | `leader02@` | `GET /me/submission` | `status=LATE_PENDING`, `isLate=true` |
 | **03 LATE_APPROVED** | `leader03@` | `GET /me/submission` | `status=LATE_APPROVED` — test resubmit §6.6 |
 | **05 Track2** | `leader05@` | `GET /me/submission` | Track 2, đã chấm đủ |
 | **06 chấm dở** | `leader06@` | Coordinator `GET …/scoring-progress` | Thiếu score 1 judge |
 
-**slideUrl:** dùng link Google Slides (không `.pdf`) — xem §13 `INVALID_SLIDE_FORMAT`.
+**Nộp bài:** PDF qua `slideFile` + GitHub `repoUrl` public — xem §6.4.
 
 #### Bước 2 — Judge chấm bài
 
 | Bước | API | Ghi chú |
 |------|-----|---------|
 | 2.1 | Login `judge1@fpt.edu.vn` | |
-| 2.2 | `GET /api/v1/me/judge/assignments` | Track 1 + Track 2 |
-| 2.3 | `POST /api/v1/scores` | `submissionId`, `criterionId`, `scoreValue` — team 06 bổ sung điểm |
+| 2.2 | `GET /api/v1/me/judge/submissions?roundId=&trackId=` | Chỉ thấy `#submissionId`, không tên đội |
+| 2.3 | `POST /api/v1/presentation/timer/start` (hoặc seed slot `PRESENTING`) | Bắt buộc trước khi chấm NORMAL |
+| 2.4 | `POST /api/v1/scores` | `submissionId`, `criterionId`, `scoreValue` — team 06 bổ sung điểm |
 
 #### Bước 3 — Mentor
 
@@ -865,8 +1138,9 @@ Chi tiết gate GĐ1→2: [fe-gd1-gd2-gd3-workflow-mapping.md](fe-gd1-gd2-gd3-wo
 |------|-----|-------------|
 | 4.1 | `GET /api/v1/submissions?status=LATE_PENDING&roundId=` | Thấy bài team **02** |
 | 4.2 | `PATCH /api/v1/submissions/{lateSubmissionId}/approve` | Body `{}` hoặc không body |
-| 4.3 | `GET /api/v1/presentation/queue?roundId={prelimRoundId}` | Slot 1 `PRESENTING` |
-| 4.4 | `PATCH /api/v1/presentation/queue/next?roundId={prelimRoundId}` | Chuyển queue |
+| 4.3 | `POST /api/v1/presentation/queue/shuffle` body `{ roundId, trackIds }` | Tạo slot (nếu chưa shuffle) |
+| 4.4 | `GET /api/v1/presentation/queue?roundId={prelimRoundId}&trackId=` | Slot 1 `PRESENTING` |
+| 4.5 | `PATCH /api/v1/presentation/queue/next?roundId=&trackId=` | Chuyển queue |
 | 4.5 | `GET /api/v1/rounds/{prelimId}/scoring-progress` | `gradable=4` (loại LATE_PENDING chưa duyệt) |
 | 4.6 | `PATCH /api/v1/rounds/{prelimId}/lock-scoring` | Khóa chấm → ranking preview |
 
@@ -1910,6 +2184,69 @@ Content-Type: application/json
 
 ---
 
+## 20. Coverage Audit — API GĐ3 BE đã làm
+
+> Kết luận kiểm tra chéo controller BE: file này đã cover **đủ API lõi GĐ3 cho FE chạy test** + có non-happy case.  
+> Mục dưới đây liệt kê rõ endpoint nào đã có trong tài liệu, endpoint nào là optional/legacy để tránh sót.
+
+### 20.1 API lõi GĐ3 (đã có trong file)
+
+| Nhóm | Endpoint BE | Có trong file |
+|------|-------------|---------------|
+| Auth | `POST /api/v1/auth/login` | ✅ §19.1 |
+| Bootstrap | `GET /api/v1/hackathons?q=` | ✅ §2.1, §19.2 |
+| Bootstrap | `GET /api/v1/hackathons/{hackathonId}/rounds` | ✅ §2.1, §19.2 |
+| Bootstrap | `GET /api/v1/rounds/{prelimRoundId}/tracks` | ✅ §2.1, §19.2 |
+| Coordinator | `PATCH /api/v1/rounds/{id}/activate` | ✅ §5.1, §19.4 |
+| Coordinator | `PATCH /api/v1/rounds/{id}/release-problem` | ✅ §5.2, §19.4 |
+| Coordinator | `GET /api/v1/rounds/{id}/scoring-progress` | ✅ §5.4, §19.4 |
+| Coordinator | `PATCH /api/v1/rounds/{id}/lock-scoring` | ✅ §5.3, §19.4 |
+| Coordinator | `GET /api/v1/rounds/{id}/ranking` | ✅ §5.4, §19.4 |
+| Student | `GET /api/v1/me/teams` | ✅ §6.1, §19.3 |
+| Student | `GET /api/v1/me/rounds/current/deadline` | ✅ §6.2, §19.3 |
+| Student | `GET /api/v1/me/submission?teamId=&roundId=` | ✅ §6.3, §19.3 |
+| Student | `POST /api/v1/submissions` (upsert) | ✅ §6.4, §19.3 |
+| Student | `GET /api/v1/me/rounds/{roundId}/problem` | ✅ §6.5, §19.3 |
+| Mentor | `GET /api/v1/me/mentor/rounds` | ✅ §7.2, §19.6 |
+| Mentor | `GET /api/v1/me/mentor/rounds/{roundId}/assigned-teams` | ✅ §7.3, §19.6 |
+| Judge | `POST /api/v1/scores` | ✅ §10, §19.7 |
+| Late review | `GET /api/v1/submissions?status=LATE_PENDING` | ✅ §8.1, §19.5 |
+| Late review | `PATCH /api/v1/submissions/{id}/approve` | ✅ §8.2, §19.5 |
+| Late review | `PATCH /api/v1/submissions/{id}/reject` | ✅ §8.3, §19.5 |
+| Queue | `GET /api/v1/presentation/queue?roundId=` | ✅ §9.1, §19.8 |
+| Queue | `POST /api/v1/presentation/queue/shuffle` | ✅ §9.2, §19.8 |
+| Queue | `PATCH /api/v1/presentation/queue/next?roundId=` | ✅ §9.3, §19.8 |
+| Timer | `POST /api/v1/presentation/timer/{start\|pause\|resume\|qa\|reset\|next}` | ✅ §9.4, §19.8 |
+| Controller grant | `PUT /api/v1/presentation/tracks/{trackId}/controller` | ✅ §9.5 |
+| Judge slide | `GET /api/v1/submissions/{id}/slide` | ✅ §6.4b |
+
+### 20.2 Optional/legacy BE endpoints (đã note để FE không bị thiếu)
+
+| Endpoint BE | Vai trò | Trạng thái trong tài liệu |
+|-------------|---------|---------------------------|
+| `PATCH /api/v1/submissions/{id}/review-late` | Coordinator | ✅ Có note canonical tại §8 |
+| `PATCH /api/v1/submissions/{id}/resubmit` | Student | ✅ Đánh dấu deprecated tại §6.6 |
+| `PATCH /api/v1/submissions/{id}/review` | Coordinator | ✅ Đánh dấu deprecated tại §8 |
+| `POST /api/v1/scores/calibration` | Judge/Mentor | ✅ Có ở §11 (optional calibration) |
+| `GET /api/v1/rounds/{id}/ranking/preview` | Coordinator | ✅ Có nhắc phạm vi GĐ4 ở §2/§5 (ngoài smoke GĐ3) |
+| `GET /api/v1/me/mentor-team-assignments` + `.../scores` | Mentor | ✅ Có ở §7.4 (API bổ sung) |
+| `GET /api/v1/me/judge-track-assignments` | Judge | ✅ Có ở §10 (Judge portal bổ sung) |
+
+### 20.3 Non-happy case coverage
+
+| Tình huống lỗi | Có mẫu trong file? |
+|----------------|--------------------|
+| `INVALID_SLIDE_FORMAT` (400) | ✅ §13, §19.3 |
+| `INVALID_REPO_PLATFORM` (400) | ✅ §6.4, §13 |
+| `SUBMISSION_NOT_LATE_PENDING` (422) | ✅ §13, §19.5 |
+| `JUDGE_NOT_ASSIGNED_TO_TRACK` (403) | ✅ §10, §13, §19.7 |
+| `TEAM_NOT_LOCKED` (422) | ✅ §13, §19.9 |
+| `404` khi chưa nộp submission | ✅ §19.3 |
+
+> Nếu cần mode “bao phủ cả API ngoài GĐ3” (publish/tiebreak/wildcard/advance/final judge/scoreboard), tạo thêm phụ lục riêng để tránh trộn scope test GĐ3.
+
+---
+
 ### Tự kiểm tra độ đủ (BE ↔ FE)
 
 | Hạng mục | Trong file? |
@@ -1925,8 +2262,9 @@ Content-Type: application/json
 | Hướng dẫn test FE GĐ2+GĐ3 | ✅ §18 |
 | Mẫu Request/Response JSON (GĐ2+GĐ3) | ✅ §19 |
 | Auto-repair timeline (không sửa DB) | ✅ §14 |
-| GĐ4 publish/advance | ❌ cố ý — ngoài phạm vi |
+| API lõi GĐ3 BE controllers | ✅ §20 audit |
+| GĐ4 publish/advance | ❌ cố ý — ngoài phạm vi GĐ3 |
 
 ---
 
-*Revision: 2026-06-07 — §19 mẫu JSON test API; §18 hướng dẫn luồng; seed repair GĐ2/GĐ3.*
+*Revision: 2026-06-08 — thêm §20 coverage audit endpoint BE (core/optional/non-happy).*

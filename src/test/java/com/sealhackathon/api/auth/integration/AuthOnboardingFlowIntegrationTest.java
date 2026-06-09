@@ -38,14 +38,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
         "spring.profiles.active=test",
-        "spring.datasource.url=jdbc:h2:mem:authflow;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+        "spring.datasource.url=jdbc:h2:mem:authflow;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;NON_KEYWORDS=YEAR",
         "spring.datasource.driver-class-name=org.h2.Driver",
         "spring.datasource.username=sa",
         "spring.datasource.password=",
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "security.jwt.secret=12345678901234567890123456789012",
         "security.jwt.enabled=true",
-        "app.storage.student-card-dir=target/test-uploads/student-cards"
+        "app.storage.type=local",
+        "app.storage.local-dir=target/test-uploads/storage"
 })
 class AuthOnboardingFlowIntegrationTest {
 

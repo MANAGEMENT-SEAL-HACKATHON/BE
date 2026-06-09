@@ -1,8 +1,11 @@
 package com.sealhackathon.api.events.entity;
 
 import com.sealhackathon.api.presentation.value_object.PresentationQueueStatus;
+import com.sealhackathon.api.presentation.value_object.PresentationTimerPhase;
 import com.sealhackathon.api.rounds.entity.Round;
+import com.sealhackathon.api.submissions.entity.Submission;
 import com.sealhackathon.api.teams.entity.Team;
+import com.sealhackathon.api.tracks.entity.Track;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -31,6 +34,36 @@ public class PresentationSlot {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "team_id", nullable = false)
     private Team team;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "submission_id")
+    private Submission submission;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "track_id")
+    private Track track;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "timer_phase", length = 20)
+    private PresentationTimerPhase timerPhase = PresentationTimerPhase.IDLE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "timer_phase_before_pause", length = 20)
+    private PresentationTimerPhase timerPhaseBeforePause;
+
+    @Column(name = "presentation_started_at")
+    private LocalDateTime presentationStartedAt;
+
+    @Column(name = "qa_started_at")
+    private LocalDateTime qaStartedAt;
+
+    @Column(name = "paused_at")
+    private LocalDateTime pausedAt;
+
+    @Builder.Default
+    @Column(name = "paused_accumulated_seconds", nullable = false)
+    private Integer pausedAccumulatedSeconds = 0;
 
     @Column(name = "starts_at", nullable = false)
     private LocalDateTime startsAt;

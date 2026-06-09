@@ -19,8 +19,12 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -40,11 +44,43 @@ public class SubmissionController {
 
     private final SubmissionService submissionService;
 
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @StudentOnly
-    @Operation(summary = "FR-16/26 — Nộp bài (upsert resubmit)")
+    @Operation(summary = "FR-16/26 — Nộp bài multipart (repoUrl + slide PDF)")
+    public ResponseEntity<ApiResponse<SubmissionResponse>> submitMultipart(
+            @RequestParam Integer teamId,
+            @RequestParam(required = false) Integer trackId,
+            @RequestParam(required = false) Integer roundId,
+            @RequestParam String repoUrl,
+            @RequestParam(required = false) String lateReason,
+            @RequestPart(required = false) MultipartFile slideFile) {
+        return ResponseEntity.status(201).body(ApiResponse.created(
+                submissionService.submitMultipart(teamId, trackId, roundId, repoUrl, lateReason, slideFile)));
+    }
+
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
+    @StudentOnly
+    @Operation(summary = "FR-16/26 — Nộp bài JSON (legacy)")
     public ResponseEntity<ApiResponse<SubmissionResponse>> submit(@Valid @RequestBody SubmitSubmissionRequest req) {
         return ResponseEntity.status(201).body(ApiResponse.created(submissionService.submit(req)));
+    }
+
+    @GetMapping("/{id}/slide")
+    @SubmissionListAccess
+    @Operation(summary = "GĐ3 — Xem hoặc tải slide PDF",
+            description = "Mặc định `inline` (xem trên trình duyệt). `?download=true` → `attachment` (tải file).")
+    public ResponseEntity<byte[]> getSlide(
+            @PathVariable Integer id,
+            @RequestParam(defaultValue = "false") boolean download) throws java.io.IOException {
+        var slide = submissionService.getSlideDownload(id);
+        byte[] bytes = slide.content().stream().readAllBytes();
+        slide.content().stream().close();
+        String disposition = download ? "attachment" : "inline";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        disposition + "; filename=\"" + slide.filename() + "\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(bytes);
     }
 
     @GetMapping

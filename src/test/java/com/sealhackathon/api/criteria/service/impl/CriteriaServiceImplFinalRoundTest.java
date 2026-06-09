@@ -7,6 +7,7 @@ import com.sealhackathon.api.criteria.mapper.CriteriaMapper;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.criteria.service.WeightSummaryService;
 import com.sealhackathon.api.criteria.value_object.CriteriaType;
+import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.scores.repository.ScoreRepository;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
@@ -37,6 +39,7 @@ class CriteriaServiceImplFinalRoundTest {
     @Mock private AuditService auditService;
     @Mock private WeightSummaryService weightSummaryService;
     @Mock private ScoreRepository scoreRepository;
+    @Spy private HackathonArchiveGuard archiveGuard = new HackathonArchiveGuard();
 
     @InjectMocks
     private CriteriaServiceImpl criteriaService;

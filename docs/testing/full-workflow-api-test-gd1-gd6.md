@@ -1168,7 +1168,7 @@ Content-Type: application/json
   "repoUrl": "https://github.com/org/repo",
   "demoUrl": "https://demo.example.com",
   "reportUrl": "https://docs.example.com/report",
-  "slideUrl": "https://slides.example.com/deck"
+  "slideUrl": "https://slides.example.com/deck"// file
 }
 ```
 

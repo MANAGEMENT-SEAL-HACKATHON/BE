@@ -8,6 +8,9 @@ import com.sealhackathon.api.criteria.service.WeightSummaryService;
 import com.sealhackathon.api.events.service.HackathonTimelineService;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
+import com.sealhackathon.api.hackathons.service.HackathonRoundTimelineSyncService;
+import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
+import com.sealhackathon.api.presentation.service.PresentationSlotCascadeService;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.notifications.service.NotificationService;
@@ -22,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
@@ -49,6 +53,9 @@ class RoundServiceImplRoundTypeUniqueTest {
     @Mock private JudgeAssignmentRepository judgeAssignmentRepository;
     @Mock private NotificationService notificationService;
     @Mock private HackathonTimelineService hackathonTimelineService;
+    @Mock private HackathonRoundTimelineSyncService hackathonRoundTimelineSyncService;
+    @Mock private PresentationSlotCascadeService presentationSlotCascadeService;
+    @Spy private HackathonArchiveGuard archiveGuard = new HackathonArchiveGuard();
 
     @InjectMocks
     private RoundServiceImpl roundService;

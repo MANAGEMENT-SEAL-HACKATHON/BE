@@ -124,8 +124,8 @@ public class UserAdminServiceImpl implements UserAdminService {
     public UserDetailResponse uploadMyStudentCard(MultipartFile file) {
         User user = userRepository.findById(currentUserAccessor.currentUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User", currentUserAccessor.currentUserId()));
-        String relativePath = studentCardStorageService.store(user.getId(), file);
-        user.setStudentCardImagePath(relativePath);
+        String storageKey = studentCardStorageService.store(user.getId(), file, user.getStudentCardImagePath());
+        user.setStudentCardImagePath(storageKey);
         user.setUpdatedAt(LocalDateTime.now());
         userRepository.save(user);
         return userResponseMapper.toDetail(user);

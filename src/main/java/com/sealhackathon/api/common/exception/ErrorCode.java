@@ -221,7 +221,13 @@ public final class ErrorCode {
     public static final String CRITERION_WRONG_TRACK                      = "CRITERION_WRONG_TRACK";
     public static final String CRITERION_WRONG_ROUND                      = "CRITERION_WRONG_ROUND";
     public static final String INVALID_REPO_PLATFORM                      = "INVALID_REPO_PLATFORM";
+    public static final String REPO_NOT_PUBLIC                            = "REPO_NOT_PUBLIC";
     public static final String INVALID_SLIDE_FORMAT                       = "INVALID_SLIDE_FORMAT";
+    public static final String SLIDE_FILE_REQUIRED                        = "SLIDE_FILE_REQUIRED";
+    public static final String INVALID_SLIDE_FILE                         = "INVALID_SLIDE_FILE";
+    public static final String SCORING_NOT_OPEN                           = "SCORING_NOT_OPEN";
+    public static final String SCORING_INCOMPLETE_BEFORE_NEXT             = "SCORING_INCOMPLETE_BEFORE_NEXT";
+    public static final String NOT_TRACK_CONTROLLER                       = "NOT_TRACK_CONTROLLER";
     public static final String REVIEW_NOTE_REQUIRED                       = "REVIEW_NOTE_REQUIRED";
     public static final String SUBMISSION_NOT_LATE_PENDING                = "SUBMISSION_NOT_LATE_PENDING";
     public static final String LATE_PENDING_NOT_ALLOWED                   = "LATE_PENDING_NOT_ALLOWED";

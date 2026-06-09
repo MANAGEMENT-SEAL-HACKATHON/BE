@@ -70,6 +70,21 @@ public class Submission {
     @Column(name = "slide_url", columnDefinition = "TEXT")
     private String slideUrl;
 
+    @Column(name = "slide_storage_key", length = 512)
+    private String slideStorageKey;
+
+    @Column(name = "slide_original_filename", length = 255)
+    private String slideOriginalFilename;
+
+    @Column(name = "slide_content_type", length = 100)
+    private String slideContentType;
+
+    @Column(name = "slide_size_bytes")
+    private Long slideSizeBytes;
+
+    @Column(name = "slide_uploaded_at")
+    private LocalDateTime slideUploadedAt;
+
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)

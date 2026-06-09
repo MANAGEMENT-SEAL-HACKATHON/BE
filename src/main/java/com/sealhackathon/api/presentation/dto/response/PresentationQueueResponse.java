@@ -13,29 +13,35 @@ import java.util.List;
 @Builder
 public class PresentationQueueResponse {
 
-    private List<GroupItem> groups;
+    private Integer roundId;
+    private List<TrackQueueItem> tracks;
     private RoomStats roomStats;
 
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
     @Builder
-    public static class GroupItem {
-        private String groupName;
-        private List<TeamQueueItem> teams;
+    public static class TrackQueueItem {
+        private Integer trackId;
+        private String trackName;
+        private Boolean shuffled;
+        private List<QueueItem> items;
     }
 
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
     @Builder
-    public static class TeamQueueItem {
+    public static class QueueItem {
+        private Integer submissionId;
+        private String displayCode;
         private Integer teamId;
         private String teamName;
         private Integer order;
         private String status;
         private String presentationSchedule;
         private String location;
+        private PresentationTimerBlock timer;
     }
 
     @Getter

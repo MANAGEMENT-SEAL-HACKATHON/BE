@@ -19,10 +19,14 @@ import com.sealhackathon.api.submissions.dto.request.ReviewLateSubmissionRequest
 import com.sealhackathon.api.submissions.dto.request.ReviewSubmissionRequest;
 import com.sealhackathon.api.submissions.dto.request.SubmitSubmissionRequest;
 import com.sealhackathon.api.submissions.dto.response.SubmissionResponse;
+import com.sealhackathon.api.submissions.dto.response.SubmissionSlideDownload;
 import com.sealhackathon.api.submissions.entity.Submission;
 import com.sealhackathon.api.submissions.repository.SubmissionRepository;
 import com.sealhackathon.api.submissions.service.SubmissionMetadataService;
 import com.sealhackathon.api.submissions.service.SubmissionService;
+import com.sealhackathon.api.submissions.support.GitHubRepoValidator;
+import com.sealhackathon.api.submissions.support.SubmissionSlideStorage;
+import com.sealhackathon.api.storage.StoredObject;
 import com.sealhackathon.api.submissions.value_object.LateReviewDecision;
 import com.sealhackathon.api.submissions.value_object.SubmissionStatus;
 import com.sealhackathon.api.team_members.repository.TeamMemberRepository;
@@ -44,6 +48,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -69,9 +74,34 @@ public class SubmissionServiceImpl implements SubmissionService {
     private final SubmissionMetadataService submissionMetadataService;
     private final RoundRepository roundRepository;
     private final TeamRoundParticipationRepository teamRoundParticipationRepository;
+    private final GitHubRepoValidator gitHubRepoValidator;
+    private final SubmissionSlideStorage submissionSlideStorage;
+
+    @Override
+    public SubmissionResponse submitMultipart(
+            Integer teamId,
+            Integer trackId,
+            Integer roundId,
+            String repoUrl,
+            String lateReason,
+            MultipartFile slideFile) {
+        SubmitSubmissionRequest req = SubmitSubmissionRequest.builder()
+                .teamId(teamId)
+                .trackId(trackId)
+                .roundId(roundId)
+                .repoUrl(repoUrl)
+                .lateReason(lateReason)
+                .build();
+        return submitInternal(req, slideFile, true);
+    }
 
     @Override
     public SubmissionResponse submit(SubmitSubmissionRequest req) {
+        return submitInternal(req, null, false);
+    }
+
+    private SubmissionResponse submitInternal(
+            SubmitSubmissionRequest req, MultipartFile slideFile, boolean multipartMode) {
         CurrentUserStub actor = currentUserAccessor.currentUser();
         if (actor.getRole() != UserRole.STUDENT || actor.getStatus() != UserStatus.APPROVED) {
             throw forbidden("Chỉ sinh viên đã duyệt mới được nộp bài");
@@ -135,8 +165,12 @@ public class SubmissionServiceImpl implements SubmissionService {
             }
         }
 
-        validateRepoUrl(req.getRepoUrl());
-        validateSlideUrl(req.getSlideUrl());
+        if (multipartMode) {
+            gitHubRepoValidator.validatePublicGitHubRepo(req.getRepoUrl());
+        } else {
+            validateRepoUrl(req.getRepoUrl());
+            validateSlideUrl(req.getSlideUrl());
+        }
 
         LocalDateTime now = LocalDateTime.now();
         boolean afterDeadline = now.isAfter(round.getSubmissionDeadline());
@@ -164,20 +198,65 @@ public class SubmissionServiceImpl implements SubmissionService {
         SubmissionStatus status = resolveStatusOnSubmit(submission, round, afterDeadline);
 
         submission.setRepoUrl(req.getRepoUrl());
-        submission.setDemoUrl(req.getDemoUrl());
-        submission.setReportUrl(req.getReportUrl());
-        submission.setSlideUrl(req.getSlideUrl());
+        if (!multipartMode) {
+            submission.setDemoUrl(req.getDemoUrl());
+            submission.setReportUrl(req.getReportUrl());
+            submission.setSlideUrl(req.getSlideUrl());
+        }
         submission.setStatus(status);
         submission.setIsLate(afterDeadline && status != SubmissionStatus.SUBMITTED);
         submission.setLateReason(afterDeadline ? req.getLateReason() : null);
         submission.setSubmittedAt(now);
 
+        if (multipartMode) {
+            boolean slideRequired = isCreate || !StringUtils.hasText(submission.getSlideStorageKey());
+            submissionSlideStorage.validatePdf(slideFile, slideRequired);
+        }
+
         Submission saved = submissionRepository.save(submission);
+
+        if (multipartMode && slideFile != null && !slideFile.isEmpty()) {
+            submissionSlideStorage.storeSlide(saved, slideFile);
+            saved = submissionRepository.save(saved);
+        }
+
         auditService.log(isCreate ? AuditAction.SUBMISSION_CREATE : AuditAction.SUBMISSION_UPDATE,
                 "submissions", saved.getId(),
                 Map.of("teamId", team.getId(), "roundId", round.getId()));
         submissionMetadataService.enqueueFetch(saved.getId());
-        return toResponse(saved);
+        return toResponse(saved, false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SubmissionSlideDownload getSlideDownload(Integer submissionId) {
+        Submission submission = submissionRepository.findById(submissionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Submission", submissionId));
+        assertSlideAccess(submission);
+        String filename = SubmissionSlideStorage.displayFilename(submission);
+        return new SubmissionSlideDownload(
+                submissionSlideStorage.loadSlide(submission),
+                filename != null ? filename : "slide.pdf");
+    }
+
+    private void assertSlideAccess(Submission submission) {
+        CurrentUserStub user = currentUserAccessor.currentUser();
+        switch (user.getRole()) {
+            case COORDINATOR -> { /* ok */ }
+            case JUDGE -> {
+                Integer roundId = submission.getRound().getId();
+                if (!judgeAssignmentRepository.existsByJudgeIdAndRoundScope(user.getUserId(), roundId)) {
+                    throw forbidden("Judge chưa được phân công cho round này");
+                }
+            }
+            case STUDENT -> {
+                if (!teamMemberRepository.existsByUser_IdAndTeam_IdAndStatus(
+                        user.getUserId(), submission.getTeam().getId(), TeamMemberStatus.ACCEPTED)) {
+                    throw forbidden("Bạn không thuộc đội này");
+                }
+            }
+            default -> throw forbidden("Không có quyền xem slide");
+        }
     }
 
     @Override
@@ -190,7 +269,8 @@ public class SubmissionServiceImpl implements SubmissionService {
             case STUDENT -> listForStudent(user.getUserId(), teamId, roundId, status);
             default -> throw forbidden("Role không được xem danh sách bài nộp");
         };
-        return rows.stream().map(SubmissionServiceImpl::toResponse).toList();
+        boolean anonymous = user.getRole() == UserRole.JUDGE;
+        return rows.stream().map(s -> toResponse(s, anonymous)).toList();
     }
 
     @Override
@@ -246,7 +326,7 @@ public class SubmissionServiceImpl implements SubmissionService {
         Submission saved = submissionRepository.save(submission);
         auditService.log(AuditAction.SUBMISSION_LATE_REVIEW, "submissions", saved.getId(),
                 Map.of("decision", req.getDecision().name()));
-        return toResponse(saved);
+        return toResponse(saved, false);
     }
 
     @Override
@@ -361,26 +441,32 @@ public class SubmissionServiceImpl implements SubmissionService {
         return new AuthException(ErrorCode.FORBIDDEN, message, HttpStatus.FORBIDDEN);
     }
 
-    static SubmissionResponse toResponse(Submission s) {
+    static SubmissionResponse toResponse(Submission s, boolean anonymous) {
         if (s == null) {
             return SubmissionResponse.builder().build();
         }
+        String slideFile = SubmissionSlideStorage.displayFilename(s);
+        String slideDownloadPath = null;
+        if (slideFile != null && !anonymous && s.getId() != null) {
+            slideDownloadPath = "/api/v1/submissions/" + s.getId() + "/slide";
+        }
+
         return SubmissionResponse.builder()
                 .id(s.getId())
-                .teamId(s.getTeam() != null ? s.getTeam().getId() : null)
-                .teamName(s.getTeam() != null ? s.getTeam().getTeamName() : null)
+                .displayCode(s.getId() != null ? "#" + s.getId() : null)
+                .teamId(anonymous ? null : (s.getTeam() != null ? s.getTeam().getId() : null))
+                .teamName(anonymous ? null : (s.getTeam() != null ? s.getTeam().getTeamName() : null))
                 .trackId(s.getTrack() != null ? s.getTrack().getId() : null)
                 .roundId(s.getRound() != null ? s.getRound().getId() : null)
                 .repoUrl(s.getRepoUrl())
-                .demoUrl(s.getDemoUrl())
-                .reportUrl(s.getReportUrl())
-                .slideUrl(s.getSlideUrl())
+                .slideFile(slideFile)
+                .slideDownloadPath(slideDownloadPath)
                 .status(s.getStatus())
                 .isLate(s.getIsLate())
-                .lateReason(s.getLateReason())
-                .reviewedBy(s.getReviewedBy() != null ? s.getReviewedBy().getId() : null)
-                .reviewedAt(s.getReviewedAt())
-                .reviewNote(s.getReviewNote())
+                .lateReason(anonymous ? null : s.getLateReason())
+                .reviewedBy(anonymous ? null : (s.getReviewedBy() != null ? s.getReviewedBy().getId() : null))
+                .reviewedAt(anonymous ? null : s.getReviewedAt())
+                .reviewNote(anonymous ? null : s.getReviewNote())
                 .submittedAt(s.getSubmittedAt())
                 .build();
     }

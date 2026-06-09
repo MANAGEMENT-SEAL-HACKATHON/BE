@@ -62,6 +62,14 @@ public class JudgeMeController {
         return ResponseEntity.ok(ApiResponse.ok(judgePortalService.listMyScores(roundId)));
     }
 
+    @GetMapping("/judge/submissions")
+    @Operation(summary = "GĐ3 — Danh sách bài nộp ẩn danh theo mã submissionId")
+    public ResponseEntity<ApiResponse<List<JudgeSubmissionListItemResponse>>> judgeSubmissions(
+            @RequestParam Integer roundId,
+            @RequestParam(required = false) Integer trackId) {
+        return ResponseEntity.ok(ApiResponse.ok(judgePortalService.listSubmissions(roundId, trackId)));
+    }
+
     @PatchMapping("/scores/{id}/comment")
     @Operation(summary = "FR-J-15 — Sửa comment điểm")
     public ResponseEntity<ApiResponse<JudgeScoreSummaryResponse>> updateComment(

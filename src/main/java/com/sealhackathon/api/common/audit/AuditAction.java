@@ -89,6 +89,9 @@ public final class AuditAction {
     public static final String SUBMISSION_CREATE            = "SUBMISSION_CREATE";
     public static final String SUBMISSION_UPDATE            = "SUBMISSION_UPDATE";
     public static final String SUBMISSION_LATE_REVIEW       = "SUBMISSION_LATE_REVIEW";
+    public static final String PRESENTATION_QUEUE_SHUFFLE = "PRESENTATION_QUEUE_SHUFFLE";
+    public static final String PRESENTATION_CONTROLLER_GRANTED = "PRESENTATION_CONTROLLER_GRANTED";
+    public static final String PRESENTATION_CONTROLLER_REVOKED = "PRESENTATION_CONTROLLER_REVOKED";
     public static final String SCORE_UPSERT                 = "SCORE_UPSERT";
     public static final String ROUND_RELEASE_PROBLEM        = "ROUND_RELEASE_PROBLEM";
     public static final String ROUND_PUBLISH                = "ROUND_PUBLISH";

@@ -8,6 +8,11 @@ import com.sealhackathon.api.criteria.service.WeightSummaryService;
 import com.sealhackathon.api.events.repository.EventRepository;
 import com.sealhackathon.api.events.service.HackathonTimelineService;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
+import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
+import com.sealhackathon.api.hackathons.repository.HackathonRepository;
+import com.sealhackathon.api.hackathons.service.HackathonRoundTimelineSyncService;
+import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
+import com.sealhackathon.api.presentation.service.PresentationSlotCascadeService;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.notifications.service.NotificationService;
 import com.sealhackathon.api.rounds.dto.response.RoundResponse;
@@ -21,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Collections;
@@ -41,6 +47,7 @@ import static org.mockito.Mockito.when;
 class RoundServiceImplDeleteTest {
 
     @Mock private RoundRepository roundRepository;
+    @Mock private HackathonRepository hackathonRepository;
     @Mock private TrackRepository trackRepository;
     @Mock private CriteriaRepository criteriaRepository;
     @Mock private RoundMapper roundMapper;
@@ -52,6 +59,9 @@ class RoundServiceImplDeleteTest {
     @Mock private NotificationService notificationService;
     @Mock private HackathonTimelineService hackathonTimelineService;
     @Mock private EventRepository eventRepository;
+    @Mock private HackathonRoundTimelineSyncService hackathonRoundTimelineSyncService;
+    @Mock private PresentationSlotCascadeService presentationSlotCascadeService;
+    @Spy private HackathonArchiveGuard archiveGuard = new HackathonArchiveGuard();
 
     @InjectMocks
     private RoundServiceImpl roundService;
@@ -63,7 +73,7 @@ class RoundServiceImplDeleteTest {
                 .name("Chung kết")
                 .isFinal(true)
                 .isActive(false)
-                .hackathon(Hackathon.builder().id(1).build())
+                .hackathon(Hackathon.builder().id(1).status(HackathonStatus.DRAFT).build())
                 .build();
         when(roundRepository.findById(99)).thenReturn(Optional.of(round));
         when(submissionRepository.countByRoundId(99)).thenReturn(0L);
@@ -84,7 +94,11 @@ class RoundServiceImplDeleteTest {
 
     @Test
     void delete_blocksOnlyWhenScoresExist() {
-        Round round = Round.builder().id(5).isActive(false).build();
+        Round round = Round.builder()
+                .id(5)
+                .isActive(false)
+                .hackathon(Hackathon.builder().id(1).status(HackathonStatus.DRAFT).build())
+                .build();
         when(roundRepository.findById(5)).thenReturn(Optional.of(round));
         when(submissionRepository.countByRoundId(5)).thenReturn(0L);
         when(scoreRepository.countByRoundId(5)).thenReturn(2L);

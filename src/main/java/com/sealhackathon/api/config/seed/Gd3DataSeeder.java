@@ -87,10 +87,10 @@ public class Gd3DataSeeder {
 
         seedHelper.ensureLottery(structure.hackathon(), structure.prelim(), track1, "Bảng A", t1, coordinator, now);
         seedHelper.ensureLottery(structure.hackathon(), structure.prelim(), track1, "Bảng A", t2, coordinator, now);
-        seedHelper.ensureLottery(structure.hackathon(), structure.prelim(), track1, "Bảng B", t3, coordinator, now);
-        seedHelper.ensureLottery(structure.hackathon(), structure.prelim(), track1, "Bảng B", t4, coordinator, now);
-        seedHelper.ensureLottery(structure.hackathon(), structure.prelim(), track2, "Bảng C", t5, coordinator, now);
-        seedHelper.ensureLottery(structure.hackathon(), structure.prelim(), track2, "Bảng C", t6, coordinator, now);
+        seedHelper.ensureLottery(structure.hackathon(), structure.prelim(), track1, "Bảng A", t3, coordinator, now);
+        seedHelper.ensureLottery(structure.hackathon(), structure.prelim(), track1, "Bảng A", t4, coordinator, now);
+        seedHelper.ensureLottery(structure.hackathon(), structure.prelim(), track2, "Bảng B", t5, coordinator, now);
+        seedHelper.ensureLottery(structure.hackathon(), structure.prelim(), track2, "Bảng B", t6, coordinator, now);
 
         boolean scoresFinal = Boolean.TRUE.equals(structure.prelim().getScoringLocked());
 
@@ -109,6 +109,8 @@ public class Gd3DataSeeder {
         seedCalibrationIfAbsent(structure, sub1, coordinator, CalibrationStatus.CLOSED);
 
         ensureMentorAndPresentation(structure, List.of(t1, t2, t3, t4, t5, t6), mentor, coordinator, now);
+        seedHelper.ensureHeadJudgeOnTrack(track1);
+        seedHelper.ensureHeadJudgeOnTrack(track2);
         repairSubmissionTimestamps(structure);
         repairPresentationSlots(structure);
 
@@ -372,6 +374,12 @@ public class Gd3DataSeeder {
                         .build());
             }
 
+            Submission teamSubmission = submissionRepository.findByTeam_IdAndRound_Id(
+                            team.getId(), structure.prelim().getId()).stream()
+                    .findFirst()
+                    .orElse(null);
+            Track teamTrack = teamSubmission != null ? teamSubmission.getTrack() : structure.track1();
+
             if (presentationSlotRepository.findByRound_IdAndTeam_Id(structure.prelim().getId(), team.getId()).isEmpty()) {
                 LocalDateTime start = examAt.plusMinutes((long) (order - 1) * 15);
                 PresentationQueueStatus status = order == 1
@@ -380,6 +388,8 @@ public class Gd3DataSeeder {
                 presentationSlotRepository.save(PresentationSlot.builder()
                         .round(structure.prelim())
                         .team(team)
+                        .submission(teamSubmission)
+                        .track(teamTrack)
                         .startsAt(start)
                         .endsAt(start.plusMinutes(15))
                         .location("Online (Teams) - Phòng " + ((order % 3) + 1))

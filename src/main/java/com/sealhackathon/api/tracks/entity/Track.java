@@ -3,6 +3,7 @@ package com.sealhackathon.api.tracks.entity;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.tracks.value_object.TrackStatus;
+import com.sealhackathon.api.users.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -82,6 +83,20 @@ public class Track {
     @Builder.Default
     @Column(name = "sequence_order", nullable = false)
     private Integer sequenceOrder = 1;
+
+    @Column(name = "presentation_minutes")
+    private Integer presentationMinutes;
+
+    @Column(name = "qa_minutes")
+    private Integer qaMinutes;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "controller_judge_id")
+    private User controllerJudge;
+
+    @Builder.Default
+    @Column(name = "presentation_shuffled", nullable = false)
+    private Boolean presentationShuffled = false;
 
     /**
      * [BC-02 — back-compat shim]

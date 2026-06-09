@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface JudgeAssignmentRepository extends JpaRepository<JudgeAssignment, Integer> {
@@ -33,6 +34,9 @@ public interface JudgeAssignmentRepository extends JpaRepository<JudgeAssignment
     List<JudgeAssignment> findByRoundId(Integer roundId);
 
     List<JudgeAssignment> findByTrackId(Integer trackId);
+
+    Optional<JudgeAssignment> findFirstByTrack_IdAndAssignmentType(
+            Integer trackId, JudgeAssignmentType assignmentType);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM JudgeAssignment ja WHERE ja.round.id = :roundId")

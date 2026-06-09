@@ -794,13 +794,31 @@ public class HackathonDevSeedHelper {
     }
 
     private void saveJudgeTrack(User judge, Track track, User coordinator, LocalDateTime at) {
+        boolean trackHasHead = judgeAssignmentRepository.findByTrackId(track.getId()).stream()
+                .anyMatch(ja -> ja.getAssignmentType() == JudgeAssignmentType.HEAD);
+        JudgeAssignmentType type = trackHasHead ? JudgeAssignmentType.NORMAL : JudgeAssignmentType.HEAD;
         judgeAssignmentRepository.save(JudgeAssignment.builder()
                 .judge(judge)
                 .track(track)
-                .assignmentType(JudgeAssignmentType.NORMAL)
+                .assignmentType(type)
                 .assignedBy(coordinator)
                 .assignedAt(at)
                 .build());
+    }
+
+    /** Idempotent — DB cũ có thể chỉ có NORMAL; promotion judge đầu tiên lên HEAD. */
+    public void ensureHeadJudgeOnTrack(Track track) {
+        List<JudgeAssignment> assignments = judgeAssignmentRepository.findByTrackId(track.getId());
+        if (assignments.isEmpty()) {
+            return;
+        }
+        boolean hasHead = assignments.stream()
+                .anyMatch(ja -> ja.getAssignmentType() == JudgeAssignmentType.HEAD);
+        if (!hasHead) {
+            JudgeAssignment first = assignments.get(0);
+            first.setAssignmentType(JudgeAssignmentType.HEAD);
+            judgeAssignmentRepository.save(first);
+        }
     }
 
     /**

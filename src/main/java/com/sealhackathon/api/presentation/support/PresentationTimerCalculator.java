@@ -1,0 +1,80 @@
+package com.sealhackathon.api.presentation.support;
+
+import com.sealhackathon.api.events.entity.PresentationSlot;
+import com.sealhackathon.api.presentation.value_object.PresentationTimerPhase;
+import com.sealhackathon.api.rounds.entity.Round;
+import com.sealhackathon.api.tracks.entity.Track;
+
+import java.time.Duration;
+import java.time.LocalDateTime;
+
+public final class PresentationTimerCalculator {
+
+    private PresentationTimerCalculator() {}
+
+    public static int remainingSeconds(
+            PresentationSlot slot,
+            Track track,
+            Round round,
+            PresentationDurationResolver durationResolver) {
+        if (slot == null || slot.getTimerPhase() == null
+                || slot.getTimerPhase() == PresentationTimerPhase.IDLE
+                || slot.getTimerPhase() == PresentationTimerPhase.SETUP) {
+            return durationResolver.presentationMinutes(track, round) * 60;
+        }
+        if (slot.getTimerPhase() == PresentationTimerPhase.ENDED) {
+            return 0;
+        }
+
+        int presentationSeconds = durationResolver.presentationMinutes(track, round) * 60;
+        int qaSeconds = durationResolver.qaMinutes(track, round) * 60;
+        int paused = slot.getPausedAccumulatedSeconds() != null ? slot.getPausedAccumulatedSeconds() : 0;
+        LocalDateTime now = LocalDateTime.now();
+
+        if (slot.getTimerPhase() == PresentationTimerPhase.PAUSED) {
+            return remainingForPaused(slot, presentationSeconds, qaSeconds, paused, now);
+        }
+        if (slot.getTimerPhase() == PresentationTimerPhase.PRESENTING) {
+            if (slot.getPresentationStartedAt() == null) {
+                return presentationSeconds;
+            }
+            long elapsed = Duration.between(slot.getPresentationStartedAt(), now).getSeconds() - paused;
+            return Math.max(0, presentationSeconds - (int) elapsed);
+        }
+        if (slot.getTimerPhase() == PresentationTimerPhase.QA) {
+            if (slot.getQaStartedAt() == null) {
+                return qaSeconds;
+            }
+            long elapsed = Duration.between(slot.getQaStartedAt(), now).getSeconds() - paused;
+            return Math.max(0, qaSeconds - (int) elapsed);
+        }
+        return 0;
+    }
+
+    private static int remainingForPaused(
+            PresentationSlot slot,
+            int presentationSeconds,
+            int qaSeconds,
+            int paused,
+            LocalDateTime now) {
+        PresentationTimerPhase before = slot.getTimerPhaseBeforePause();
+        if (before == PresentationTimerPhase.QA && slot.getQaStartedAt() != null) {
+            int extra = slot.getPausedAt() != null
+                    ? (int) Duration.between(slot.getPausedAt(), now).getSeconds()
+                    : 0;
+            long elapsed = Duration.between(slot.getQaStartedAt(), slot.getPausedAt() != null ? slot.getPausedAt() : now)
+                    .getSeconds() - paused;
+            return Math.max(0, qaSeconds - (int) elapsed - extra);
+        }
+        if (slot.getPresentationStartedAt() != null) {
+            int extra = slot.getPausedAt() != null
+                    ? (int) Duration.between(slot.getPausedAt(), now).getSeconds()
+                    : 0;
+            long elapsed = Duration.between(slot.getPresentationStartedAt(),
+                            slot.getPausedAt() != null ? slot.getPausedAt() : now)
+                    .getSeconds() - paused;
+            return Math.max(0, presentationSeconds - (int) elapsed - extra);
+        }
+        return before == PresentationTimerPhase.QA ? qaSeconds : presentationSeconds;
+    }
+}

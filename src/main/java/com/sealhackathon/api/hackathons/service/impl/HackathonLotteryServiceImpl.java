@@ -30,8 +30,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import org.springframework.util.StringUtils;
+
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -93,24 +96,13 @@ public class HackathonLotteryServiceImpl implements HackathonLotteryService {
 
             List<HackathonLotteryRequest.Assignment> autoAssignments = new ArrayList<>();
             int trackCount = openTracks.size();
-            int[] teamsPerTrack = new int[trackCount];
-            int[] indexOnTrack = new int[trackCount];
 
-            for (int i = 0; i < eligibleTeams.size(); i++) {
-                teamsPerTrack[i % trackCount]++;
-            }
-
-            // 4. Phân bổ Track round-robin + Bảng chia đều trong từng Track
+            // 4. Phân bổ Track round-robin; Bảng = chữ La Mã theo thứ tự track (Track 1→A, 2→B, …)
             for (int i = 0; i < eligibleTeams.size(); i++) {
                 Team team = eligibleTeams.get(i);
                 int trackIdx = i % trackCount;
                 Track track = openTracks.get(trackIdx);
-
-                int maxPerGroup = track.getMaxTeamsPerGroup() != null ? track.getMaxTeamsPerGroup() : 5;
-                int totalOnTrack = teamsPerTrack[trackIdx];
-                int slotOnTrack = indexOnTrack[trackIdx]++;
-                int numGroups = resolveGroupCount(totalOnTrack, maxPerGroup);
-                String assignedGroup = "Bảng " + (char) ('A' + (slotOnTrack % numGroups));
+                String assignedGroup = assignedGroupForTrackSequenceIndex(trackIdx);
 
                 autoAssignments.add(HackathonLotteryRequest.Assignment.builder()
                         .teamId(team.getId())
@@ -126,6 +118,8 @@ public class HackathonLotteryServiceImpl implements HackathonLotteryService {
         if (currentUserAccessor.currentUserId() != null) {
             coordinator = userRepository.findById(currentUserAccessor.currentUserId()).orElse(null);
         }
+
+        Map<Integer, Integer> trackSequenceIndex = buildTrackSequenceIndex(round.getId());
 
         int assignedCount = 0;
         List<Integer> teamIds = new ArrayList<>();
@@ -172,10 +166,20 @@ public class HackathonLotteryServiceImpl implements HackathonLotteryService {
                 teamRoundParticipationRepository.save(participation);
             }
 
+            String assignedGroup = assignment.getAssignedGroup();
+            if (!StringUtils.hasText(assignedGroup)) {
+                Integer trackIdx = trackSequenceIndex.get(track.getId());
+                if (trackIdx == null) {
+                    throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                            "Track không nằm trong danh sách track OPEN của round");
+                }
+                assignedGroup = assignedGroupForTrackSequenceIndex(trackIdx);
+            }
+
             TeamRoundTrack trt = TeamRoundTrack.builder()
                     .team(team)
                     .track(track)
-                    .assignedGroup(assignment.getAssignedGroup())
+                    .assignedGroup(assignedGroup)
                     .registrationType(com.sealhackathon.api.team_round_tracks.value_object.RegistrationType.ASSIGNED)
                     .assignedAt(LocalDateTime.now())
                     .assignedBy(coordinator)
@@ -191,7 +195,7 @@ public class HackathonLotteryServiceImpl implements HackathonLotteryService {
                     .teamId(team.getId())
                     .trackId(track.getId())
                     .trackName(track.getName())
-                    .assignedGroup(assignment.getAssignedGroup())
+                    .assignedGroup(assignedGroup)
                     .build());
         }
 
@@ -205,17 +209,42 @@ public class HackathonLotteryServiceImpl implements HackathonLotteryService {
     }
 
     /**
-     * Số bảng trong một Track — chia đều khi ít đội (vd. 4 đội / max 8 → Bảng A + B, mỗi bảng ~2).
+     * Số đội mỗi track sau khi shuffle + phân round-robin (team i → track {@code i % trackCount}).
+     * Ví dụ 24 đội / 4 track → [6,6,6,6]; 23 đội / 4 track → [6,6,6,5].
      */
-    static int resolveGroupCount(int teamCountOnTrack, int maxPerGroup) {
-        if (teamCountOnTrack <= 0) {
-            return 1;
+    static int[] roundRobinTeamCounts(int teamCount, int trackCount) {
+        if (trackCount <= 0) {
+            throw new IllegalArgumentException("trackCount phải > 0");
         }
-        int safeMax = Math.max(1, maxPerGroup);
-        int byCapacity = (int) Math.ceil((double) teamCountOnTrack / safeMax);
-        if (teamCountOnTrack >= 2 && teamCountOnTrack <= safeMax * 2L) {
-            return Math.max(byCapacity, 2);
+        if (teamCount < 0) {
+            throw new IllegalArgumentException("teamCount phải >= 0");
         }
-        return Math.max(1, byCapacity);
+        int[] counts = new int[trackCount];
+        for (int i = 0; i < teamCount; i++) {
+            counts[i % trackCount]++;
+        }
+        return counts;
+    }
+
+    /**
+     * Track thứ N (0-based, theo {@code sequence_order}) đại diện Bảng La Mã thứ N:
+     * Track 1 → Bảng A, Track 2 → Bảng B, Track 3 → Bảng C, …
+     */
+    static String assignedGroupForTrackSequenceIndex(int trackSequenceIndexZeroBased) {
+        if (trackSequenceIndexZeroBased < 0 || trackSequenceIndexZeroBased > 25) {
+            throw new IllegalArgumentException("trackSequenceIndex vượt quá A–Z: " + trackSequenceIndexZeroBased);
+        }
+        return "Bảng " + (char) ('A' + trackSequenceIndexZeroBased);
+    }
+
+    private Map<Integer, Integer> buildTrackSequenceIndex(Integer roundId) {
+        List<Track> openTracks = trackRepository.findByRoundIdOrderBySequenceOrderAsc(roundId).stream()
+                .filter(t -> t.getStatus() == com.sealhackathon.api.tracks.value_object.TrackStatus.OPEN)
+                .toList();
+        Map<Integer, Integer> indexByTrackId = new HashMap<>();
+        for (int i = 0; i < openTracks.size(); i++) {
+            indexByTrackId.put(openTracks.get(i).getId(), i);
+        }
+        return indexByTrackId;
     }
 }

@@ -5,6 +5,7 @@ import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.events.repository.EventRepository;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
+import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.mentor_assignments.repository.MentorAssignmentRepository;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
@@ -41,6 +43,7 @@ class TrackServiceImplCreateSequenceTest {
     @Mock private NotificationService notificationService;
     @Mock private EventRepository eventRepository;
     @Mock private CriteriaRepository criteriaRepository;
+    @Spy private HackathonArchiveGuard archiveGuard = new HackathonArchiveGuard();
 
     @InjectMocks
     private TrackServiceImpl trackService;

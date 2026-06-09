@@ -10,6 +10,8 @@ import com.sealhackathon.api.events.repository.EventRepository;
 import com.sealhackathon.api.events.service.HackathonTimelineService;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
+import com.sealhackathon.api.hackathons.service.HackathonRoundTimelineSyncService;
+import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.notifications.service.NotificationService;
@@ -26,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
@@ -61,6 +64,9 @@ class RoundServiceImplExamValidationTest {
     @Mock private NotificationService notificationService;
     @Mock private HackathonTimelineService hackathonTimelineService;
     @Mock private EventRepository eventRepository;
+    @Spy private HackathonArchiveGuard archiveGuard = new HackathonArchiveGuard();
+    @Mock private HackathonRoundTimelineSyncService hackathonRoundTimelineSyncService;
+    @Mock private com.sealhackathon.api.presentation.service.PresentationSlotCascadeService presentationSlotCascadeService;
 
     @InjectMocks
     private RoundServiceImpl roundService;
@@ -378,7 +384,7 @@ class RoundServiceImplExamValidationTest {
     }
 
     @Test
-    void createPreliminary_withSixHourDuration_blocksWrongSubmissionOpen() {
+    void createPreliminary_blocksSubmissionDeadlineBeforeOpen() {
         Hackathon h = Hackathon.builder()
                 .id(1)
                 .status(HackathonStatus.DRAFT)
@@ -389,9 +395,8 @@ class RoundServiceImplExamValidationTest {
         CreateRoundRequest req = CreateRoundRequest.builder()
                 .name("Sơ loại")
                 .examAt(LocalDateTime.of(2026, 10, 26, 8, 0))
-                .codingDurationHours(6)
-                .submissionOpen(LocalDateTime.of(2026, 10, 26, 11, 0))
-                .submissionDeadline(LocalDateTime.of(2026, 10, 26, 14, 0))
+                .submissionOpen(LocalDateTime.of(2026, 10, 26, 14, 0))
+                .submissionDeadline(LocalDateTime.of(2026, 10, 26, 12, 0))
                 .isFinal(false)
                 .build();
 

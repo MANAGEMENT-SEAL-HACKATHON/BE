@@ -5,6 +5,7 @@ import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
+import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.judge_assignments.dto.request.CreateJudgeAssignmentRequest;
 import com.sealhackathon.api.judge_assignments.mapper.JudgeAssignmentMapper;
@@ -30,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
@@ -56,6 +58,7 @@ class PersonnelAssignmentCrossTrackTest {
     @Mock private AuditService auditService;
     @Mock private CurrentUserAccessor currentUserAccessor;
     @Mock private NotificationService notificationService;
+    @Spy private HackathonArchiveGuard archiveGuard = new HackathonArchiveGuard();
 
     @InjectMocks private JudgeAssignmentServiceImpl judgeAssignmentService;
     @InjectMocks private MentorAssignmentServiceImpl mentorAssignmentService;

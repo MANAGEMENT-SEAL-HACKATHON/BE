@@ -150,6 +150,18 @@ public class Round {
     @Column(name = "is_published", nullable = false)
     private Boolean isPublished = false;
 
+    @Builder.Default
+    @Column(name = "default_presentation_minutes", nullable = false)
+    private Integer defaultPresentationMinutes = 10;
+
+    @Builder.Default
+    @Column(name = "default_qa_minutes", nullable = false)
+    private Integer defaultQaMinutes = 5;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "controller_judge_id")
+    private User controllerJudge;
+
     @Column(name = "published_at")
     private LocalDateTime publishedAt;
 

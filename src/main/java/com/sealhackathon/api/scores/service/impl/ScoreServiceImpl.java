@@ -11,7 +11,13 @@ import com.sealhackathon.api.common.exception.ResourceNotFoundException;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.criteria.entity.Criteria;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
+import com.sealhackathon.api.events.entity.PresentationSlot;
+import com.sealhackathon.api.events.repository.PresentationSlotRepository;
 import com.sealhackathon.api.live_scoring.event.LiveScoreSavedEvent;
+import com.sealhackathon.api.presentation.support.PresentationScoringGate;
+import com.sealhackathon.api.presentation.support.RoundPhaseResolver;
+import com.sealhackathon.api.presentation.value_object.PresentationQueueStatus;
+import com.sealhackathon.api.presentation.value_object.RoundPhase;
 import com.sealhackathon.api.scores.guard.JudgeAssignmentGuard;
 import com.sealhackathon.api.scores.guard.MentorJudgeConflictGuard;
 import com.sealhackathon.api.submissions.policy.SubmissionGradablePolicy;
@@ -55,6 +61,8 @@ public class ScoreServiceImpl implements ScoreService {
     private final AuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
     private final CalibrationSessionRepository calibrationSessionRepository;
+    private final RoundPhaseResolver roundPhaseResolver;
+    private final PresentationSlotRepository presentationSlotRepository;
 
     @Override
     public ScoreResponse submitScore(SubmitScoreRequest req) {
@@ -94,6 +102,7 @@ public class ScoreServiceImpl implements ScoreService {
             throw new com.sealhackathon.api.common.exception.ScoringLockedException(
                     "Round đã khóa chấm điểm");
         }
+        requireScoringOpen(round, submission);
 
         ScoreType scoreType = req.getScoreType() != null ? req.getScoreType() : ScoreType.NORMAL;
         User judge = userRepository.findById(judgeId)
@@ -175,6 +184,25 @@ public class ScoreServiceImpl implements ScoreService {
                 Map.of("submissionId", submission.getId(), "criterionId", criterion.getId(), "type", "CALIBRATION"));
 
         return toResponse(saved);
+    }
+
+    private void requireScoringOpen(Round round, Submission submission) {
+        if (roundPhaseResolver.resolve(round) != RoundPhase.JUDGING) {
+            throw new BusinessRuleException(ErrorCode.SCORING_NOT_OPEN, "Chấm điểm chưa mở cho vòng này");
+        }
+        PresentationSlot slot = presentationSlotRepository
+                .findByRound_IdAndSubmission_Id(round.getId(), submission.getId())
+                .or(() -> presentationSlotRepository.findByRound_IdAndTeam_Id(
+                        round.getId(), submission.getTeam().getId()))
+                .orElse(null);
+        if (slot == null || slot.getQueueStatus() != PresentationQueueStatus.PRESENTING) {
+            throw new BusinessRuleException(ErrorCode.SCORING_NOT_OPEN,
+                    "Chỉ chấm điểm khi đội đang thuyết trình (PRESENTING)");
+        }
+        if (!PresentationScoringGate.isTimerOpenForScoring(slot.getTimerPhase())) {
+            throw new BusinessRuleException(ErrorCode.SCORING_NOT_OPEN,
+                    PresentationScoringGate.scoringClosedMessage(slot.getTimerPhase()));
+        }
     }
 
     private void validateCriterionForSubmission(Submission submission, Criteria criterion) {

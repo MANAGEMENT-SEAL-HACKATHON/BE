@@ -23,11 +23,39 @@ public class Gd03V41SchemaMigration implements CommandLineRunner {
     @Override
     public void run(String... args) {
         migrateRoundsPublish();
+        migratePresentationGd3();
         migrateSubmissionsV41();
         migrateParticipationStatusToTeamRoundTracks();
         migratePrizesHackathonUnique();
         createSubmissionMetadataTable();
         log.info("[Gd03V41SchemaMigration] GD03 v4.1 schema delta applied (idempotent)");
+    }
+
+    /** GĐ3 — presentation queue, timer, controller auth columns. */
+    private void migratePresentationGd3() {
+        addColumnIfMissing("rounds", "default_presentation_minutes", "INT NOT NULL DEFAULT 10");
+        addColumnIfMissing("rounds", "default_qa_minutes", "INT NOT NULL DEFAULT 5");
+        addColumnIfMissing("rounds", "controller_judge_id", "BIGINT NULL");
+
+        addColumnIfMissing("tracks", "presentation_minutes", "INT NULL");
+        addColumnIfMissing("tracks", "qa_minutes", "INT NULL");
+        addColumnIfMissing("tracks", "controller_judge_id", "BIGINT NULL");
+        addColumnIfMissing("tracks", "presentation_shuffled", "TINYINT(1) NOT NULL DEFAULT 0");
+
+        addColumnIfMissing("presentation_slots", "submission_id", "BIGINT NULL");
+        addColumnIfMissing("presentation_slots", "track_id", "BIGINT NULL");
+        addColumnIfMissing("presentation_slots", "timer_phase", "VARCHAR(20) NOT NULL DEFAULT 'IDLE'");
+        addColumnIfMissing("presentation_slots", "timer_phase_before_pause", "VARCHAR(20) NULL");
+        addColumnIfMissing("presentation_slots", "presentation_started_at", "DATETIME(6) NULL");
+        addColumnIfMissing("presentation_slots", "qa_started_at", "DATETIME(6) NULL");
+        addColumnIfMissing("presentation_slots", "paused_at", "DATETIME(6) NULL");
+        addColumnIfMissing("presentation_slots", "paused_accumulated_seconds", "INT NOT NULL DEFAULT 0");
+
+        addColumnIfMissing("submissions", "slide_storage_key", "VARCHAR(512) NULL");
+        addColumnIfMissing("submissions", "slide_original_filename", "VARCHAR(255) NULL");
+        addColumnIfMissing("submissions", "slide_content_type", "VARCHAR(100) NULL");
+        addColumnIfMissing("submissions", "slide_size_bytes", "BIGINT NULL");
+        addColumnIfMissing("submissions", "slide_uploaded_at", "DATETIME(6) NULL");
     }
 
     private void migrateRoundsPublish() {
@@ -114,27 +142,35 @@ public class Gd03V41SchemaMigration implements CommandLineRunner {
         if (tableExists("submission_metadata")) {
             return;
         }
-        jdbcTemplate.execute("""
-                CREATE TABLE submission_metadata (
-                    submission_id BIGINT NOT NULL PRIMARY KEY,
-                    repo_name VARCHAR(255) NULL,
-                    repo_language VARCHAR(100) NULL,
-                    repo_last_commit_at DATETIME(6) NULL,
-                    metadata_fetch_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
-                    fetched_at DATETIME(6) NULL,
-                    CONSTRAINT fk_submeta_submission
-                        FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE
-                ) ENGINE=InnoDB
-                """);
-        log.info("[Gd03V41SchemaMigration] Created submission_metadata");
+        try {
+            jdbcTemplate.execute("""
+                    CREATE TABLE submission_metadata (
+                        submission_id BIGINT NOT NULL PRIMARY KEY,
+                        repo_name VARCHAR(255) NULL,
+                        repo_language VARCHAR(100) NULL,
+                        repo_last_commit_at DATETIME(6) NULL,
+                        metadata_fetch_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+                        fetched_at DATETIME(6) NULL,
+                        CONSTRAINT fk_submeta_submission
+                            FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE
+                    ) ENGINE=InnoDB
+                    """);
+            log.info("[Gd03V41SchemaMigration] Created submission_metadata");
+        } catch (Exception ex) {
+            log.debug("[Gd03V41SchemaMigration] submission_metadata create skipped: {}", ex.getMessage());
+        }
     }
 
     private void addColumnIfMissing(String table, String column, String ddl) {
         if (columnExists(table, column)) {
             return;
         }
-        jdbcTemplate.execute("ALTER TABLE " + table + " ADD COLUMN " + column + " " + ddl);
-        log.info("[Gd03V41SchemaMigration] Added {}.{}", table, column);
+        try {
+            jdbcTemplate.execute("ALTER TABLE " + table + " ADD COLUMN " + column + " " + ddl);
+            log.info("[Gd03V41SchemaMigration] Added {}.{}", table, column);
+        } catch (Exception ex) {
+            log.warn("[Gd03V41SchemaMigration] Could not add {}.{}: {}", table, column, ex.getMessage());
+        }
     }
 
     private void dropColumnIfExists(String table, String column) {
@@ -178,34 +214,56 @@ public class Gd03V41SchemaMigration implements CommandLineRunner {
     }
 
     private boolean tableExists(String table) {
-        Integer count = jdbcTemplate.queryForObject("""
-                SELECT COUNT(*)
-                  FROM information_schema.TABLES
-                 WHERE TABLE_SCHEMA = DATABASE()
-                   AND TABLE_NAME = ?
-                """, Integer.class, table);
-        return count != null && count > 0;
+        try {
+            Integer count = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(*)
+                      FROM information_schema.TABLES
+                     WHERE TABLE_SCHEMA = DATABASE()
+                       AND UPPER(TABLE_NAME) = UPPER(?)
+                    """, Integer.class, table);
+            if (count != null && count > 0) {
+                return true;
+            }
+        } catch (Exception ex) {
+            log.debug("[Gd03V41SchemaMigration] tableExists metadata query failed for {}: {}", table, ex.getMessage());
+        }
+        try {
+            jdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + table, Integer.class);
+            return true;
+        } catch (Exception ex) {
+            return false;
+        }
     }
 
     private boolean columnExists(String table, String column) {
-        Integer count = jdbcTemplate.queryForObject("""
-                SELECT COUNT(*)
-                  FROM information_schema.COLUMNS
-                 WHERE TABLE_SCHEMA = DATABASE()
-                   AND TABLE_NAME = ?
-                   AND COLUMN_NAME = ?
-                """, Integer.class, table, column);
-        return count != null && count > 0;
+        try {
+            Integer count = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(*)
+                      FROM information_schema.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE()
+                       AND UPPER(TABLE_NAME) = UPPER(?)
+                       AND UPPER(COLUMN_NAME) = UPPER(?)
+                    """, Integer.class, table, column);
+            return count != null && count > 0;
+        } catch (Exception ex) {
+            log.debug("[Gd03V41SchemaMigration] columnExists skipped for {}.{}: {}", table, column, ex.getMessage());
+            return false;
+        }
     }
 
     private boolean indexExists(String table, String indexName) {
-        Integer count = jdbcTemplate.queryForObject("""
-                SELECT COUNT(*)
-                  FROM information_schema.STATISTICS
-                 WHERE TABLE_SCHEMA = DATABASE()
-                   AND TABLE_NAME = ?
-                   AND INDEX_NAME = ?
-                """, Integer.class, table, indexName);
-        return count != null && count > 0;
+        try {
+            Integer count = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(*)
+                      FROM information_schema.STATISTICS
+                     WHERE TABLE_SCHEMA = DATABASE()
+                       AND TABLE_NAME = ?
+                       AND INDEX_NAME = ?
+                    """, Integer.class, table, indexName);
+            return count != null && count > 0;
+        } catch (Exception ex) {
+            log.debug("[Gd03V41SchemaMigration] indexExists skipped for {}.{}: {}", table, indexName, ex.getMessage());
+            return false;
+        }
     }
 }
