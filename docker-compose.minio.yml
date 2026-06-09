@@ -1,18 +1,7 @@
-# MinIO riêng cho SEAL Hackathon BE — slide PDF + ảnh thẻ sinh viên.
-# Data lưu volume seal_hackathon_minio_data — giữ file khi restart container; mất khi docker volume rm.
-# Tránh trùng port 9000/9001 với dự án khác (vd. timelens).
-#
-# Console: http://localhost:19001  (user/pass: minioadmin / minioadmin)
-# API S3:  http://localhost:19000
-# Bucket:   seal-submissions
-#
-# Chạy:
-#   docker compose -f docker-compose.minio.yml up -d
-#
-# App (.env):
-#   APP_STORAGE_TYPE=minio
-#   APP_STORAGE_MINIO_ENDPOINT=http://localhost:19000
-#   APP_STORAGE_MINIO_BUCKET=seal-submissions
+# MinIO — Hackathon BE (API :19000, console :19001, bucket seal-submissions)
+# docker compose -p seal-hackathon-minio -f docker-compose.minio.yml up -d
+
+name: seal-hackathon-minio
 
 services:
   minio:
@@ -30,6 +19,7 @@ services:
 
   minio-init:
     image: minio/mc:latest
+    container_name: seal-hackathon-minio-init
     depends_on:
       - minio
     entrypoint: >
@@ -42,3 +32,4 @@ services:
 
 volumes:
   seal_hackathon_minio_data:
+    name: seal_hackathon_minio_data
