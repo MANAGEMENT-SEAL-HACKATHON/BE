@@ -67,4 +67,7 @@ public class UpdateHackathonRequest {
     private Boolean individualRankingEnabled;
 
     private String chapterScoringFormula;
+
+    @Min(value = 1, message = "Số lượng người đăng ký tối đa phải lớn hơn 0")
+    private Integer maxParticipants;
 }

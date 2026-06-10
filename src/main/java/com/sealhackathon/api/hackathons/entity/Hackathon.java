@@ -69,6 +69,9 @@ public class Hackathon {
     @Column(name = "chapter_scoring_formula", columnDefinition = "TEXT")
     private String chapterScoringFormula;
 
+    @Column(name = "max_participants")
+    private Integer maxParticipants;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
     private User createdBy;

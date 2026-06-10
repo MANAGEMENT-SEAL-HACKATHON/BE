@@ -70,4 +70,8 @@ public class CreateHackathonRequest {
      * Pending #5 — placeholder; BTC chưa định nghĩa công thức.
      */
     private String chapterScoringFormula;
+
+    @NotNull(message = "Bắt buộc phải dự kiến số lượng người đăng ký tham gia tối đa")
+    @Min(value = 1, message = "Số lượng người đăng ký tối đa phải lớn hơn 0")
+    private Integer maxParticipants;
 }
