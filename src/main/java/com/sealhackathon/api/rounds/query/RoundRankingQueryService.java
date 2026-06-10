@@ -12,7 +12,6 @@ import com.sealhackathon.api.submissions.policy.SubmissionGradablePolicy;
 import com.sealhackathon.api.submissions.repository.SubmissionRepository;
 import com.sealhackathon.api.team_round_tracks.entity.TeamRoundTrack;
 import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
-import com.sealhackathon.api.team_round_participation.value_object.ParticipationStatus;
 import com.sealhackathon.api.tiebreak_evaluations.entity.TiebreakEvaluation;
 import com.sealhackathon.api.tiebreak_evaluations.repository.TiebreakEvaluationRepository;
 import lombok.RequiredArgsConstructor;
@@ -62,9 +61,13 @@ public class RoundRankingQueryService {
             if (!SubmissionGradablePolicy.isGradable(submission) || submission.getTrack() == null) {
                 continue;
             }
+
             TeamRoundTrack trt = trackAssignmentByTeam.get(submission.getTeam().getId());
-            if (trt != null && trt.getParticipationStatus() == ParticipationStatus.ELIMINATED) {
-                continue;
+
+            // Lấy trạng thái participationStatus thực tế
+            String partStatus = "PARTICIPATING"; // Mặc định
+            if (trt != null && trt.getParticipationStatus() != null) {
+                partStatus = trt.getParticipationStatus().name();
             }
 
             Integer trackId = submission.getTrack().getId();
@@ -88,7 +91,8 @@ public class RoundRankingQueryService {
                     submission.getTeam().getTeamName(),
                     trackId,
                     trt != null ? trt.getAssignedGroup() : null,
-                    total
+                    total,
+                    partStatus // Truyền trạng thái vào Record tạm
             ));
         }
 
@@ -115,6 +119,7 @@ public class RoundRankingQueryService {
                     .assignedGroup(row.assignedGroup())
                     .totalScore(row.totalScore())
                     .tiebreakRequired(false) // Mặc định là false, RoundProgressionService sẽ set lại sau.
+                    .participationStatus(row.participationStatus()) // Đổ data vào DTO trả về FE
                     .build());
         }
         return result;
@@ -126,7 +131,7 @@ public class RoundRankingQueryService {
                 continue;
             }
             List<Criteria> criteria = criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(
-                    submission.getTrack().getId()).stream()
+                            submission.getTrack().getId()).stream()
                     .filter(c -> c.getType() != CriteriaType.PENALTY)
                     .toList();
             for (Criteria criterion : criteria) {
@@ -163,5 +168,6 @@ public class RoundRankingQueryService {
         return new ArrayList<>(byId.values());
     }
 
-    private record RankRow(Integer teamId, String teamName, Integer trackId, String assignedGroup, double totalScore) {}
+    // Cập nhật Record để chứa thêm thông tin participationStatus
+    private record RankRow(Integer teamId, String teamName, Integer trackId, String assignedGroup, double totalScore, String participationStatus) {}
 }
