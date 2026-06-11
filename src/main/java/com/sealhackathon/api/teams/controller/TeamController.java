@@ -5,15 +5,7 @@ import com.sealhackathon.api.common.security.ApprovedOnly;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
 import com.sealhackathon.api.common.security.StudentOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
-import com.sealhackathon.api.teams.dto.request.AssignTeamMentorRequest;
-import com.sealhackathon.api.teams.dto.request.BulkApproveTeamsRequest;
-import com.sealhackathon.api.teams.dto.request.CreateTeamRequest;
-import com.sealhackathon.api.teams.dto.request.EliminateTeamRequest;
-import com.sealhackathon.api.teams.dto.request.InviteTeamMemberRequest;
-import com.sealhackathon.api.teams.dto.request.PatchTeamMemberRequest;
-import com.sealhackathon.api.teams.dto.request.PatchTeamStatusRequest;
-import com.sealhackathon.api.teams.dto.request.ReassignTeamTrackRequest;
-import com.sealhackathon.api.teams.dto.request.TransferLeaderRequest;
+import com.sealhackathon.api.teams.dto.request.*;
 import com.sealhackathon.api.teams.dto.response.BulkApproveTeamsResponse;
 import com.sealhackathon.api.teams.dto.response.TeamDetailResponse;
 import com.sealhackathon.api.teams.dto.response.TeamMentorHistoryResponse;
@@ -203,5 +195,51 @@ public class TeamController {
     public ResponseEntity<ApiResponse<TeamMentorHistoryResponse>> listMentors(
             @PathVariable Integer teamId) {
         return ResponseEntity.ok(ApiResponse.ok(teamService.listMentorHistory(teamId)));
+    }
+
+    @PostMapping("/admin-create")
+    @CoordinatorOnly
+    @Operation(summary = "Coordinator gom nhóm thủ công", description = "BTC gom những sinh viên lẻ tạo thành 1 đội thi")
+    public ResponseEntity<ApiResponse<TeamDetailResponse>> adminCreateTeam(@Valid @RequestBody AdminCreateTeamRequest req) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(teamService.adminCreateTeam(req)));
+    }
+
+    @GetMapping("/hackathons/{hackathonId}/orphans")
+    @CoordinatorOnly
+    @Operation(summary = "Danh sách sinh viên chưa có đội", description = "BTC lấy danh sách SV đã đăng ký nhưng chưa có đội")
+    public ResponseEntity<ApiResponse<List<com.sealhackathon.api.users.dto.response.UserSummaryResponse>>> getOrphans(@PathVariable Integer hackathonId) {
+        return ResponseEntity.ok(ApiResponse.ok(teamService.getOrphanUsers(hackathonId)));
+    }
+
+    @GetMapping("/hackathons/{hackathonId}/incomplete-teams")
+    @CoordinatorOnly
+    @Operation(summary = "Danh sách đội thiếu người (BTC)", description = "BTC lấy danh sách các đội đang có dưới 3 người")
+    public ResponseEntity<ApiResponse<List<TeamDetailResponse>>> getIncompleteTeamsAdmin(@PathVariable Integer hackathonId) {
+        return ResponseEntity.ok(ApiResponse.ok(teamService.getIncompleteTeams(hackathonId)));
+    }
+
+    @GetMapping("/hackathons/{hackathonId}/matchmaking")
+    @ApprovedOnly
+    @Operation(summary = "Bảng tin ghép đội (Student)", description = "Sinh viên xem danh sách các đội đang thiếu người để chủ động xin vào")
+    public ResponseEntity<ApiResponse<List<TeamDetailResponse>>> getMatchmakingTeams(@PathVariable Integer hackathonId) {
+        return ResponseEntity.ok(ApiResponse.ok(teamService.getMatchmakingTeams(hackathonId)));
+    }
+
+    @PostMapping("/{teamId}/admin-add-member")
+    @CoordinatorOnly
+    @Operation(summary = "Ép thêm sinh viên vào đội", description = "BTC chủ động nhét 1 sinh viên lẻ vào 1 đội")
+    public ResponseEntity<ApiResponse<TeamDetailResponse>> adminAddMember(
+            @PathVariable Integer teamId,
+            @Valid @RequestBody com.sealhackathon.api.teams.dto.request.AdminAddMemberRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(teamService.adminAddMember(teamId, req)));
+    }
+
+    @PostMapping("/{teamId}/admin-merge")
+    @CoordinatorOnly
+    @Operation(summary = "BTC Gộp 2 đội", description = "BTC gộp 2 đội thiếu người thành 1 đội hợp lệ")
+    public ResponseEntity<ApiResponse<TeamDetailResponse>> adminMergeTeams(
+            @PathVariable Integer teamId,
+            @Valid @RequestBody com.sealhackathon.api.teams.dto.request.AdminMergeTeamsRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(teamService.adminMergeTeams(teamId, req)));
     }
 }
