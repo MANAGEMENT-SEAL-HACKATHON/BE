@@ -102,7 +102,7 @@ public class TeamController {
 
     @PostMapping("/bulk-approve")
     @CoordinatorOnly
-    @Operation(summary = "FR-13 — Duyệt hàng loạt (TODO)")
+    @Operation(summary = "FR-13 — Duyệt hàng loạt đội đủ điều kiện (3–5 thành viên)")
     public ResponseEntity<ApiResponse<BulkApproveTeamsResponse>> bulkApprove(
             @Valid @RequestBody BulkApproveTeamsRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(teamService.bulkApproveTeams(req)));

@@ -1,6 +1,8 @@
 package com.sealhackathon.api.me.student.service.impl;
 
 import com.sealhackathon.api.appeals.service.AppealService;
+import com.sealhackathon.api.certificates.repository.CertificateRepository;
+import com.sealhackathon.api.certificates.support.CertificateFileResolver;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
@@ -27,7 +29,6 @@ import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.value_object.TeamStatus;
 import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.prizes.repository.PrizeRepository;
-import com.sealhackathon.api.certificates.repository.CertificateRepository;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -56,6 +57,7 @@ public class StudentPortalServiceImpl implements StudentPortalService {
     private final RoundRankingQueryService roundRankingQueryService;
     private final PrizeRepository prizeRepository;
     private final CertificateRepository certificateRepository;
+    private final CertificateFileResolver certificateFileResolver;
     private final AppealService appealService;
 
     // =================================================================================
@@ -247,7 +249,7 @@ public class StudentPortalServiceImpl implements StudentPortalService {
     }
 
     @Override
-    public String certificateDownloadUrl(Integer certificateId) {
+    public CertificateDownload getCertificateDownload(Integer certificateId) {
         Integer userId = currentUserAccessor.currentUserId();
         var cert = certificateRepository.findById(certificateId)
                 .orElseThrow(() -> new ResourceNotFoundException("Certificate", certificateId));
@@ -257,7 +259,7 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                     "Bạn không có quyền tải giấy chứng nhận này.", org.springframework.http.HttpStatus.FORBIDDEN);
         }
 
-        return cert.getFileUrl() != null ? cert.getFileUrl() : "https://seal-hackathon-storage.s3.amazonaws.com/cert-stub.pdf";
+        return certificateFileResolver.resolve(cert);
     }
 
     @Override

@@ -5,7 +5,6 @@ import com.sealhackathon.api.rounds.dto.request.AssignFinalJudgesRequest;
 import com.sealhackathon.api.rounds.dto.request.LockScoringRequest;
 import com.sealhackathon.api.rounds.dto.request.ReleaseProblemRequest;
 import com.sealhackathon.api.rounds.dto.request.ResolveTiebreakRequest;
-import com.sealhackathon.api.rounds.dto.request.WildcardDecisionRequest;
 import com.sealhackathon.api.rounds.dto.response.AdvanceTeamsResponse;
 import com.sealhackathon.api.rounds.dto.response.AssignFinalJudgesResult;
 import com.sealhackathon.api.rounds.dto.response.FinalJudgeAssignmentResponse;
@@ -15,7 +14,6 @@ import com.sealhackathon.api.rounds.dto.response.RoundScoreboardResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoringProgressResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundSummaryResponse;
 import com.sealhackathon.api.rounds.dto.response.TiebreakItemResponse;
-import com.sealhackathon.api.rounds.dto.response.WildcardCandidateResponse;
 import com.sealhackathon.api.rounds.dto.response.WildcardCandidateResponse;
 import com.sealhackathon.api.wildcard_reviews.dto.request.WildcardReviewDecisionRequest;
 import com.sealhackathon.api.wildcard_reviews.dto.response.WildcardReviewResponse;
@@ -41,10 +39,6 @@ public interface RoundProgressionService {
     List<RoundRankingItemResponse> resolveTiebreak(Integer roundId, ResolveTiebreakRequest req);
 
     List<WildcardCandidateResponse> wildcardCandidates(Integer roundId);
-
-    List<WildcardCandidateResponse> wildcardApprove(Integer roundId, WildcardDecisionRequest req);
-
-    List<WildcardCandidateResponse> wildcardReject(Integer roundId, WildcardDecisionRequest req);
 
     AdvanceTeamsResponse advanceTeams(Integer roundId, AdvanceTeamsRequest req);
 

@@ -1,19 +1,23 @@
 package com.sealhackathon.api.export_jobs.service.impl;
 
+import com.sealhackathon.api.common.audit.AuditAction;
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.export_jobs.dto.request.CreateExportJobRequest;
+import com.sealhackathon.api.export_jobs.dto.response.ExportFileDownload;
 import com.sealhackathon.api.export_jobs.dto.response.ExportJobResponse;
 import com.sealhackathon.api.export_jobs.entity.ExportJob;
 import com.sealhackathon.api.export_jobs.repository.ExportJobRepository;
 import com.sealhackathon.api.export_jobs.service.ExportJobService;
+import com.sealhackathon.api.export_jobs.support.ExportCsvBuilder;
 import com.sealhackathon.api.export_jobs.value_object.ExportJobStatus;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
+import com.sealhackathon.api.storage.ObjectStorageService;
 import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,9 +25,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayInputStream;
 import java.time.LocalDateTime;
 import java.util.Map;
-import java.util.UUID;
 
 @Slf4j
 @Service
@@ -36,16 +40,17 @@ public class ExportJobServiceImpl implements ExportJobService {
     private final UserRepository userRepository;
     private final CurrentUserAccessor currentUserAccessor;
     private final AuditService auditService;
+    private final ExportCsvBuilder exportCsvBuilder;
+    private final ObjectStorageService objectStorage;
 
     @Override
     public ExportJobResponse create(Integer hackathonId, CreateExportJobRequest req) {
         Hackathon hackathon = hackathonRepository.findById(hackathonId)
                 .orElseThrow(() -> new ResourceNotFoundException("Hackathon", hackathonId));
 
-        // Rào chắn: Chỉ cho phép xuất dữ liệu khi Hackathon đã kết thúc (FINISHED)
         if (hackathon.getStatus() != HackathonStatus.FINISHED) {
             throw new BusinessRuleException(ErrorCode.INVALID_STATE,
-                    "Chỉ có thể xuất báo cáo hệ thống khi Hackathon đã chính thức đóng sổ (FINISHED).");
+                    "Chỉ có thể xuất báo cáo khi Hackathon đã chính thức đóng sổ (FINISHED).");
         }
 
         User requester = userRepository.findById(currentUserAccessor.currentUserId())
@@ -60,22 +65,18 @@ public class ExportJobServiceImpl implements ExportJobService {
                 .build();
 
         ExportJob saved = exportJobRepository.save(job);
+        byte[] csvBytes = exportCsvBuilder.build(hackathon, req.getType());
+        String storageKey = "exports/" + hackathonId + "/" + saved.getId() + "/" + req.getType().name() + ".csv";
+        objectStorage.put(storageKey, new ByteArrayInputStream(csvBytes), "text/csv", csvBytes.length);
 
-        // Mô phỏng việc gửi job vào Message Queue để xử lý bất đồng bộ
-        log.info("[ExportJob] Đã đưa yêu cầu xuất báo cáo {} vào hàng đợi. JobID: {}", req.getType(), saved.getId());
-
-        // -------------------------------------------------------------------------
-        // GIẢ LẬP WORKER: Tự động hoàn thành Job ngay lập tức để FE dễ dàng test
-        // -------------------------------------------------------------------------
         saved.setStatus(ExportJobStatus.DONE);
-        saved.setFileUrl("https://seal-storage.s3.ap-southeast-1.amazonaws.com/exports/hackathon_"
-                + hackathonId + "_" + req.getType().name() + "_" + UUID.randomUUID().toString().substring(0, 8) + ".csv");
+        saved.setFileUrl(storageKey);
         saved.setFinishedAt(LocalDateTime.now());
         exportJobRepository.save(saved);
 
-        // Ghi Audit Log bằng String trực tiếp để không cần sửa file AuditAction.java
-        auditService.log("EXPORT_JOB_CREATED", "export_jobs", saved.getId(),
-                Map.of("hackathonId", hackathonId, "type", req.getType().name()));
+        log.info("[ExportJob] Completed job {} type {} ({} bytes)", saved.getId(), req.getType(), csvBytes.length);
+        auditService.log(AuditAction.EXPORT_JOB_CREATED, "export_jobs", saved.getId(),
+                Map.of("hackathonId", hackathonId, "type", req.getType().name(), "storageKey", storageKey));
 
         return toResponse(saved);
     }
@@ -89,26 +90,27 @@ public class ExportJobServiceImpl implements ExportJobService {
     }
 
     @Override
-    public String downloadUrl(Integer jobId) {
+    @Transactional(readOnly = true)
+    public ExportFileDownload downloadFile(Integer jobId) {
         ExportJob job = exportJobRepository.findById(jobId)
                 .orElseThrow(() -> new ResourceNotFoundException("ExportJob", jobId));
 
-        // Rào chắn: Chỉ trả link tải khi file đã chuẩn bị xong
         if (job.getStatus() != ExportJobStatus.DONE) {
             throw new BusinessRuleException(ErrorCode.INVALID_STATE,
                     "File báo cáo chưa được xử lý xong. Trạng thái hiện tại: " + job.getStatus());
         }
-
         if (job.getFileUrl() == null || job.getFileUrl().isBlank()) {
-            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
-                    "Lỗi hệ thống: Không tìm thấy đường dẫn file trên bộ nhớ Cloud.");
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Không tìm thấy file export.");
+        }
+        if (!objectStorage.exists(job.getFileUrl())) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE, "File export không còn trên storage.");
         }
 
-        // FR-36: Audit log việc download file nhạy cảm
-        auditService.log("EXPORT_FILE_DOWNLOADED", "export_jobs", jobId,
-                Map.of("hackathonId", job.getHackathon().getId(), "fileUrl", job.getFileUrl()));
+        auditService.log(AuditAction.EXPORT_FILE_DOWNLOADED, "export_jobs", jobId,
+                Map.of("hackathonId", job.getHackathon().getId(), "storageKey", job.getFileUrl()));
 
-        return job.getFileUrl();
+        String filename = "hackathon-" + job.getHackathon().getId() + "-" + job.getType().name() + ".csv";
+        return new ExportFileDownload(objectStorage.get(job.getFileUrl()), filename);
     }
 
     private static ExportJobResponse toResponse(ExportJob job) {

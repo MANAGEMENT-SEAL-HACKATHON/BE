@@ -14,9 +14,7 @@ import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.guard.RoundAccessGuard;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.value_object.LateSubmissionPolicy;
-import com.sealhackathon.api.submissions.dto.request.ResubmitSubmissionRequest;
 import com.sealhackathon.api.submissions.dto.request.ReviewLateSubmissionRequest;
-import com.sealhackathon.api.submissions.dto.request.ReviewSubmissionRequest;
 import com.sealhackathon.api.submissions.dto.request.SubmitSubmissionRequest;
 import com.sealhackathon.api.submissions.dto.response.SubmissionResponse;
 import com.sealhackathon.api.submissions.dto.response.SubmissionSlideDownload;
@@ -274,23 +272,6 @@ public class SubmissionServiceImpl implements SubmissionService {
     }
 
     @Override
-    public SubmissionResponse resubmit(Integer submissionId, ResubmitSubmissionRequest req) {
-        Submission existing = submissionRepository.findById(submissionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Submission", submissionId));
-        SubmitSubmissionRequest upsert = SubmitSubmissionRequest.builder()
-                .teamId(existing.getTeam().getId())
-                .trackId(existing.getTrack() != null ? existing.getTrack().getId() : null)
-                .roundId(existing.getRound().getId())
-                .repoUrl(req.getRepoUrl() != null ? req.getRepoUrl() : existing.getRepoUrl())
-                .demoUrl(req.getDemoUrl() != null ? req.getDemoUrl() : existing.getDemoUrl())
-                .reportUrl(req.getReportUrl() != null ? req.getReportUrl() : existing.getReportUrl())
-                .slideUrl(req.getSlideUrl() != null ? req.getSlideUrl() : existing.getSlideUrl())
-                .lateReason(req.getReason() != null ? req.getReason() : existing.getLateReason())
-                .build();
-        return submit(upsert);
-    }
-
-    @Override
     public SubmissionResponse reviewLate(Integer submissionId, ReviewLateSubmissionRequest req) {
         Submission submission = submissionRepository.findById(submissionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Submission", submissionId));
@@ -327,18 +308,6 @@ public class SubmissionServiceImpl implements SubmissionService {
         auditService.log(AuditAction.SUBMISSION_LATE_REVIEW, "submissions", saved.getId(),
                 Map.of("decision", req.getDecision().name()));
         return toResponse(saved, false);
-    }
-
-    @Override
-    @Deprecated
-    public SubmissionResponse review(Integer submissionId, ReviewSubmissionRequest req) {
-        LateReviewDecision decision = req.getStatus() == SubmissionStatus.REJECTED
-                ? LateReviewDecision.REJECT
-                : LateReviewDecision.APPROVE;
-        return reviewLate(submissionId, ReviewLateSubmissionRequest.builder()
-                .decision(decision)
-                .note(req.getReviewNote())
-                .build());
     }
 
     private SubmissionStatus resolveSubmitStatus(Round round, boolean afterDeadline) {

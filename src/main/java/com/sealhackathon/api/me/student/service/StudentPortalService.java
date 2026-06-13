@@ -32,7 +32,7 @@ public interface StudentPortalService {
 
     List<CertificateResponse> listMyCertificates();
 
-    String certificateDownloadUrl(Integer certificateId);
+    CertificateDownload getCertificateDownload(Integer certificateId);
 
     AppealResponse createAppeal(CreateAppealRequest request);
 

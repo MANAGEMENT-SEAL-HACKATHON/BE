@@ -103,6 +103,10 @@ public final class AuditAction {
     public static final String PRIZE_AWARDED              = "PRIZE_AWARDED";
     public static final String PRIZE_REVOKED              = "PRIZE_REVOKED";
 
+    // ---------- MF-03 GĐ6 EXPORT ----------
+    public static final String EXPORT_JOB_CREATED         = "EXPORT_JOB_CREATED";
+    public static final String EXPORT_FILE_DOWNLOADED     = "EXPORT_FILE_DOWNLOADED";
+
     // ---------- MF-03 GĐ5 CALIBRATION ----------
     public static final String CALIBRATION_SESSION_CREATED  = "CALIBRATION_SESSION_CREATED";
     public static final String CALIBRATION_SESSION_UPDATED  = "CALIBRATION_SESSION_UPDATED";

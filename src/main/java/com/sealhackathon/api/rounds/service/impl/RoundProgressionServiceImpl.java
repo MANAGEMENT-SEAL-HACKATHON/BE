@@ -24,7 +24,6 @@ import com.sealhackathon.api.rounds.dto.request.AssignFinalJudgesRequest;
 import com.sealhackathon.api.rounds.dto.request.LockScoringRequest;
 import com.sealhackathon.api.rounds.dto.request.ReleaseProblemRequest;
 import com.sealhackathon.api.rounds.dto.request.ResolveTiebreakRequest;
-import com.sealhackathon.api.rounds.dto.request.WildcardDecisionRequest;
 import com.sealhackathon.api.rounds.dto.response.AdvanceTeamsResponse;
 import com.sealhackathon.api.rounds.dto.response.AssignFinalJudgesResult;
 import com.sealhackathon.api.rounds.dto.response.FinalJudgeAssignmentResponse;
@@ -399,16 +398,6 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         }
 
         return responses;
-    }
-
-    @Override
-    public List<WildcardCandidateResponse> wildcardApprove(Integer roundId, WildcardDecisionRequest req) {
-        return List.of();
-    }
-
-    @Override
-    public List<WildcardCandidateResponse> wildcardReject(Integer roundId, WildcardDecisionRequest req) {
-        return List.of();
     }
 
     // =========================================================================

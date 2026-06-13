@@ -6,9 +6,7 @@ import com.sealhackathon.api.common.security.StudentOnly;
 import com.sealhackathon.api.common.security.SubmissionListAccess;
 import com.sealhackathon.api.config.OpenApiConfig;
 import com.sealhackathon.api.submissions.dto.request.RejectLateSubmissionRequest;
-import com.sealhackathon.api.submissions.dto.request.ResubmitSubmissionRequest;
 import com.sealhackathon.api.submissions.dto.request.ReviewLateSubmissionRequest;
-import com.sealhackathon.api.submissions.dto.request.ReviewSubmissionRequest;
 import com.sealhackathon.api.submissions.dto.request.SubmitSubmissionRequest;
 import com.sealhackathon.api.submissions.dto.response.SubmissionResponse;
 import com.sealhackathon.api.submissions.service.SubmissionService;
@@ -93,16 +91,6 @@ public class SubmissionController {
         return ResponseEntity.ok(ApiResponse.ok(submissionService.list(teamId, roundId, status)));
     }
 
-    @Deprecated
-    @PatchMapping("/{id}/resubmit")
-    @StudentOnly
-    @Operation(summary = "Deprecated — dùng POST /submissions upsert (FR-16)")
-    public ResponseEntity<ApiResponse<SubmissionResponse>> resubmit(
-            @PathVariable Integer id,
-            @Valid @RequestBody ResubmitSubmissionRequest req) {
-        return ResponseEntity.ok(ApiResponse.ok(submissionService.resubmit(id, req)));
-    }
-
     @PatchMapping("/{id}/review-late")
     @CoordinatorOnly
     @Operation(summary = "FR-16A — Coordinator duyệt LATE_PENDING")
@@ -131,15 +119,5 @@ public class SubmissionController {
                         .decision(LateReviewDecision.REJECT)
                         .note(req.getReason())
                         .build())));
-    }
-
-    @Deprecated
-    @PatchMapping("/{id}/review")
-    @CoordinatorOnly
-    @Operation(summary = "Deprecated — dùng PATCH /{id}/review-late")
-    public ResponseEntity<ApiResponse<SubmissionResponse>> review(
-            @PathVariable Integer id,
-            @Valid @RequestBody ReviewSubmissionRequest req) {
-        return ResponseEntity.ok(ApiResponse.ok(submissionService.review(id, req)));
     }
 }

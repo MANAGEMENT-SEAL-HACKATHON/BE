@@ -8,7 +8,6 @@ import com.sealhackathon.api.rounds.dto.request.AssignFinalJudgesRequest;
 import com.sealhackathon.api.rounds.dto.request.LockScoringRequest;
 import com.sealhackathon.api.rounds.dto.request.ReleaseProblemRequest;
 import com.sealhackathon.api.rounds.dto.request.ResolveTiebreakRequest;
-import com.sealhackathon.api.rounds.dto.request.WildcardDecisionRequest;
 import com.sealhackathon.api.rounds.dto.response.AdvanceTeamsResponse;
 import com.sealhackathon.api.rounds.dto.response.AssignFinalJudgesResult;
 import com.sealhackathon.api.rounds.dto.response.FinalJudgeAssignmentResponse;
@@ -137,37 +136,6 @@ public class RoundProgressionController {
         return ResponseEntity.ok(ApiResponse.ok(progressionService.wildcardCandidates(id)));
     }
 
-    @Deprecated
-    @GetMapping("/{id}/wildcard/candidates")
-    @CoordinatorOnly
-    @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
-    @Operation(summary = "Deprecated — dùng GET /wildcard-candidates")
-    public ResponseEntity<ApiResponse<List<WildcardCandidateResponse>>> wildcardCandidatesLegacy(@PathVariable Integer id) {
-        return wildcardCandidates(id);
-    }
-
-    @Deprecated
-    @PostMapping("/{id}/wildcard/approve")
-    @CoordinatorOnly
-    @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
-    @Operation(summary = "Deprecated — dùng PATCH /wildcard-reviews/{id}")
-    public ResponseEntity<ApiResponse<List<WildcardCandidateResponse>>> wildcardApprove(
-            @PathVariable Integer id,
-            @Valid @RequestBody WildcardDecisionRequest req) {
-        return ResponseEntity.ok(ApiResponse.ok(progressionService.wildcardApprove(id, req)));
-    }
-
-    @Deprecated
-    @PostMapping("/{id}/wildcard/reject")
-    @CoordinatorOnly
-    @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
-    @Operation(summary = "Deprecated — dùng PATCH /wildcard-reviews/{id}")
-    public ResponseEntity<ApiResponse<List<WildcardCandidateResponse>>> wildcardReject(
-            @PathVariable Integer id,
-            @Valid @RequestBody WildcardDecisionRequest req) {
-        return ResponseEntity.ok(ApiResponse.ok(progressionService.wildcardReject(id, req)));
-    }
-
     @PostMapping("/{id}/advance")
     @CoordinatorOnly
     @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
@@ -176,17 +144,6 @@ public class RoundProgressionController {
             @PathVariable Integer id,
             @Valid @RequestBody AdvanceTeamsRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(progressionService.advance(id, req)));
-    }
-
-    @Deprecated
-    @PostMapping("/{id}/advance-teams")
-    @CoordinatorOnly
-    @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
-    @Operation(summary = "Deprecated — dùng POST /advance")
-    public ResponseEntity<ApiResponse<AdvanceTeamsResponse>> advanceTeams(
-            @PathVariable Integer id,
-            @Valid @RequestBody AdvanceTeamsRequest req) {
-        return advance(id, req);
     }
 
     @PostMapping("/{id}/judge-assignments")

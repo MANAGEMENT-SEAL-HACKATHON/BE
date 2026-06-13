@@ -25,7 +25,7 @@ public class PrizeController {
     private final PrizeService prizeService;
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "FR-32 — Thu hồi giải (stub)")
+    @Operation(summary = "FR-32 — Thu hồi giải")
     public ResponseEntity<ApiResponse<Void>> revoke(@PathVariable Integer id) {
         prizeService.revoke(id);
         return ResponseEntity.ok(ApiResponse.ok(null));
