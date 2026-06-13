@@ -70,6 +70,7 @@ public final class AuditAction {
 
     // ---------- MF-02 GĐ2 TEAMS ----------
     public static final String TEAM_CREATE              = "TEAM_CREATE";
+    public static final String TEAM_UPDATE              = "TEAM_UPDATE";
     public static final String TEAM_APPROVE             = "TEAM_APPROVE";
     public static final String TEAM_REJECT              = "TEAM_REJECT";
     public static final String TEAM_DISBAND             = "TEAM_DISBAND";

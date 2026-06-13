@@ -38,4 +38,5 @@ public class HackathonResponse {
     private final Integer createdById;
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;
+    private final Integer maxParticipants;
 }

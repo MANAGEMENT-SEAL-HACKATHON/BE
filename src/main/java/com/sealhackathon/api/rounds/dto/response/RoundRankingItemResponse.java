@@ -18,4 +18,5 @@ public class RoundRankingItemResponse {
     private String assignedGroup;
     private Double totalScore;
     private Boolean tiebreakRequired;
+    private String participationStatus;
 }

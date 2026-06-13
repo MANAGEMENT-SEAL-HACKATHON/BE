@@ -1,19 +1,12 @@
 package com.sealhackathon.api.teams.service;
 
-import com.sealhackathon.api.teams.dto.request.AssignTeamMentorRequest;
-import com.sealhackathon.api.teams.dto.request.BulkApproveTeamsRequest;
-import com.sealhackathon.api.teams.dto.request.CreateTeamRequest;
-import com.sealhackathon.api.teams.dto.request.EliminateTeamRequest;
-import com.sealhackathon.api.teams.dto.request.InviteTeamMemberRequest;
-import com.sealhackathon.api.teams.dto.request.PatchTeamMemberRequest;
-import com.sealhackathon.api.teams.dto.request.PatchTeamStatusRequest;
-import com.sealhackathon.api.teams.dto.request.ReassignTeamTrackRequest;
-import com.sealhackathon.api.teams.dto.request.TransferLeaderRequest;
+import com.sealhackathon.api.teams.dto.request.*;
 import com.sealhackathon.api.teams.dto.response.BulkApproveTeamsResponse;
 import com.sealhackathon.api.teams.dto.response.TeamDetailResponse;
 import com.sealhackathon.api.teams.dto.response.TeamMentorHistoryResponse;
 import com.sealhackathon.api.teams.dto.response.TeamResponse;
 import com.sealhackathon.api.teams.value_object.TeamStatus;
+import com.sealhackathon.api.users.dto.response.UserSummaryResponse;
 
 import java.util.List;
 
@@ -48,4 +41,21 @@ public interface TeamService {
     void removeMentor(Integer teamId, Integer roundId);
 
     TeamMentorHistoryResponse listMentorHistory(Integer teamId);
+
+    TeamDetailResponse adminCreateTeam(AdminCreateTeamRequest req);
+
+    // Lấy danh sách các sinh viên đã đăng ký nhưng chưa có đội (Orphan Users)
+    List<UserSummaryResponse> getOrphanUsers(Integer hackathonId);
+
+    // Lấy danh sách các đội chưa đủ 3 người (Incomplete Teams)
+    List<TeamDetailResponse> getIncompleteTeams(Integer hackathonId);
+
+    // Bảng tin ghép đội cho Sinh viên (Chỉ xem các đội PENDING đang thiếu người)
+    List<TeamDetailResponse> getMatchmakingTeams(Integer hackathonId);
+
+    // BTC ép thêm 1 sinh viên vào đội bất kỳ
+    TeamDetailResponse adminAddMember(Integer teamId, AdminAddMemberRequest req);
+
+    // BTC gộp 2 đội thiếu người
+    TeamDetailResponse adminMergeTeams(Integer targetTeamId, com.sealhackathon.api.teams.dto.request.AdminMergeTeamsRequest req);
 }

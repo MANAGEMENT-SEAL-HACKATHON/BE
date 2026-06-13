@@ -42,6 +42,16 @@ public class HackathonRegistrationServiceImpl implements HackathonRegistrationSe
             throw new BusinessRuleException(ErrorCode.HACKATHON_NOT_ONGOING, "Giải đấu hiện không mở đăng ký.");
         }
 
+        // RÀO CHẮN: CHẶN KHI VƯỢT QUÁ CHỈ TIÊU ĐĂNG KÝ
+        if (hackathon.getMaxParticipants() != null) {
+            long currentlyRegistered = hackathonRegistrationRepository.countByHackathon_Id(hackathonId);
+            if (currentlyRegistered >= hackathon.getMaxParticipants()) {
+                throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                        "Đăng ký thất bại: Giải đấu đã đạt giới hạn tối đa số lượng người tham gia (%d/%d người)."
+                                .formatted(currentlyRegistered, hackathon.getMaxParticipants()));
+            }
+        }
+
         // RÀO CHẮN 2: Kiểm tra thời gian đăng ký (Window Validation)
         // Dùng LocalDate thay vì LocalDateTime để đồng bộ với kiểu dữ liệu trong DB
         LocalDate today = java.time.LocalDate.now();

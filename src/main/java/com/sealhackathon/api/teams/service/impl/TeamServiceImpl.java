@@ -1,24 +1,23 @@
 package com.sealhackathon.api.teams.service.impl;
 
+import com.sealhackathon.api.common.audit.AuditAction;
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.*;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
+import com.sealhackathon.api.hackathon_registrations.entity.HackathonRegistration;
+import com.sealhackathon.api.hackathon_registrations.repository.HackathonRegistrationRepository;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.mentor_team_assignments.repository.MentorTeamAssignmentRepository;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
+import com.sealhackathon.api.team_members.entity.TeamMember;
+import com.sealhackathon.api.team_members.entity.TeamMemberId;
 import com.sealhackathon.api.team_members.repository.TeamMemberRepository;
+import com.sealhackathon.api.team_members.value_object.TeamMemberRole;
+import com.sealhackathon.api.team_members.value_object.TeamMemberStatus;
 import com.sealhackathon.api.team_round_participation.repository.TeamRoundParticipationRepository;
 import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
-import com.sealhackathon.api.teams.dto.request.AssignTeamMentorRequest;
-import com.sealhackathon.api.teams.dto.request.BulkApproveTeamsRequest;
-import com.sealhackathon.api.teams.dto.request.CreateTeamRequest;
-import com.sealhackathon.api.teams.dto.request.EliminateTeamRequest;
-import com.sealhackathon.api.teams.dto.request.InviteTeamMemberRequest;
-import com.sealhackathon.api.teams.dto.request.PatchTeamMemberRequest;
-import com.sealhackathon.api.teams.dto.request.PatchTeamStatusRequest;
-import com.sealhackathon.api.teams.dto.request.ReassignTeamTrackRequest;
-import com.sealhackathon.api.teams.dto.request.TransferLeaderRequest;
+import com.sealhackathon.api.teams.dto.request.*;
 import com.sealhackathon.api.teams.dto.response.BulkApproveTeamsResponse;
 import com.sealhackathon.api.teams.dto.response.TeamDetailResponse;
 import com.sealhackathon.api.teams.dto.response.TeamMentorHistoryResponse;
@@ -32,12 +31,15 @@ import com.sealhackathon.api.team_round_participation.value_object.Participation
 import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.teams.value_object.TeamStatus;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
+import com.sealhackathon.api.users.dto.response.UserSummaryResponse;
 import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -644,5 +646,256 @@ public class TeamServiceImpl implements TeamService {
         auditService.log(com.sealhackathon.api.common.audit.AuditAction.TEAM_ELIMINATE_MANUAL,
                 "teams", teamId, java.util.Map.of("reason", req.getReason()));
         return teamMapper.toResponse(saved);
+    }
+
+    // XỬ LÝ GOM ĐỘI CHO NGƯỜI CHƠ VƠ (GOD MODE CỦA COORDINATOR)
+    @Override
+    public TeamDetailResponse adminCreateTeam(AdminCreateTeamRequest req) {
+        Hackathon hackathon = hackathonRepository.findById(req.getHackathonId())
+                .orElseThrow(() -> new ResourceNotFoundException("Hackathon", req.getHackathonId()));
+
+        // RÀO CHẮN: BẢO VỆ QUY TẮC TỐI THƯỢNG 3-5 THÀNH VIÊN
+        int totalMembers = 1 + req.getMemberIds().size(); // 1 Leader + số lượng Members
+        if (totalMembers < 3 || totalMembers > 5) {
+            throw new BusinessRuleException(ErrorCode.TEAM_INVALID_MEMBER_COUNT,
+                    "Vi phạm quy tắc: Ban Tổ Chức chỉ được phép tạo đội ép buộc khi gom đủ từ 3 đến 5 thành viên. Số lượng bạn đang chọn là: " + totalMembers);
+        }
+
+        if (teamRepository.existsByHackathon_IdAndTeamNameIgnoreCase(hackathon.getId(), req.getTeamName().trim())) {
+            throw new ConflictException(ErrorCode.TEAM_NAME_DUPLICATE, "Tên đội đã tồn tại trong Hackathon này");
+        }
+
+        if (teamRepository.existsByHackathon_IdAndTeamNameIgnoreCase(hackathon.getId(), req.getTeamName().trim())) {
+            throw new ConflictException(ErrorCode.TEAM_NAME_DUPLICATE, "Tên đội đã tồn tại trong Hackathon này");
+        }
+
+        // Tạo Đội với trạng thái ACTIVE ngay lập tức
+        User leader = userRepository.findById(req.getLeaderId()).orElseThrow();
+        Team team = Team.builder()
+                .hackathon(hackathon)
+                .teamName(req.getTeamName().trim())
+                .leader(leader)
+                .chapter(leader.getChapter())
+                .status(TeamStatus.ACTIVE)
+                .isLocked(false)
+                .build();
+        Team savedTeam = teamRepository.save(team);
+
+        // Chuẩn bị danh sách thành viên (bao gồm Leader và các Members)
+        List<com.sealhackathon.api.team_members.entity.TeamMember> newMembers = new java.util.ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
+
+        // 1. Thêm Leader
+        newMembers.add(com.sealhackathon.api.team_members.entity.TeamMember.builder()
+                .id(new com.sealhackathon.api.team_members.entity.TeamMemberId(savedTeam.getId(), leader.getId()))
+                .team(savedTeam)
+                .user(leader)
+                .roleInTeam(com.sealhackathon.api.team_members.value_object.TeamMemberRole.LEADER)
+                .status(com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED) // ACCEPTED thẳng
+                .joinedAt(now)
+                .build());
+
+        // 2. Thêm Members
+        for (Integer memberId : req.getMemberIds()) {
+            User memberUser = userRepository.findById(memberId).orElseThrow();
+            newMembers.add(com.sealhackathon.api.team_members.entity.TeamMember.builder()
+                    .id(new com.sealhackathon.api.team_members.entity.TeamMemberId(savedTeam.getId(), memberUser.getId()))
+                    .team(savedTeam)
+                    .user(memberUser)
+                    .roleInTeam(com.sealhackathon.api.team_members.value_object.TeamMemberRole.MEMBER)
+                    .status(com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED) // ACCEPTED thẳng
+                    .joinedAt(now)
+                    .build());
+        }
+
+        teamMemberRepository.saveAll(newMembers);
+
+        auditService.log(com.sealhackathon.api.common.audit.AuditAction.TEAM_CREATE, "teams", savedTeam.getId(),
+                java.util.Map.of("note", "Created by Administrator", "memberCount", newMembers.size()));
+
+        return getTeam(savedTeam.getId());
+    }
+
+    // =========================================================================
+    // MATCHMAKING VÀ GOD MODE (TÌM KIẾM & ÉP GỘP ĐỘI)
+    // =========================================================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.List<com.sealhackathon.api.users.dto.response.UserSummaryResponse> getOrphanUsers(Integer hackathonId) {
+        // Lấy danh sách tất cả sinh viên đã đăng ký giải
+        java.util.List<User> registeredUsers = hackathonRepository.findById(hackathonId)
+                .orElseThrow(() -> new ResourceNotFoundException("Hackathon", hackathonId))
+                .getCreatedBy() != null ? new java.util.ArrayList<>() : new java.util.ArrayList<>();
+
+        // Query manual do thiếu repository inject trực tiếp, tận dụng user query.
+        // Thực tế: Lọc từ HackathonRegistrationRepository
+        List<HackathonRegistration> regs =
+                ((HackathonRegistrationRepository)
+                        org.springframework.web.context.support.WebApplicationContextUtils
+                                .getRequiredWebApplicationContext(
+                                        ((org.springframework.web.context.request.ServletRequestAttributes)
+                                                org.springframework.web.context.request.RequestContextHolder.currentRequestAttributes())
+                                                .getRequest().getServletContext()
+                                ).getBean(HackathonRegistrationRepository.class))
+                        .findAll().stream().filter(r -> r.getHackathon().getId().equals(hackathonId)).toList();
+
+        List<UserSummaryResponse> orphans = new java.util.ArrayList<>();
+
+        for (HackathonRegistration reg : regs) {
+            User u = reg.getUser();
+            boolean hasTeam = teamMemberRepository.isUserInAnyActiveTeamForHackathon(u.getId(), hackathonId);
+            if (!hasTeam) {
+                orphans.add(UserSummaryResponse.builder()
+                        .id(u.getId())
+                        .fullName(u.getFullName())
+                        .email(u.getEmail())
+                        .role(u.getRole())
+                        .status(u.getStatus())
+                        .userType(u.getUserType())
+                        .institution(u.getInstitution())
+                        .build());
+            }
+        }
+        return orphans;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TeamDetailResponse> getIncompleteTeams(Integer hackathonId) {
+        // Lấy các đội PENDING
+        List<Team> pendingTeams = teamRepository.findByHackathon_IdAndStatus(hackathonId, TeamStatus.PENDING);
+        List<TeamDetailResponse> incompleteTeams = new ArrayList<>();
+
+        for (Team t : pendingTeams) {
+            long acceptedCount = teamMemberRepository.countByTeam_IdAndStatus(t.getId(), TeamMemberStatus.ACCEPTED);
+            if (acceptedCount < 3) { // Dưới 3 người là thiếu
+                incompleteTeams.add(getTeam(t.getId()));
+            }
+        }
+        return incompleteTeams;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TeamDetailResponse> getMatchmakingTeams(Integer hackathonId) {
+        // Sinh viên cũng gọi hàm này để xem danh sách đội thiếu người và chủ động liên hệ Leader
+        return getIncompleteTeams(hackathonId);
+    }
+
+    @Override
+    public TeamDetailResponse adminAddMember(Integer teamId, AdminAddMemberRequest req) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new ResourceNotFoundException("Team", teamId));
+
+        if (Boolean.TRUE.equals(team.getIsLocked())) {
+            throw new BusinessRuleException(ErrorCode.TEAM_LOCKED, "Không thể thêm người vì đội đã bị khóa.");
+        }
+
+        User newMember = userRepository.findById(req.getUserId())
+                .orElseThrow(() -> new ResourceNotFoundException("User", req.getUserId()));
+
+        // Rào chắn: Kiểm tra user có đang ở đội khác không
+        boolean alreadyInTeam = teamMemberRepository.isUserInAnyActiveTeamForHackathon(newMember.getId(), team.getHackathon().getId());
+        if (alreadyInTeam) {
+            throw new ConflictException(ErrorCode.USER_IN_ANOTHER_TEAM, "Sinh viên này đã thuộc về một đội khác.");
+        }
+
+        // Rào chắn: Đội đã full 5 người chưa
+        long acceptedCount = teamMemberRepository.countByTeam_IdAndStatus(teamId, TeamMemberStatus.ACCEPTED);
+        if (acceptedCount >= 5) {
+            throw new BusinessRuleException(ErrorCode.TEAM_MEMBER_FULL, "Đội này đã đủ 5 thành viên.");
+        }
+
+        // Ép vào đội với trạng thái ACCEPTED (Bỏ qua luồng gửi Mail Invite)
+        TeamMember member = TeamMember.builder()
+                .id(new TeamMemberId(teamId, newMember.getId()))
+                .team(team)
+                .user(newMember)
+                .roleInTeam(TeamMemberRole.MEMBER)
+                .status(TeamMemberStatus.ACCEPTED)
+                .joinedAt(LocalDateTime.now())
+                .build();
+        teamMemberRepository.save(member);
+
+        // Auto-Active: Nếu thêm bạn này vào mà đội vừa tròn 3 người, tự động kích hoạt đội lên ACTIVE
+        if (acceptedCount + 1 >= 3 && team.getStatus() == TeamStatus.PENDING) {
+            team.setStatus(TeamStatus.ACTIVE);
+            teamRepository.save(team);
+        }
+
+        auditService.log(AuditAction.TEAM_UPDATE, "teams", teamId,
+                java.util.Map.of("note", "Admin ép thêm thành viên ID: " + req.getUserId()));
+
+        return getTeam(teamId);
+    }
+
+    @Override
+    public TeamDetailResponse adminMergeTeams(Integer targetTeamId, AdminMergeTeamsRequest req) {
+        // 1. Lấy thông tin 2 Đội
+        Team targetTeam = teamRepository.findById(targetTeamId)
+                .orElseThrow(() -> new ResourceNotFoundException("Target Team", targetTeamId));
+        Team sourceTeam = teamRepository.findById(req.getSourceTeamId())
+                .orElseThrow(() -> new ResourceNotFoundException("Source Team", req.getSourceTeamId()));
+
+        if (targetTeam.getId().equals(sourceTeam.getId())) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Không thể tự gộp đội vào chính nó.");
+        }
+        if (!targetTeam.getHackathon().getId().equals(sourceTeam.getHackathon().getId())) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Hai đội không thuộc cùng một Giải đấu.");
+        }
+        if (Boolean.TRUE.equals(targetTeam.getIsLocked()) || Boolean.TRUE.equals(sourceTeam.getIsLocked())) {
+            throw new BusinessRuleException(ErrorCode.TEAM_LOCKED, "Một trong hai đội đã bị khóa, không thể gộp.");
+        }
+
+        // 2. Đếm số lượng thành viên thực tế của 2 đội
+        List<TeamMember> targetMembers = teamMemberRepository.findByTeam_Id(targetTeam.getId());
+        List<TeamMember> sourceMembers = teamMemberRepository.findByTeam_Id(sourceTeam.getId());
+
+        long targetCount = targetMembers.stream().filter(m -> m.getStatus() == TeamMemberStatus.ACCEPTED).count();
+        long sourceCount = sourceMembers.stream().filter(m -> m.getStatus() == TeamMemberStatus.ACCEPTED).count();
+
+        // 3. RÀO CHẮN: Đảm bảo tổng số người sau khi gộp không vượt quá 5
+        long totalAfterMerge = targetCount + sourceCount;
+        if (totalAfterMerge > 5) {
+            throw new BusinessRuleException(ErrorCode.TEAM_MEMBER_FULL,
+                    "Gộp thất bại: Tổng số thành viên của 2 đội là " + totalAfterMerge + " (Vượt quá quy định tối đa 5 thành viên).");
+        }
+
+        // 4. Bế thành viên từ Source Team sang Target Team
+        for (TeamMember sm : sourceMembers) {
+            if (sm.getStatus() == TeamMemberStatus.ACCEPTED) {
+                // Xóa tư cách thành viên ở đội cũ
+                teamMemberRepository.delete(sm);
+                teamMemberRepository.flush(); // Đẩy lệnh xóa xuống DB ngay lập tức để tránh lỗi Trùng lặp Khóa chính
+
+                // Cấp tư cách thành viên ở đội mới (Tất cả những người bị chuyển sang đều mang role MEMBER)
+                TeamMember newMember = TeamMember.builder()
+                        .id(new TeamMemberId(targetTeam.getId(), sm.getUser().getId()))
+                        .team(targetTeam)
+                        .user(sm.getUser())
+                        .roleInTeam(TeamMemberRole.MEMBER)
+                        .status(TeamMemberStatus.ACCEPTED)
+                        .joinedAt(LocalDateTime.now())
+                        .build();
+                teamMemberRepository.save(newMember);
+            }
+        }
+
+        // 5. Đánh giá lại Đội Đích (Target Team): Đủ 3 người thì kích hoạt ACTIVE
+        if (totalAfterMerge >= 3) {
+            targetTeam.setStatus(TeamStatus.ACTIVE);
+            teamRepository.save(targetTeam);
+        }
+
+        // 6. Xóa sổ/Giải tán Đội Nguồn (Source Team)
+        sourceTeam.setStatus(TeamStatus.REJECTED);
+        sourceTeam.setRejectionReason("Đã được BTC gộp vào đội: " + targetTeam.getTeamName());
+        teamRepository.save(sourceTeam);
+
+        auditService.log(AuditAction.TEAM_UPDATE, "teams", targetTeam.getId(),
+                java.util.Map.of("note", "Đã gộp đội ID " + sourceTeam.getId() + " vào đội này."));
+
+        return getTeam(targetTeam.getId());
     }
 }

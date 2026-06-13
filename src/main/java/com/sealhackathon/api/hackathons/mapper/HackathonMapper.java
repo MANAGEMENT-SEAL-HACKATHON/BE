@@ -8,9 +8,6 @@ import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import org.springframework.stereotype.Component;
 
-/**
- * Mapper plain Java: entity &lt;-&gt; DTO. Không dùng MapStruct ở phase này để không thêm dependency.
- */
 @Component
 public class HackathonMapper {
 
@@ -31,6 +28,7 @@ public class HackathonMapper {
                 .wildcardEnabled(req.getWildcardEnabled() != null && req.getWildcardEnabled())
                 .individualRankingEnabled(req.getIndividualRankingEnabled() != null && req.getIndividualRankingEnabled())
                 .chapterScoringFormula(req.getChapterScoringFormula())
+                .maxParticipants(req.getMaxParticipants())
                 .build();
     }
 
@@ -53,6 +51,9 @@ public class HackathonMapper {
             entity.setIndividualRankingEnabled(req.getIndividualRankingEnabled());
         }
         entity.setChapterScoringFormula(req.getChapterScoringFormula());
+        if (req.getMaxParticipants() != null) {
+            entity.setMaxParticipants(req.getMaxParticipants());
+        }
     }
 
     public HackathonResponse toResponse(Hackathon e) {
@@ -79,6 +80,7 @@ public class HackathonMapper {
                 .createdById(e.getCreatedBy() == null ? null : e.getCreatedBy().getId())
                 .createdAt(e.getCreatedAt())
                 .updatedAt(e.getUpdatedAt())
+                .maxParticipants(e.getMaxParticipants())
                 .build();
     }
 
@@ -97,6 +99,7 @@ public class HackathonMapper {
                 .registrationEnd(e.getRegistrationEnd())
                 .eventStart(e.getEventStart())
                 .eventEnd(e.getEventEnd())
+                .maxParticipants(e.getMaxParticipants())
                 .build();
     }
 }
