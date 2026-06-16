@@ -53,4 +53,11 @@ public class StudentHackathonController {
             @PathVariable Integer hackathonId) {
         return ResponseEntity.ok(ApiResponse.ok(studentPortalService.getHackathonRankings(hackathonId)));
     }
+
+    @GetMapping("/{hackathonId}/final-round")
+    @Operation(summary = "GĐ5 — Thông tin vòng Chung kết (student, đội ADVANCED)")
+    public ResponseEntity<ApiResponse<com.sealhackathon.api.me.student.dto.response.StudentFinalRoundResponse>> finalRound(
+            @PathVariable Integer hackathonId) {
+        return ResponseEntity.ok(ApiResponse.ok(studentPortalService.getFinalRoundForHackathon(hackathonId)));
+    }
 }

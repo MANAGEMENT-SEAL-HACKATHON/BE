@@ -35,8 +35,14 @@ public class RblDashboardServiceImpl implements RblDashboardService {
         if (!roundRepository.existsById(roundId)) {
             throw new ResourceNotFoundException("Round", roundId);
         }
+        List<RblVarianceItemResponse> calibration = queryVariance(roundId, ScoreType.CALIBRATION);
+        if (!calibration.isEmpty()) {
+            return calibration;
+        }
+        return queryVariance(roundId, ScoreType.NORMAL);
+    }
 
-        // Đã đổi :roundId và :scoreType thành ?1 và ?2 để IDE hết báo lỗi
+    private List<RblVarianceItemResponse> queryVariance(Integer roundId, ScoreType scoreType) {
         String sql = """
             SELECT 
                 c.id as criterionId,
@@ -57,9 +63,8 @@ public class RblDashboardServiceImpl implements RblDashboardService {
         """;
 
         Query query = entityManager.createNativeQuery(sql);
-        // Truyền tham số theo vị trí 1 và 2 tương ứng
         query.setParameter(1, roundId);
-        query.setParameter(2, ScoreType.CALIBRATION.name());
+        query.setParameter(2, scoreType.name());
 
         List<Object[]> results = query.getResultList();
         List<RblVarianceItemResponse> responses = new ArrayList<>();

@@ -244,5 +244,7 @@ public final class ErrorCode {
     public static final String CALIBRATION_SESSION_CLOSED                   = "CALIBRATION_SESSION_CLOSED";
     public static final String CALIBRATION_SESSION_ID_REQUIRED              = "CALIBRATION_SESSION_ID_REQUIRED";
     public static final String HACKATHON_NOT_PENDING_CONFIRM                = "HACKATHON_NOT_PENDING_CONFIRM";
+    public static final String NO_PRIZES_RECORDED                           = "NO_PRIZES_RECORDED";
+    public static final String EXPORT_JOB_NOT_READY                         = "EXPORT_JOB_NOT_READY";
     public static final String TRACK_DELETE_HAS_SUBMISSIONS                 = "TRACK_DELETE_HAS_SUBMISSIONS";
 }

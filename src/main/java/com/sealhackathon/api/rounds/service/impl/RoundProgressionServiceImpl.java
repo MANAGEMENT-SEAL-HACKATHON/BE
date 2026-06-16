@@ -11,6 +11,8 @@ import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
+import com.sealhackathon.api.hackathons.repository.HackathonRepository;
+import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.judge_assignments.service.JudgeAssignmentService;
 import com.sealhackathon.api.live_scoring.event.ScoringLockedEvent;
 import com.sealhackathon.api.mentor_assignments.entity.MentorAssignment;
@@ -92,6 +94,7 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
     private final TiebreakEvaluationRepository tiebreakEvaluationRepository;
     private final com.sealhackathon.api.teams.repository.TeamRepository teamRepository; // Để lấy Entity Team
     private final WildcardReviewRepository wildcardReviewRepository;
+    private final HackathonRepository hackathonRepository;
 
     @Override
     public RoundSummaryResponse releaseProblem(Integer roundId, ReleaseProblemRequest req) {
@@ -150,10 +153,34 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
 
         eventPublisher.publishEvent(new ScoringLockedEvent(this, roundId));
 
+        if (Boolean.TRUE.equals(saved.getIsFinal())) {
+            transitionHackathonToPendingConfirm(saved);
+        }
+
         return LockScoringResult.builder()
                 .round(roundMapper.toSummary(saved, 0, 0, 0f))
                 .warnings(warnings.isEmpty() ? null : warnings)
                 .build();
+    }
+
+    /** FR-30A — lock round Chung kết ⇒ hackathon ONGOING → PENDING_CONFIRM. */
+    private void transitionHackathonToPendingConfirm(Round finalRound) {
+        Hackathon hackathon = finalRound.getHackathon();
+        if (hackathon == null) {
+            return;
+        }
+        if (hackathon.getStatus() != HackathonStatus.ONGOING) {
+            return;
+        }
+        HackathonStatus from = hackathon.getStatus();
+        hackathon.setStatus(HackathonStatus.PENDING_CONFIRM);
+        hackathonRepository.save(hackathon);
+        auditService.log(AuditAction.HACKATHON_STATUS_CHANGE, "hackathons", hackathon.getId(),
+                Map.of(
+                        "from", from.name(),
+                        "to", HackathonStatus.PENDING_CONFIRM.name(),
+                        "trigger", "FINAL_ROUND_LOCK",
+                        "roundId", finalRound.getId()));
     }
 
     @Override

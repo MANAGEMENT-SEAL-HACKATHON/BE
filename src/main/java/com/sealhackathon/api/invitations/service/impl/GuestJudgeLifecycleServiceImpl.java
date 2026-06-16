@@ -7,6 +7,7 @@ import com.sealhackathon.api.events.entity.Event;
 import com.sealhackathon.api.events.repository.EventRepository;
 import com.sealhackathon.api.events.value_object.EventType;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
+import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.invitations.entity.Invitation;
 import com.sealhackathon.api.invitations.repository.InvitationRepository;
 import com.sealhackathon.api.invitations.service.GuestJudgeLifecycleService;
@@ -107,18 +108,17 @@ public class GuestJudgeLifecycleServiceImpl implements GuestJudgeLifecycleServic
     }
 
     private Optional<Hackathon> resolveHackathon(User user) {
-        Optional<Invitation> inv = invitationRepository
-                .findFirstByEmailAndRoleOrderByCreatedAtDesc(user.getEmail(), UserRole.JUDGE);
-        if (inv.isPresent() && inv.get().getHackathon() != null) {
-            return Optional.of(inv.get().getHackathon());
-        }
         for (JudgeAssignment ja : judgeAssignmentRepository.findByJudgeId(user.getId())) {
             Hackathon h = hackathonFromAssignment(ja);
-            if (h != null) {
+            if (h != null && isGuestJudgeHackathonActive(h)) {
                 return Optional.of(h);
             }
         }
-        return Optional.empty();
+        return invitationRepository.findByEmail(user.getEmail()).stream()
+                .filter(inv -> inv.getRole() == UserRole.JUDGE)
+                .map(Invitation::getHackathon)
+                .filter(h -> h != null && isGuestJudgeHackathonActive(h))
+                .findFirst();
     }
 
     private Hackathon hackathonFromAssignment(JudgeAssignment ja) {
@@ -129,6 +129,13 @@ public class GuestJudgeLifecycleServiceImpl implements GuestJudgeLifecycleServic
             return ja.getRound().getHackathon();
         }
         return null;
+    }
+
+    private static boolean isGuestJudgeHackathonActive(Hackathon hackathon) {
+        if (hackathon.getStatus() == HackathonStatus.FINISHED) {
+            return false;
+        }
+        return !isHackathonEnded(hackathon);
     }
 
     private static boolean isHackathonEnded(Hackathon hackathon) {

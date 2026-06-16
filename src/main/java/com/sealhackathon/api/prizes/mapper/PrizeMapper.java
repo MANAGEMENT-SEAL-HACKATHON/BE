@@ -20,6 +20,7 @@ public class PrizeMapper {
                 .roundId(p.getRound() != null ? p.getRound().getId() : null)
                 .trackId(p.getTrack() != null ? p.getTrack().getId() : null)
                 .teamId(p.getTeam() != null ? p.getTeam().getId() : null)
+                .teamName(p.getTeam() != null ? p.getTeam().getTeamName() : null)
                 .prizeName(p.getPrizeName())
                 .prizeRank(p.getPrizeRank())
                 .prizeValue(p.getPrizeValue())

@@ -49,7 +49,7 @@ public class HackathonClosureServiceImpl implements HackathonClosureService {
                     "confirm phải là true để chốt kết quả");
         }
 
-        Hackathon hackathon = hackathonRepository.findById(hackathonId)
+        Hackathon hackathon = hackathonRepository.findByIdForUpdate(hackathonId)
                 .orElseThrow(() -> new ResourceNotFoundException("Hackathon", hackathonId));
 
         if (hackathon.getStatus() != HackathonStatus.PENDING_CONFIRM) {
@@ -69,7 +69,7 @@ public class HackathonClosureServiceImpl implements HackathonClosureService {
         }
 
         if (prizeRepository.findByRound_Hackathon_IdOrderByAwardedAtDesc(hackathonId).isEmpty()) {
-            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+            throw new BusinessRuleException(ErrorCode.NO_PRIZES_RECORDED,
                     "Chưa ghi nhận giải thưởng — cần ít nhất 1 prize trước khi confirm",
                     Map.of("hackathonId", hackathonId));
         }

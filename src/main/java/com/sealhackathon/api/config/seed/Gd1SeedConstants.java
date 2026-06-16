@@ -48,7 +48,8 @@ public final class Gd1SeedConstants {
 
     public static final String SLUG_INCOMPLETE = "seal-gd1-incomplete";
     public static final String SLUG_READY = "seal-gd1-ready";
-    public static final String SLUG_ONGOING = "seal-spring-2026";
+    /** Hackathon E2E GĐ1→GĐ6 — 7 đội + 3 orphan. */
+    public static final String SLUG_ONGOING = "seal-e2e-2026";
     public static final String SLUG_FINISHED = "seal-fall-2025-finished";
 
     public static final String EMAIL_COORDINATOR = "coord@fpt.edu.vn";

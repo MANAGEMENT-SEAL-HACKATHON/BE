@@ -163,6 +163,42 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                 .build();
     }
 
+    @Override
+    public StudentFinalRoundResponse getFinalRoundForHackathon(Integer hackathonId) {
+        Integer userId = currentUserAccessor.currentUserId();
+        hackathonRepository.findById(hackathonId)
+                .orElseThrow(() -> new ResourceNotFoundException("Hackathon", hackathonId));
+
+        Team team = teamMemberRepository.findByUser_IdAndStatus(userId, TeamMemberStatus.ACCEPTED).stream()
+                .map(TeamMember::getTeam)
+                .filter(t -> Objects.equals(t.getHackathon().getId(), hackathonId))
+                .filter(t -> t.getStatus() != TeamStatus.ELIMINATED)
+                .findFirst()
+                .orElseThrow(() -> new BusinessRuleException(ErrorCode.FORBIDDEN,
+                        "Bạn chưa tham gia đội trong hackathon này"));
+
+        var trtOpt = teamRoundTrackRepository.findByTeam_Id(team.getId()).stream()
+                .filter(trt -> !Boolean.TRUE.equals(trt.getTrack().getRound().getIsFinal()))
+                .findFirst();
+        String participation = trtOpt.map(trt -> trt.getParticipationStatus().name()).orElse("PENDING");
+        if (!"ADVANCED".equalsIgnoreCase(participation)) {
+            throw new BusinessRuleException(ErrorCode.FORBIDDEN,
+                    "Đội chưa đủ điều kiện tham gia Vòng Chung kết");
+        }
+
+        Round finalRound = roundRepository.findByHackathon_IdAndIsFinalTrue(hackathonId)
+                .orElseThrow(() -> new BusinessRuleException(ErrorCode.INVALID_STATE, "Chưa có vòng Chung kết"));
+
+        return StudentFinalRoundResponse.builder()
+                .roundId(finalRound.getId())
+                .name(finalRound.getName())
+                .isActive(finalRound.getIsActive())
+                .scoringLocked(finalRound.getScoringLocked())
+                .submissionDeadline(finalRound.getSubmissionDeadline())
+                .problemReleased(finalRound.getProblemReleasedAt() != null)
+                .build();
+    }
+
     // =================================================================================
     // CÁC API VIEW
     // =================================================================================

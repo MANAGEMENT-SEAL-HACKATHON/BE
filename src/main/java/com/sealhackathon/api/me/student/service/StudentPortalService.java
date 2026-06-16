@@ -24,6 +24,8 @@ public interface StudentPortalService {
 
     StudentRoundDeadlineResponse getCurrentDeadline();
 
+    StudentFinalRoundResponse getFinalRoundForHackathon(Integer hackathonId);
+
     List<StudentLeaderboardItemResponse> getRoundLeaderboard(Integer roundId);
 
     StudentRankingResponse getHackathonRankings(Integer hackathonId);

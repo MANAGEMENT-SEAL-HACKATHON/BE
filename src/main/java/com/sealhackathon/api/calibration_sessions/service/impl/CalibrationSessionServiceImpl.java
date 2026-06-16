@@ -48,6 +48,13 @@ public class CalibrationSessionServiceImpl implements CalibrationSessionService 
         if (Boolean.TRUE.equals(round.getScoringLocked())) {
             throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Không thể mở phiên hiệu chuẩn cho Round đã khóa chấm điểm");
         }
+        boolean hasOpen = calibrationSessionRepository.findByRound_IdOrderByStartedAtDesc(round.getId())
+                .stream()
+                .anyMatch(s -> s.getStatus() == CalibrationStatus.OPEN);
+        if (hasOpen) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Đã có phiên hiệu chuẩn OPEN cho vòng này");
+        }
 
         Submission sampleSubmission = null;
         if (req.getSampleSubmissionId() != null) {

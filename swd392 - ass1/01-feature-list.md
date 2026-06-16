@@ -27,7 +27,7 @@
 | FL-00.3 | Audit log | Ghi hành động quan trọng (create, assign, score…) | Service layer → `audit_logs` |
 | FL-00.4 | Object storage | Lưu slide PDF, thẻ SV, export CSV, certificate PDF | MinIO hoặc local (`app.storage.*`) |
 | FL-00.5 | Exception handling | Envelope lỗi chuẩn `{ success, error, traceId }` | `GlobalExceptionHandler` |
-| FL-00.6 | Dev seed data | Seed GĐ1/GĐ2/GĐ3 cho test | `Gd1DataSeeder`, `Gd2DataSeeder`, `Gd3DataSeeder` |
+| FL-00.6 | Dev seed data | Seed GĐ1 demo + chuỗi Spring 2026 GĐ1→GĐ6 | `Gd1DataSeeder`, `Spring2026FullDataSeeder`, `DevSeedCatalog` |
 
 ---
 

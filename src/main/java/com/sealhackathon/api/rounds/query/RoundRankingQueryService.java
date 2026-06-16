@@ -4,6 +4,8 @@ import com.sealhackathon.api.criteria.entity.Criteria;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.criteria.value_object.CriteriaType;
 import com.sealhackathon.api.rounds.dto.response.RoundRankingItemResponse;
+import com.sealhackathon.api.rounds.entity.Round;
+import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.scores.entity.Score;
 import com.sealhackathon.api.scores.repository.ScoreRepository;
 import com.sealhackathon.api.scores.value_object.ScoreType;
@@ -37,8 +39,12 @@ public class RoundRankingQueryService {
     private final CriteriaRepository criteriaRepository;
     private final TeamRoundTrackRepository teamRoundTrackRepository;
     private final TiebreakEvaluationRepository tiebreakEvaluationRepository;
+    private final RoundRepository roundRepository;
 
     public List<RoundRankingItemResponse> rankingForRound(Integer roundId, boolean livePreview) {
+        Round round = roundRepository.findById(roundId).orElse(null);
+        boolean isFinalRound = round != null && Boolean.TRUE.equals(round.getIsFinal());
+
         List<Submission> submissions = mergeRoundSubmissions(roundId);
         if (submissions.isEmpty()) {
             return List.of();
@@ -49,7 +55,6 @@ public class RoundRankingQueryService {
             trackAssignmentByTeam.put(trt.getTeam().getId(), trt);
         }
 
-        // Tối ưu Query: Lấy toàn bộ Tiebreak Penalty của Round trong 1 lần query (tránh N+1)
         Map<Integer, Double> penaltyByTeam = tiebreakEvaluationRepository.findByRound_Id(roundId).stream()
                 .collect(Collectors.groupingBy(
                         te -> te.getTeam().getId(),
@@ -58,23 +63,42 @@ public class RoundRankingQueryService {
 
         List<RankRow> rows = new ArrayList<>();
         for (Submission submission : submissions) {
-            if (!SubmissionGradablePolicy.isGradable(submission) || submission.getTrack() == null) {
+            if (!SubmissionGradablePolicy.isGradable(submission)) {
+                continue;
+            }
+
+            boolean isFinalSubmission = isFinalRound
+                    && submission.getTrack() == null
+                    && submission.getRound() != null
+                    && Objects.equals(submission.getRound().getId(), roundId);
+            if (!isFinalSubmission && submission.getTrack() == null) {
                 continue;
             }
 
             TeamRoundTrack trt = trackAssignmentByTeam.get(submission.getTeam().getId());
-
-            // Lấy trạng thái participationStatus thực tế
-            String partStatus = "PARTICIPATING"; // Mặc định
+            String partStatus = "PARTICIPATING";
             if (trt != null && trt.getParticipationStatus() != null) {
                 partStatus = trt.getParticipationStatus().name();
+            } else if (isFinalSubmission) {
+                partStatus = "ADVANCED";
             }
 
-            Integer trackId = submission.getTrack().getId();
-            List<Criteria> criteria = criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(trackId).stream()
-                    .filter(c -> c.getType() != CriteriaType.PENALTY)
-                    .toList();
-            if (criteria.isEmpty()) continue;
+            List<Criteria> criteria;
+            Integer trackId;
+            if (isFinalSubmission) {
+                trackId = null;
+                criteria = criteriaRepository.findByFinalRoundIdOrderByDisplayOrderAsc(roundId).stream()
+                        .filter(c -> c.getType() != CriteriaType.PENALTY)
+                        .toList();
+            } else {
+                trackId = submission.getTrack().getId();
+                criteria = criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(trackId).stream()
+                        .filter(c -> c.getType() != CriteriaType.PENALTY)
+                        .toList();
+            }
+            if (criteria.isEmpty()) {
+                continue;
+            }
 
             double total = 0.0;
             for (Criteria criterion : criteria) {
@@ -82,7 +106,6 @@ public class RoundRankingQueryService {
                 total += avg * criterion.getWeight();
             }
 
-            // TRỪ ĐIỂM PHẠT TIEBREAK TỪ DATABASE
             double penalty = penaltyByTeam.getOrDefault(submission.getTeam().getId(), 0.0);
             total -= penalty;
 
@@ -92,16 +115,29 @@ public class RoundRankingQueryService {
                     trackId,
                     trt != null ? trt.getAssignedGroup() : null,
                     total,
-                    partStatus // Truyền trạng thái vào Record tạm
-            ));
+                    partStatus));
         }
 
-        rows.sort(Comparator
-                .comparing(RankRow::assignedGroup, Comparator.nullsLast(String::compareTo))
-                .thenComparing(RankRow::totalScore, Comparator.reverseOrder())
-                .thenComparing(RankRow::teamId));
+        if (isFinalRound) {
+            rows.sort(Comparator
+                    .comparing(RankRow::totalScore, Comparator.reverseOrder())
+                    .thenComparing(RankRow::teamId));
+        } else {
+            rows.sort(Comparator
+                    .comparing(RankRow::assignedGroup, Comparator.nullsLast(String::compareTo))
+                    .thenComparing(RankRow::totalScore, Comparator.reverseOrder())
+                    .thenComparing(RankRow::teamId));
+        }
 
         List<RoundRankingItemResponse> result = new ArrayList<>();
+        if (isFinalRound) {
+            int rank = 1;
+            for (RankRow row : rows) {
+                result.add(toRankingItem(row, rank++));
+            }
+            return result;
+        }
+
         String currentGroup = null;
         int rankInGroup = 0;
         for (RankRow row : rows) {
@@ -111,29 +147,51 @@ public class RoundRankingQueryService {
                 rankInGroup = 0;
             }
             rankInGroup++;
-            result.add(RoundRankingItemResponse.builder()
-                    .rank(rankInGroup)
-                    .teamId(row.teamId())
-                    .teamName(row.teamName())
-                    .trackId(row.trackId())
-                    .assignedGroup(row.assignedGroup())
-                    .totalScore(row.totalScore())
-                    .tiebreakRequired(false) // Mặc định là false, RoundProgressionService sẽ set lại sau.
-                    .participationStatus(row.participationStatus()) // Đổ data vào DTO trả về FE
-                    .build());
+            result.add(toRankingItem(row, rankInGroup));
         }
         return result;
     }
 
+    private static RoundRankingItemResponse toRankingItem(RankRow row, int rank) {
+        return RoundRankingItemResponse.builder()
+                .rank(rank)
+                .teamId(row.teamId())
+                .teamName(row.teamName())
+                .trackId(row.trackId())
+                .assignedGroup(row.assignedGroup())
+                .totalScore(row.totalScore())
+                .tiebreakRequired(false)
+                .participationStatus(row.participationStatus())
+                .build();
+    }
+
     public boolean hasIncompleteScoring(Integer roundId, boolean livePreview) {
+        Round round = roundRepository.findById(roundId).orElse(null);
+        boolean isFinalRound = round != null && Boolean.TRUE.equals(round.getIsFinal());
+
         for (Submission submission : mergeRoundSubmissions(roundId)) {
-            if (!SubmissionGradablePolicy.isGradable(submission) || submission.getTrack() == null) {
+            if (!SubmissionGradablePolicy.isGradable(submission)) {
                 continue;
             }
-            List<Criteria> criteria = criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(
-                            submission.getTrack().getId()).stream()
-                    .filter(c -> c.getType() != CriteriaType.PENALTY)
-                    .toList();
+            boolean isFinalSubmission = isFinalRound
+                    && submission.getTrack() == null
+                    && submission.getRound() != null
+                    && Objects.equals(submission.getRound().getId(), roundId);
+            if (!isFinalSubmission && submission.getTrack() == null) {
+                continue;
+            }
+
+            List<Criteria> criteria;
+            if (isFinalSubmission) {
+                criteria = criteriaRepository.findByFinalRoundIdOrderByDisplayOrderAsc(roundId).stream()
+                        .filter(c -> c.getType() != CriteriaType.PENALTY)
+                        .toList();
+            } else {
+                criteria = criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(
+                                submission.getTrack().getId()).stream()
+                        .filter(c -> c.getType() != CriteriaType.PENALTY)
+                        .toList();
+            }
             for (Criteria criterion : criteria) {
                 long count = scoreRepository.countBySubmission_IdAndCriterion_IdAndScoreTypeAndIsFinal(
                         submission.getId(), criterion.getId(), ScoreType.NORMAL, !livePreview);

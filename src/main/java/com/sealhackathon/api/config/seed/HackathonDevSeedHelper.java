@@ -6,8 +6,22 @@ import com.sealhackathon.api.criteria.entity.Criteria;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.criteria.value_object.CriteriaType;
 import com.sealhackathon.api.events.entity.Event;
+import com.sealhackathon.api.events.entity.PresentationSlot;
 import com.sealhackathon.api.events.repository.EventRepository;
+import com.sealhackathon.api.events.repository.PresentationSlotRepository;
 import com.sealhackathon.api.events.value_object.EventType;
+import com.sealhackathon.api.presentation.value_object.PresentationQueueStatus;
+import com.sealhackathon.api.presentation.value_object.PresentationTimerPhase;
+import com.sealhackathon.api.hackathon_registrations.entity.HackathonRegistration;
+import com.sealhackathon.api.hackathon_registrations.repository.HackathonRegistrationRepository;
+import com.sealhackathon.api.invitations.entity.Invitation;
+import com.sealhackathon.api.invitations.repository.InvitationRepository;
+import com.sealhackathon.api.scores.entity.Score;
+import com.sealhackathon.api.scores.repository.ScoreRepository;
+import com.sealhackathon.api.scores.value_object.ScoreType;
+import com.sealhackathon.api.submissions.entity.Submission;
+import com.sealhackathon.api.submissions.repository.SubmissionRepository;
+import com.sealhackathon.api.submissions.value_object.SubmissionStatus;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
@@ -16,6 +30,9 @@ import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
 import com.sealhackathon.api.mentor_assignments.entity.MentorAssignment;
+import com.sealhackathon.api.prizes.entity.Prize;
+import com.sealhackathon.api.prizes.repository.PrizeRepository;
+import com.sealhackathon.api.prizes.value_object.PrizeRank;
 import com.sealhackathon.api.mentor_assignments.repository.MentorAssignmentRepository;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
@@ -46,12 +63,14 @@ import com.sealhackathon.api.users.value_object.UserStatus;
 import com.sealhackathon.api.users.value_object.UserType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -76,6 +95,13 @@ public class HackathonDevSeedHelper {
     private final TeamMemberRepository teamMemberRepository;
     private final TeamRoundParticipationRepository teamRoundParticipationRepository;
     private final TeamRoundTrackRepository teamRoundTrackRepository;
+    private final SubmissionRepository submissionRepository;
+    private final ScoreRepository scoreRepository;
+    private final InvitationRepository invitationRepository;
+    private final HackathonRegistrationRepository hackathonRegistrationRepository;
+    private final PrizeRepository prizeRepository;
+    private final PresentationSlotRepository presentationSlotRepository;
+    private final JdbcTemplate jdbcTemplate;
     private final PasswordEncoder passwordEncoder;
 
     public record SeedDates(
@@ -138,7 +164,37 @@ public class HackathonDevSeedHelper {
     }
 
     /**
-     * Lịch GĐ3: đăng ký đã đóng, sơ loại thi <b>hôm nay</b> (examAt 08:00), deadline theo codingDurationHours.
+     * Lịch GĐ2 — đăng ký còn mở, prelim/CK ở tương lai (chưa thi).
+     */
+    public SeedDates computeGd2RegistrationOpenDates() {
+        LocalDate today = LocalDate.now();
+        LocalDate regStart = today.minusDays(14);
+        LocalDate regEnd = today.plusDays(14);
+        LocalDate eventStart = today.plusDays(15);
+        LocalDate eventEnd = eventStart.plusDays(30);
+        int prelimHours = RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS;
+        LocalDateTime prelimExamAt = eventStart.atTime(8, 0);
+        LocalDateTime prelimOpen = RoundScheduleSeedUtil.submissionOpen(prelimExamAt, prelimHours);
+        LocalDateTime prelimDeadline = RoundScheduleSeedUtil.submissionDeadline(prelimExamAt, prelimHours);
+        LocalDateTime finalExamAt = RoundScheduleSeedUtil.minFinalExamAt(prelimExamAt, prelimHours);
+        LocalDateTime finalOpen = finalExamAt;
+        LocalDateTime finalDeadline = eventStart.atTime(16, 30);
+        return new SeedDates(
+                regStart,
+                regEnd,
+                eventStart,
+                eventEnd,
+                prelimDeadline,
+                finalDeadline,
+                prelimExamAt,
+                finalExamAt,
+                prelimOpen,
+                finalOpen);
+    }
+
+    /**
+     * Lịch GĐ3: đăng ký đã đóng, sơ loại <b>đang diễn ra</b> theo giờ máy lúc start BE
+     * (mở nộp ~2h trước, deadline còn ~8h — luôn test được dù restart buổi tối).
      */
     public SeedDates computeGd3ActivePrelimDates() {
         LocalDate today = LocalDate.now();
@@ -147,15 +203,110 @@ public class HackathonDevSeedHelper {
         LocalDate eventStart = today.plusDays(14);
         LocalDate eventEnd = eventStart.plusDays(30);
         int prelimHours = RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS;
-        LocalDateTime prelimExamAt = today.atTime(8, 0);
-        LocalDateTime prelimOpen = RoundScheduleSeedUtil.submissionOpen(prelimExamAt, prelimHours);
-        LocalDateTime prelimDeadline = RoundScheduleSeedUtil.submissionDeadline(prelimExamAt, prelimHours);
+        LocalDateTime now = LocalDateTime.now().withSecond(0).withNano(0);
+        LocalDateTime prelimOpen = now.minusHours(2);
+        LocalDateTime prelimDeadline = now.plusHours(8);
+        long openOffsetMinutes = (prelimHours * 60L * 2L) / 3L;
+        LocalDateTime prelimExamAt = prelimOpen.minusMinutes(openOffsetMinutes);
         LocalDateTime finalExamAt = RoundScheduleSeedUtil.minFinalExamAt(prelimExamAt, prelimHours);
-        if (finalExamAt.isBefore(prelimDeadline)) {
+        if (!finalExamAt.isAfter(prelimDeadline)) {
             finalExamAt = eventStart.atTime(8, 0);
         }
         LocalDateTime finalOpen = finalExamAt;
         LocalDateTime finalDeadline = eventStart.atTime(16, 30);
+        return new SeedDates(
+                regStart,
+                regEnd,
+                eventStart,
+                eventEnd,
+                prelimDeadline,
+                finalDeadline,
+                prelimExamAt,
+                finalExamAt,
+                prelimOpen,
+                finalOpen);
+    }
+
+    /**
+     * Lịch GĐ4: đăng ký đã đóng, sơ loại <b>đã kết thúc</b> theo giờ máy, CK chưa active.
+     */
+    public SeedDates computeGd4AdvanceReadyDates() {
+        LocalDate today = LocalDate.now();
+        LocalDate regStart = today.minusDays(45);
+        LocalDate regEnd = today.minusDays(20);
+        LocalDate eventStart = today.plusDays(7);
+        LocalDate eventEnd = eventStart.plusDays(30);
+        int prelimHours = RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS;
+        LocalDateTime now = LocalDateTime.now().withSecond(0).withNano(0);
+        LocalDateTime prelimDeadline = now.minusHours(48);
+        long openOffsetMinutes = (prelimHours * 60L * 2L) / 3L;
+        LocalDateTime prelimOpen = prelimDeadline.minusHours(prelimHours).plusMinutes(openOffsetMinutes);
+        LocalDateTime prelimExamAt = prelimOpen.minusMinutes(openOffsetMinutes);
+        LocalDateTime finalExamAt = eventStart.atTime(8, 0);
+        LocalDateTime finalOpen = finalExamAt;
+        LocalDateTime finalDeadline = eventStart.atTime(16, 30);
+        return new SeedDates(
+                regStart,
+                regEnd,
+                eventStart,
+                eventEnd,
+                prelimDeadline,
+                finalDeadline,
+                prelimExamAt,
+                finalExamAt,
+                prelimOpen,
+                finalOpen);
+    }
+
+    /**
+     * Lịch GĐ5: sơ loại đã xong, CK <b>đang diễn ra</b> (mở nộp ~2h trước, deadline còn ~8h).
+     */
+    public SeedDates computeGd5FinalActiveDates() {
+        LocalDate today = LocalDate.now();
+        LocalDate regStart = today.minusDays(60);
+        LocalDate regEnd = today.minusDays(30);
+        LocalDate eventStart = today.plusDays(7);
+        LocalDate eventEnd = eventStart.plusDays(30);
+        int prelimHours = RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS;
+        LocalDateTime now = LocalDateTime.now().withSecond(0).withNano(0);
+        LocalDateTime prelimDeadline = now.minusDays(3);
+        long openOffsetMinutes = (prelimHours * 60L * 2L) / 3L;
+        LocalDateTime prelimOpen = prelimDeadline.minusHours(prelimHours).plusMinutes(openOffsetMinutes);
+        LocalDateTime prelimExamAt = prelimOpen.minusMinutes(openOffsetMinutes);
+        LocalDateTime finalOpen = now.minusHours(2);
+        LocalDateTime finalDeadline = now.plusHours(8);
+        LocalDateTime finalExamAt = finalOpen;
+        return new SeedDates(
+                regStart,
+                regEnd,
+                eventStart,
+                eventEnd,
+                prelimDeadline,
+                finalDeadline,
+                prelimExamAt,
+                finalExamAt,
+                prelimOpen,
+                finalOpen);
+    }
+
+    /**
+     * Lịch GĐ6: sơ loại + CK <b>đã kết thúc</b>, hackathon chờ xác nhận đóng.
+     */
+    public SeedDates computeGd6PendingConfirmDates() {
+        LocalDate today = LocalDate.now();
+        LocalDate regStart = today.minusDays(90);
+        LocalDate regEnd = today.minusDays(60);
+        LocalDate eventStart = today.minusDays(7);
+        LocalDate eventEnd = today.plusDays(7);
+        int prelimHours = RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS;
+        LocalDateTime now = LocalDateTime.now().withSecond(0).withNano(0);
+        LocalDateTime prelimDeadline = now.minusDays(10);
+        long openOffsetMinutes = (prelimHours * 60L * 2L) / 3L;
+        LocalDateTime prelimOpen = prelimDeadline.minusHours(prelimHours).plusMinutes(openOffsetMinutes);
+        LocalDateTime prelimExamAt = prelimOpen.minusMinutes(openOffsetMinutes);
+        LocalDateTime finalDeadline = now.minusHours(36);
+        LocalDateTime finalOpen = finalDeadline.minusHours(4);
+        LocalDateTime finalExamAt = finalOpen;
         return new SeedDates(
                 regStart,
                 regEnd,
@@ -255,8 +406,12 @@ public class HackathonDevSeedHelper {
                         ? round.getCodingDurationHours()
                         : RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS;
                 LocalDateTime exam = round.getExamAt();
-                LocalDateTime expectedOpen = RoundScheduleSeedUtil.submissionOpen(exam, hours);
-                LocalDateTime expectedDeadline = RoundScheduleSeedUtil.submissionDeadline(exam, hours);
+                LocalDateTime expectedOpen = dates.prelimSubmissionOpen() != null
+                        ? dates.prelimSubmissionOpen()
+                        : RoundScheduleSeedUtil.submissionOpen(exam, hours);
+                LocalDateTime expectedDeadline = dates.prelimDeadline() != null
+                        ? dates.prelimDeadline()
+                        : RoundScheduleSeedUtil.submissionDeadline(exam, hours);
                 if (round.getCodingDurationHours() == null) {
                     round.setCodingDurationHours(hours);
                     changed = true;
@@ -288,17 +443,7 @@ public class HackathonDevSeedHelper {
     @Transactional
     public void repairAllDevHackathonRoundSchedules() {
         int fixed = 0;
-        for (String slug : new String[] {
-                Gd1SeedConstants.SLUG_INCOMPLETE,
-                Gd1SeedConstants.SLUG_READY,
-                Gd1SeedConstants.SLUG_ONGOING,
-                Gd1SeedConstants.SLUG_FINISHED,
-                GdExtendedSeedConstants.SLUG_GD3_PRELIM_OPEN,
-                GdExtendedSeedConstants.SLUG_GD4_ADVANCE_READY,
-                GdExtendedSeedConstants.SLUG_GD4_TIEBREAK,
-                GdExtendedSeedConstants.SLUG_GD5_FINAL_ACTIVE,
-                GdExtendedSeedConstants.SLUG_GD6_PENDING_CONFIRM
-        }) {
+        for (String slug : DevSeedCatalog.ALL_DEV_HACKATHON_SLUGS) {
             var hackathon = hackathonRepository.findBySlug(slug);
             if (hackathon.isPresent()) {
                 fixed += repairHackathonRounds(hackathon.get().getId());
@@ -335,6 +480,18 @@ public class HackathonDevSeedHelper {
         if (prelim == null || prelim.getExamAt() == null) {
             return false;
         }
+        LocalDateTime now = LocalDateTime.now();
+        if (finalRound.getSubmissionOpen() != null
+                && finalRound.getSubmissionDeadline() != null
+                && finalRound.getSubmissionOpen().isBefore(now)
+                && finalRound.getSubmissionDeadline().isAfter(now.plusHours(1))) {
+            return false;
+        }
+        if (Boolean.TRUE.equals(finalRound.getScoringLocked())
+                && finalRound.getSubmissionDeadline() != null
+                && finalRound.getSubmissionDeadline().isBefore(now)) {
+            return false;
+        }
         int prelimHours = prelim.getCodingDurationHours() != null && prelim.getCodingDurationHours() > 0
                 ? prelim.getCodingDurationHours()
                 : RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS;
@@ -364,6 +521,13 @@ public class HackathonDevSeedHelper {
 
     private boolean repairRoundSubmissionWindowIfNeeded(Round round) {
         if (round.getExamAt() == null || Boolean.TRUE.equals(round.getIsFinal())) {
+            return false;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (round.getSubmissionOpen() != null
+                && round.getSubmissionDeadline() != null
+                && round.getSubmissionOpen().isBefore(now)
+                && round.getSubmissionDeadline().isAfter(now.plusHours(1))) {
             return false;
         }
         int hours = round.getCodingDurationHours() != null && round.getCodingDurationHours() > 0
@@ -428,7 +592,7 @@ public class HackathonDevSeedHelper {
         LocalDateTime now = LocalDateTime.now();
         return userRepository.save(User.builder()
                 .email(email)
-                .passwordHash(passwordEncoder.encode(GdExtendedSeedConstants.DEV_STUDENT_PASSWORD))
+                .passwordHash(passwordEncoder.encode(DevSeedCatalog.DEV_STUDENT_PASSWORD))
                 .fullName(fullName)
                 .role(UserRole.STUDENT)
                 .userType(UserType.INTERNAL)
@@ -451,9 +615,18 @@ public class HackathonDevSeedHelper {
             String description,
             PrelimState prelimState,
             FinalState finalState) {
-        SeedDates dates = GdExtendedSeedConstants.SLUG_GD3_PRELIM_OPEN.equals(slug)
-                ? computeGd3ActivePrelimDates()
-                : computeRelativeDates();
+        return ensureHackathonStructure(
+                slug, name, status, description, prelimState, finalState, computeRelativeDates());
+    }
+
+    public HackathonStructure ensureHackathonStructure(
+            String slug,
+            String name,
+            HackathonStatus status,
+            String description,
+            PrelimState prelimState,
+            FinalState finalState,
+            SeedDates dates) {
         User coordinator = requireCoordinator();
         User judge1 = requireJudge1();
         User judge2 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_JUDGE2).orElse(judge1);
@@ -605,6 +778,10 @@ public class HackathonDevSeedHelper {
                 .orElseThrow(() -> new IllegalStateException("Final round chưa có criteria"));
     }
 
+    public List<Criteria> listFinalCriteria(Round finalRound) {
+        return criteriaRepository.findByFinalRoundIdOrderByDisplayOrderAsc(finalRound.getId());
+    }
+
     private Round buildPrelimRound(Hackathon hackathon, SeedDates dates, PrelimState state) {
         Round round = Round.builder()
                 .hackathon(hackathon)
@@ -705,8 +882,44 @@ public class HackathonDevSeedHelper {
         roundRepository.save(finalRound);
     }
 
+    /** Bảo đảm đủ {@code trackCount} track trên vòng sơ loại (criteria + judge). */
+    public List<Track> ensureTracks(Round prelim, int trackCount, User judge1, User judge2,
+                                    User coordinator) {
+        List<Track> existing = trackRepository.findByRoundIdOrderBySequenceOrderAsc(prelim.getId());
+        List<Track> tracks = new ArrayList<>(existing);
+        LocalDateTime at = LocalDateTime.now();
+        for (int seq = tracks.size() + 1; seq <= trackCount; seq++) {
+            Track track = trackRepository.save(buildTrack(prelim, seq));
+            tracks.add(track);
+        }
+        while (tracks.size() > trackCount) {
+            // không xóa track thừa trên DB cũ — chỉ dùng N track đầu
+            break;
+        }
+        List<Track> result = tracks.subList(0, Math.min(trackCount, tracks.size()));
+        for (Track track : result) {
+            ensureTrackCriteria(track);
+            if (judgeAssignmentRepository.findByTrackId(track.getId()).isEmpty()) {
+                User judge = track.getSequenceOrder() % 2 == 1 ? judge1 : judge2;
+                saveJudgeTrack(judge, track, coordinator, at);
+            }
+            ensureHeadJudgeOnTrack(track);
+        }
+        return result;
+    }
+
+    /** @deprecated dùng {@link #ensureTracks(Round, int, User, User, User)} */
+    @Deprecated
+    public Track ensureThirdTrack(Round prelim, User judge2, User coordinator) {
+        return ensureTracks(prelim, 3, requireJudge1(), judge2, coordinator).get(2);
+    }
+
     private Track buildTrack(Round prelim, int sequence) {
-        String suffix = sequence == 1 ? "RAG Pipeline" : "AI Agent";
+        String suffix = switch (sequence) {
+            case 1 -> "RAG Pipeline";
+            case 2 -> "AI Agent";
+            default -> "EV & Integration";
+        };
         return Track.builder()
                 .round(prelim)
                 .name("Track " + sequence + " — " + suffix)
@@ -826,16 +1039,7 @@ public class HackathonDevSeedHelper {
      */
     @Transactional
     public int repairAllDevHackathonMilestoneEvents() {
-        List<String> slugs = List.of(
-                Gd1SeedConstants.SLUG_INCOMPLETE,
-                Gd1SeedConstants.SLUG_READY,
-                Gd1SeedConstants.SLUG_ONGOING,
-                Gd1SeedConstants.SLUG_FINISHED,
-                GdExtendedSeedConstants.SLUG_GD3_PRELIM_OPEN,
-                GdExtendedSeedConstants.SLUG_GD4_ADVANCE_READY,
-                GdExtendedSeedConstants.SLUG_GD4_TIEBREAK,
-                GdExtendedSeedConstants.SLUG_GD5_FINAL_ACTIVE,
-                GdExtendedSeedConstants.SLUG_GD6_PENDING_CONFIRM);
+        List<String> slugs = List.of(DevSeedCatalog.ALL_DEV_HACKATHON_SLUGS);
         int fixed = 0;
         for (String slug : slugs) {
             Optional<Hackathon> maybe = hackathonRepository.findBySlug(slug);
@@ -918,5 +1122,420 @@ public class HackathonDevSeedHelper {
 
     private void ensureMinimalEvents(Hackathon hackathon, User coordinator, SeedDates dates) {
         ensureMilestoneEvents(hackathon, coordinator);
+    }
+
+    public void registerStudent(Hackathon hackathon, User student) {
+        if (!hackathonRegistrationRepository.existsByHackathon_IdAndUser_Id(hackathon.getId(), student.getId())) {
+            hackathonRegistrationRepository.save(HackathonRegistration.builder()
+                    .hackathon(hackathon)
+                    .user(student)
+                    .build());
+        }
+    }
+
+    public void releaseFinalProblem(Round finalRound) {
+        if (finalRound.getProblemReleasedAt() == null) {
+            finalRound.setProblemStatementUrl("https://example.com/seed/debai-chung-ket-gd5.pdf");
+            finalRound.setProblemReleasedAt(LocalDateTime.now());
+            roundRepository.save(finalRound);
+        }
+    }
+
+    public void ensureGuestJudgeInvitation(Hackathon hackathon, User guestJudge, User coordinator) {
+        Optional<Invitation> existing = invitationRepository.findByEmail(guestJudge.getEmail()).stream()
+                .filter(inv -> inv.getRole() == UserRole.JUDGE)
+                .filter(inv -> inv.getHackathon() != null
+                        && inv.getHackathon().getId().equals(hackathon.getId()))
+                .findFirst();
+        if (existing.isPresent()) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        invitationRepository.save(Invitation.builder()
+                .email(guestJudge.getEmail())
+                .role(UserRole.JUDGE)
+                .hackathon(hackathon)
+                .invitedBy(coordinator)
+                .token("seed-guest-judge-" + hackathon.getSlug() + "-" + now.toEpochSecond(java.time.ZoneOffset.UTC))
+                .expiresAt(now.plusYears(1))
+                .acceptedAt(now)
+                .createdAt(now)
+                .build());
+    }
+
+    public Submission ensureFinalSubmission(
+            Hackathon hackathon,
+            Round finalRound,
+            Team team,
+            String repoUrl) {
+        List<Submission> existing = submissionRepository.findByTeam_IdAndRound_Id(team.getId(), finalRound.getId());
+        if (!existing.isEmpty()) {
+            return existing.get(0);
+        }
+        return submissionRepository.save(Submission.builder()
+                        .team(team)
+                        .hackathon(hackathon)
+                        .round(finalRound)
+                        .track(null)
+                        .repoUrl(repoUrl)
+                        .demoUrl("https://demo.example.com/" + team.getTeamName().replace(' ', '-'))
+                        .slideUrl("https://docs.google.com/presentation/d/seed-" + team.getId() + "/edit")
+                        .status(SubmissionStatus.SUBMITTED)
+                        .submittedAt(LocalDateTime.now())
+                        .isLate(false)
+                        .build());
+    }
+
+    public void ensureNormalScore(
+            Submission submission,
+            Criteria criterion,
+            User judge,
+            float scoreValue,
+            boolean isFinal) {
+        scoreRepository
+                .findBySubmission_IdAndJudge_IdAndCriterion_IdAndScoreType(
+                        submission.getId(), judge.getId(), criterion.getId(), ScoreType.NORMAL)
+                .orElseGet(() -> scoreRepository.save(Score.builder()
+                        .submission(submission)
+                        .judge(judge)
+                        .criterion(criterion)
+                        .scoreValue(scoreValue)
+                        .comment("Seed GĐ5 score")
+                        .scoreType(ScoreType.NORMAL)
+                        .isFinal(isFinal)
+                        .scoredAt(LocalDateTime.now())
+                        .updatedAt(LocalDateTime.now())
+                        .build()));
+    }
+
+    /** Xóa submission/score CK để chạy lại full chain GĐ5 trên cùng hackathon dev. */
+    @Transactional
+    public void clearFinalRoundArtifacts(Integer hackathonId) {
+        jdbcTemplate.update("""
+                DELETE s FROM scores s
+                INNER JOIN submissions sub ON sub.id = s.submission_id
+                INNER JOIN rounds r ON r.id = sub.round_id
+                WHERE r.hackathon_id = ? AND r.is_final = 1
+                """, hackathonId);
+        jdbcTemplate.update("""
+                DELETE cs FROM calibration_sessions cs
+                INNER JOIN rounds r ON r.id = cs.round_id
+                WHERE r.hackathon_id = ? AND r.is_final = 1
+                """, hackathonId);
+        jdbcTemplate.update("""
+                DELETE sm FROM submission_metadata sm
+                INNER JOIN submissions sub ON sub.id = sm.submission_id
+                INNER JOIN rounds r ON r.id = sub.round_id
+                WHERE r.hackathon_id = ? AND r.is_final = 1
+                """, hackathonId);
+        jdbcTemplate.update("""
+                DELETE sub FROM submissions sub
+                INNER JOIN rounds r ON r.id = sub.round_id
+                WHERE r.hackathon_id = ? AND r.is_final = 1
+                """, hackathonId);
+    }
+
+    /** Reset hackathon GĐ5 về trạng thái sẵn sàng chạy lại GĐ5 (ONGOING, CK mở, chưa lock). */
+    @Transactional
+    public void repairHackathonForGd5Retest(Hackathon hackathon, Round prelim, Round finalRound) {
+        User coordinator = requireCoordinator();
+        syncHackathonCalendarFromDates(hackathon.getSlug(), computeGd5FinalActiveDates());
+        if (hackathon.getStatus() != HackathonStatus.ONGOING) {
+            hackathon.setStatus(HackathonStatus.ONGOING);
+            hackathonRepository.save(hackathon);
+        }
+        clearFinalRoundArtifacts(hackathon.getId());
+        applyPrelimState(prelim, new PrelimState(false, true, true, true, 2, 2), coordinator);
+        applyFinalState(finalRound, new FinalState(true, false), coordinator);
+        releaseFinalProblem(finalRound);
+        finalRound.setForceLocked(false);
+        finalRound.setForceLockReason(null);
+        finalRound.setScoringLockedBy(null);
+        roundRepository.save(finalRound);
+        ensureFinalGuestJudgeAssignment(hackathon, finalRound);
+    }
+
+    /**
+     * Đồng bộ lịch + trạng thái CK mở cho GĐ5 mà <b>không</b> xóa submission/score đã seed.
+     */
+    @Transactional
+    public void repairGd5FeTestingScheduleAndState(Hackathon hackathon, Round prelim, Round finalRound) {
+        User coordinator = requireCoordinator();
+        syncHackathonCalendarFromDates(hackathon.getSlug(), computeGd5FinalActiveDates());
+        if (hackathon.getStatus() != HackathonStatus.ONGOING) {
+            hackathon.setStatus(HackathonStatus.ONGOING);
+            hackathonRepository.save(hackathon);
+        }
+        applyPrelimState(prelim, new PrelimState(false, true, true, true, 2, 2), coordinator);
+        applyFinalState(finalRound, new FinalState(true, false), coordinator);
+        releaseFinalProblem(finalRound);
+        finalRound.setForceLocked(false);
+        finalRound.setForceLockReason(null);
+        finalRound.setScoringLockedBy(null);
+        roundRepository.save(finalRound);
+        ensureFinalGuestJudgeAssignment(hackathon, finalRound);
+    }
+
+    /** Xóa kết quả GĐ6 (rankings + prizes) để chạy lại confirm flow. */
+    @Transactional
+    public void clearGd6ClosureArtifacts(Integer hackathonId) {
+        jdbcTemplate.update("DELETE FROM individual_rankings WHERE hackathon_id = ?", hackathonId);
+        jdbcTemplate.update("DELETE FROM chapter_rankings WHERE hackathon_id = ?", hackathonId);
+        jdbcTemplate.update("DELETE FROM prizes WHERE hackathon_id = ?", hackathonId);
+    }
+
+    /** Reset hackathon GĐ6 về PENDING_CONFIRM (sau FINISHED hoặc retest). */
+    @Transactional
+    public void repairHackathonForGd6Retest(Hackathon hackathon, Round prelim, Round finalRound) {
+        User coordinator = requireCoordinator();
+        syncHackathonCalendarFromDates(hackathon.getSlug(), computeGd6PendingConfirmDates());
+        clearGd6ClosureArtifacts(hackathon.getId());
+        applyPrelimState(prelim, new PrelimState(false, true, true, true, 2, 2), coordinator);
+        applyFinalState(finalRound, new FinalState(true, true), coordinator);
+        releaseFinalProblem(finalRound);
+        hackathon.setStatus(HackathonStatus.PENDING_CONFIRM);
+        hackathon.setIndividualRankingEnabled(true);
+        hackathonRepository.save(hackathon);
+        ensureFinalGuestJudgeAssignment(hackathon, finalRound);
+    }
+
+    public void ensureFirstPrize(Hackathon hackathon, Round finalRound, Team team, User coordinator) {
+        if (!prizeRepository.existsByHackathonIdAndPrizeRank(hackathon.getId(), PrizeRank.FIRST)) {
+            prizeRepository.save(Prize.builder()
+                    .hackathon(hackathon)
+                    .round(finalRound)
+                    .team(team)
+                    .prizeRank(PrizeRank.FIRST)
+                    .prizeName("Giải Nhất")
+                    .prizeValue("7000000")
+                    .description("Seed GĐ6 — giải nhất")
+                    .awardedBy(coordinator)
+                    .build());
+        }
+    }
+
+    /** Đảm bảo guest judge có FINAL_EXTERNAL trên CK + invitation còn hiệu lực. */
+    public void ensureFinalGuestJudgeAssignment(Hackathon hackathon, Round finalRound) {
+        User coordinator = requireCoordinator();
+        User guestJudge = requireGuestJudge();
+        ensureGuestJudgeInvitation(hackathon, guestJudge, coordinator);
+        boolean hasFinal = judgeAssignmentRepository.findByRoundId(finalRound.getId()).stream()
+                .anyMatch(ja -> ja.getJudge().getId().equals(guestJudge.getId())
+                        && ja.getAssignmentType() == JudgeAssignmentType.FINAL_EXTERNAL);
+        if (!hasFinal) {
+            judgeAssignmentRepository.save(JudgeAssignment.builder()
+                    .judge(guestJudge)
+                    .round(finalRound)
+                    .assignmentType(JudgeAssignmentType.FINAL_EXTERNAL)
+                    .assignedBy(coordinator)
+                    .assignedAt(LocalDateTime.now())
+                    .build());
+        }
+    }
+
+    public void ensureTeamLocked(Team team, LocalDateTime now) {
+        if (!Boolean.TRUE.equals(team.getIsLocked())) {
+            team.setIsLocked(true);
+            team.setLockedAt(now);
+            teamRepository.save(team);
+        }
+    }
+
+    public Submission ensurePrelimSubmission(
+            Hackathon hackathon,
+            Round prelim,
+            Track track,
+            Team team,
+            SubmissionStatus status,
+            boolean isLate,
+            LocalDateTime submittedAt) {
+        Optional<Submission> existing = submissionRepository.findByTeam_IdAndRound_Id(team.getId(), prelim.getId())
+                .stream()
+                .findFirst();
+        if (existing.isPresent()) {
+            Submission sub = existing.get();
+            sub.setStatus(status);
+            sub.setIsLate(isLate);
+            sub.setSubmittedAt(submittedAt);
+            return submissionRepository.save(sub);
+        }
+        return submissionRepository.save(Submission.builder()
+                .team(team)
+                .hackathon(hackathon)
+                .round(prelim)
+                .track(track)
+                .repoUrl("https://github.com/seal-warriors/%s".formatted(team.getTeamName().replace(' ', '-').toLowerCase()))
+                .demoUrl("https://demo.example.com/" + team.getId())
+                .slideUrl("https://docs.google.com/presentation/d/seed-" + team.getId() + "/edit")
+                .status(status)
+                .isLate(isLate)
+                .submittedAt(submittedAt)
+                .build());
+    }
+
+    public void scoreAllTrackCriteria(
+            Submission submission,
+            Track track,
+            User judge,
+            float scoreValue,
+            boolean isFinal) {
+        for (Criteria c : criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(track.getId())) {
+            ensureNormalScore(submission, c, judge, scoreValue, isFinal);
+        }
+    }
+
+    public void seedPresentationQueue(Round prelim, Track track, List<Submission> gradableInOrder) {
+        presentationSlotRepository.deleteByRound_IdAndTrack_Id(prelim.getId(), track.getId());
+        if (gradableInOrder.isEmpty()) {
+            return;
+        }
+        LocalDateTime examAt = prelim.getExamAt() != null
+                ? prelim.getExamAt()
+                : LocalDateTime.now().withSecond(0).withNano(0);
+        int slotMinutes = track.getPresentationMinutes() != null && track.getPresentationMinutes() > 0
+                ? track.getPresentationMinutes()
+                : 10;
+        int order = 1;
+        for (Submission submission : gradableInOrder) {
+            LocalDateTime start = examAt.plusMinutes((long) (order - 1) * slotMinutes);
+            PresentationQueueStatus status = order == 1
+                    ? PresentationQueueStatus.PRESENTING
+                    : PresentationQueueStatus.WAITING;
+            presentationSlotRepository.save(PresentationSlot.builder()
+                    .round(prelim)
+                    .track(track)
+                    .submission(submission)
+                    .team(submission.getTeam())
+                    .startsAt(start)
+                    .endsAt(start.plusMinutes(slotMinutes))
+                    .location("Phòng " + track.getSequenceOrder() + "-" + order)
+                    .sequenceOrder(order)
+                    .queueStatus(status)
+                    .timerPhase(PresentationTimerPhase.IDLE)
+                    .pausedAccumulatedSeconds(0)
+                    .build());
+            order++;
+        }
+    }
+
+    @Transactional
+    public void clearPrelimRoundArtifacts(Integer hackathonId) {
+        jdbcTemplate.update("""
+                DELETE s FROM scores s
+                INNER JOIN submissions sub ON sub.id = s.submission_id
+                INNER JOIN rounds r ON r.id = sub.round_id
+                WHERE r.hackathon_id = ? AND r.is_final = 0
+                """, hackathonId);
+        jdbcTemplate.update("""
+                DELETE cs FROM calibration_sessions cs
+                INNER JOIN rounds r ON r.id = cs.round_id
+                WHERE r.hackathon_id = ? AND r.is_final = 0
+                """, hackathonId);
+        jdbcTemplate.update("""
+                DELETE ps FROM presentation_slots ps
+                INNER JOIN teams t ON t.id = ps.team_id
+                WHERE t.hackathon_id = ?
+                """, hackathonId);
+        jdbcTemplate.update("""
+                DELETE sm FROM submission_metadata sm
+                INNER JOIN submissions sub ON sub.id = sm.submission_id
+                INNER JOIN rounds r ON r.id = sub.round_id
+                WHERE r.hackathon_id = ? AND r.is_final = 0
+                """, hackathonId);
+        jdbcTemplate.update("""
+                DELETE sub FROM submissions sub
+                INNER JOIN rounds r ON r.id = sub.round_id
+                WHERE r.hackathon_id = ? AND r.is_final = 0
+                """, hackathonId);
+        jdbcTemplate.update("""
+                DELETE wr FROM wildcard_reviews wr
+                INNER JOIN rounds r ON r.id = wr.round_id
+                WHERE r.hackathon_id = ? AND r.is_final = 0
+                """, hackathonId);
+    }
+
+    @Transactional
+    public void resetTeamsToPreAdvance(Hackathon hackathon, Round prelim, Round finalRound) {
+        for (Team team : teamRepository.findByHackathon_Id(hackathon.getId())) {
+            teamRoundParticipationRepository.findByTeam_IdAndRound_Id(team.getId(), finalRound.getId())
+                    .ifPresent(teamRoundParticipationRepository::delete);
+            teamRoundTrackRepository.findByTeam_IdAndTrack_Round_Id(team.getId(), prelim.getId())
+                    .ifPresent(trt -> {
+                        trt.setParticipationStatus(ParticipationStatus.PARTICIPATING);
+                        teamRoundTrackRepository.save(trt);
+                    });
+        }
+    }
+
+    @Transactional
+    public void clearPrelimLotteryAssignments(Integer hackathonId, Integer prelimRoundId) {
+        jdbcTemplate.update("""
+                DELETE trt FROM team_round_tracks trt
+                INNER JOIN tracks t ON t.id = trt.track_id
+                WHERE t.round_id = ?
+                """, prelimRoundId);
+        jdbcTemplate.update("""
+                DELETE trp FROM team_round_participation trp
+                INNER JOIN rounds r ON r.id = trp.round_id
+                WHERE r.hackathon_id = ? AND r.is_final = 0
+                """, hackathonId);
+    }
+
+    /** Reset hackathon E2E GĐ2 — đăng ký mở, prelim inactive, đội chưa khóa / chưa lottery. */
+    @Transactional
+    public void repairHackathonForGd2Retest(Hackathon hackathon, Round prelim, Round finalRound) {
+        User coordinator = requireCoordinator();
+        syncHackathonCalendarFromDates(hackathon.getSlug(), computeGd2RegistrationOpenDates());
+        applyPrelimState(prelim, new PrelimState(false, false, false, false, 2, 4), coordinator);
+        prelim.setActivatedAt(null);
+        prelim.setProblemStatementUrl(null);
+        prelim.setProblemReleasedAt(null);
+        roundRepository.save(prelim);
+        applyFinalState(finalRound, new FinalState(false, false), coordinator);
+        if (hackathon.getStatus() != HackathonStatus.ONGOING) {
+            hackathon.setStatus(HackathonStatus.ONGOING);
+            hackathonRepository.save(hackathon);
+        }
+        clearPrelimLotteryAssignments(hackathon.getId(), prelim.getId());
+        for (Team team : teamRepository.findByHackathon_Id(hackathon.getId())) {
+            if (Boolean.TRUE.equals(team.getIsLocked())) {
+                team.setIsLocked(false);
+                team.setLockedAt(null);
+                teamRepository.save(team);
+            }
+        }
+    }
+
+    /** Reset hackathon GĐ3 về prelim active (sau khi đã lock/publish hoặc test xong). */
+    @Transactional
+    public void repairHackathonForGd3Retest(Hackathon hackathon, Round prelim, Round finalRound) {
+        User coordinator = requireCoordinator();
+        clearPrelimRoundArtifacts(hackathon.getId());
+        clearFinalRoundArtifacts(hackathon.getId());
+        resetTeamsToPreAdvance(hackathon, prelim, finalRound);
+        SeedDates gd3Dates = computeGd3ActivePrelimDates();
+        syncHackathonCalendarFromDates(hackathon.getSlug(), gd3Dates);
+        applyPrelimState(prelim, new PrelimState(true, true, false, false, 2, 4), coordinator);
+        applyFinalState(finalRound, new FinalState(false, false), coordinator);
+        if (hackathon.getStatus() != HackathonStatus.ONGOING) {
+            hackathon.setStatus(HackathonStatus.ONGOING);
+            hackathonRepository.save(hackathon);
+        }
+    }
+
+    /** Reset hackathon GĐ4 về trạng thái sẵn sàng publish/advance. */
+    @Transactional
+    public void repairHackathonForGd4Retest(Hackathon hackathon, Round prelim, Round finalRound) {
+        User coordinator = requireCoordinator();
+        clearFinalRoundArtifacts(hackathon.getId());
+        resetTeamsToPreAdvance(hackathon, prelim, finalRound);
+        SeedDates gd4Dates = computeGd4AdvanceReadyDates();
+        syncHackathonCalendarFromDates(hackathon.getSlug(), gd4Dates);
+        applyPrelimState(prelim, new PrelimState(false, true, true, false, 1, 6), coordinator);
+        applyFinalState(finalRound, new FinalState(false, false), coordinator);
+        if (hackathon.getStatus() != HackathonStatus.ONGOING) {
+            hackathon.setStatus(HackathonStatus.ONGOING);
+            hackathonRepository.save(hackathon);
+        }
     }
 }

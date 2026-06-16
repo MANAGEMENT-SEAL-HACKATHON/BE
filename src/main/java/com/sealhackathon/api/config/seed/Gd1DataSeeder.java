@@ -70,8 +70,6 @@ public class Gd1DataSeeder {
     }
 
     private static final List<String> SEED_HACKATHON_SLUGS = List.of(
-            Gd1SeedConstants.SLUG_INCOMPLETE,
-            Gd1SeedConstants.SLUG_READY,
             Gd1SeedConstants.SLUG_ONGOING,
             Gd1SeedConstants.SLUG_FINISHED);
 
@@ -95,7 +93,7 @@ public class Gd1DataSeeder {
             if (repairHackathonCalendar(h, dates)) {
                 hackathons++;
             }
-            if (!Gd1SeedConstants.SLUG_INCOMPLETE.equals(slug)) {
+            if (!Gd1SeedConstants.SLUG_FINISHED.equals(slug)) {
                 events += ensureOrRepairEvents(h, dates);
                 rounds += repairRoundsForHackathon(h, dates);
             }
@@ -151,7 +149,7 @@ public class Gd1DataSeeder {
         }
         int criteriaFilled = 0;
         int track3Added = 0;
-        for (String slug : List.of(Gd1SeedConstants.SLUG_READY, Gd1SeedConstants.SLUG_ONGOING)) {
+        for (String slug : List.of(Gd1SeedConstants.SLUG_ONGOING)) {
             Optional<Hackathon> hackathon = hackathonRepository.findBySlug(slug);
             if (hackathon.isEmpty()) {
                 continue;
@@ -177,30 +175,19 @@ public class Gd1DataSeeder {
         logDevLoginCredentials();
         verifyCoordinatorId(users.coordinator());
 
-        Hackathon incomplete = seedIncompleteHackathon(users.coordinator(), dates);
-        FullHackathonSeed ready = seedFullHackathon(
-                Gd1SeedConstants.SLUG_READY,
-                "SEAL GĐ1 Ready (DRAFT)",
-                HackathonStatus.DRAFT,
-                Season.Spring,
-                false,
-                false,
-                users,
-                dates,
-                "Cuộc thi lập trình SEAL — seed MF-01 GĐ1 (readiness PASS)");
         FullHackathonSeed ongoing = seedFullHackathon(
                 Gd1SeedConstants.SLUG_ONGOING,
-                "SEAL Spring 2026",
+                "SEAL E2E 2026",
                 HackathonStatus.ONGOING,
                 Season.Spring,
                 false,
                 true,
                 users,
                 dates,
-                "Cuộc thi lập trình SEAL — seed MF-01 GĐ1");
+                "Hackathon E2E — GĐ1 sẵn sàng, 7 đội + 3 SV chưa có nhóm (test GĐ2→GĐ6)");
         FullHackathonSeed finished = seedFinishedHackathon(users);
 
-        SeedSummary summary = new SeedSummary(users, incomplete, ready, ongoing, finished);
+        SeedSummary summary = new SeedSummary(users, ongoing, finished);
         logSummary(summary);
         return summary;
     }
@@ -537,12 +524,12 @@ public class Gd1DataSeeder {
             return hackathonRepository.findBySlug(Gd1SeedConstants.SLUG_INCOMPLETE).orElseThrow();
         }
         return hackathonRepository.save(Hackathon.builder()
-                .name("SEAL GĐ1 Incomplete")
+                .name("[Dev] GĐ1 Readiness FAIL")
                 .slug(Gd1SeedConstants.SLUG_INCOMPLETE)
-                .season(Season.Spring)
+                .season(Season.Summer)
                 .year(dates.eventStart().getYear())
                 .status(HackathonStatus.DRAFT)
-                .description("Hackathon DRAFT không có round — test readiness blockers")
+                .description("DRAFT không có round — test GET readiness → blockers (negative case)")
                 .registrationStart(dates.regStart())
                 .registrationEnd(dates.regEnd())
                 .eventStart(dates.eventStart())
@@ -1072,39 +1059,18 @@ public class Gd1DataSeeder {
                 [Gd1DataSeeder] Seed MF-01 GĐ1 hoàn tất.
                   Coordinator: id={} email={}
                   Hackathons:
-                    - {} (id={}) DRAFT — readiness FAIL
-                    - {} (id={}) DRAFT — readiness PASS → PATCH ONGOING
-                    - {} (id={}) ONGOING — prelim id={} active={} examAt={}
-                    - final examAt={}
-                    - {} (id={}) FINISHED — archive (prelim={}, final={})
-                  Tracks ready: t1={} t2={}
+                    - {} (id={}) ONGOING — E2E GĐ1, prelim id={} active={}
+                    - {} (id={}) FINISHED — archive
                   Track 3 clone demo (ongoing): id={}
-                  Users: judge1={}, guest={}, mentor={}, pending={}
                 """,
                 coord.getId(), coord.getEmail(),
-                Gd1SeedConstants.SLUG_INCOMPLETE, summary.incomplete().getId(),
-                Gd1SeedConstants.SLUG_READY, summary.ready().hackathon().getId(),
                 Gd1SeedConstants.SLUG_ONGOING, summary.ongoing().hackathon().getId(),
                 summary.ongoing().prelimRound() != null
                         ? summary.ongoing().prelimRound().getId() : "n/a",
                 summary.ongoing().prelimRound() != null
                         ? summary.ongoing().prelimRound().getIsActive() : false,
-                summary.ongoing().prelimRound() != null
-                        ? summary.ongoing().prelimRound().getExamAt() : "n/a",
-                summary.ongoing().finalRound() != null
-                        ? summary.ongoing().finalRound().getExamAt() : "n/a",
                 Gd1SeedConstants.SLUG_FINISHED, summary.finished().hackathon().getId(),
-                summary.finished().prelimRound() != null
-                        ? summary.finished().prelimRound().getId() : "n/a",
-                summary.finished().finalRound() != null
-                        ? summary.finished().finalRound().getId() : "n/a",
-                summary.ready().track1() != null ? summary.ready().track1().getId() : "n/a",
-                summary.ready().track2() != null ? summary.ready().track2().getId() : "n/a",
-                summary.ongoing().track3() != null ? summary.ongoing().track3().getId() : "n/a",
-                summary.users().judge1().getId(),
-                summary.users().guestJudge().getId(),
-                summary.users().mentor().getId(),
-                summary.users().pendingJudge().getId());
+                summary.ongoing().track3() != null ? summary.ongoing().track3().getId() : "n/a");
     }
 
     private record SeedDates(
@@ -1170,8 +1136,6 @@ public class Gd1DataSeeder {
 
     public record SeedSummary(
             SeedUsers users,
-            Hackathon incomplete,
-            FullHackathonSeed ready,
             FullHackathonSeed ongoing,
             FullHackathonSeed finished) {
     }
