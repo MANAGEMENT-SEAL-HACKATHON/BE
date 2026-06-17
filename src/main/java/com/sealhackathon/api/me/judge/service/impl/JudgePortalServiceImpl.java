@@ -60,14 +60,21 @@ public class JudgePortalServiceImpl implements JudgePortalService {
         // Lọc ra các phân công thuộc Vòng Sơ Loại (Có Track)
         return assignments.stream()
                 .filter(ja -> ja.getTrack() != null)
-                .map(ja -> JudgeTrackAssignmentResponse.builder()
-                        .assignmentId(ja.getId())
-                        .trackId(ja.getTrack().getId())
-                        .trackName(ja.getTrack().getName())
-                        .roundId(ja.getTrack().getRound().getId())
-                        .assignmentType(ja.getAssignmentType().name())
-                        .completionStatus(ja.getCompletionStatus().name())
-                        .build())
+                .map(ja -> {
+                    Round round = ja.getTrack().getRound();
+                    var hackathon = round.getHackathon();
+                    return JudgeTrackAssignmentResponse.builder()
+                            .assignmentId(ja.getId())
+                            .hackathonId(hackathon.getId())
+                            .hackathonName(hackathon.getName())
+                            .trackId(ja.getTrack().getId())
+                            .trackName(ja.getTrack().getName())
+                            .roundId(round.getId())
+                            .roundName(round.getName())
+                            .assignmentType(ja.getAssignmentType().name())
+                            .completionStatus(ja.getCompletionStatus().name())
+                            .build();
+                })
                 .toList();
     }
 
@@ -81,11 +88,18 @@ public class JudgePortalServiceImpl implements JudgePortalService {
         // Lọc ra các phân công thuộc Vòng Chung Kết (Không có Track, gắn trực tiếp vào Round)
         return assignments.stream()
                 .filter(ja -> ja.getRound() != null && Boolean.TRUE.equals(ja.getRound().getIsFinal()))
-                .map(ja -> JudgeFinalAssignmentResponse.builder()
-                        .assignmentId(ja.getId())
-                        .hackathonId(ja.getRound().getHackathon().getId())
-                        .role(ja.getAssignmentType().name()) // Trả về FINAL_EXTERNAL
-                        .build())
+                .map(ja -> {
+                    Round round = ja.getRound();
+                    var hackathon = round.getHackathon();
+                    return JudgeFinalAssignmentResponse.builder()
+                            .assignmentId(ja.getId())
+                            .hackathonId(hackathon.getId())
+                            .hackathonName(hackathon.getName())
+                            .roundId(round.getId())
+                            .roundName(round.getName())
+                            .role(ja.getAssignmentType().name()) // Trả về FINAL_EXTERNAL
+                            .build();
+                })
                 .toList();
     }
 

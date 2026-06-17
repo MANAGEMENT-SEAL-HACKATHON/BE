@@ -13,5 +13,8 @@ public class JudgeFinalAssignmentResponse {
 
     private Integer assignmentId;
     private Integer hackathonId;
+    private String hackathonName;
+    private Integer roundId;
+    private String roundName;
     private String role;
 }
