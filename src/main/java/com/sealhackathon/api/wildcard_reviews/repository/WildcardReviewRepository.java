@@ -15,4 +15,6 @@ public interface WildcardReviewRepository extends JpaRepository<WildcardReview, 
     Optional<WildcardReview> findByRound_IdAndTeam_Id(Integer roundId, Integer teamId);
 
     List<WildcardReview> findByRound_IdAndCoordinatorApprovedIsNull(Integer roundId);
+
+    long countByRound_IdAndCoordinatorApproved(Integer roundId, Boolean coordinatorApproved);
 }

@@ -720,6 +720,26 @@ public class HackathonDevSeedHelper {
                 });
     }
 
+    /** Tìm đội theo leader (rename nếu đổi tên seed) — tránh tạo trùng khi đổi teamName. */
+    public Team ensureActiveTeamForLeader(
+            Hackathon hackathon,
+            String teamName,
+            User leader,
+            Chapter chapter,
+            LocalDateTime now) {
+        return teamRepository.findByLeader_Id(leader.getId()).stream()
+                .filter(t -> hackathon.getId().equals(t.getHackathon().getId()))
+                .findFirst()
+                .map(team -> {
+                    if (!teamName.equals(team.getTeamName())) {
+                        team.setTeamName(teamName);
+                        return teamRepository.save(team);
+                    }
+                    return team;
+                })
+                .orElseGet(() -> ensureActiveTeam(hackathon, teamName, leader, chapter, now));
+    }
+
     public void ensureLottery(
             Hackathon hackathon,
             Round prelim,
@@ -1443,6 +1463,12 @@ public class HackathonDevSeedHelper {
                 WHERE r.hackathon_id = ? AND r.is_final = 0
                 """, hackathonId);
         jdbcTemplate.update("""
+                DELETE jsc FROM judge_submission_scoring_confirmations jsc
+                INNER JOIN submissions sub ON sub.id = jsc.submission_id
+                INNER JOIN rounds r ON r.id = sub.round_id
+                WHERE r.hackathon_id = ? AND r.is_final = 0
+                """, hackathonId);
+        jdbcTemplate.update("""
                 DELETE sub FROM submissions sub
                 INNER JOIN rounds r ON r.id = sub.round_id
                 WHERE r.hackathon_id = ? AND r.is_final = 0
@@ -1532,6 +1558,12 @@ public class HackathonDevSeedHelper {
         SeedDates gd4Dates = computeGd4AdvanceReadyDates();
         syncHackathonCalendarFromDates(hackathon.getSlug(), gd4Dates);
         applyPrelimState(prelim, new PrelimState(false, true, true, false, 1, 6), coordinator);
+        prelim.setWildcardEnabled(true);
+        roundRepository.save(prelim);
+        if (!Boolean.TRUE.equals(hackathon.getWildcardEnabled())) {
+            hackathon.setWildcardEnabled(true);
+            hackathonRepository.save(hackathon);
+        }
         applyFinalState(finalRound, new FinalState(false, false), coordinator);
         if (hackathon.getStatus() != HackathonStatus.ONGOING) {
             hackathon.setStatus(HackathonStatus.ONGOING);

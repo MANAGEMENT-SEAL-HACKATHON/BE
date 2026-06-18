@@ -25,6 +25,7 @@ public class PresentationQueueNextResponse {
         private Integer submissionId;
         private int judgesAssigned;
         private int judgesScored;
+        private int judgesFullyScored;
         private long scoreCount;
         private boolean incomplete;
     }

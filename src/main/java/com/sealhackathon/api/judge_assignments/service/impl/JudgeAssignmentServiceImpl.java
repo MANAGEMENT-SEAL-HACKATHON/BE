@@ -76,6 +76,11 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
                     "FINAL_EXTERNAL không dùng cho Track Sơ loại",
                     Map.of("trackId", trackId));
         }
+        if (assignType != JudgeAssignmentType.NORMAL && assignType != JudgeAssignmentType.HEAD) {
+            throw new BusinessRuleException(ErrorCode.INVALID_ASSIGNMENT_TYPE,
+                    "Track Sơ loại chỉ gán NORMAL hoặc HEAD",
+                    Map.of("trackId", trackId, "assignmentType", assignType.name()));
+        }
         Track track = trackRepository.findById(trackId)
                 .orElseThrow(() -> new ResourceNotFoundException("Track", trackId));
         archiveGuard.assertNotArchivedForTrack(track);
@@ -124,7 +129,20 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
 
     @Override
     public CreateResult assignFinalRoundG4(Integer finalRoundId, Integer judgeId) {
+        return assignFinalRoundG4(finalRoundId, judgeId, JudgeAssignmentType.FINAL_EXTERNAL);
+    }
+
+    @Override
+    public CreateResult assignFinalRoundG4(Integer finalRoundId, Integer judgeId, JudgeAssignmentType assignmentType) {
         User judge = loadApprovedPersonnel(judgeId);
+        JudgeAssignmentType assignType = assignmentType != null
+                ? assignmentType
+                : JudgeAssignmentType.FINAL_EXTERNAL;
+        if (assignType != JudgeAssignmentType.HEAD && assignType != JudgeAssignmentType.FINAL_EXTERNAL) {
+            throw new BusinessRuleException(ErrorCode.INVALID_ASSIGNMENT_TYPE,
+                    "Round Chung kết chỉ gán HEAD hoặc FINAL_EXTERNAL",
+                    Map.of("roundId", finalRoundId, "assignmentType", assignType.name()));
+        }
         Round round = roundRepository.findById(finalRoundId)
                 .orElseThrow(() -> new ResourceNotFoundException("Round", finalRoundId));
         archiveGuard.assertNotArchivedForRound(round);
@@ -149,10 +167,10 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
                     .build());
         }
 
-        JudgeAssignment saved = saveAssignment(judge, null, round, JudgeAssignmentType.FINAL_EXTERNAL);
+        JudgeAssignment saved = saveAssignment(judge, null, round, assignType);
         JudgeAssignmentResponse response = judgeAssignmentMapper.toResponse(saved);
         auditService.log(AuditAction.JUDGE_ASSIGNED, "judge_assignments", saved.getId(), Map.of(
-                "judgeId", judge.getId(), "roundId", finalRoundId, "type", JudgeAssignmentType.FINAL_EXTERNAL.name(),
+                "judgeId", judge.getId(), "roundId", finalRoundId, "type", assignType.name(),
                 "phase", "G4"));
         notificationService.send(judge, "JUDGE_ASSIGNED",
                 "Bạn được phân công làm Judge Chung kết '%s'".formatted(round.getName()),

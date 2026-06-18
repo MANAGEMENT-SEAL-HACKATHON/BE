@@ -21,6 +21,10 @@ public interface JudgePortalService {
 
     List<JudgeSubmissionListItemResponse> listSubmissions(Integer roundId, Integer trackId);
 
+    JudgePresentationScoringStatusResponse getPresentationScoringStatus(Integer roundId, Integer trackId);
+
+    void confirmSubmissionScoring(Integer submissionId);
+
     JudgeScoreSummaryResponse updateScoreComment(Integer scoreId, JudgeScoreCommentRequest request);
 
     TiebreakVoteResponse submitTiebreakVote(TiebreakVoteRequest request);

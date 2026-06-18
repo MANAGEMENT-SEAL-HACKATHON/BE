@@ -6,6 +6,7 @@ import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
+import com.sealhackathon.api.events.repository.JudgeSubmissionScoringConfirmationRepository;
 import com.sealhackathon.api.events.entity.PresentationSlot;
 import com.sealhackathon.api.events.repository.PresentationSlotRepository;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
@@ -63,6 +64,7 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
     private final PresentationQueuePublisher queuePublisher;
     private final CurrentUserAccessor currentUserAccessor;
     private final PresentationNextScoringGuard nextScoringGuard;
+    private final JudgeSubmissionScoringConfirmationRepository scoringConfirmationRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -156,6 +158,7 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
 
         if (Boolean.TRUE.equals(round.getIsFinal())) {
             controllerGuard.requireControllerForRound(round.getId(), round);
+            scoringConfirmationRepository.deleteByFinalRoundScope(round.getId());
             int count = shuffleFinalRound(round);
             results.add(PresentationShuffleResponse.TrackShuffleResult.builder()
                     .trackId(null)
@@ -172,6 +175,7 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
         List<Track> tracks = resolveTracksToShuffle(round, request.getTrackIds());
         for (Track track : tracks) {
             controllerGuard.requireControllerForTrack(track.getId(), track, round);
+            scoringConfirmationRepository.deleteByTrackScope(roundId, track.getId());
             int count = shuffleTrack(round, track);
             track.setPresentationShuffled(true);
             trackRepository.save(track);
@@ -244,6 +248,10 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
                 .orElse(null);
 
         if (next != null) {
+            if (next.getSubmission() != null) {
+                // Reset judge confirmations for the new live slot.
+                scoringConfirmationRepository.deleteBySubmission_Id(next.getSubmission().getId());
+            }
             next.setQueueStatus(PresentationQueueStatus.PRESENTING);
             resetTimer(next);
             next.setTimerPhase(PresentationTimerPhase.SETUP);

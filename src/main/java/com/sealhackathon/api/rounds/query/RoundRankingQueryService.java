@@ -14,6 +14,7 @@ import com.sealhackathon.api.submissions.policy.SubmissionGradablePolicy;
 import com.sealhackathon.api.submissions.repository.SubmissionRepository;
 import com.sealhackathon.api.team_round_tracks.entity.TeamRoundTrack;
 import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
+import com.sealhackathon.api.team_round_participation.value_object.ParticipationStatus;
 import com.sealhackathon.api.tiebreak_evaluations.entity.TiebreakEvaluation;
 import com.sealhackathon.api.tiebreak_evaluations.repository.TiebreakEvaluationRepository;
 import lombok.RequiredArgsConstructor;
@@ -118,21 +119,21 @@ public class RoundRankingQueryService {
                     partStatus));
         }
 
-        if (isFinalRound) {
-            rows.sort(Comparator
-                    .comparing(RankRow::totalScore, Comparator.reverseOrder())
-                    .thenComparing(RankRow::teamId));
-        } else {
-            rows.sort(Comparator
-                    .comparing(RankRow::assignedGroup, Comparator.nullsLast(String::compareTo))
-                    .thenComparing(RankRow::totalScore, Comparator.reverseOrder())
-                    .thenComparing(RankRow::teamId));
-        }
+        List<RankRow> sortedRows = sortRankRows(rows, isFinalRound);
+        return assignRanks(sortedRows, isFinalRound);
+    }
 
+    static List<RankRow> sortRankRows(List<RankRow> rows, boolean isFinalRound) {
+        List<RankRow> sorted = new ArrayList<>(rows);
+        sorted.sort(rankComparator(isFinalRound));
+        return sorted;
+    }
+
+    static List<RoundRankingItemResponse> assignRanks(List<RankRow> sortedRows, boolean isFinalRound) {
         List<RoundRankingItemResponse> result = new ArrayList<>();
         if (isFinalRound) {
             int rank = 1;
-            for (RankRow row : rows) {
+            for (RankRow row : sortedRows) {
                 result.add(toRankingItem(row, rank++));
             }
             return result;
@@ -140,7 +141,7 @@ public class RoundRankingQueryService {
 
         String currentGroup = null;
         int rankInGroup = 0;
-        for (RankRow row : rows) {
+        for (RankRow row : sortedRows) {
             String group = row.assignedGroup() != null ? row.assignedGroup() : "";
             if (!Objects.equals(group, currentGroup)) {
                 currentGroup = group;
@@ -150,6 +151,24 @@ public class RoundRankingQueryService {
             result.add(toRankingItem(row, rankInGroup));
         }
         return result;
+    }
+
+    private static Comparator<RankRow> rankComparator(boolean isFinalRound) {
+        Comparator<RankRow> byScore = Comparator
+                .comparing(RankRow::totalScore, Comparator.reverseOrder())
+                .thenComparing(RankRow::teamId);
+        Comparator<RankRow> eliminatedLast = Comparator.comparing(RoundRankingQueryService::isEliminated);
+        if (isFinalRound) {
+            return eliminatedLast.thenComparing(byScore);
+        }
+        return Comparator
+                .comparing(RankRow::assignedGroup, Comparator.nullsLast(String::compareTo))
+                .thenComparing(eliminatedLast)
+                .thenComparing(byScore);
+    }
+
+    private static boolean isEliminated(RankRow row) {
+        return ParticipationStatus.ELIMINATED.name().equals(row.participationStatus());
     }
 
     private static RoundRankingItemResponse toRankingItem(RankRow row, int rank) {
@@ -227,5 +246,6 @@ public class RoundRankingQueryService {
     }
 
     // Cập nhật Record để chứa thêm thông tin participationStatus
-    private record RankRow(Integer teamId, String teamName, Integer trackId, String assignedGroup, double totalScore, String participationStatus) {}
 }
+
+record RankRow(Integer teamId, String teamName, Integer trackId, String assignedGroup, double totalScore, String participationStatus) {}

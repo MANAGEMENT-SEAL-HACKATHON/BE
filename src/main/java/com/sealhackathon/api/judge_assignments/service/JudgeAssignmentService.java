@@ -3,6 +3,7 @@ package com.sealhackathon.api.judge_assignments.service;
 import com.sealhackathon.api.common.response.Warning;
 import com.sealhackathon.api.judge_assignments.dto.request.CreateJudgeAssignmentRequest;
 import com.sealhackathon.api.judge_assignments.dto.response.JudgeAssignmentResponse;
+import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
 
 import java.util.List;
 
@@ -31,8 +32,10 @@ public interface JudgeAssignmentService {
 
     CreateResult assign(CreateJudgeAssignmentRequest req);
 
-    /** GĐ4 — phân Judge Chung kết (FINAL_EXTERNAL); không block GĐ1. */
+    /** GĐ4 — phân Judge Chung kết (HEAD hoặc FINAL_EXTERNAL); không block GĐ1. */
     CreateResult assignFinalRoundG4(Integer finalRoundId, Integer judgeId);
+
+    CreateResult assignFinalRoundG4(Integer finalRoundId, Integer judgeId, JudgeAssignmentType assignmentType);
 
     List<JudgeAssignmentResponse> listByTrack(Integer trackId);
 

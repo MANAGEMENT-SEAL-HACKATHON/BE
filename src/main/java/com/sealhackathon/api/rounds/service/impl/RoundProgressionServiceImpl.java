@@ -14,6 +14,7 @@ import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.judge_assignments.service.JudgeAssignmentService;
+import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
 import com.sealhackathon.api.live_scoring.event.ScoringLockedEvent;
 import com.sealhackathon.api.mentor_assignments.entity.MentorAssignment;
 import com.sealhackathon.api.mentor_assignments.repository.MentorAssignmentRepository;
@@ -36,10 +37,12 @@ import com.sealhackathon.api.rounds.dto.response.RoundScoringProgressResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundSummaryResponse;
 import com.sealhackathon.api.rounds.dto.response.TiebreakItemResponse;
 import com.sealhackathon.api.rounds.dto.response.WildcardCandidateResponse;
+import com.sealhackathon.api.rounds.dto.response.WildcardCandidatesResponse;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.mapper.RoundMapper;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.service.RoundProgressionService;
+import com.sealhackathon.api.rounds.support.WildcardCandidateSelection;
 import com.sealhackathon.api.scores.entity.Score;
 import com.sealhackathon.api.scores.repository.ScoreRepository;
 import com.sealhackathon.api.team_round_participation.entity.TeamRoundParticipation;
@@ -354,30 +357,83 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
     // NHIỆM VỤ 2.1: TỰ ĐỘNG QUÉT VÀ ĐỀ XUẤT VÉ VỚT (WILDCARD CANDIDATES)
     // =========================================================================
     @Override
-    public List<WildcardCandidateResponse> wildcardCandidates(Integer roundId) {
+    public WildcardCandidatesResponse wildcardCandidates(Integer roundId) {
         Round round = roundAccessGuard.requireRound(roundId);
         Hackathon hackathon = round.getHackathon();
+        boolean hackathonEnabled = Boolean.TRUE.equals(hackathon.getWildcardEnabled());
+        boolean roundEnabled = Boolean.TRUE.equals(round.getWildcardEnabled());
 
-        // 1. Gate: Tính năng vé vớt phải được bật ở cả Hackathon và Round
-        if (!Boolean.TRUE.equals(hackathon.getWildcardEnabled()) || !Boolean.TRUE.equals(round.getWildcardEnabled())) {
-            return List.of();
+        if (!hackathonEnabled || !roundEnabled) {
+            return emptyWildcardResponse(hackathonEnabled, roundEnabled);
         }
 
+        Optional<WildcardPoolSnapshot> pool = resolveWildcardPool(round);
+        if (pool.isEmpty()) {
+            return WildcardCandidatesResponse.builder()
+                    .hackathonWildcardEnabled(true)
+                    .roundWildcardEnabled(true)
+                    .availableSlots(0)
+                    .autoAdvancedCount(0)
+                    .approvedCount(0)
+                    .decisionsFinalized(false)
+                    .candidates(List.of())
+                    .build();
+        }
+
+        WildcardPoolSnapshot snapshot = pool.get();
+        List<WildcardCandidateResponse> responses = buildWildcardCandidateResponses(round, snapshot);
+
+        int approvedCount = (int) responses.stream()
+                .filter(c -> Boolean.TRUE.equals(c.getCoordinatorApproved()))
+                .count();
+        boolean decisionsFinalized = !responses.isEmpty()
+                && responses.stream().allMatch(c -> c.getCoordinatorApproved() != null);
+
+        return WildcardCandidatesResponse.builder()
+                .hackathonWildcardEnabled(true)
+                .roundWildcardEnabled(true)
+                .availableSlots(snapshot.availableSlots())
+                .autoAdvancedCount(snapshot.autoAdvancedCount())
+                .approvedCount(approvedCount)
+                .decisionsFinalized(decisionsFinalized)
+                .candidates(responses)
+                .build();
+    }
+
+    private static WildcardCandidatesResponse emptyWildcardResponse(
+            boolean hackathonEnabled, boolean roundEnabled) {
+        return WildcardCandidatesResponse.builder()
+                .hackathonWildcardEnabled(hackathonEnabled)
+                .roundWildcardEnabled(roundEnabled)
+                .availableSlots(0)
+                .autoAdvancedCount(0)
+                .approvedCount(0)
+                .decisionsFinalized(false)
+                .candidates(List.of())
+                .build();
+    }
+
+    private Optional<WildcardPoolSnapshot> resolveWildcardPool(Round round) {
         Integer minTeamsFinal = round.getMinTeamsFinal();
         Integer topNAdvance = round.getTopNAdvance();
         if (minTeamsFinal == null || topNAdvance == null || topNAdvance <= 0) {
-            return List.of();
+            return Optional.empty();
         }
 
-        // 2. Lấy danh sách bảng xếp hạng chính thức
-        List<RoundRankingItemResponse> ranking = roundRankingQueryService.rankingForRound(roundId, false);
-        if (ranking.isEmpty()) return List.of();
+        List<RoundRankingItemResponse> ranking =
+                roundRankingQueryService.rankingForRound(round.getId(), false);
+        if (ranking.isEmpty()) {
+            return Optional.empty();
+        }
 
-        // 3. Tách nhóm: Đội đậu tự nhiên (Top N) và Đội rớt
         List<RoundRankingItemResponse> topNTeams = new ArrayList<>();
         List<RoundRankingItemResponse> remainingTeams = new ArrayList<>();
 
         for (RoundRankingItemResponse item : ranking) {
+            if (item.getParticipationStatus() != null
+                    && ParticipationStatus.ELIMINATED.name().equals(item.getParticipationStatus())) {
+                continue;
+            }
             if (item.getRank() != null && item.getRank() <= topNAdvance) {
                 topNTeams.add(item);
             } else {
@@ -385,32 +441,40 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
             }
         }
 
-        // Tính số lượng Slot vé vớt cần bù đắp
         int slots = minTeamsFinal - topNTeams.size();
         if (slots <= 0 || remainingTeams.isEmpty()) {
-            return List.of(); // Đã đủ chỉ tiêu hoặc không còn đội nào để vớt
+            return Optional.empty();
         }
 
-        // 4. Lọc Top điểm cao nhất từ nhóm rớt (Sort Toàn Cục)
-        remainingTeams.sort(java.util.Comparator.comparing(RoundRankingItemResponse::getTotalScore).reversed());
-        List<RoundRankingItemResponse> candidates = remainingTeams.stream().limit(slots).toList();
+        List<RoundRankingItemResponse> selected =
+                WildcardCandidateSelection.selectWithTiesAtCutoff(remainingTeams, slots);
+        return Optional.of(new WildcardPoolSnapshot(slots, topNTeams.size(), selected));
+    }
 
+    private List<WildcardCandidateResponse> buildWildcardCandidateResponses(
+            Round round, WildcardPoolSnapshot snapshot) {
         List<WildcardCandidateResponse> responses = new ArrayList<>();
+        int candidateRank = 1;
+        int slots = snapshot.availableSlots();
+        int poolSize = snapshot.selectedCandidates().size();
 
-        // 5. Khởi tạo/Lấy bản ghi WildcardReview trong Database cho Coord duyệt
-        for (RoundRankingItemResponse candidate : candidates) {
+        for (RoundRankingItemResponse candidate : snapshot.selectedCandidates()) {
             Team team = teamRepository.findById(candidate.getTeamId()).orElseThrow();
-            Track track = candidate.getTrackId() != null ? trackRepository.findById(candidate.getTrackId()).orElse(null) : null;
+            Track track = candidate.getTrackId() != null
+                    ? trackRepository.findById(candidate.getTrackId()).orElse(null)
+                    : null;
 
-            WildcardReview review = wildcardReviewRepository.findByRound_IdAndTeam_Id(roundId, team.getId())
+            WildcardReview review = wildcardReviewRepository
+                    .findByRound_IdAndTeam_Id(round.getId(), team.getId())
                     .orElseGet(() -> WildcardReview.builder()
                             .round(round)
                             .team(team)
                             .track(track)
-                            .avgScore(candidate.getTotalScore() != null ? candidate.getTotalScore().floatValue() : 0f)
+                            .avgScore(candidate.getTotalScore() != null
+                                    ? candidate.getTotalScore().floatValue()
+                                    : 0f)
                             .build());
 
-            // Lưu vào DB nếu là đề xuất mới
             if (review.getId() == null) {
                 review = wildcardReviewRepository.save(review);
             }
@@ -419,11 +483,18 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                     .reviewId(review.getId())
                     .teamId(team.getId())
                     .teamName(team.getTeamName())
+                    .assignedGroup(candidate.getAssignedGroup())
+                    .candidateRank(candidateRank++)
                     .totalScore(candidate.getTotalScore())
-                    .reason("Hệ thống tự động đề xuất: Thuộc Top " + slots + " điểm cao nhất ngoài chỉ tiêu thăng vòng")
+                    .reason(slots < poolSize
+                            ? "Đồng điểm tại ngưỡng vé vớt — cần Coordinator chọn "
+                                    + slots + " / " + poolSize + " đội"
+                            : "Hệ thống đề xuất: Top " + slots + " điểm cao nhất ngoài Top "
+                                    + round.getTopNAdvance() + " mỗi bảng")
+                    .coordinatorApproved(review.getCoordinatorApproved())
+                    .coordinatorNote(review.getCoordinatorNote())
                     .build());
         }
-
         return responses;
     }
 
@@ -436,22 +507,57 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                 .orElseThrow(() -> new ResourceNotFoundException("WildcardReview", reviewId));
 
         if (!Boolean.TRUE.equals(review.getRound().getScoringLocked())) {
-            throw new BusinessRuleException(ErrorCode.ROUND_NOT_SCORING_LOCKED, "Phải khóa chấm điểm trước khi xét duyệt vé vớt");
+            throw new BusinessRuleException(ErrorCode.ROUND_NOT_SCORING_LOCKED,
+                    "Phải khóa chấm điểm trước khi xét duyệt vé vớt");
+        }
+
+        if (review.getCoordinatorApproved() != null) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Quyết định vé vớt đã chốt — không thể thay đổi");
+        }
+
+        Round round = review.getRound();
+        WildcardPoolSnapshot pool = resolveWildcardPool(round)
+                .orElseThrow(() -> new BusinessRuleException(ErrorCode.INVALID_STATE,
+                        "Không có pool vé vớt đang mở cho vòng này"));
+
+        boolean teamInPool = pool.selectedCandidates().stream()
+                .anyMatch(c -> Objects.equals(c.getTeamId(), review.getTeam().getId()));
+        if (!teamInPool) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Đội không thuộc danh sách vé vớt hiện tại");
+        }
+
+        if (Boolean.TRUE.equals(req.getApproved())) {
+            long approvedCount = wildcardReviewRepository.countByRound_IdAndCoordinatorApproved(
+                    round.getId(), true);
+            if (approvedCount >= pool.availableSlots()) {
+                throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                        "Đã đủ " + pool.availableSlots() + " suất vé vớt được duyệt");
+            }
         }
 
         User coordinator = userRepository.findById(currentUserAccessor.currentUserId()).orElseThrow();
+        LocalDateTime now = LocalDateTime.now();
 
-        // Cập nhật trạng thái duyệt
         review.setCoordinatorApproved(req.getApproved());
         review.setCoordinatorNote(req.getCoordinatorNote());
         review.setReviewedBy(coordinator);
-        review.setReviewedAt(LocalDateTime.now());
-
+        review.setReviewedAt(now);
         WildcardReview saved = wildcardReviewRepository.save(review);
 
-        // Ghi Audit Log cho hành động quyết định vé vớt
+        if (Boolean.TRUE.equals(req.getApproved())) {
+            long approvedAfter = wildcardReviewRepository.countByRound_IdAndCoordinatorApproved(
+                    round.getId(), true);
+            if (approvedAfter >= pool.availableSlots()) {
+                autoRejectRemainingWildcardPool(round, pool, coordinator, now);
+            }
+        }
+
         auditService.log(AuditAction.ROUND_UPDATE, "wildcard_reviews", saved.getId(),
-                java.util.Map.of("coordinatorApproved", req.getApproved(), "teamId", saved.getTeam().getId()));
+                java.util.Map.of(
+                        "coordinatorApproved", req.getApproved(),
+                        "teamId", saved.getTeam().getId()));
 
         return WildcardReviewResponse.builder()
                 .id(saved.getId())
@@ -463,6 +569,24 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                 .reviewedAt(saved.getReviewedAt())
                 .build();
     }
+
+    private void autoRejectRemainingWildcardPool(
+            Round round, WildcardPoolSnapshot pool, User coordinator, LocalDateTime reviewedAt) {
+        for (RoundRankingItemResponse candidate : pool.selectedCandidates()) {
+            wildcardReviewRepository.findByRound_IdAndTeam_Id(round.getId(), candidate.getTeamId())
+                    .filter(pending -> pending.getCoordinatorApproved() == null)
+                    .ifPresent(pending -> {
+                        pending.setCoordinatorApproved(false);
+                        pending.setCoordinatorNote("Tự động từ chối — đủ suất vé vớt");
+                        pending.setReviewedBy(coordinator);
+                        pending.setReviewedAt(reviewedAt);
+                        wildcardReviewRepository.save(pending);
+                    });
+        }
+    }
+
+    private record WildcardPoolSnapshot(
+            int availableSlots, int autoAdvancedCount, List<RoundRankingItemResponse> selectedCandidates) {}
 
     // =========================================================================
     // NHIỆM VỤ 1.3: CÀI GATE BẢO VỆ CHO ADVANCE_TEAMS (Không cho thăng vòng nếu còn Tiebreak)
@@ -532,9 +656,12 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
 
         List<Warning> warnings = new ArrayList<>();
         List<Integer> assigned = new ArrayList<>();
+        JudgeAssignmentType assignmentType = req.getAssignmentType() != null
+                ? req.getAssignmentType()
+                : JudgeAssignmentType.FINAL_EXTERNAL;
         for (Integer judgeId : req.getJudgeIds()) {
             JudgeAssignmentService.CreateResult result =
-                    judgeAssignmentService.assignFinalRoundG4(roundId, judgeId);
+                    judgeAssignmentService.assignFinalRoundG4(roundId, judgeId, assignmentType);
             assigned.add(judgeId);
             if (result.warnings() != null) {
                 warnings.addAll(result.warnings());

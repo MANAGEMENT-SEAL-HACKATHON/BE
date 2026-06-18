@@ -14,7 +14,7 @@ import com.sealhackathon.api.rounds.dto.response.RoundScoreboardResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoringProgressResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundSummaryResponse;
 import com.sealhackathon.api.rounds.dto.response.TiebreakItemResponse;
-import com.sealhackathon.api.rounds.dto.response.WildcardCandidateResponse;
+import com.sealhackathon.api.rounds.dto.response.WildcardCandidatesResponse;
 import com.sealhackathon.api.wildcard_reviews.dto.request.WildcardReviewDecisionRequest;
 import com.sealhackathon.api.wildcard_reviews.dto.response.WildcardReviewResponse;
 
@@ -38,7 +38,7 @@ public interface RoundProgressionService {
 
     List<RoundRankingItemResponse> resolveTiebreak(Integer roundId, ResolveTiebreakRequest req);
 
-    List<WildcardCandidateResponse> wildcardCandidates(Integer roundId);
+    WildcardCandidatesResponse wildcardCandidates(Integer roundId);
 
     AdvanceTeamsResponse advanceTeams(Integer roundId, AdvanceTeamsRequest req);
 

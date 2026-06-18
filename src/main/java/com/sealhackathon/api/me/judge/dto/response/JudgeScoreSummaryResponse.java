@@ -15,6 +15,7 @@ public class JudgeScoreSummaryResponse {
 
     private Integer scoreId;
     private Integer submissionId;
+    private Integer criterionId;
     private String displayCode;
     private BigDecimal totalScore;
     private String comment;

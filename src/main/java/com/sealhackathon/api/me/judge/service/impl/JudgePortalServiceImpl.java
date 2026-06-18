@@ -1,5 +1,6 @@
 package com.sealhackathon.api.me.judge.service.impl;
 
+import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.AuthException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
@@ -13,6 +14,14 @@ import com.sealhackathon.api.me.judge.dto.request.JudgeScoringCompletionRequest;
 import com.sealhackathon.api.me.judge.dto.request.TiebreakVoteRequest;
 import com.sealhackathon.api.me.judge.dto.response.*;
 import com.sealhackathon.api.me.judge.service.JudgePortalService;
+import com.sealhackathon.api.events.entity.JudgeSubmissionScoringConfirmation;
+import com.sealhackathon.api.events.entity.PresentationSlot;
+import com.sealhackathon.api.events.repository.JudgeSubmissionScoringConfirmationRepository;
+import com.sealhackathon.api.events.repository.PresentationSlotRepository;
+import com.sealhackathon.api.criteria.repository.CriteriaRepository;
+import com.sealhackathon.api.presentation.support.PresentationScoringCompletionHelper;
+import com.sealhackathon.api.presentation.value_object.PresentationQueueStatus;
+import com.sealhackathon.api.scores.guard.JudgeAssignmentGuard;
 import com.sealhackathon.api.submissions.entity.Submission;
 import com.sealhackathon.api.submissions.policy.SubmissionGradablePolicy;
 import com.sealhackathon.api.submissions.repository.SubmissionRepository;
@@ -49,6 +58,11 @@ public class JudgePortalServiceImpl implements JudgePortalService {
     private final TeamRepository teamRepository;
     private final RoundRepository roundRepository;
     private final SubmissionRepository submissionRepository;
+    private final JudgeAssignmentGuard judgeAssignmentGuard;
+    private final CriteriaRepository criteriaRepository;
+    private final PresentationSlotRepository presentationSlotRepository;
+    private final JudgeSubmissionScoringConfirmationRepository scoringConfirmationRepository;
+    private final PresentationScoringCompletionHelper scoringCompletionHelper;
 
     @Override
     public List<JudgeTrackAssignmentResponse> listTrackAssignments() {
@@ -114,6 +128,7 @@ public class JudgePortalServiceImpl implements JudgePortalService {
                 .map(score -> JudgeScoreSummaryResponse.builder()
                         .scoreId(score.getId())
                         .submissionId(score.getSubmission().getId())
+                        .criterionId(score.getCriterion().getId())
                         .displayCode("#" + score.getSubmission().getId())
                         .totalScore(BigDecimal.valueOf(score.getScoreValue()))
                         .comment(score.getComment())
@@ -346,4 +361,98 @@ public class JudgePortalServiceImpl implements JudgePortalService {
 
         return JudgeHistoryResponse.builder().items(items).build();
     }
+
+    @Override
+    public JudgePresentationScoringStatusResponse getPresentationScoringStatus(Integer roundId, Integer trackId) {
+        Integer judgeId = currentUserAccessor.currentUserId();
+        if (roundId == null) {
+            throw new AuthException(ErrorCode.VALIDATION_FAILED, "roundId bắt buộc", HttpStatus.BAD_REQUEST);
+        }
+        if (!judgeAssignmentRepository.existsByJudgeIdAndRoundScope(judgeId, roundId)) {
+            throw new AuthException(ErrorCode.FORBIDDEN, "Judge chưa được phân công round này", HttpStatus.FORBIDDEN);
+        }
+
+        PresentationSlot presenting = resolvePresentingSlot(roundId, trackId);
+        if (presenting == null || presenting.getSubmission() == null) {
+            return JudgePresentationScoringStatusResponse.builder()
+                    .roundId(roundId)
+                    .trackId(trackId)
+                    .judgesAssigned(scoringCompletionHelper.countAssignedJudges(trackId, roundId))
+                    .build();
+        }
+
+        Submission submission = presenting.getSubmission();
+        int judgesAssigned = scoringCompletionHelper.countAssignedJudges(trackId, roundId);
+        int judgesScored = scoringCompletionHelper.countDistinctJudgesWithAnyScore(submission.getId());
+        int judgesFullyScored = scoringCompletionHelper.countJudgesFullyScored(submission);
+        boolean myScored = scoringCompletionHelper.hasJudgeFullyScored(judgeId, submission);
+        boolean myConfirmed = scoringConfirmationRepository.existsBySubmission_IdAndJudge_Id(
+                submission.getId(), judgeId);
+        boolean canAdvance = scoringCompletionHelper.canAdvanceQueue(submission, trackId, roundId);
+
+        return JudgePresentationScoringStatusResponse.builder()
+                .roundId(roundId)
+                .trackId(trackId)
+                .submissionId(submission.getId())
+                .displayCode("#" + submission.getId())
+                .judgesAssigned(judgesAssigned)
+                .judgesScored(judgesScored)
+                .judgesFullyScored(judgesFullyScored)
+                .myConfirmed(myConfirmed)
+                .myScored(myScored)
+                .canAdvanceQueue(canAdvance)
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public void confirmSubmissionScoring(Integer submissionId) {
+        Integer judgeId = currentUserAccessor.currentUserId();
+        Submission submission = submissionRepository.findById(submissionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Submission", submissionId));
+
+        judgeAssignmentGuard.requireJudgeForSubmission(judgeId, submission);
+
+        Round round = submission.getRound() != null
+                ? submission.getRound()
+                : submission.getTrack().getRound();
+        if (Boolean.TRUE.equals(round.getScoringLocked())) {
+            throw new ScoringLockedException("Vòng thi đã đóng sổ");
+        }
+
+        if (!scoringCompletionHelper.hasJudgeFullyScored(judgeId, submission)) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                    "Cần chấm đủ tất cả tiêu chí trước khi xác nhận chấm xong");
+        }
+
+        PresentationSlot slot = presentationSlotRepository
+                .findByRound_IdAndSubmission_Id(round.getId(), submissionId)
+                .orElse(null);
+        if (slot == null || slot.getQueueStatus() != PresentationQueueStatus.PRESENTING) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Chỉ xác nhận chấm xong khi bài đang thuyết trình (PRESENTING)");
+        }
+
+        if (scoringConfirmationRepository.existsBySubmission_IdAndJudge_Id(submissionId, judgeId)) {
+            return;
+        }
+
+        User judge = User.builder().id(judgeId).build();
+        scoringConfirmationRepository.save(JudgeSubmissionScoringConfirmation.builder()
+                .submission(submission)
+                .judge(judge)
+                .confirmedAt(LocalDateTime.now())
+                .build());
+    }
+
+    private PresentationSlot resolvePresentingSlot(Integer roundId, Integer trackId) {
+        List<PresentationSlot> slots = trackId != null
+                ? presentationSlotRepository.findByRound_IdAndTrack_IdOrderBySequenceOrderAsc(roundId, trackId)
+                : presentationSlotRepository.findByRound_IdOrderBySequenceOrderAsc(roundId);
+        return slots.stream()
+                .filter(s -> s.getQueueStatus() == PresentationQueueStatus.PRESENTING)
+                .findFirst()
+                .orElse(null);
+    }
+
 }

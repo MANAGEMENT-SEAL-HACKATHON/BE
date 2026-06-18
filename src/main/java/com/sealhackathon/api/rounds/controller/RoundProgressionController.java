@@ -19,7 +19,7 @@ import com.sealhackathon.api.common.response.WarningCode;
 import com.sealhackathon.api.rounds.dto.response.LockScoringResult;
 import com.sealhackathon.api.rounds.dto.response.RoundSummaryResponse;
 import com.sealhackathon.api.rounds.dto.response.TiebreakItemResponse;
-import com.sealhackathon.api.rounds.dto.response.WildcardCandidateResponse;
+import com.sealhackathon.api.rounds.dto.response.WildcardCandidatesResponse;
 import com.sealhackathon.api.rounds.query.RoundRankingQueryService;
 import com.sealhackathon.api.rounds.service.RoundProgressionService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -132,7 +132,7 @@ public class RoundProgressionController {
     @CoordinatorOnly
     @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
     @Operation(summary = "FR-22A — Danh sách ứng viên wildcard")
-    public ResponseEntity<ApiResponse<List<WildcardCandidateResponse>>> wildcardCandidates(@PathVariable Integer id) {
+    public ResponseEntity<ApiResponse<WildcardCandidatesResponse>> wildcardCandidates(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.ok(progressionService.wildcardCandidates(id)));
     }
 

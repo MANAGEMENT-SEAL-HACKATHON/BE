@@ -16,6 +16,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -244,6 +245,20 @@ public class GlobalExceptionHandler {
         log.warn("[{}] {} {} -> 400 malformed: {}", traceId, req.getMethod(), req.getRequestURI(), ex.getMessage());
         return ResponseEntity.badRequest().body(
                 ErrorResponse.of("MALFORMED_REQUEST", "Body/Param không đọc được", HttpStatus.BAD_REQUEST.value())
+        );
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSize(
+            MaxUploadSizeExceededException ex, HttpServletRequest req) {
+        String traceId = traceId();
+        log.warn("[{}] {} {} -> 413 MAX_UPLOAD_SIZE_EXCEEDED: {}",
+                traceId, req.getMethod(), req.getRequestURI(), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(
+                ErrorResponse.of(
+                        ErrorCode.INVALID_SLIDE_FILE,
+                        "slideFile vượt quá dung lượng cho phép (tối đa 25MB)",
+                        HttpStatus.PAYLOAD_TOO_LARGE.value())
         );
     }
 

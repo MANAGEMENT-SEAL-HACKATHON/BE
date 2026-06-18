@@ -15,6 +15,10 @@ public class WildcardCandidateResponse {
     private Integer reviewId;
     private Integer teamId;
     private String teamName;
+    private String assignedGroup;
+    private Integer candidateRank;
     private Double totalScore;
     private String reason;
+    private Boolean coordinatorApproved;
+    private String coordinatorNote;
 }

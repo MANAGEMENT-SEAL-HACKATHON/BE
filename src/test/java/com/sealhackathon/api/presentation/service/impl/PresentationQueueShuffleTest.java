@@ -2,6 +2,7 @@ package com.sealhackathon.api.presentation.service.impl;
 
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
+import com.sealhackathon.api.events.repository.JudgeSubmissionScoringConfirmationRepository;
 import com.sealhackathon.api.events.entity.PresentationSlot;
 import com.sealhackathon.api.events.repository.PresentationSlotRepository;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
@@ -56,6 +57,7 @@ class PresentationQueueShuffleTest {
     @Mock private PresentationQueuePublisher queuePublisher;
     @Mock private CurrentUserAccessor currentUserAccessor;
     @Mock private com.sealhackathon.api.presentation.support.PresentationNextScoringGuard nextScoringGuard;
+    @Mock private JudgeSubmissionScoringConfirmationRepository scoringConfirmationRepository;
 
     @InjectMocks
     private PresentationQueueServiceImpl queueService;
@@ -91,6 +93,7 @@ class PresentationQueueShuffleTest {
 
         ArgumentCaptor<PresentationSlot> captor = ArgumentCaptor.forClass(PresentationSlot.class);
         verify(presentationSlotRepository, org.mockito.Mockito.atLeast(2)).save(captor.capture());
+        verify(scoringConfirmationRepository).deleteByTrackScope(5, 10);
         assertThat(captor.getAllValues())
                 .extracting(PresentationSlot::getSubmission)
                 .extracting(Submission::getId)
