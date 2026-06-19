@@ -89,6 +89,12 @@ public class Round {
     @Column(name = "problem_statement_url", columnDefinition = "TEXT")
     private String problemStatementUrl;
 
+    @Column(name = "problem_statement_storage_key", length = 512)
+    private String problemStatementStorageKey;
+
+    @Column(name = "problem_statement_original_filename", length = 255)
+    private String problemStatementOriginalFilename;
+
     @Column(name = "problem_released_at")
     private LocalDateTime problemReleasedAt;
 
@@ -100,7 +106,7 @@ public class Round {
     private Integer topNAdvance;
 
     /**
-     * [FIX-03] Số đội tối thiểu vào Round tiếp — kích hoạt Wild Card nếu thiếu.
+     * Số đội tối đa dự kiến vào Chung kết — kích hoạt Wild Card nếu thiếu so với thực tế.
      */
     @Column(name = "min_teams_final")
     private Integer minTeamsFinal;

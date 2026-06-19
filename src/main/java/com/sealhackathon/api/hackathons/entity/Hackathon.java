@@ -54,6 +54,9 @@ public class Hackathon {
     @Column(name = "registration_end")
     private LocalDate registrationEnd;
 
+    @Column(name = "registration_closed_early_at")
+    private LocalDateTime registrationClosedEarlyAt;
+
     @Column(name = "event_start")
     private LocalDate eventStart;
 

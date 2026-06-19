@@ -9,6 +9,12 @@ public final class RoundScheduleSeedUtil {
 
     public static final int DEFAULT_PRELIM_CODING_HOURS = 7;
 
+    /** Dự trù thời gian chấm Sơ loại sau khi hết giờ làm bài */
+    public static final int GRADING_BUFFER_HOURS_AFTER_PRELIM = 2;
+
+    /** Khoảng cách tối thiểu giữa lúc chấm xong Sơ loại và giờ thi Chung kết */
+    public static final int FINAL_EXAM_GAP_AFTER_GRADING_HOURS = 1;
+
     private RoundScheduleSeedUtil() {
     }
 
@@ -26,8 +32,11 @@ public final class RoundScheduleSeedUtil {
     /**
      * Thời điểm sớm nhất cho {@code examAt} round Chung kết — khớp
      * {@link com.sealhackathon.api.rounds.service.impl.RoundServiceImpl} {@code ROUND_FINAL_EXAM_ORDER}.
+     * = kết thúc Sơ loại + buffer chấm + 1h nghỉ.
      */
     public static LocalDateTime minFinalExamAt(LocalDateTime prelimExamAt, int prelimCodingHours) {
-        return prelimExamAt.plusHours(prelimCodingHours);
+        return prelimExamAt.plusHours(prelimCodingHours)
+                .plusHours(GRADING_BUFFER_HOURS_AFTER_PRELIM)
+                .plusHours(FINAL_EXAM_GAP_AFTER_GRADING_HOURS);
     }
 }

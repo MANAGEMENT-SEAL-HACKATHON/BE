@@ -14,6 +14,9 @@ import com.sealhackathon.api.rounds.dto.response.RoundSummaryResponse;
 
 import com.sealhackathon.api.rounds.entity.Round;
 
+import com.sealhackathon.api.rounds.support.RoundProblemStatementStorage;
+import com.sealhackathon.api.rounds.support.RoundProblemStatementUrls;
+
 import com.sealhackathon.api.rounds.value_object.LateSubmissionPolicy;
 
 import com.sealhackathon.api.rounds.value_object.RoundType;
@@ -68,8 +71,6 @@ public class RoundMapper {
 
                 .codingDurationHours(req.getCodingDurationHours())
 
-                .problemStatementUrl(req.getProblemStatementUrl())
-
                 .problemReleasedAt(req.getProblemReleasedAt())
 
                 .topNAdvance(isFinal ? null : req.getTopNAdvance())
@@ -103,8 +104,6 @@ public class RoundMapper {
         entity.setSubmissionDeadline(req.getSubmissionDeadline());
 
         entity.setCodingDurationHours(req.getCodingDurationHours());
-
-        entity.setProblemStatementUrl(req.getProblemStatementUrl());
 
         entity.setProblemReleasedAt(req.getProblemReleasedAt());
 
@@ -176,7 +175,11 @@ public class RoundMapper {
 
                 .codingDurationHours(e.getCodingDurationHours())
 
-                .problemStatementUrl(e.getProblemStatementUrl())
+                .problemStatementUrl(Boolean.TRUE.equals(e.getIsFinal())
+                        ? RoundProblemStatementUrls.resolveForResponse(e) : null)
+
+                .problemStatementFilename(Boolean.TRUE.equals(e.getIsFinal())
+                        ? RoundProblemStatementStorage.displayFilename(e) : null)
 
                 .problemReleasedAt(e.getProblemReleasedAt())
 

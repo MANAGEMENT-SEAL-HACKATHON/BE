@@ -66,7 +66,10 @@ public class DataInitializer implements CommandLineRunner {
         gd4AdvanceReadyDataSeeder.repairForFeTesting();
         gd5FinalRoundDataSeeder.repairForFeTesting();
         gd6PendingConfirmDataSeeder.repairForFeTesting();
+        hackathonDevSeedHelper.backfillReleasedPrelimTrackProblems();
+        hackathonDevSeedHelper.backfillReleasedFinalRoundProblems();
         hackathonDevSeedHelper.repairAllDevHackathonMilestoneEvents();
+        hackathonDevSeedHelper.repairAllHackathonBanners();
     }
 }
 

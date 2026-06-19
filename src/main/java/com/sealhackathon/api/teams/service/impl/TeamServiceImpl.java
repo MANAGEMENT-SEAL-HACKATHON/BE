@@ -8,6 +8,7 @@ import com.sealhackathon.api.hackathon_registrations.entity.HackathonRegistratio
 import com.sealhackathon.api.hackathon_registrations.repository.HackathonRegistrationRepository;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
+import com.sealhackathon.api.notifications.service.NotificationService;
 import com.sealhackathon.api.mentor_team_assignments.repository.MentorTeamAssignmentRepository;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.team_members.entity.TeamMember;
@@ -26,9 +27,10 @@ import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.mapper.TeamMapper;
 import com.sealhackathon.api.teams.repository.TeamRepository;
 import com.sealhackathon.api.teams.service.TeamService;
+import com.sealhackathon.api.hackathons.support.HackathonRegistrationSupport;
+import com.sealhackathon.api.teams.support.HackathonTeamSizeResolver;
 import com.sealhackathon.api.teams.support.TeamAccessGuard;
 import com.sealhackathon.api.team_round_participation.value_object.ParticipationStatus;
-import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.teams.value_object.TeamStatus;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.users.dto.response.UserSummaryResponse;
@@ -63,6 +65,60 @@ public class TeamServiceImpl implements TeamService {
     private final AuditService auditService;
     private final TeamMapper teamMapper;
     private final TeamAccessGuard teamAccessGuard;
+    private final HackathonTeamSizeResolver teamSizeResolver;
+    private final NotificationService notificationService;
+
+    private HackathonTeamSizeResolver.TeamSizeLimits limitsFor(Team team) {
+        return teamSizeResolver.forTeam(team);
+    }
+
+    private HackathonTeamSizeResolver.TeamSizeLimits limitsForHackathon(Integer hackathonId) {
+        return teamSizeResolver.forHackathon(hackathonId);
+    }
+
+    private void assertAcceptedCountInRange(long acceptedCount, HackathonTeamSizeResolver.TeamSizeLimits limits) {
+        if (acceptedCount < limits.minTeamSize() || acceptedCount > limits.maxTeamSize()) {
+            throw new BusinessRuleException(ErrorCode.TEAM_INVALID_MEMBER_COUNT,
+                    "Đội cần từ %d đến %d thành viên đã chấp nhận (hiện tại: %d)"
+                            .formatted(limits.minTeamSize(), limits.maxTeamSize(), acceptedCount),
+                    java.util.Map.of(
+                            "accepted", acceptedCount,
+                            "min", limits.minTeamSize(),
+                            "max", limits.maxTeamSize()));
+        }
+    }
+
+    /** Coordinator chỉ duyệt khi leader đã xác nhận thành lập, đủ thành viên và không còn lời mời chờ. */
+    private void assertCoordinatorCanApproveTeam(Team team, Integer teamId) {
+        if (team.getFormationSubmittedAt() == null) {
+            throw new BusinessRuleException(ErrorCode.TEAM_FORMATION_NOT_SUBMITTED,
+                    "Trưởng nhóm chưa xác nhận thành lập đội. Chỉ duyệt sau khi leader bấm xác nhận.");
+        }
+        long acceptedCount = teamMemberRepository.countByTeam_IdAndStatus(
+                teamId, com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED);
+        assertAcceptedCountInRange(acceptedCount, limitsFor(team));
+        long pendingCount = teamMemberRepository.countByTeam_IdAndStatus(
+                teamId, com.sealhackathon.api.team_members.value_object.TeamMemberStatus.PENDING);
+        if (pendingCount > 0) {
+            throw new BusinessRuleException(ErrorCode.TEAM_HAS_PENDING_MEMBERS,
+                    "Đội vẫn còn " + pendingCount + " lời mời chờ phản hồi, cần xử lý trước khi duyệt.");
+        }
+    }
+
+    /** Leader chỉ chỉnh roster khi đội PENDING, chưa xác nhận thành lập và chưa bị khóa. */
+    private void assertLeaderCanChangeMembership(Team team) {
+        if (Boolean.TRUE.equals(team.getIsLocked())) {
+            throw new BusinessRuleException(ErrorCode.TEAM_LOCKED, "Đội đã bị khóa, không thể thay đổi thành viên.");
+        }
+        if (team.getFormationSubmittedAt() != null) {
+            throw new BusinessRuleException(ErrorCode.TEAM_FORMATION_ALREADY_SUBMITTED,
+                    "Đội đã xác nhận thành lập, không thể thay đổi thành viên.");
+        }
+        if (team.getStatus() != TeamStatus.PENDING) {
+            throw new BusinessRuleException(ErrorCode.TEAM_ALREADY_ACTIVE,
+                    "Đội đã được Coordinator duyệt, không thể thay đổi thành viên.");
+        }
+    }
 
     @Override
     public TeamResponse createTeam(CreateTeamRequest req) {
@@ -83,7 +139,7 @@ public class TeamServiceImpl implements TeamService {
             throw new BusinessRuleException(ErrorCode.HACKATHON_NOT_ONGOING, "Hackathon chưa mở đăng ký (không phải ONGOING)");
         }
 
-        if (hackathon.getRegistrationEnd() != null && java.time.LocalDate.now().isAfter(hackathon.getRegistrationEnd())) {
+        if (HackathonRegistrationSupport.isRegistrationClosed(hackathon)) {
             throw new BusinessRuleException(ErrorCode.REGISTRATION_CLOSED, "Đã quá hạn đăng ký tham gia Hackathon");
         }
 
@@ -172,6 +228,8 @@ public class TeamServiceImpl implements TeamService {
             assignedGroup = latestTrack.getAssignedGroup();
         }
 
+        HackathonTeamSizeResolver.TeamSizeLimits sizeLimits = limitsFor(team);
+
         return TeamDetailResponse.builder()
                 .id(team.getId())
                 .hackathonId(team.getHackathon().getId())
@@ -185,12 +243,16 @@ public class TeamServiceImpl implements TeamService {
                 .lockedAt(team.getLockedAt())
                 .rejectionReason(team.getRejectionReason())
                 .createdAt(team.getCreatedAt())
+                .formationSubmittedAt(team.getFormationSubmittedAt())
+                .formationGraceDeadlineAt(team.getFormationGraceDeadlineAt())
                 .acceptedMemberCount(acceptedCount)
                 .pendingInviteCount(pendingCount)
                 .members(memberResponses)
                 .trackId(trackId)
                 .trackName(trackName)
                 .assignedGroup(assignedGroup)
+                .minTeamSize(sizeLimits.minTeamSize())
+                .maxTeamSize(sizeLimits.maxTeamSize())
                 .build();
     }
 
@@ -240,12 +302,7 @@ public class TeamServiceImpl implements TeamService {
             if (team.getHackathon().getStatus() != com.sealhackathon.api.hackathons.value_object.HackathonStatus.ONGOING) {
                 throw new BusinessRuleException(ErrorCode.HACKATHON_NOT_ONGOING, "Chỉ duyệt đội khi Hackathon đang ONGOING");
             }
-            long acceptedCount = teamMemberRepository.countByTeam_IdAndStatus(teamId, com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED);
-            if (acceptedCount < 3 || acceptedCount > 5) {
-                throw new BusinessRuleException(ErrorCode.TEAM_INVALID_MEMBER_COUNT,
-                        "Đội cần từ 3 đến 5 thành viên đã chấp nhận (hiện tại: " + acceptedCount + ")",
-                        java.util.Map.of("accepted", acceptedCount, "min", 3, "max", 5));
-            }
+            assertCoordinatorCanApproveTeam(team, teamId);
             team.setStatus(TeamStatus.ACTIVE);
             team.setRejectionReason(null);
             auditService.log(com.sealhackathon.api.common.audit.AuditAction.TEAM_APPROVE, "teams", teamId);
@@ -263,6 +320,68 @@ public class TeamServiceImpl implements TeamService {
         }
 
         return teamMapper.toResponse(teamRepository.save(team));
+    }
+
+    @Override
+    public TeamDetailResponse confirmFormation(Integer teamId) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new ResourceNotFoundException("Team", teamId));
+
+        if (!team.getLeader().getId().equals(currentUserAccessor.currentUserId())) {
+            throw new BusinessRuleException(ErrorCode.FORBIDDEN, "Chỉ trưởng nhóm mới được xác nhận thành lập đội.");
+        }
+        if (Boolean.TRUE.equals(team.getIsLocked())) {
+            throw new BusinessRuleException(ErrorCode.TEAM_LOCKED, "Đội đã bị khóa, không thể xác nhận thành lập.");
+        }
+        if (team.getStatus() != TeamStatus.PENDING) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATUS_TRANSITION,
+                    "Chỉ xác nhận thành lập khi đội đang chờ duyệt.");
+        }
+        if (team.getFormationSubmittedAt() != null) {
+            throw new BusinessRuleException(ErrorCode.TEAM_FORMATION_ALREADY_SUBMITTED,
+                    "Bạn đã xác nhận thành lập đội trước đó.");
+        }
+
+        long acceptedCount = teamMemberRepository.countByTeam_IdAndStatus(
+                teamId, com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED);
+        assertAcceptedCountInRange(acceptedCount, limitsFor(team));
+
+        long pendingCount = teamMemberRepository.countByTeam_IdAndStatus(
+                teamId, com.sealhackathon.api.team_members.value_object.TeamMemberStatus.PENDING);
+        if (pendingCount > 0) {
+            throw new BusinessRuleException(ErrorCode.TEAM_FORMATION_PENDING_INVITES,
+                    "Đội đang còn " + pendingCount + " lời mời chờ phản hồi. "
+                            + "Hãy chờ thành viên chấp nhận hoặc hủy lời mời trước khi xác nhận.");
+        }
+
+        team.setFormationSubmittedAt(LocalDateTime.now());
+        team.setFormationGraceDeadlineAt(null);
+        teamRepository.save(team);
+        auditService.log(com.sealhackathon.api.common.audit.AuditAction.TEAM_FORMATION_CONFIRMED, "teams", teamId,
+                java.util.Map.of("acceptedMembers", acceptedCount));
+
+        notifyCoordinatorsFormationSubmitted(team);
+
+        return getTeam(teamId);
+    }
+
+    private void notifyCoordinatorsFormationSubmitted(Team team) {
+        java.util.List<User> coordinators = userRepository
+                .findByRoleAndStatus(
+                        com.sealhackathon.api.users.value_object.UserRole.COORDINATOR,
+                        com.sealhackathon.api.users.value_object.UserStatus.APPROVED,
+                        org.springframework.data.domain.Pageable.unpaged())
+                .getContent();
+        if (coordinators.isEmpty()) {
+            return;
+        }
+        notificationService.sendBatch(
+                coordinators,
+                "TEAM_AWAITING_APPROVAL",
+                "Đội mới chờ duyệt tham gia",
+                "Đội \"" + team.getTeamName() + "\" vừa xác nhận thành lập và đang chờ Coordinator duyệt.",
+                "teams",
+                team.getId());
     }
 
     @Override
@@ -288,11 +407,7 @@ public class TeamServiceImpl implements TeamService {
                 if (team.getStatus() == TeamStatus.ACTIVE) {
                     continue; // Đã duyệt rồi thì bỏ qua
                 }
-                long acceptedCount = teamMemberRepository.countByTeam_IdAndStatus(teamId, com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED);
-                if (acceptedCount < 3 || acceptedCount > 5) {
-                    errors.add("Team ID " + teamId + " (" + team.getTeamName() + ") có " + acceptedCount + " thành viên (yêu cầu 3-5)");
-                    continue;
-                }
+                assertCoordinatorCanApproveTeam(team, teamId);
 
                 team.setStatus(TeamStatus.ACTIVE);
                 team.setRejectionReason(null);
@@ -320,9 +435,7 @@ public class TeamServiceImpl implements TeamService {
         if (!team.getLeader().getId().equals(currentUserAccessor.currentUserId())) {
             throw new BusinessRuleException(ErrorCode.FORBIDDEN, "Chỉ nhóm trưởng hiện tại mới được chuyển quyền");
         }
-        if (Boolean.TRUE.equals(team.getIsLocked())) {
-            throw new BusinessRuleException(ErrorCode.TEAM_LOCKED, "Đội đã bị khóa");
-        }
+        assertLeaderCanChangeMembership(team);
 
         Integer newLeaderId = req.getNewLeaderId();
         com.sealhackathon.api.team_members.entity.TeamMember newLeaderMember = teamMemberRepository.findById(new com.sealhackathon.api.team_members.entity.TeamMemberId(teamId, newLeaderId))
@@ -372,6 +485,20 @@ public class TeamServiceImpl implements TeamService {
             throw new ConflictException(ErrorCode.TEAM_HAS_MENTOR_CANNOT_DISBAND, "Đội đã được phân công Mentor, không thể giải tán");
         }
 
+        if (isLeader) {
+            if (Boolean.TRUE.equals(team.getIsLocked())) {
+                throw new BusinessRuleException(ErrorCode.TEAM_LOCKED, "Đội đã bị khóa, không thể giải tán.");
+            }
+            if (team.getFormationSubmittedAt() != null) {
+                throw new BusinessRuleException(ErrorCode.TEAM_FORMATION_ALREADY_SUBMITTED,
+                        "Đã xác nhận thành lập đội, không thể giải tán.");
+            }
+            if (team.getStatus() == TeamStatus.ACTIVE) {
+                throw new BusinessRuleException(ErrorCode.TEAM_ALREADY_ACTIVE,
+                        "Đội đã được Coordinator duyệt. Chỉ Coordinator mới có thể giải tán.");
+            }
+        }
+
         team.setStatus(TeamStatus.REJECTED);
         team.setRejectionReason("Đội đã giải tán");
         teamRepository.save(team);
@@ -400,9 +527,11 @@ public class TeamServiceImpl implements TeamService {
         if (!team.getLeader().getId().equals(currentUserAccessor.currentUserId())) {
             throw new BusinessRuleException(ErrorCode.FORBIDDEN, "Chỉ nhóm trưởng mới có quyền mời thành viên");
         }
-        if (Boolean.TRUE.equals(team.getIsLocked())) {
-            throw new BusinessRuleException(ErrorCode.TEAM_LOCKED, "Đội đã bị khóa, không thể mời thêm thành viên");
+        if (HackathonRegistrationSupport.isRegistrationClosed(team.getHackathon())) {
+            throw new BusinessRuleException(ErrorCode.REGISTRATION_CLOSED,
+                    "Đã hết hạn đăng ký, không thể mời thêm thành viên.");
         }
+        assertLeaderCanChangeMembership(team);
 
         User invitee = userRepository.findByEmail(req.getEmail().trim().toLowerCase())
                 .orElseThrow(() -> new ResourceNotFoundException("User", req.getEmail()));
@@ -415,12 +544,15 @@ public class TeamServiceImpl implements TeamService {
         }
 
         java.util.List<com.sealhackathon.api.team_members.entity.TeamMember> currentMembers = teamMemberRepository.findByTeam_Id(teamId);
+        HackathonTeamSizeResolver.TeamSizeLimits inviteLimits = limitsFor(team);
         long activeOrPendingCount = currentMembers.stream()
                 .filter(m -> m.getStatus() == com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED
                         || m.getStatus() == com.sealhackathon.api.team_members.value_object.TeamMemberStatus.PENDING)
                 .count();
-        if (activeOrPendingCount >= 5) {
-            throw new BusinessRuleException(ErrorCode.TEAM_MEMBER_FULL, "Đội đã đạt tối đa 5 thành viên (bao gồm cả lời mời đang chờ)");
+        if (activeOrPendingCount >= inviteLimits.maxTeamSize()) {
+            throw new BusinessRuleException(ErrorCode.TEAM_MEMBER_FULL,
+                    "Đội đã đạt tối đa %d thành viên (bao gồm cả lời mời đang chờ)"
+                            .formatted(inviteLimits.maxTeamSize()));
         }
 
         boolean alreadyInTeam = teamMemberRepository.existsAcceptedInActiveOrPendingTeam(
@@ -456,23 +588,51 @@ public class TeamServiceImpl implements TeamService {
 
     @Override
     public void patchTeamMember(Integer teamId, Integer userId, PatchTeamMemberRequest req) {
-        if (!currentUserAccessor.currentUserId().equals(userId)) {
-            throw new BusinessRuleException(ErrorCode.FORBIDDEN, "Bạn chỉ có thể phản hồi lời mời của chính mình");
-        }
+        Integer callerId = currentUserAccessor.currentUserId();
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new ResourceNotFoundException("Team", teamId));
 
-        com.sealhackathon.api.team_members.entity.TeamMember member = teamMemberRepository.findById(new com.sealhackathon.api.team_members.entity.TeamMemberId(teamId, userId))
+        com.sealhackathon.api.team_members.entity.TeamMember member = teamMemberRepository.findById(
+                        new com.sealhackathon.api.team_members.entity.TeamMemberId(teamId, userId))
                 .orElseThrow(() -> new ResourceNotFoundException("TeamMember", userId));
 
         com.sealhackathon.api.teams.value_object.TeamMemberAction action = req.getAction();
+        boolean isSelf = callerId.equals(userId);
+        boolean isLeader = team.getLeader().getId().equals(callerId);
         String auditActionLog = "";
+        java.util.Map<String, Object> auditMeta = new java.util.HashMap<>(java.util.Map.of("teamId", teamId));
+
+        if (action == com.sealhackathon.api.teams.value_object.TeamMemberAction.ACCEPT
+                || action == com.sealhackathon.api.teams.value_object.TeamMemberAction.REJECT) {
+            if (!isSelf) {
+                throw new BusinessRuleException(ErrorCode.FORBIDDEN,
+                        "Bạn chỉ có thể phản hồi lời mời của chính mình");
+            }
+            if (Boolean.TRUE.equals(team.getIsLocked())) {
+                throw new BusinessRuleException(ErrorCode.TEAM_LOCKED, "Đội đã bị khóa, không thể thay đổi thành viên");
+            }
+        } else if (action == com.sealhackathon.api.teams.value_object.TeamMemberAction.LEFT) {
+            if (!isSelf && !isLeader) {
+                throw new BusinessRuleException(ErrorCode.FORBIDDEN, "Bạn không có quyền thực hiện thao tác này");
+            }
+            if (!isSelf && isLeader) {
+                assertLeaderCanChangeMembership(team);
+            } else if (Boolean.TRUE.equals(team.getIsLocked())) {
+                throw new BusinessRuleException(ErrorCode.TEAM_LOCKED, "Đội đã bị khóa, không thể thay đổi thành viên");
+            }
+        } else {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATUS_TRANSITION, "Hành động thành viên không hợp lệ");
+        }
 
         if (action == com.sealhackathon.api.teams.value_object.TeamMemberAction.ACCEPT) {
             if (member.getStatus() != com.sealhackathon.api.team_members.value_object.TeamMemberStatus.PENDING) {
                 throw new BusinessRuleException(ErrorCode.INVALID_STATUS_TRANSITION, "Chỉ có thể ACCEPT lời mời đang ở trạng thái PENDING");
             }
             long acceptedCount = teamMemberRepository.countByTeam_IdAndStatus(teamId, com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED);
-            if (acceptedCount >= 5) {
-                throw new BusinessRuleException(ErrorCode.TEAM_MEMBER_FULL, "Đội đã đủ 5 thành viên chính thức");
+            HackathonTeamSizeResolver.TeamSizeLimits acceptLimits = limitsFor(team);
+            if (acceptedCount >= acceptLimits.maxTeamSize()) {
+                throw new BusinessRuleException(ErrorCode.TEAM_MEMBER_FULL,
+                        "Đội đã đủ %d thành viên chính thức".formatted(acceptLimits.maxTeamSize()));
             }
             member.setStatus(com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED);
             member.setJoinedAt(java.time.LocalDateTime.now());
@@ -487,7 +647,15 @@ public class TeamServiceImpl implements TeamService {
 
         } else if (action == com.sealhackathon.api.teams.value_object.TeamMemberAction.LEFT) {
             if (member.getRoleInTeam() == com.sealhackathon.api.team_members.value_object.TeamMemberRole.LEADER) {
-                throw new BusinessRuleException(ErrorCode.LEADER_CANNOT_LEAVE_TEAM, "Leader không thể rời đội. Hãy chuyển quyền (Transfer) trước.");
+                throw new BusinessRuleException(ErrorCode.LEADER_CANNOT_LEAVE_TEAM,
+                        "Leader không thể rời đội. Hãy chuyển quyền (Transfer) trước.");
+            }
+            if (!isSelf) {
+                if (member.getStatus() != com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED) {
+                    throw new BusinessRuleException(ErrorCode.INVALID_STATUS_TRANSITION,
+                            "Chỉ có thể mời rời thành viên đã tham gia. Lời mời đang chờ hãy dùng Hủy lời mời.");
+                }
+                auditMeta.put("removedByLeader", true);
             }
             member.setStatus(com.sealhackathon.api.team_members.value_object.TeamMemberStatus.LEFT);
             member.setLeftAt(java.time.LocalDateTime.now());
@@ -495,7 +663,7 @@ public class TeamServiceImpl implements TeamService {
         }
 
         teamMemberRepository.save(member);
-        auditService.log(auditActionLog, "team_members", userId, java.util.Map.of("teamId", teamId));
+        auditService.log(auditActionLog, "team_members", userId, auditMeta);
     }
 
     @Override
@@ -505,9 +673,7 @@ public class TeamServiceImpl implements TeamService {
         if (!team.getLeader().getId().equals(currentUserAccessor.currentUserId())) {
             throw new BusinessRuleException(ErrorCode.FORBIDDEN, "Chỉ nhóm trưởng mới được hủy lời mời");
         }
-        if (Boolean.TRUE.equals(team.getIsLocked())) {
-            throw new BusinessRuleException(ErrorCode.TEAM_LOCKED, "Đội đã bị khóa");
-        }
+        assertLeaderCanChangeMembership(team);
         com.sealhackathon.api.team_members.entity.TeamMember member = teamMemberRepository.findById(new com.sealhackathon.api.team_members.entity.TeamMemberId(teamId, userId))
                 .orElseThrow(() -> new ResourceNotFoundException("TeamMember", userId));
         if (member.getStatus() != com.sealhackathon.api.team_members.value_object.TeamMemberStatus.PENDING) {
@@ -654,11 +820,13 @@ public class TeamServiceImpl implements TeamService {
         Hackathon hackathon = hackathonRepository.findById(req.getHackathonId())
                 .orElseThrow(() -> new ResourceNotFoundException("Hackathon", req.getHackathonId()));
 
-        // RÀO CHẮN: BẢO VỆ QUY TẮC TỐI THƯỢNG 3-5 THÀNH VIÊN
+        // RÀO CHẮN: quy mô đội theo cấu hình track của hackathon
+        HackathonTeamSizeResolver.TeamSizeLimits createLimits = limitsForHackathon(hackathon.getId());
         int totalMembers = 1 + req.getMemberIds().size(); // 1 Leader + số lượng Members
-        if (totalMembers < 3 || totalMembers > 5) {
+        if (totalMembers < createLimits.minTeamSize() || totalMembers > createLimits.maxTeamSize()) {
             throw new BusinessRuleException(ErrorCode.TEAM_INVALID_MEMBER_COUNT,
-                    "Vi phạm quy tắc: Ban Tổ Chức chỉ được phép tạo đội ép buộc khi gom đủ từ 3 đến 5 thành viên. Số lượng bạn đang chọn là: " + totalMembers);
+                    "Vi phạm quy tắc: Ban Tổ Chức chỉ được phép tạo đội ép buộc khi gom đủ từ %d đến %d thành viên. Số lượng bạn đang chọn là: %d"
+                            .formatted(createLimits.minTeamSize(), createLimits.maxTeamSize(), totalMembers));
         }
 
         if (teamRepository.existsByHackathon_IdAndTeamNameIgnoreCase(hackathon.getId(), req.getTeamName().trim())) {
@@ -769,7 +937,8 @@ public class TeamServiceImpl implements TeamService {
 
         for (Team t : pendingTeams) {
             long acceptedCount = teamMemberRepository.countByTeam_IdAndStatus(t.getId(), TeamMemberStatus.ACCEPTED);
-            if (acceptedCount < 3) { // Dưới 3 người là thiếu
+            HackathonTeamSizeResolver.TeamSizeLimits limits = limitsFor(t);
+            if (acceptedCount < limits.minTeamSize()) {
                 incompleteTeams.add(getTeam(t.getId()));
             }
         }
@@ -801,10 +970,12 @@ public class TeamServiceImpl implements TeamService {
             throw new ConflictException(ErrorCode.USER_IN_ANOTHER_TEAM, "Sinh viên này đã thuộc về một đội khác.");
         }
 
-        // Rào chắn: Đội đã full 5 người chưa
+        // Rào chắn: Đội đã full chưa
         long acceptedCount = teamMemberRepository.countByTeam_IdAndStatus(teamId, TeamMemberStatus.ACCEPTED);
-        if (acceptedCount >= 5) {
-            throw new BusinessRuleException(ErrorCode.TEAM_MEMBER_FULL, "Đội này đã đủ 5 thành viên.");
+        HackathonTeamSizeResolver.TeamSizeLimits addLimits = limitsFor(team);
+        if (acceptedCount >= addLimits.maxTeamSize()) {
+            throw new BusinessRuleException(ErrorCode.TEAM_MEMBER_FULL,
+                    "Đội này đã đủ %d thành viên.".formatted(addLimits.maxTeamSize()));
         }
 
         // Ép vào đội với trạng thái ACCEPTED (Bỏ qua luồng gửi Mail Invite)
@@ -818,8 +989,8 @@ public class TeamServiceImpl implements TeamService {
                 .build();
         teamMemberRepository.save(member);
 
-        // Auto-Active: Nếu thêm bạn này vào mà đội vừa tròn 3 người, tự động kích hoạt đội lên ACTIVE
-        if (acceptedCount + 1 >= 3 && team.getStatus() == TeamStatus.PENDING) {
+        // Auto-Active: đủ tối thiểu theo cấu hình track
+        if (acceptedCount + 1 >= addLimits.minTeamSize() && team.getStatus() == TeamStatus.PENDING) {
             team.setStatus(TeamStatus.ACTIVE);
             teamRepository.save(team);
         }
@@ -855,11 +1026,14 @@ public class TeamServiceImpl implements TeamService {
         long targetCount = targetMembers.stream().filter(m -> m.getStatus() == TeamMemberStatus.ACCEPTED).count();
         long sourceCount = sourceMembers.stream().filter(m -> m.getStatus() == TeamMemberStatus.ACCEPTED).count();
 
-        // 3. RÀO CHẮN: Đảm bảo tổng số người sau khi gộp không vượt quá 5
+        HackathonTeamSizeResolver.TeamSizeLimits mergeLimits = limitsFor(targetTeam);
+
+        // 3. RÀO CHẮN: Đảm bảo tổng số người sau khi gộp không vượt quá max
         long totalAfterMerge = targetCount + sourceCount;
-        if (totalAfterMerge > 5) {
+        if (totalAfterMerge > mergeLimits.maxTeamSize()) {
             throw new BusinessRuleException(ErrorCode.TEAM_MEMBER_FULL,
-                    "Gộp thất bại: Tổng số thành viên của 2 đội là " + totalAfterMerge + " (Vượt quá quy định tối đa 5 thành viên).");
+                    "Gộp thất bại: Tổng số thành viên của 2 đội là " + totalAfterMerge
+                            + " (Vượt quá quy định tối đa " + mergeLimits.maxTeamSize() + " thành viên).");
         }
 
         // 4. Bế thành viên từ Source Team sang Target Team
@@ -882,8 +1056,8 @@ public class TeamServiceImpl implements TeamService {
             }
         }
 
-        // 5. Đánh giá lại Đội Đích (Target Team): Đủ 3 người thì kích hoạt ACTIVE
-        if (totalAfterMerge >= 3) {
+        // 5. Đánh giá lại Đội Đích (Target Team): đủ tối thiểu thì kích hoạt ACTIVE
+        if (totalAfterMerge >= mergeLimits.minTeamSize()) {
             targetTeam.setStatus(TeamStatus.ACTIVE);
             teamRepository.save(targetTeam);
         }

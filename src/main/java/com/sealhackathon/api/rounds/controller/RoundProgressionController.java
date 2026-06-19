@@ -6,7 +6,6 @@ import com.sealhackathon.api.config.OpenApiConfig;
 import com.sealhackathon.api.rounds.dto.request.AdvanceTeamsRequest;
 import com.sealhackathon.api.rounds.dto.request.AssignFinalJudgesRequest;
 import com.sealhackathon.api.rounds.dto.request.LockScoringRequest;
-import com.sealhackathon.api.rounds.dto.request.ReleaseProblemRequest;
 import com.sealhackathon.api.rounds.dto.request.ResolveTiebreakRequest;
 import com.sealhackathon.api.rounds.dto.response.AdvanceTeamsResponse;
 import com.sealhackathon.api.rounds.dto.response.AssignFinalJudgesResult;
@@ -27,6 +26,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -34,7 +34,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -47,14 +49,17 @@ public class RoundProgressionController {
     private final RoundProgressionService progressionService;
     private final RoundRankingQueryService roundRankingQueryService;
 
-    @PatchMapping("/{id}/release-problem")
+    @PatchMapping(value = "/{id}/release-problem", consumes = {
+            MediaType.MULTIPART_FORM_DATA_VALUE,
+            MediaType.APPLICATION_JSON_VALUE
+    })
     @CoordinatorOnly
     @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
-    @Operation(summary = "FR-15A — Phát đề theo round")
+    @Operation(summary = "FR-15A — Phát đề (Sau khi kích hoạt vòng; Sơ loại: xác nhận sau khi upload từng track)")
     public ResponseEntity<ApiResponse<RoundSummaryResponse>> releaseProblem(
             @PathVariable Integer id,
-            @Valid @RequestBody ReleaseProblemRequest req) {
-        return ResponseEntity.ok(ApiResponse.ok(progressionService.releaseProblem(id, req)));
+            @RequestPart(value = "file", required = false) MultipartFile file) {
+        return ResponseEntity.ok(ApiResponse.ok(progressionService.releaseProblem(id, file)));
     }
 
     @PatchMapping("/{id}/lock-scoring")

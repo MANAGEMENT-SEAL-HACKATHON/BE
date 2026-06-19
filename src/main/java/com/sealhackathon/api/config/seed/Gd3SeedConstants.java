@@ -19,6 +19,9 @@ public final class Gd3SeedConstants {
     public static final String TEAM_05 = "GD3-05";
     public static final String TEAM_06 = "GD3-06";
 
+    /** Đội cuối — chưa nộp bài; demo nộp → shuffle queue → chấm live. */
+    public static final int DEMO_TEAM_INDEX = 6;
+
     public static String studentEmail(int teamIndex) {
         return "student.gd3.leader%02d@fpt.edu.vn".formatted(teamIndex);
     }

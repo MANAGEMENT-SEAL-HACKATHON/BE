@@ -30,6 +30,7 @@ public class HackathonResponse {
     private final String bannerUrl;
     private final LocalDate registrationStart;
     private final LocalDate registrationEnd;
+    private final LocalDateTime registrationClosedEarlyAt;
     private final LocalDate eventStart;
     private final LocalDate eventEnd;
     private final Boolean wildcardEnabled;

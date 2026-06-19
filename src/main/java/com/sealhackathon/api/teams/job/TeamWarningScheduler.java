@@ -9,6 +9,7 @@ import com.sealhackathon.api.notifications.service.NotificationService;
 import com.sealhackathon.api.team_members.repository.TeamMemberRepository;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.repository.TeamRepository;
+import com.sealhackathon.api.teams.support.HackathonTeamSizeResolver;
 import com.sealhackathon.api.teams.value_object.TeamStatus;
 import com.sealhackathon.api.users.entity.User;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +38,7 @@ public class TeamWarningScheduler {
     private final TeamRepository teamRepository;
     private final TeamMemberRepository teamMemberRepository;
     private final NotificationService notificationService;
+    private final HackathonTeamSizeResolver teamSizeResolver;
 
     /** Chạy định kỳ lúc 08:00 sáng mỗi ngày. */
     @Scheduled(cron = "${app.team-warning.scheduler.cron:0 0 8 * * *}")
@@ -95,10 +97,10 @@ public class TeamWarningScheduler {
         List<Team> incompleteTeams = teamRepository.findByHackathon_IdAndStatus(h.getId(), TeamStatus.PENDING);
 
         List<User> leadersToWarn = new ArrayList<>();
+        HackathonTeamSizeResolver.TeamSizeLimits limits = teamSizeResolver.forHackathon(h.getId());
         for (Team t : incompleteTeams) {
-            // Đếm số thành viên thực tế đã ACCEPTED
             long acceptedCount = teamMemberRepository.countByTeam_IdAndStatus(t.getId(), com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED);
-            if (acceptedCount < 3) {
+            if (acceptedCount < limits.minTeamSize()) {
                 leadersToWarn.add(t.getLeader());
             }
         }
@@ -108,7 +110,8 @@ public class TeamWarningScheduler {
                     leadersToWarn,
                     "TEAM_WARNING",
                     "⚠️ Nguy cơ bị loại: Đội của bạn chưa đủ người!",
-                    "Chỉ còn " + daysLeft + " ngày nữa là kết thúc, đội của bạn vẫn đang có dưới 3 thành viên. Hãy nhanh chóng tuyển thêm người để Đội được kích hoạt (ACTIVE).",
+                    "Chỉ còn " + daysLeft + " ngày nữa là kết thúc, đội của bạn vẫn đang có dưới "
+                            + limits.minTeamSize() + " thành viên. Hãy nhanh chóng tuyển thêm người để Đội được kích hoạt (ACTIVE).",
                     "teams",
                     h.getId()
             );

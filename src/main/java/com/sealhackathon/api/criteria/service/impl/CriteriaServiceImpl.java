@@ -382,14 +382,14 @@ public class CriteriaServiceImpl implements CriteriaService {
         return criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(trackId).stream()
                 .mapToInt(c -> c.getDisplayOrder() == null ? 0 : c.getDisplayOrder())
                 .max()
-                .orElse(-1) + 1;
+                .orElse(0) + 1;
     }
 
     private int nextDisplayOrderForFinalRound(Integer finalRoundId) {
         return criteriaRepository.findByFinalRoundIdOrderByDisplayOrderAsc(finalRoundId).stream()
                 .mapToInt(c -> c.getDisplayOrder() == null ? 0 : c.getDisplayOrder())
                 .max()
-                .orElse(-1) + 1;
+                .orElse(0) + 1;
     }
 
     /**

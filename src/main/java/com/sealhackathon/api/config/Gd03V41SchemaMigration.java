@@ -28,6 +28,14 @@ public class Gd03V41SchemaMigration implements CommandLineRunner {
         migrateParticipationStatusToTeamRoundTracks();
         migratePrizesHackathonUnique();
         createSubmissionMetadataTable();
+        migrateSeasonEnumFpt();
+        migrateHackathonBannerLegacyUrls();
+        migrateRoundProblemStatementFiles();
+        migrateTrackProblemStatementFiles();
+        createHackathonRegistrationWithdrawalsTable();
+        migrateTeamFormationSubmittedAt();
+        migrateFormationGraceDeadlineAt();
+        migrateRegistrationClosedEarlyAt();
         log.info("[Gd03V41SchemaMigration] GD03 v4.1 schema delta applied (idempotent)");
     }
 
@@ -265,5 +273,124 @@ public class Gd03V41SchemaMigration implements CommandLineRunner {
             log.debug("[Gd03V41SchemaMigration] indexExists skipped for {}.{}: {}", table, indexName, ex.getMessage());
             return false;
         }
+    }
+
+    /** FPT chỉ có 3 mùa: Spring, Summer, Fall. */
+    private void migrateSeasonEnumFpt() {
+        if (!tableExists("hackathons")) {
+            return;
+        }
+        try {
+            jdbcTemplate.update("UPDATE hackathons SET season = 'Spring' WHERE season = 'Winter'");
+            jdbcTemplate.execute(
+                    "ALTER TABLE hackathons MODIFY COLUMN season ENUM('Spring','Summer','Fall') NOT NULL");
+            log.info("[Gd03V41SchemaMigration] hackathons.season → Spring/Summer/Fall");
+        } catch (Exception ex) {
+            log.debug("[Gd03V41SchemaMigration] migrateSeasonEnumFpt skipped: {}", ex.getMessage());
+        }
+    }
+
+    /** Banner cũ dạng URL ngoài — xóa để seed tạo file upload nội bộ. */
+    private void migrateHackathonBannerLegacyUrls() {
+        if (!columnExists("hackathons", "banner_url")) {
+            return;
+        }
+        try {
+            int cleared = jdbcTemplate.update("""
+                    UPDATE hackathons
+                       SET banner_url = NULL
+                     WHERE banner_url IS NOT NULL
+                       AND (banner_url LIKE 'http://%' OR banner_url LIKE 'https://%')
+                    """);
+            if (cleared > 0) {
+                log.info("[Gd03V41SchemaMigration] Cleared {} legacy http banner_url values", cleared);
+            }
+        } catch (Exception ex) {
+            log.debug("[Gd03V41SchemaMigration] migrateHackathonBannerLegacyUrls skipped: {}", ex.getMessage());
+        }
+    }
+
+    /** Đề bài: chuyển từ URL ngoài sang upload PDF nội bộ. */
+    private void migrateRoundProblemStatementFiles() {
+        if (!tableExists("rounds")) {
+            return;
+        }
+        addColumnIfMissing("rounds", "problem_statement_storage_key", "VARCHAR(512) NULL");
+        addColumnIfMissing("rounds", "problem_statement_original_filename", "VARCHAR(255) NULL");
+        try {
+            int cleared = jdbcTemplate.update("""
+                    UPDATE rounds
+                       SET problem_statement_url = NULL
+                     WHERE problem_statement_url IS NOT NULL
+                       AND (problem_statement_url LIKE 'http://%' OR problem_statement_url LIKE 'https://%')
+                    """);
+            if (cleared > 0) {
+                log.info("[Gd03V41SchemaMigration] Cleared {} legacy http problem_statement_url values", cleared);
+            }
+        } catch (Exception ex) {
+            log.debug("[Gd03V41SchemaMigration] migrateRoundProblemStatementFiles skipped: {}", ex.getMessage());
+        }
+    }
+
+    /** Đề bài sơ loại — mỗi track một PDF. */
+    private void migrateTrackProblemStatementFiles() {
+        if (!tableExists("tracks")) {
+            return;
+        }
+        addColumnIfMissing("tracks", "problem_statement_storage_key", "VARCHAR(512) NULL");
+        addColumnIfMissing("tracks", "problem_statement_original_filename", "VARCHAR(255) NULL");
+        addColumnIfMissing("tracks", "problem_statement_url", "TEXT NULL");
+    }
+
+    private void createHackathonRegistrationWithdrawalsTable() {
+        if (tableExists("hackathon_registration_withdrawals")) {
+            return;
+        }
+        try {
+            jdbcTemplate.execute("""
+                    CREATE TABLE hackathon_registration_withdrawals (
+                        id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                        hackathon_id BIGINT NOT NULL,
+                        user_id BIGINT NOT NULL,
+                        withdrawn_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+                        CONSTRAINT uk_hackathon_reg_withdrawal_user UNIQUE (hackathon_id, user_id),
+                        CONSTRAINT fk_hackathon_reg_withdrawal_hackathon
+                            FOREIGN KEY (hackathon_id) REFERENCES hackathons(id) ON DELETE CASCADE,
+                        CONSTRAINT fk_hackathon_reg_withdrawal_user
+                            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                    ) ENGINE=InnoDB
+                    """);
+            log.info("[Gd03V41SchemaMigration] Created hackathon_registration_withdrawals");
+        } catch (Exception ex) {
+            log.debug("[Gd03V41SchemaMigration] hackathon_registration_withdrawals create skipped: {}", ex.getMessage());
+        }
+    }
+
+    private void migrateTeamFormationSubmittedAt() {
+        addColumnIfMissing("teams", "formation_submitted_at", "DATETIME(6) NULL");
+    }
+
+    private void migrateFormationGraceDeadlineAt() {
+        addColumnIfMissing("teams", "formation_grace_deadline_at", "DATETIME(6) NULL");
+        try {
+            int updated = jdbcTemplate.update("""
+                    UPDATE teams t
+                    INNER JOIN hackathons h ON h.id = t.hackathon_id
+                    SET t.formation_grace_deadline_at = DATE_ADD(h.registration_closed_early_at, INTERVAL 24 HOUR)
+                    WHERE t.status = 'PENDING'
+                      AND t.formation_submitted_at IS NULL
+                      AND t.formation_grace_deadline_at IS NULL
+                      AND h.registration_closed_early_at IS NOT NULL
+                    """);
+            if (updated > 0) {
+                log.info("[Gd03V41SchemaMigration] Backfilled formation_grace_deadline_at for {} teams", updated);
+            }
+        } catch (Exception ex) {
+            log.debug("[Gd03V41SchemaMigration] formation grace backfill skipped: {}", ex.getMessage());
+        }
+    }
+
+    private void migrateRegistrationClosedEarlyAt() {
+        addColumnIfMissing("hackathons", "registration_closed_early_at", "DATETIME(6) NULL");
     }
 }

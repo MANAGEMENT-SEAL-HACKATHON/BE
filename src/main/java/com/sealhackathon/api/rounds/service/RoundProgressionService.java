@@ -3,7 +3,6 @@ package com.sealhackathon.api.rounds.service;
 import com.sealhackathon.api.rounds.dto.request.AdvanceTeamsRequest;
 import com.sealhackathon.api.rounds.dto.request.AssignFinalJudgesRequest;
 import com.sealhackathon.api.rounds.dto.request.LockScoringRequest;
-import com.sealhackathon.api.rounds.dto.request.ReleaseProblemRequest;
 import com.sealhackathon.api.rounds.dto.request.ResolveTiebreakRequest;
 import com.sealhackathon.api.rounds.dto.response.AdvanceTeamsResponse;
 import com.sealhackathon.api.rounds.dto.response.AssignFinalJudgesResult;
@@ -20,9 +19,11 @@ import com.sealhackathon.api.wildcard_reviews.dto.response.WildcardReviewRespons
 
 import java.util.List;
 
+import org.springframework.web.multipart.MultipartFile;
+
 public interface RoundProgressionService {
 
-    RoundSummaryResponse releaseProblem(Integer roundId, ReleaseProblemRequest req);
+    RoundSummaryResponse releaseProblem(Integer roundId, MultipartFile file);
 
     LockScoringResult lockScoring(Integer roundId, LockScoringRequest req);
 

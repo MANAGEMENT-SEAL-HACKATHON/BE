@@ -38,9 +38,16 @@ public class PresentationControllerServiceImpl implements PresentationController
     @Transactional(readOnly = true)
     public PresentationControllerResponse getTrackController(Integer trackId) {
         Track track = loadTrack(trackId);
-        return toResponse(controllerGuard.resolveTrackControllerId(track), track.getControllerJudge() != null
-                ? "OVERRIDE"
-                : "HEAD_DEFAULT");
+        Integer controllerId = controllerGuard.resolveTrackControllerId(track);
+        String source;
+        if (track.getControllerJudge() != null) {
+            source = "OVERRIDE";
+        } else if (controllerId != null) {
+            source = "HEAD_DEFAULT";
+        } else {
+            source = "UNASSIGNED";
+        }
+        return toResponse(controllerId, source);
     }
 
     @Override

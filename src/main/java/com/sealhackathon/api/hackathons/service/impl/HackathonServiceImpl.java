@@ -18,6 +18,7 @@ import com.sealhackathon.api.hackathons.mapper.HackathonMapper;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.service.HackathonService;
 import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
+import com.sealhackathon.api.hackathons.support.HackathonBannerStorageService;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.hackathons.value_object.Season;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
@@ -25,10 +26,12 @@ import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.users.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -53,6 +56,7 @@ public class HackathonServiceImpl implements HackathonService {
     private final RoundRepository roundRepository;
     private final EventRepository eventRepository;
     private final HackathonArchiveGuard archiveGuard;
+    private final HackathonBannerStorageService bannerStorageService;
 
     @Override
     public HackathonResponse create(CreateHackathonRequest req) {
@@ -156,6 +160,32 @@ public class HackathonServiceImpl implements HackathonService {
         auditService.log(AuditAction.HACKATHON_DELETE, "hackathons", id,
                 Map.of("snapshot", snapshot));
         return id;
+    }
+
+    @Override
+    public HackathonResponse uploadBanner(Integer id, MultipartFile file) {
+        Hackathon hackathon = hackathonRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Hackathon", id));
+        archiveGuard.assertNotArchived(hackathon);
+        if (hackathon.getStatus() != HackathonStatus.DRAFT) {
+            throw new ConflictException(ErrorCode.HACKATHON_NOT_DRAFT,
+                    "Chỉ được đổi banner khi status=DRAFT (hiện %s)".formatted(hackathon.getStatus()));
+        }
+        String storageKey = bannerStorageService.store(hackathon.getId(), file, hackathon.getBannerUrl());
+        hackathon.setBannerUrl(storageKey);
+        Hackathon saved = hackathonRepository.save(hackathon);
+        HackathonResponse response = hackathonMapper.toResponse(saved);
+        auditService.log(AuditAction.HACKATHON_UPDATE, "hackathons", saved.getId(),
+                Map.of("bannerUpdated", true));
+        return response;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Resource getBannerResource(Integer id) {
+        Hackathon hackathon = hackathonRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Hackathon", id));
+        return bannerStorageService.loadAsResource(hackathon.getBannerUrl());
     }
 
     private void validateEventStartAfterRegistrationEnd(java.time.LocalDate regEnd,

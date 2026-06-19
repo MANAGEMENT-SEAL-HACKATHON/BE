@@ -15,4 +15,8 @@ public class StudentHackathonBrowseItemResponse {
     private String name;
     private String status;
     private Boolean registered;
+    /** Đã hủy đăng ký giải này — không được đăng ký lại. */
+    private Boolean registrationWithdrawn;
+    /** Đã đăng ký một giải ONGOING khác — không đăng ký thêm. */
+    private Boolean registeredElsewhere;
 }

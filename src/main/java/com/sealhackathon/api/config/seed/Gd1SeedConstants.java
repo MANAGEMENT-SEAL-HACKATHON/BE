@@ -9,7 +9,7 @@ package com.sealhackathon.api.config.seed;
  * <ul>
  *   <li>{@link #SLUG_INCOMPLETE} — DRAFT, không round (readiness fail)</li>
  *   <li>{@link #SLUG_READY} — DRAFT, đủ G1–G5 (PATCH ONGOING)</li>
- *   <li>{@link #SLUG_ONGOING} — ONGOING, prelim active; có Track 3 (chưa criteria) để test clone 2→3</li>
+ *   <li>{@link #SLUG_ONGOING} — ONGOING, prelim active; có Track 3 (criteria + mentor/giám khảo)</li>
  *   <li>{@link #SLUG_FINISHED} — FINISHED, full seed (events/rounds/tracks/criteria), read-only archive</li>
  * </ul>
  *
@@ -100,6 +100,6 @@ public final class Gd1SeedConstants {
     public static final String CHAPTER_FPT_HN = "FPT-HN";
     public static final String CHAPTER_EXT = "EXT";
 
-    /** Track 3 trên {@link #SLUG_ONGOING} — không seed criteria (clone từ Track 2 qua API). */
+    /** Track 3 trên {@link #SLUG_ONGOING} — EV & Integration, đủ criteria + mentor/giám khảo. */
     public static final String TRACK3_CLONE_DEMO_NAME = "Track 3 — EV & Integration";
 }

@@ -182,6 +182,7 @@ public class DevSeedCleanup {
         jdbcTemplate.update("DELETE FROM chapter_rankings WHERE hackathon_id = ?", hackathonId);
         jdbcTemplate.update("DELETE FROM individual_rankings WHERE hackathon_id = ?", hackathonId);
         jdbcTemplate.update("DELETE FROM hackathon_registrations WHERE hackathon_id = ?", hackathonId);
+        jdbcTemplate.update("DELETE FROM hackathon_registration_withdrawals WHERE hackathon_id = ?", hackathonId);
         jdbcTemplate.update("""
                 DELETE FROM notifications
                 WHERE reference_type = 'hackathons' AND reference_id = ?

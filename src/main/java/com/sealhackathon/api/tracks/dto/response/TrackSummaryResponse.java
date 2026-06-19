@@ -21,4 +21,6 @@ public class TrackSummaryResponse {
     private final Integer maxTeamSize;
     private final Integer maxTeams;
     private final Integer maxTeamsPerGroup;
+    private final String problemStatementUrl;
+    private final String problemStatementFilename;
 }

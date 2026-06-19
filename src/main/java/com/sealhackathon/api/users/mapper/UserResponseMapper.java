@@ -33,6 +33,7 @@ public class UserResponseMapper {
                 .status(u.getStatus())
                 .userType(u.getUserType())
                 .isTempAccount(u.getIsTempAccount())
+                .isDeptHead(u.getIsDeptHead())
                 .institution(u.getInstitution())
                 .build();
     }

@@ -139,7 +139,7 @@ public class Gd1DataSeeder {
     }
 
     /**
-     * Repair criteria/track sau đổi clone (không FK chéo track) và bổ sung Track 3 demo trên ONGOING.
+     * Repair criteria/track sau đổi clone (không FK chéo track) và bổ sung Track 3 trên E2E ONGOING.
      */
     @Transactional
     public void repairSeededCriteriaAndTracks() {
@@ -163,8 +163,16 @@ public class Gd1DataSeeder {
             log.info("[Gd1DataSeeder] Đã bổ sung criteria thiếu cho {} track", criteriaFilled);
         }
         if (track3Added > 0) {
-            log.info("[Gd1DataSeeder] Đã thêm Track 3 (clone demo) trên {}", Gd1SeedConstants.SLUG_ONGOING);
+            log.info("[Gd1DataSeeder] Đã thêm Track 3 trên {}", Gd1SeedConstants.SLUG_ONGOING);
         }
+        tryLoadSeedUsers().ifPresent(users -> hackathonRepository.findBySlug(Gd1SeedConstants.SLUG_ONGOING)
+                .ifPresent(h -> {
+                    int track3Staff = ensureTrack3JudgeAndMentor(h, users);
+                    if (track3Staff > 0) {
+                        log.info("[Gd1DataSeeder] Đã bổ sung mentor/giám khảo Track 3 trên {} ({} mục)",
+                                Gd1SeedConstants.SLUG_ONGOING, track3Staff);
+                    }
+                }));
     }
 
     @Transactional
@@ -675,7 +683,7 @@ public class Gd1DataSeeder {
             track3 = trackRepository.save(Track.builder()
                     .round(prelim)
                     .name(Gd1SeedConstants.TRACK3_CLONE_DEMO_NAME)
-                    .description("Bảng trống criteria — test POST clone từ Track 2")
+                    .description("EV Charging & Integration — tiêu chí đánh giá và nhân sự đã seed sẵn")
                     .topic("EV Charging & Integration")
                     .maxTeams(8)
                     .maxTeamsPerGroup(8)
@@ -684,6 +692,7 @@ public class Gd1DataSeeder {
                     .sequenceOrder(3)
                     .status(TrackStatus.OPEN)
                     .build());
+            seedTrack3Criteria(track3);
         }
         seedFinalCriteria(finalRound);
 
@@ -713,6 +722,20 @@ public class Gd1DataSeeder {
         if (judgeAssignmentRepository.findByTrackId(track2.getId()).isEmpty()) {
             saveJudgeAssignment(users.judge1(), track2, coord, assignedAt);
             saveJudgeAssignment(users.judge2(), track2, coord, assignedAt);
+        }
+        if (track3 != null) {
+            if (mentorAssignmentRepository.findByTrackId(track3.getId()).isEmpty()) {
+                mentorAssignmentRepository.save(MentorAssignment.builder()
+                        .mentor(users.mentor())
+                        .track(track3)
+                        .assignedBy(coord)
+                        .assignedAt(assignedAt)
+                        .build());
+            }
+            if (judgeAssignmentRepository.findByTrackId(track3.getId()).isEmpty()) {
+                saveJudgeAssignment(users.judge2(), track3, coord, assignedAt);
+                saveJudgeAssignment(users.guestJudge(), track3, coord, assignedAt);
+            }
         }
 
         if (status == HackathonStatus.FINISHED) {
@@ -764,12 +787,23 @@ public class Gd1DataSeeder {
     }
 
     private void seedTrackCriteria(Track track) {
-        List<CriteriaSeed> rows = List.of(
+        seedCriteriaRows(track, List.of(
                 new CriteriaSeed("Domain Accuracy", CriteriaType.TECHNICAL, 0.30f, 1),
                 new CriteriaSeed("Kiến trúc RAG", CriteriaType.TECHNICAL, 0.30f, 2),
                 new CriteriaSeed("Ý tưởng & Thuyết trình", CriteriaType.SOFT_SKILL, 0.15f, 3),
                 new CriteriaSeed("Thực thi & Sáng tạo", CriteriaType.TECHNICAL, 0.15f, 4),
-                new CriteriaSeed("UX & Giao diện", CriteriaType.SOFT_SKILL, 0.10f, 5));
+                new CriteriaSeed("UX & Giao diện", CriteriaType.SOFT_SKILL, 0.10f, 5)));
+    }
+
+    private void seedTrack3Criteria(Track track) {
+        seedCriteriaRows(track, List.of(
+                new CriteriaSeed("Domain EV & Sạc", CriteriaType.TECHNICAL, 0.30f, 1),
+                new CriteriaSeed("Kiến trúc tích hợp", CriteriaType.TECHNICAL, 0.30f, 2),
+                new CriteriaSeed("Thuyết trình", CriteriaType.SOFT_SKILL, 0.20f, 3),
+                new CriteriaSeed("Thực thi & Demo", CriteriaType.TECHNICAL, 0.20f, 4)));
+    }
+
+    private void seedCriteriaRows(Track track, List<CriteriaSeed> rows) {
         for (CriteriaSeed row : rows) {
             criteriaRepository.save(Criteria.builder()
                     .track(track)
@@ -845,7 +879,11 @@ public class Gd1DataSeeder {
             }
             for (Track track : trackRepository.findByRoundIdOrderBySequenceOrderAsc(round.getId())) {
                 if (criteriaRepository.countByTrackId(track.getId()) == 0) {
-                    seedTrackCriteria(track);
+                    if (Gd1SeedConstants.TRACK3_CLONE_DEMO_NAME.equals(track.getName())) {
+                        seedTrack3Criteria(track);
+                    } else {
+                        seedTrackCriteria(track);
+                    }
                     filled++;
                 }
             }
@@ -853,9 +891,7 @@ public class Gd1DataSeeder {
         return filled;
     }
 
-    /**
-     * Track 3 không criteria — test {@code GET clone-sources} + {@code POST clone} từ Track 2.
-     */
+    /** Bổ sung Track 3 trên hackathon E2E ONGOING nếu chưa có. */
     private int ensureCloneDemoTrack3(Hackathon hackathon) {
         Round prelim = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathon.getId()).stream()
                 .filter(r -> !Boolean.TRUE.equals(r.getIsFinal()))
@@ -873,10 +909,10 @@ public class Gd1DataSeeder {
                 .mapToInt(Track::getSequenceOrder)
                 .max()
                 .orElse(0) + 1;
-        trackRepository.save(Track.builder()
+        Track track3 = trackRepository.save(Track.builder()
                 .round(prelim)
                 .name(Gd1SeedConstants.TRACK3_CLONE_DEMO_NAME)
-                .description("Bảng trống criteria — test POST clone từ Track 2")
+                .description("EV Charging & Integration — tiêu chí đánh giá và nhân sự seed qua repair")
                 .topic("EV Charging & Integration")
                 .maxTeams(8)
                 .maxTeamsPerGroup(8)
@@ -885,7 +921,49 @@ public class Gd1DataSeeder {
                 .sequenceOrder(nextOrder)
                 .status(TrackStatus.OPEN)
                 .build());
+        seedTrack3Criteria(track3);
         return 1;
+    }
+
+    /** Idempotent — bổ sung mentor + giám khảo cho Track 3 E2E nếu DB cũ thiếu. */
+    private int ensureTrack3JudgeAndMentor(Hackathon hackathon, SeedUsers users) {
+        Track track3 = findTrack3(prelimRound(hackathon)).orElse(null);
+        if (track3 == null) {
+            return 0;
+        }
+        int filled = 0;
+        User coord = users.coordinator();
+        LocalDateTime assignedAt = LocalDateTime.now();
+        if (mentorAssignmentRepository.findByTrackId(track3.getId()).isEmpty()) {
+            mentorAssignmentRepository.save(MentorAssignment.builder()
+                    .mentor(users.mentor())
+                    .track(track3)
+                    .assignedBy(coord)
+                    .assignedAt(assignedAt)
+                    .build());
+            filled++;
+        }
+        if (judgeAssignmentRepository.findByTrackId(track3.getId()).isEmpty()) {
+            saveJudgeAssignment(users.judge2(), track3, coord, assignedAt);
+            saveJudgeAssignment(users.guestJudge(), track3, coord, assignedAt);
+            filled += 2;
+        }
+        return filled;
+    }
+
+    private Optional<Round> prelimRound(Hackathon hackathon) {
+        return roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathon.getId()).stream()
+                .filter(r -> !Boolean.TRUE.equals(r.getIsFinal()))
+                .findFirst();
+    }
+
+    private Optional<Track> findTrack3(Optional<Round> prelim) {
+        if (prelim.isEmpty()) {
+            return Optional.empty();
+        }
+        return trackRepository.findByRoundIdOrderBySequenceOrderAsc(prelim.get().getId()).stream()
+                .filter(t -> Gd1SeedConstants.TRACK3_CLONE_DEMO_NAME.equals(t.getName()))
+                .findFirst();
     }
 
     private boolean repairHackathonCalendar(Hackathon hackathon, SeedDates dates) {
@@ -1061,7 +1139,7 @@ public class Gd1DataSeeder {
                   Hackathons:
                     - {} (id={}) ONGOING — E2E GĐ1, prelim id={} active={}
                     - {} (id={}) FINISHED — archive
-                  Track 3 clone demo (ongoing): id={}
+                  Track 3 EV (ongoing): id={}
                 """,
                 coord.getId(), coord.getEmail(),
                 Gd1SeedConstants.SLUG_ONGOING, summary.ongoing().hackathon().getId(),

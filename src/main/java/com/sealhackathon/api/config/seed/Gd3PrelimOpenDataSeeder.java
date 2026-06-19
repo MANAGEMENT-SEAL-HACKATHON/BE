@@ -6,8 +6,12 @@ import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
+import com.sealhackathon.api.submissions.entity.Submission;
+import com.sealhackathon.api.submissions.value_object.SubmissionStatus;
 import com.sealhackathon.api.teams.entity.Team;
+import com.sealhackathon.api.teams.repository.TeamRepository;
 import com.sealhackathon.api.tracks.entity.Track;
+import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.users.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,8 +27,8 @@ import java.util.List;
 /**
  * Seed GĐ3 — hackathon {@link Gd3SeedConstants#SLUG_GD3_PRELIM_OPEN}.
  *
- * <p>Chỉ seed cấu trúc + 6 đội (đã lottery); <strong>không</strong> tạo sẵn submission/queue/score
- * để FE test luồng sinh viên tự nộp bài.
+ * <p>Seed cấu trúc + 6 đội (đã lottery); GD3-01..05 chỉ nộp bài (chưa chấm, chưa queue);
+ * {@link Gd3SeedConstants#DEMO_TEAM_INDEX} (leader06) chưa nộp — demo submit → shuffle → chấm.
  *
  * <p>Doc: {@code docs/testing/fe-gd3-api-mapping.md} §14
  */
@@ -37,6 +41,8 @@ public class Gd3PrelimOpenDataSeeder {
     private final HackathonDevSeedHelper seedHelper;
     private final HackathonRepository hackathonRepository;
     private final RoundRepository roundRepository;
+    private final TeamRepository teamRepository;
+    private final TrackRepository trackRepository;
     private final DevSeedCleanup devSeedCleanup;
 
     @Value("${app.seed.gd3.enabled:true}")
@@ -55,7 +61,7 @@ public class Gd3PrelimOpenDataSeeder {
                 Gd3SeedConstants.SLUG_GD3_PRELIM_OPEN,
                 "SEAL GĐ3 — Prelim open",
                 HackathonStatus.ONGOING,
-                "Seed FE GĐ3 — sơ loại active, 6 đội, chưa nộp bài (test manual submit)",
+                "Seed FE GĐ3 — sơ loại active, 6 đội, 01..05 đã nộp, 06 demo nộp+chấm",
                 prelimState,
                 new HackathonDevSeedHelper.FinalState(false, false),
                 seedHelper.computeGd3ActivePrelimDates());
@@ -105,11 +111,13 @@ public class Gd3PrelimOpenDataSeeder {
             teams.add(team);
         }
 
+        ensureGd3DemoSubmissionState(hackathon, prelim, track1, track2, teams);
+
         log.info("""
                 [Gd3PrelimOpenDataSeeder] slug={} hackathonId={} prelimRoundId={} track1={} track2={}
                   teams: {} | {} | {} | {} | {} | {}
                   students: {} … {} password={}
-                  submissions: none (sinh viên tự nộp qua portal)
+                  submitted: GD3-01..05 | demo live: GD3-06 leader06@ (nộp → shuffle → chấm)
                 """,
                 Gd3SeedConstants.SLUG_GD3_PRELIM_OPEN,
                 hackathon.getId(),
@@ -151,6 +159,73 @@ public class Gd3PrelimOpenDataSeeder {
                     Gd3SeedConstants.SLUG_GD3_PRELIM_OPEN,
                     loadPrelim(hackathon.getId()).getSubmissionDeadline());
         }
+        reseedGd3DemoSubmissionStateIfPresent(hackathon);
+        Round prelimAfterRepair = loadPrelim(hackathon.getId());
+        if (prelimAfterRepair.getProblemReleasedAt() != null) {
+            seedHelper.seedPrelimTrackProblems(prelimAfterRepair);
+        }
+    }
+
+    /** Khôi phục trạng thái demo sau mỗi lần restart (idempotent). */
+    private void reseedGd3DemoSubmissionStateIfPresent(Hackathon hackathon) {
+        Round prelim = loadPrelim(hackathon.getId());
+        List<Track> tracks = trackRepository.findByRoundIdOrderBySequenceOrderAsc(prelim.getId());
+        if (tracks.size() < 2) {
+            return;
+        }
+        Track track1 = tracks.get(0);
+        Track track2 = tracks.get(1);
+        List<Team> teams = new ArrayList<>();
+        for (String teamName : List.of(
+                Gd3SeedConstants.TEAM_01,
+                Gd3SeedConstants.TEAM_02,
+                Gd3SeedConstants.TEAM_03,
+                Gd3SeedConstants.TEAM_04,
+                Gd3SeedConstants.TEAM_05,
+                Gd3SeedConstants.TEAM_06)) {
+            teamRepository.findByHackathon_IdAndTeamNameIgnoreCase(hackathon.getId(), teamName)
+                    .ifPresent(teams::add);
+        }
+        if (teams.size() == 6) {
+            ensureGd3DemoSubmissionState(hackathon, prelim, track1, track2, teams);
+            log.info(
+                    "[Gd3PrelimOpenDataSeeder] FE repair — GD3-01..05 đã nộp (chưa chấm/queue), GD3-06 chưa nộp");
+        }
+    }
+
+    /**
+     * GD3-01..05: SUBMITTED only (xóa điểm/queue cũ nếu có).
+     * GD3-06: chưa nộp — demo nộp bài rồi shuffle + chấm live.
+     */
+    private void ensureGd3DemoSubmissionState(
+            Hackathon hackathon,
+            Round prelim,
+            Track track1,
+            Track track2,
+            List<Team> teams) {
+        LocalDateTime submittedAt = LocalDateTime.now().minusHours(2);
+
+        for (int i = 0; i < teams.size(); i++) {
+            int idx = i + 1;
+            Team team = teams.get(i);
+            if (idx == Gd3SeedConstants.DEMO_TEAM_INDEX) {
+                seedHelper.clearPrelimSubmission(team, prelim);
+                continue;
+            }
+
+            Track track = idx <= 3 ? track1 : track2;
+            Submission sub = seedHelper.ensurePrelimSubmission(
+                    hackathon,
+                    prelim,
+                    track,
+                    team,
+                    SubmissionStatus.SUBMITTED,
+                    false,
+                    submittedAt);
+            seedHelper.clearSubmissionScores(sub.getId());
+        }
+
+        seedHelper.clearPresentationQueues(prelim, track1, track2);
     }
 
     @Transactional

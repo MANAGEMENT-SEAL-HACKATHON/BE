@@ -172,10 +172,17 @@ public final class ErrorCode {
     public static final String TEAM_NAME_DUPLICATE                    = "TEAM_NAME_DUPLICATE";
     public static final String HACKATHON_NOT_ONGOING                    = "HACKATHON_NOT_ONGOING";
     public static final String REGISTRATION_CLOSED                      = "REGISTRATION_CLOSED";
+    public static final String REGISTRATION_ALREADY_CLOSED              = "REGISTRATION_ALREADY_CLOSED";
+    public static final String REGISTRATION_WITHDRAWN                   = "REGISTRATION_WITHDRAWN";
+    public static final String REGISTRATION_ALREADY_ACTIVE_ELSEWHERE    = "REGISTRATION_ALREADY_ACTIVE_ELSEWHERE";
     public static final String TEAM_LEADER_NOT_APPROVED                 = "TEAM_LEADER_NOT_APPROVED";
     public static final String TEAM_LEADER_INVALID_ROLE                 = "TEAM_LEADER_INVALID_ROLE";
     public static final String USER_IN_ANOTHER_TEAM                     = "USER_IN_ANOTHER_TEAM";
     public static final String TEAM_LOCKED                              = "TEAM_LOCKED";
+    public static final String TEAM_FORMATION_ALREADY_SUBMITTED         = "TEAM_FORMATION_ALREADY_SUBMITTED";
+    public static final String TEAM_FORMATION_NOT_SUBMITTED             = "TEAM_FORMATION_NOT_SUBMITTED";
+    public static final String TEAM_FORMATION_PENDING_INVITES           = "TEAM_FORMATION_PENDING_INVITES";
+    public static final String TEAM_HAS_PENDING_MEMBERS                 = "TEAM_HAS_PENDING_MEMBERS";
     public static final String NEW_LEADER_NOT_MEMBER                    = "NEW_LEADER_NOT_MEMBER";
     public static final String NEW_LEADER_NOT_APPROVED                  = "NEW_LEADER_NOT_APPROVED";
     public static final String TEAM_ALREADY_ACTIVE                      = "TEAM_ALREADY_ACTIVE";

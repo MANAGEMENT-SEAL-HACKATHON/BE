@@ -30,8 +30,12 @@ public class TeamDetailResponse {
     private LocalDateTime createdAt;
     private int acceptedMemberCount;
     private int pendingInviteCount;
+    private LocalDateTime formationSubmittedAt;
+    private LocalDateTime formationGraceDeadlineAt;
     private List<TeamMemberResponse> members;
     private Integer trackId;
     private String trackName;
     private String assignedGroup;
+    private Integer minTeamSize;
+    private Integer maxTeamSize;
 }

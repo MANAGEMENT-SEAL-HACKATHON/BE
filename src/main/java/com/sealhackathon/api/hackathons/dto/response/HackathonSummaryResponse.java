@@ -29,4 +29,5 @@ public class HackathonSummaryResponse {
     private final LocalDate eventStart;
     private final LocalDate eventEnd;
     private final Integer maxParticipants;
+    private final String bannerUrl;
 }

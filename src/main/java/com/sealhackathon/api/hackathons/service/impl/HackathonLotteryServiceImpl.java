@@ -12,6 +12,7 @@ import com.sealhackathon.api.hackathons.dto.response.HackathonLotteryResponse;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.service.HackathonLotteryService;
+import com.sealhackathon.api.hackathons.support.HackathonRegistrationSupport;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.team_round_participation.entity.TeamRoundParticipation;
@@ -61,6 +62,12 @@ public class HackathonLotteryServiceImpl implements HackathonLotteryService {
 
         if (hackathon.getStatus() != com.sealhackathon.api.hackathons.value_object.HackathonStatus.ONGOING) {
             throw new BusinessRuleException(ErrorCode.HACKATHON_NOT_ONGOING, "Chỉ bốc thăm khi Hackathon đang ONGOING");
+        }
+        if (!HackathonRegistrationSupport.canRunLottery(hackathon)) {
+            throw new BusinessRuleException(ErrorCode.REGISTRATION_CLOSED,
+                    "Chưa thể bốc thăm: giai đoạn đăng ký chưa kết thúc. "
+                            + "Hết hạn tự nhiên thì bốc thăm từ ngày sau registrationEnd; "
+                            + "hoặc dùng «Kết thúc đăng ký sớm» để bốc thăm ngay.");
         }
 
         Round round = roundRepository.findById(req.getRoundId())

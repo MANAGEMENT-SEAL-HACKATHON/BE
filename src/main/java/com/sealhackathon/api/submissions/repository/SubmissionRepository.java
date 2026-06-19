@@ -23,6 +23,8 @@ public interface SubmissionRepository extends JpaRepository<Submission, Integer>
 
     List<Submission> findByTrack_Round_Id(Integer roundId);
 
+    List<Submission> findByTrack_Id(Integer trackId);
+
     Optional<Submission> findTopByTeam_IdAndTrack_IdOrderBySubmittedAtDesc(Integer teamId, Integer trackId);
 
     Optional<Submission> findTopByTeam_IdAndRound_IdOrderBySubmittedAtDesc(Integer teamId, Integer roundId);

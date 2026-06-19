@@ -30,6 +30,7 @@ public class RoundResponse {
     private final LocalDateTime submissionDeadline;
     private final Integer codingDurationHours;
     private final String problemStatementUrl;
+    private final String problemStatementFilename;
     private final LocalDateTime problemReleasedAt;
     private final Integer topNAdvance;
     private final Boolean wildcardEnabled;

@@ -30,11 +30,15 @@ import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.tracks.mapper.TrackMapper;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.tracks.service.TrackService;
+import com.sealhackathon.api.tracks.support.TrackProblemStatementStorage;
 import com.sealhackathon.api.tracks.value_object.TrackStatus;
+import com.sealhackathon.api.storage.StoredObjectResource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -66,6 +70,7 @@ public class TrackServiceImpl implements TrackService {
     private final EventRepository eventRepository;
     private final CriteriaRepository criteriaRepository;
     private final HackathonArchiveGuard archiveGuard;
+    private final TrackProblemStatementStorage trackProblemStatementStorage;
 
     @Override
     public TrackResponse createByRound(Integer roundId, CreateTrackRequest req) {
@@ -204,6 +209,34 @@ public class TrackServiceImpl implements TrackService {
         auditService.log(AuditAction.TRACK_DELETE, "tracks", id,
                 Map.of("snapshot", snapshot, "mentorCount", mentors.size(), "judgeCount", judges.size()));
         return id;
+    }
+
+    @Override
+    public TrackResponse uploadProblemStatement(Integer id, MultipartFile file) {
+        Track track = trackRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Track", id));
+        Round round = track.getRound();
+        if (round == null || Boolean.TRUE.equals(round.getIsFinal())) {
+            throw new BusinessRuleException(ErrorCode.DESIGN_VIOLATION,
+                    "Upload đề bài chỉ áp dụng cho bảng đấu vòng Sơ loại");
+        }
+        guardParentStatus(round.getHackathon());
+        if (round.getProblemReleasedAt() != null) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Đề bài đã được phát — không thể thay file trên bảng đấu");
+        }
+        trackProblemStatementStorage.store(track, file);
+        Track saved = trackRepository.save(track);
+        return trackMapper.toResponse(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Resource downloadProblemStatement(Integer id) {
+        Track track = trackRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Track", id));
+        String filename = TrackProblemStatementStorage.displayFilename(track);
+        return StoredObjectResource.toResource(trackProblemStatementStorage.load(track), filename);
     }
 
     private void guardParentStatus(Hackathon h) {

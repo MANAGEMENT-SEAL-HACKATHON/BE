@@ -10,10 +10,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import com.sealhackathon.api.hackathons.dto.request.CreateHackathonRequest;
 import com.sealhackathon.api.hackathons.dto.request.HackathonLotteryRequest;
 import com.sealhackathon.api.hackathons.dto.request.UpdateHackathonRequest;
+import com.sealhackathon.api.hackathons.dto.response.CloseRegistrationEarlyResponse;
 import com.sealhackathon.api.hackathons.dto.response.HackathonLotteryResponse;
 import com.sealhackathon.api.hackathons.dto.response.HackathonResponse;
 import com.sealhackathon.api.hackathons.dto.response.HackathonSummaryResponse;
 import com.sealhackathon.api.hackathons.service.HackathonLotteryService;
+import com.sealhackathon.api.hackathons.service.HackathonRegistrationCloseService;
 import com.sealhackathon.api.hackathons.service.HackathonService;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.hackathons.value_object.Season;
@@ -22,9 +24,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import org.springframework.core.io.Resource;
 
 import java.net.URI;
 import java.util.Map;
@@ -42,6 +47,7 @@ public class HackathonController {
 
     private final HackathonService hackathonService;
     private final HackathonLotteryService hackathonLotteryService;
+    private final HackathonRegistrationCloseService hackathonRegistrationCloseService;
 
     // API MỚI DÀNH RIÊNG CHO FRONTEND SET MẶC ĐỊNH
     @GetMapping("/active")
@@ -112,5 +118,31 @@ public class HackathonController {
             @Valid @RequestBody HackathonLotteryRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(
                 hackathonLotteryService.runLottery(hackathonId, req)));
+    }
+
+    @PostMapping("/{id}/close-registration-early")
+    @CoordinatorOnly
+    @Operation(summary = "Kết thúc đăng ký sớm — khóa đội ACTIVE, loại đội/thí sinh không đủ điều kiện")
+    public ResponseEntity<ApiResponse<CloseRegistrationEarlyResponse>> closeRegistrationEarly(
+            @PathVariable Integer id) {
+        return ResponseEntity.ok(ApiResponse.ok(hackathonRegistrationCloseService.closeRegistrationEarly(id)));
+    }
+
+    @PostMapping(value = "/{id}/banner", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @CoordinatorOnly
+    @Operation(summary = "Upload ảnh banner hackathon (chỉ DRAFT)")
+    public ResponseEntity<ApiResponse<HackathonResponse>> uploadBanner(
+            @PathVariable Integer id,
+            @RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(ApiResponse.ok(hackathonService.uploadBanner(id, file)));
+    }
+
+    @GetMapping("/{id}/banner")
+    @Operation(summary = "Tải ảnh banner hackathon")
+    public ResponseEntity<Resource> getBanner(@PathVariable Integer id) {
+        Resource resource = hackathonService.getBannerResource(id);
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"banner\"")
+                .body(resource);
     }
 }

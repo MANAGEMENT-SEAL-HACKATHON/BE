@@ -11,6 +11,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,14 +31,25 @@ public class StudentRoundController {
 
     @GetMapping("/current/deadline")
     @Operation(summary = "GĐ3 — Deadline nộp bài vòng đang active")
-    public ResponseEntity<ApiResponse<StudentRoundDeadlineResponse>> currentDeadline() {
-        return ResponseEntity.ok(ApiResponse.ok(studentPortalService.getCurrentDeadline()));
+    public ResponseEntity<ApiResponse<StudentRoundDeadlineResponse>> currentDeadline(
+            @RequestParam(required = false) Integer hackathonId) {
+        return ResponseEntity.ok(ApiResponse.ok(studentPortalService.getCurrentDeadline(hackathonId)));
     }
 
     @GetMapping("/{roundId}/problem")
     @Operation(summary = "FR-U-17 — Đề bài (student view)")
     public ResponseEntity<ApiResponse<StudentProblemResponse>> getProblem(@PathVariable Integer roundId) {
         return ResponseEntity.ok(ApiResponse.ok(studentPortalService.getRoundProblem(roundId)));
+    }
+
+    @GetMapping("/{roundId}/problem-statement")
+    @Operation(summary = "Tải PDF đề bài (theo bảng đấu nếu Sơ loại)")
+    public ResponseEntity<Resource> downloadProblemStatement(@PathVariable Integer roundId) {
+        Resource resource = studentPortalService.downloadRoundProblemStatement(roundId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"de-bai.pdf\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(resource);
     }
 
     @GetMapping("/{roundId}/leaderboard")

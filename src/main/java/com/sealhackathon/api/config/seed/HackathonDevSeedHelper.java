@@ -24,6 +24,7 @@ import com.sealhackathon.api.submissions.repository.SubmissionRepository;
 import com.sealhackathon.api.submissions.value_object.SubmissionStatus;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
+import com.sealhackathon.api.hackathons.support.HackathonBannerStorageService;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.hackathons.value_object.Season;
 import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
@@ -55,6 +56,8 @@ import com.sealhackathon.api.teams.repository.TeamRepository;
 import com.sealhackathon.api.teams.value_object.TeamStatus;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
+import com.sealhackathon.api.tracks.support.TrackProblemStatementStorage;
+import com.sealhackathon.api.rounds.support.RoundProblemStatementStorage;
 import com.sealhackathon.api.tracks.value_object.TrackStatus;
 import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
@@ -103,6 +106,9 @@ public class HackathonDevSeedHelper {
     private final PresentationSlotRepository presentationSlotRepository;
     private final JdbcTemplate jdbcTemplate;
     private final PasswordEncoder passwordEncoder;
+    private final HackathonBannerStorageService bannerStorageService;
+    private final TrackProblemStatementStorage trackProblemStatementStorage;
+    private final RoundProblemStatementStorage roundProblemStatementStorage;
 
     public record SeedDates(
             LocalDate regStart,
@@ -337,6 +343,35 @@ public class HackathonDevSeedHelper {
                     slug, dates.regStart(), dates.regEnd(), dates.eventStart(), dates.prelimExamAt());
         }
         return changed;
+    }
+
+    /** Đảm bảo mọi hackathon seed có banner file nội bộ (không dùng URL ngoài). */
+    @Transactional
+    public int repairAllHackathonBanners() {
+        int updated = 0;
+        for (Hackathon hackathon : hackathonRepository.findAll()) {
+            if (ensureBannerImage(hackathon)) {
+                updated++;
+            }
+        }
+        if (updated > 0) {
+            log.info("[HackathonDevSeedHelper] Đã tạo/cập nhật banner file cho {} hackathon", updated);
+        }
+        return updated;
+    }
+
+    public boolean ensureBannerImage(Hackathon hackathon) {
+        if (hackathon == null || hackathon.getId() == null) {
+            return false;
+        }
+        String current = hackathon.getBannerUrl();
+        if (HackathonBannerStorageService.isStorageKey(current)) {
+            return false;
+        }
+        String key = bannerStorageService.storeDefaultBanner(hackathon.getId(), hackathon.getName());
+        hackathon.setBannerUrl(key);
+        hackathonRepository.save(hackathon);
+        return true;
     }
 
     private boolean syncHackathonFields(Hackathon hackathon, SeedDates dates) {
@@ -655,6 +690,7 @@ public class HackathonDevSeedHelper {
             hackathonRepository.save(hackathon);
         }
         syncHackathonFields(hackathon, dates);
+        ensureBannerImage(hackathon);
         syncRoundsFromDates(hackathon.getId(), dates);
 
         List<Round> rounds = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathon.getId());
@@ -822,7 +858,6 @@ public class HackathonDevSeedHelper {
                 .isPublished(state.published())
                 .build();
         if (state.problemReleased()) {
-            round.setProblemStatementUrl("https://example.com/seed/debai-so-loai.pdf");
             round.setProblemReleasedAt(LocalDateTime.now());
         }
         if (state.active()) {
@@ -877,8 +912,8 @@ public class HackathonDevSeedHelper {
             prelim.setPublishedBy(coordinator);
         }
         if (state.problemReleased()) {
-            prelim.setProblemStatementUrl("https://example.com/seed/debai-so-loai.pdf");
             prelim.setProblemReleasedAt(LocalDateTime.now());
+            seedPrelimTrackProblems(prelim);
         }
         if (state.topNAdvance() != null) {
             prelim.setTopNAdvance(state.topNAdvance());
@@ -1153,12 +1188,49 @@ public class HackathonDevSeedHelper {
         }
     }
 
+    public void seedPrelimTrackProblems(Round prelim) {
+        trackRepository.findByRoundIdOrderBySequenceOrderAsc(prelim.getId()).stream()
+                .filter(t -> t.getStatus() != TrackStatus.CANCELLED)
+                .forEach(t -> {
+                    if (!TrackProblemStatementStorage.hasStoredFile(t)) {
+                        trackProblemStatementStorage.storeSeedPdf(
+                                t, "de-bai-track-" + t.getSequenceOrder() + ".pdf");
+                        trackRepository.save(t);
+                    }
+                });
+    }
+
+    /** Dev: bổ sung PDF seed cho mọi vòng Sơ loại đã phát đề nhưng bảng đấu chưa có file storage. */
+    @Transactional
+    public void backfillReleasedPrelimTrackProblems() {
+        roundRepository.findAll().stream()
+                .filter(r -> !Boolean.TRUE.equals(r.getIsFinal()))
+                .filter(r -> r.getProblemReleasedAt() != null)
+                .forEach(this::seedPrelimTrackProblems);
+    }
+
     public void releaseFinalProblem(Round finalRound) {
         if (finalRound.getProblemReleasedAt() == null) {
-            finalRound.setProblemStatementUrl("https://example.com/seed/debai-chung-ket-gd5.pdf");
+            if (!RoundProblemStatementStorage.hasStoredFile(finalRound)) {
+                roundProblemStatementStorage.storeSeedPdf(finalRound, "de-bai-chung-ket.pdf");
+            }
             finalRound.setProblemReleasedAt(LocalDateTime.now());
             roundRepository.save(finalRound);
         }
+    }
+
+    /** Dev: bổ sung PDF seed cho vòng Chung kết đã phát đề nhưng chưa có file storage. */
+    @Transactional
+    public void backfillReleasedFinalRoundProblems() {
+        roundRepository.findAll().stream()
+                .filter(r -> Boolean.TRUE.equals(r.getIsFinal()))
+                .filter(r -> r.getProblemReleasedAt() != null)
+                .forEach(r -> {
+                    if (!RoundProblemStatementStorage.hasStoredFile(r)) {
+                        roundProblemStatementStorage.storeSeedPdf(r, "de-bai-chung-ket.pdf");
+                        roundRepository.save(r);
+                    }
+                });
     }
 
     public void ensureGuestJudgeInvitation(Hackathon hackathon, User guestJudge, User coordinator) {
@@ -1404,7 +1476,51 @@ public class HackathonDevSeedHelper {
         }
     }
 
+    public void clearPresentationQueues(Round prelim, Track track1, Track track2) {
+        presentationSlotRepository.deleteByRound_IdAndTrack_Id(prelim.getId(), track1.getId());
+        presentationSlotRepository.deleteByRound_IdAndTrack_Id(prelim.getId(), track2.getId());
+    }
+
+    public void clearSubmissionScores(Integer submissionId) {
+        scoreRepository.deleteAll(scoreRepository.findBySubmission_Id(submissionId));
+    }
+
+    /** Xóa bài nộp sơ loại của đội (scores + metadata + submission) — dùng reset demo. */
+    public void clearPrelimSubmission(Team team, Round prelim) {
+        List<Submission> subs = submissionRepository.findByTeam_IdAndRound_Id(team.getId(), prelim.getId());
+        for (Submission sub : subs) {
+            clearSubmissionScores(sub.getId());
+            jdbcTemplate.update(
+                    "DELETE FROM submission_metadata WHERE submission_id = ?",
+                    sub.getId());
+            jdbcTemplate.update(
+                    "DELETE FROM judge_submission_scoring_confirmations WHERE submission_id = ?",
+                    sub.getId());
+            if (sub.getTrack() != null) {
+                presentationSlotRepository
+                        .findByRound_IdAndTrack_IdOrderBySequenceOrderAsc(
+                                prelim.getId(), sub.getTrack().getId())
+                        .stream()
+                        .filter(slot -> slot.getSubmission() != null
+                                && slot.getSubmission().getId().equals(sub.getId()))
+                        .forEach(presentationSlotRepository::delete);
+            }
+            submissionRepository.delete(sub);
+        }
+    }
+
     public void seedPresentationQueue(Round prelim, Track track, List<Submission> gradableInOrder) {
+        seedPresentationQueue(prelim, track, gradableInOrder, 0);
+    }
+
+    /**
+     * @param presentingIndex slot đang PRESENTING (0-based); {@code -1} = tất cả DONE
+     */
+    public void seedPresentationQueue(
+            Round prelim,
+            Track track,
+            List<Submission> gradableInOrder,
+            int presentingIndex) {
         presentationSlotRepository.deleteByRound_IdAndTrack_Id(prelim.getId(), track.getId());
         if (gradableInOrder.isEmpty()) {
             return;
@@ -1416,11 +1532,22 @@ public class HackathonDevSeedHelper {
                 ? track.getPresentationMinutes()
                 : 10;
         int order = 1;
-        for (Submission submission : gradableInOrder) {
+        for (int i = 0; i < gradableInOrder.size(); i++) {
+            Submission submission = gradableInOrder.get(i);
             LocalDateTime start = examAt.plusMinutes((long) (order - 1) * slotMinutes);
-            PresentationQueueStatus status = order == 1
-                    ? PresentationQueueStatus.PRESENTING
-                    : PresentationQueueStatus.WAITING;
+            PresentationQueueStatus status;
+            if (presentingIndex < 0) {
+                status = PresentationQueueStatus.DONE;
+            } else if (i < presentingIndex) {
+                status = PresentationQueueStatus.DONE;
+            } else if (i == presentingIndex) {
+                status = PresentationQueueStatus.PRESENTING;
+            } else {
+                status = PresentationQueueStatus.WAITING;
+            }
+            PresentationTimerPhase timerPhase = status == PresentationQueueStatus.PRESENTING
+                    ? PresentationTimerPhase.SETUP
+                    : PresentationTimerPhase.IDLE;
             presentationSlotRepository.save(PresentationSlot.builder()
                     .round(prelim)
                     .track(track)
@@ -1431,7 +1558,7 @@ public class HackathonDevSeedHelper {
                     .location("Phòng " + track.getSequenceOrder() + "-" + order)
                     .sequenceOrder(order)
                     .queueStatus(status)
-                    .timerPhase(PresentationTimerPhase.IDLE)
+                    .timerPhase(timerPhase)
                     .pausedAccumulatedSeconds(0)
                     .build());
             order++;
@@ -1516,6 +1643,13 @@ public class HackathonDevSeedHelper {
         prelim.setActivatedAt(null);
         prelim.setProblemStatementUrl(null);
         prelim.setProblemReleasedAt(null);
+        trackRepository.findByRoundIdOrderBySequenceOrderAsc(prelim.getId())
+                .forEach(t -> {
+                    t.setProblemStatementUrl(null);
+                    t.setProblemStatementStorageKey(null);
+                    t.setProblemStatementOriginalFilename(null);
+                    trackRepository.save(t);
+                });
         roundRepository.save(prelim);
         applyFinalState(finalRound, new FinalState(false, false), coordinator);
         if (hackathon.getStatus() != HackathonStatus.ONGOING) {

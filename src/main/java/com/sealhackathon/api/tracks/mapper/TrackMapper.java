@@ -6,6 +6,8 @@ import com.sealhackathon.api.tracks.dto.request.UpdateTrackRequest;
 import com.sealhackathon.api.tracks.dto.response.TrackResponse;
 import com.sealhackathon.api.tracks.dto.response.TrackSummaryResponse;
 import com.sealhackathon.api.tracks.entity.Track;
+import com.sealhackathon.api.tracks.support.TrackProblemStatementStorage;
+import com.sealhackathon.api.tracks.support.TrackProblemStatementUrls;
 import com.sealhackathon.api.tracks.value_object.TrackStatus;
 import org.springframework.stereotype.Component;
 
@@ -67,6 +69,8 @@ public class TrackMapper {
                 .maxTeamSize(e.getMaxTeamSize())
                 .status(e.getStatus())
                 .sequenceOrder(e.getSequenceOrder())
+                .problemStatementUrl(TrackProblemStatementUrls.resolveForResponse(e))
+                .problemStatementFilename(TrackProblemStatementStorage.displayFilename(e))
                 .build();
     }
 
@@ -87,6 +91,8 @@ public class TrackMapper {
                 .maxTeamSize(e.getMaxTeamSize())
                 .maxTeams(e.getMaxTeams())
                 .maxTeamsPerGroup(e.getMaxTeamsPerGroup())
+                .problemStatementUrl(TrackProblemStatementUrls.resolveForResponse(e))
+                .problemStatementFilename(TrackProblemStatementStorage.displayFilename(e))
                 .build();
     }
 }

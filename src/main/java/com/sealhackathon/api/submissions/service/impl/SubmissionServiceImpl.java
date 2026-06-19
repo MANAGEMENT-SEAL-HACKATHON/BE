@@ -207,7 +207,8 @@ public class SubmissionServiceImpl implements SubmissionService {
         submission.setSubmittedAt(now);
 
         if (multipartMode) {
-            boolean slideRequired = isCreate || !StringUtils.hasText(submission.getSlideStorageKey());
+            boolean hadSlideBefore = !isCreate && StringUtils.hasText(submission.getSlideStorageKey());
+            boolean slideRequired = isCreate || !hadSlideBefore;
             submissionSlideStorage.validatePdf(slideFile, slideRequired);
         }
 
@@ -216,6 +217,11 @@ public class SubmissionServiceImpl implements SubmissionService {
         if (multipartMode && slideFile != null && !slideFile.isEmpty()) {
             submissionSlideStorage.storeSlide(saved, slideFile);
             saved = submissionRepository.save(saved);
+        }
+
+        if (multipartMode && !StringUtils.hasText(saved.getSlideStorageKey())) {
+            throw new BusinessRuleException(ErrorCode.INVALID_SLIDE_FILE,
+                    "Không lưu được file slide — vui lòng chọn file PDF và nộp lại");
         }
 
         auditService.log(isCreate ? AuditAction.SUBMISSION_CREATE : AuditAction.SUBMISSION_UPDATE,

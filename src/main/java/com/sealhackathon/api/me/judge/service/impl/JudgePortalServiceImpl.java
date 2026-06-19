@@ -77,19 +77,37 @@ public class JudgePortalServiceImpl implements JudgePortalService {
                 .map(ja -> {
                     Round round = ja.getTrack().getRound();
                     var hackathon = round.getHackathon();
+                    Integer trackId = ja.getTrack().getId();
+                    int totalTeams = countGradableSubmissionsForTrack(trackId);
+                    int scoredTeams = countFullyScoredSubmissionsForJudge(judgeId, trackId);
                     return JudgeTrackAssignmentResponse.builder()
                             .assignmentId(ja.getId())
                             .hackathonId(hackathon.getId())
                             .hackathonName(hackathon.getName())
-                            .trackId(ja.getTrack().getId())
+                            .trackId(trackId)
                             .trackName(ja.getTrack().getName())
                             .roundId(round.getId())
                             .roundName(round.getName())
                             .assignmentType(ja.getAssignmentType().name())
                             .completionStatus(ja.getCompletionStatus().name())
+                            .totalTeams(totalTeams)
+                            .scoredTeams(scoredTeams)
                             .build();
                 })
                 .toList();
+    }
+
+    private int countGradableSubmissionsForTrack(Integer trackId) {
+        return (int) submissionRepository.findByTrack_Id(trackId).stream()
+                .filter(SubmissionGradablePolicy::isGradable)
+                .count();
+    }
+
+    private int countFullyScoredSubmissionsForJudge(Integer judgeId, Integer trackId) {
+        return (int) submissionRepository.findByTrack_Id(trackId).stream()
+                .filter(SubmissionGradablePolicy::isGradable)
+                .filter(submission -> scoringCompletionHelper.hasJudgeFullyScored(judgeId, submission))
+                .count();
     }
 
     @Override

@@ -30,6 +30,7 @@ import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.mapper.RoundMapper;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.service.RoundService;
+import com.sealhackathon.api.rounds.support.RoundProblemStatementStorage;
 import com.sealhackathon.api.rounds.value_object.LateSubmissionPolicy;
 import com.sealhackathon.api.rounds.value_object.RoundType;
 import com.sealhackathon.api.scores.repository.ScoreRepository;
@@ -37,8 +38,14 @@ import com.sealhackathon.api.submissions.repository.SubmissionRepository;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.sealhackathon.api.storage.StoredObjectResource;
 
 import java.time.LocalDateTime;
 import java.util.EnumSet;
@@ -76,6 +83,7 @@ public class RoundServiceImpl implements RoundService {
     private final HackathonArchiveGuard archiveGuard;
     private final HackathonRoundTimelineSyncService hackathonRoundTimelineSyncService;
     private final PresentationSlotCascadeService presentationSlotCascadeService;
+    private final RoundProblemStatementStorage problemStatementStorage;
 
     @Override
     public RoundResponse createByHackathon(Integer hackathonId, CreateRoundRequest req) {
@@ -299,14 +307,26 @@ public class RoundServiceImpl implements RoundService {
                         LocalDateTime latestPrelimExam = latestPrelim.getExamAt();
                         int codingHours = latestPrelim.getCodingDurationHours() == null
                                 ? 0 : Math.max(0, latestPrelim.getCodingDurationHours());
-                        LocalDateTime requiredFinalExamStart = latestPrelimExam.plusHours(codingHours);
+                        LocalDateTime requiredFinalExamStart = codingHours > 0
+                                ? RoundScheduleSeedUtil.minFinalExamAt(latestPrelimExam, codingHours)
+                                : latestPrelimExam;
 
-                        // Nếu prelim có codingDurationHours thì cho phép final bắt đầu ngay lúc prelim kết thúc.
                         if (codingHours > 0) {
+                            if (!examAt.toLocalDate().equals(latestPrelimExam.toLocalDate())) {
+                                throw new BusinessRuleException(ErrorCode.ROUND_FINAL_EXAM_ORDER,
+                                        "Round Chung kết: ngày thi phải cùng ngày với Sơ loại (%s)"
+                                                .formatted(latestPrelimExam.toLocalDate()),
+                                        Map.of("hackathonId", hackathonId,
+                                                "examAt", examAt,
+                                                "latestPreliminaryExamAt", latestPrelimExam,
+                                                "latestPreliminaryRoundId", latestPrelim.getId()));
+                            }
                             if (examAt.isBefore(requiredFinalExamStart)) {
                                 throw new BusinessRuleException(ErrorCode.ROUND_FINAL_EXAM_ORDER,
-                                        "Round Chung kết: ngày thi phải từ thời điểm vòng Sơ loại kết thúc (%s)"
-                                                .formatted(requiredFinalExamStart),
+                                        "Round Chung kết: ngày thi phải từ %s trở đi (sau %dh chấm Sơ loại + %dh nghỉ)"
+                                                .formatted(requiredFinalExamStart,
+                                                        RoundScheduleSeedUtil.GRADING_BUFFER_HOURS_AFTER_PRELIM,
+                                                        RoundScheduleSeedUtil.FINAL_EXAM_GAP_AFTER_GRADING_HOURS),
                                         Map.of("hackathonId", hackathonId,
                                                 "examAt", examAt,
                                                 "latestPreliminaryExamAt", latestPrelimExam,
@@ -551,5 +571,42 @@ public class RoundServiceImpl implements RoundService {
                             "expectedSubmissionOpen", expectedSubmissionOpen,
                             "submissionOpen", submissionOpen));
         }
+    }
+
+    @Override
+    public RoundResponse uploadProblemStatement(Integer id, MultipartFile file) {
+        Round round = roundRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Round", id));
+        guardHackathonMutable(round.getHackathon());
+        if (!Boolean.TRUE.equals(round.getIsFinal())) {
+            throw new BusinessRuleException(ErrorCode.DESIGN_VIOLATION,
+                    "Vòng Sơ loại: upload đề bài tại từng bảng đấu, không phải tại round");
+        }
+        if (round.getProblemReleasedAt() != null) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Đề bài đã được phát — không thể thay file");
+        }
+        problemStatementStorage.store(round, file);
+        Round saved = roundRepository.save(round);
+        return roundMapper.toResponse(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Resource downloadProblemStatement(Integer id) {
+        Round round = roundRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Round", id));
+        if (RoundProblemStatementStorage.hasStoredFile(round)) {
+            String filename = RoundProblemStatementStorage.displayFilename(round);
+            return StoredObjectResource.toResource(problemStatementStorage.load(round), filename);
+        }
+        if (StringUtils.hasText(round.getProblemStatementUrl())) {
+            try {
+                return new UrlResource(round.getProblemStatementUrl());
+            } catch (java.net.MalformedURLException ex) {
+                throw new BusinessRuleException(ErrorCode.RESOURCE_NOT_FOUND, "URL đề bài không hợp lệ");
+            }
+        }
+        throw new BusinessRuleException(ErrorCode.RESOURCE_NOT_FOUND, "Vòng thi chưa có file đề bài");
     }
 }

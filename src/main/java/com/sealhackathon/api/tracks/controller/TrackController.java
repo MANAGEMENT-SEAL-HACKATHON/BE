@@ -14,6 +14,7 @@ import com.sealhackathon.api.tracks.service.TrackService;
 import com.sealhackathon.api.tracks.value_object.TrackStatus;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,7 +24,10 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 
 import java.net.URI;
 import java.util.List;
@@ -105,5 +109,23 @@ public class TrackController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> delete(@PathVariable Integer id) {
         Integer deletedId = trackService.delete(id);
         return ResponseEntity.ok(ApiResponse.ok(Map.of("deletedId", deletedId), "Deleted"));
+    }
+
+    @PostMapping(value = "/api/v1/tracks/{id}/problem-statement", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Upload file PDF đề bài cho bảng đấu (sơ loại)")
+    public ResponseEntity<ApiResponse<TrackResponse>> uploadProblemStatement(
+            @PathVariable Integer id,
+            @RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(ApiResponse.ok(trackService.uploadProblemStatement(id, file)));
+    }
+
+    @GetMapping("/api/v1/tracks/{id}/problem-statement")
+    @Operation(summary = "Tải file PDF đề bài của bảng đấu")
+    public ResponseEntity<Resource> downloadProblemStatement(@PathVariable Integer id) {
+        Resource resource = trackService.downloadProblemStatement(id);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"de-bai-track.pdf\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(resource);
     }
 }

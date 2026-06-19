@@ -109,6 +109,13 @@ public class TeamController {
         return ResponseEntity.ok(ApiResponse.ok(teamService.transferLeader(teamId, req)));
     }
 
+    @PostMapping("/{teamId}/confirm-formation")
+    @StudentOnly
+    @Operation(summary = "Leader xác nhận roster — gửi Coordinator duyệt sớm (một lần)")
+    public ResponseEntity<ApiResponse<TeamDetailResponse>> confirmFormation(@PathVariable Integer teamId) {
+        return ResponseEntity.ok(ApiResponse.ok(teamService.confirmFormation(teamId)));
+    }
+
     @DeleteMapping("/{teamId}")
     @ApprovedOnly
     @Operation(summary = "FR-11D — Giải tán đội (Leader hoặc Coordinator)")

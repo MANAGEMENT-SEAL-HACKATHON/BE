@@ -16,6 +16,7 @@ public final class AuditAction {
     public static final String HACKATHON_DELETE         = "HACKATHON_DELETE";
     public static final String HACKATHON_STATUS_CHANGE  = "HACKATHON_STATUS_CHANGE";
     public static final String HACKATHON_READINESS_CHECK = "HACKATHON_READINESS_CHECK";
+    public static final String HACKATHON_REGISTRATION_CLOSED_EARLY = "HACKATHON_REGISTRATION_CLOSED_EARLY";
 
     // ---------- FR-02 TRACK ----------
     public static final String TRACK_CREATE             = "TRACK_CREATE";
@@ -71,6 +72,7 @@ public final class AuditAction {
     // ---------- MF-02 GĐ2 TEAMS ----------
     public static final String TEAM_CREATE              = "TEAM_CREATE";
     public static final String TEAM_UPDATE              = "TEAM_UPDATE";
+    public static final String TEAM_FORMATION_CONFIRMED = "TEAM_FORMATION_CONFIRMED";
     public static final String TEAM_APPROVE             = "TEAM_APPROVE";
     public static final String TEAM_REJECT              = "TEAM_REJECT";
     public static final String TEAM_DISBAND             = "TEAM_DISBAND";

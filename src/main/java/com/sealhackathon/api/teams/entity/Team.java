@@ -74,4 +74,12 @@ public class Team {
     @Builder.Default
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    /** Leader xác nhận roster cuối — chỉ một lần, chờ Coordinator duyệt. */
+    @Column(name = "formation_submitted_at")
+    private LocalDateTime formationSubmittedAt;
+
+    /** Hạn 24h để leader xác nhận thành lập sau khi kết thúc đăng ký sớm. */
+    @Column(name = "formation_grace_deadline_at")
+    private LocalDateTime formationGraceDeadlineAt;
 }

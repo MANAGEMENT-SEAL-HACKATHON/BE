@@ -21,5 +21,6 @@ public class UserSummaryResponse {
     private final UserStatus status;
     private final UserType userType;
     private final Boolean isTempAccount;
+    private final Boolean isDeptHead;
     private final String institution;
 }

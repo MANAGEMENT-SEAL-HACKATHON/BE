@@ -21,7 +21,7 @@ public class CriteriaMapper {
                 .maxScore(req.getMaxScore())
                 .description(req.getDescription())
                 .rubricUrl(req.getRubricUrl())
-                .displayOrder(req.getDisplayOrder() == null ? 0 : req.getDisplayOrder())
+                .displayOrder(req.getDisplayOrder() == null ? 1 : req.getDisplayOrder())
                 .build();
     }
 
@@ -35,7 +35,7 @@ public class CriteriaMapper {
                 .maxScore(req.getMaxScore())
                 .description(req.getDescription())
                 .rubricUrl(req.getRubricUrl())
-                .displayOrder(req.getDisplayOrder() == null ? 0 : req.getDisplayOrder())
+                .displayOrder(req.getDisplayOrder() == null ? 1 : req.getDisplayOrder())
                 .build();
     }
 

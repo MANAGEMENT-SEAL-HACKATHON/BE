@@ -18,11 +18,13 @@ public interface StudentPortalService {
 
     StudentProblemResponse getRoundProblem(Integer roundId);
 
+    org.springframework.core.io.Resource downloadRoundProblemStatement(Integer roundId);
+
     List<StudentSubmissionStatusResponse> listTeamSubmissions(Integer teamId, Integer roundId);
 
     StudentSubmissionStatusResponse getLatestSubmission(Integer teamId, Integer roundId);
 
-    StudentRoundDeadlineResponse getCurrentDeadline();
+    StudentRoundDeadlineResponse getCurrentDeadline(Integer hackathonId);
 
     StudentFinalRoundResponse getFinalRoundForHackathon(Integer hackathonId);
 

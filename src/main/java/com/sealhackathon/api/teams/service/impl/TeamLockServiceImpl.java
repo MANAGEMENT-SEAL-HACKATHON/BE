@@ -14,7 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
+import com.sealhackathon.api.hackathons.support.HackathonRegistrationSupport;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -31,14 +31,12 @@ public class TeamLockServiceImpl implements TeamLockService {
     @Override
     @Transactional
     public int lockTeamsAfterRegistrationEnd() {
-        LocalDate today = LocalDate.now();
         int lockedCount = 0;
 
-        // 1. Tìm các Hackathon đang ONGOING và đã đi qua hạn đăng ký
+        // 1. Tìm các Hackathon đang ONGOING và đã kết thúc giai đoạn đăng ký
         List<Hackathon> ongoingHackathons = hackathonRepository.findAll().stream()
                 .filter(h -> h.getStatus() == HackathonStatus.ONGOING)
-                // Khớp FR-13A + TeamServiceImpl: khóa khi today > registrationEnd (sau ngày cuối đăng ký)
-                .filter(h -> h.getRegistrationEnd() != null && h.getRegistrationEnd().isBefore(today))
+                .filter(HackathonRegistrationSupport::isRegistrationPeriodEnded)
                 .toList();
 
         // 2. Khóa các đội ACTIVE chưa bị khóa

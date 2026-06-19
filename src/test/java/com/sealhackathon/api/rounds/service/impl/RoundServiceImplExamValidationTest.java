@@ -307,7 +307,7 @@ class RoundServiceImplExamValidationTest {
     }
 
     @Test
-    void createFinal_allowsAtPreliminaryEndWhenCodingDurationProvided() {
+    void createFinal_allowsAfterGradingBufferWhenCodingDurationProvided() {
         mockHackathon();
         LocalDateTime prelimExam = LocalDateTime.of(2026, 6, 21, 8, 0);
         Round prelim = Round.builder()
@@ -323,14 +323,40 @@ class RoundServiceImplExamValidationTest {
 
         CreateRoundRequest req = CreateRoundRequest.builder()
                 .name("Chung kết")
-                .examAt(LocalDateTime.of(2026, 6, 21, 16, 0))
-                .submissionOpen(LocalDateTime.of(2026, 6, 21, 16, 30))
+                .examAt(LocalDateTime.of(2026, 6, 21, 19, 0))
+                .submissionOpen(LocalDateTime.of(2026, 6, 21, 19, 30))
                 .submissionDeadline(LocalDateTime.now().plusDays(30))
                 .isFinal(true)
                 .roundType(RoundType.FINAL)
                 .build();
 
         assertDoesNotThrow(() -> roundService.createByHackathon(1, req));
+    }
+
+    @Test
+    void createFinal_blocksBeforeGradingBufferEndsWhenCodingDurationProvided() {
+        mockHackathon();
+        LocalDateTime prelimExam = LocalDateTime.of(2026, 6, 21, 8, 0);
+        Round prelim = Round.builder()
+                .id(10)
+                .examAt(prelimExam)
+                .codingDurationHours(8)
+                .build();
+        when(roundRepository.findPreliminaryLikeByHackathonId(1)).thenReturn(List.of(prelim));
+        when(roundRepository.countByHackathon_IdAndIsFinalTrue(1)).thenReturn(0L);
+
+        CreateRoundRequest req = CreateRoundRequest.builder()
+                .name("Chung kết")
+                .examAt(LocalDateTime.of(2026, 6, 21, 18, 59))
+                .submissionOpen(LocalDateTime.of(2026, 6, 21, 19, 30))
+                .submissionDeadline(LocalDateTime.now().plusDays(30))
+                .isFinal(true)
+                .roundType(RoundType.FINAL)
+                .build();
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class,
+                () -> roundService.createByHackathon(1, req));
+        assertEquals(ErrorCode.ROUND_FINAL_EXAM_ORDER, ex.getCode());
     }
 
     @Test
@@ -347,7 +373,7 @@ class RoundServiceImplExamValidationTest {
 
         CreateRoundRequest req = CreateRoundRequest.builder()
                 .name("Chung kết")
-                .examAt(LocalDateTime.of(2026, 6, 21, 15, 59))
+                .examAt(LocalDateTime.of(2026, 6, 21, 16, 0))
                 .submissionOpen(LocalDateTime.of(2026, 6, 21, 16, 30))
                 .submissionDeadline(LocalDateTime.now().plusDays(30))
                 .isFinal(true)

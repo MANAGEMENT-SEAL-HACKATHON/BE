@@ -22,4 +22,6 @@ public class TrackResponse {
     private final Integer maxTeamSize;
     private final TrackStatus status;
     private final Integer sequenceOrder;
+    private final String problemStatementUrl;
+    private final String problemStatementFilename;
 }

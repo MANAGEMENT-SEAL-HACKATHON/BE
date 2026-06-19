@@ -20,6 +20,8 @@ public interface TeamService {
 
     TeamResponse patchTeamStatus(Integer teamId, PatchTeamStatusRequest req);
 
+    TeamDetailResponse confirmFormation(Integer teamId);
+
     BulkApproveTeamsResponse bulkApproveTeams(BulkApproveTeamsRequest req);
 
     TeamResponse transferLeader(Integer teamId, TransferLeaderRequest req);

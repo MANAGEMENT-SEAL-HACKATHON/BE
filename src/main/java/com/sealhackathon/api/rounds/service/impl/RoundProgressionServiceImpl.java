@@ -25,7 +25,6 @@ import com.sealhackathon.api.notifications.service.NotificationService;
 import com.sealhackathon.api.rounds.dto.request.AdvanceTeamsRequest;
 import com.sealhackathon.api.rounds.dto.request.AssignFinalJudgesRequest;
 import com.sealhackathon.api.rounds.dto.request.LockScoringRequest;
-import com.sealhackathon.api.rounds.dto.request.ReleaseProblemRequest;
 import com.sealhackathon.api.rounds.dto.request.ResolveTiebreakRequest;
 import com.sealhackathon.api.rounds.dto.response.AdvanceTeamsResponse;
 import com.sealhackathon.api.rounds.dto.response.AssignFinalJudgesResult;
@@ -42,9 +41,14 @@ import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.mapper.RoundMapper;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.service.RoundProgressionService;
+import com.sealhackathon.api.rounds.support.RoundProblemStatementStorage;
 import com.sealhackathon.api.rounds.support.WildcardCandidateSelection;
+import com.sealhackathon.api.tracks.support.TrackProblemStatementStorage;
 import com.sealhackathon.api.scores.entity.Score;
 import com.sealhackathon.api.scores.repository.ScoreRepository;
+import com.sealhackathon.api.team_members.entity.TeamMember;
+import com.sealhackathon.api.team_members.repository.TeamMemberRepository;
+import com.sealhackathon.api.team_members.value_object.TeamMemberStatus;
 import com.sealhackathon.api.team_round_participation.entity.TeamRoundParticipation;
 import com.sealhackathon.api.team_round_participation.repository.TeamRoundParticipationRepository;
 import com.sealhackathon.api.team_round_tracks.entity.TeamRoundTrack;
@@ -67,6 +71,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -98,19 +103,58 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
     private final com.sealhackathon.api.teams.repository.TeamRepository teamRepository; // Để lấy Entity Team
     private final WildcardReviewRepository wildcardReviewRepository;
     private final HackathonRepository hackathonRepository;
+    private final RoundProblemStatementStorage problemStatementStorage;
+    private final TeamMemberRepository teamMemberRepository;
 
     @Override
-    public RoundSummaryResponse releaseProblem(Integer roundId, ReleaseProblemRequest req) {
+    public RoundSummaryResponse releaseProblem(Integer roundId, MultipartFile file) {
         Round round = roundAccessGuard.requireActiveRound(roundId);
         if (round.getProblemReleasedAt() != null) {
             throw new BusinessRuleException(ErrorCode.INVALID_STATE,
-                    "Đề bài đã được phát — không thể sửa URL");
+                    "Đề bài đã được phát — không thể thay đổi");
         }
-        round.setProblemStatementUrl(req.getProblemStatementUrl());
+        if (Boolean.TRUE.equals(round.getIsFinal())) {
+            if (file != null && !file.isEmpty()) {
+                problemStatementStorage.store(round, file);
+            } else if (!RoundProblemStatementStorage.hasProblemFile(round)) {
+                throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                        "Vui lòng upload file PDF đề Chung kết trước khi phát");
+            }
+        } else {
+            List<Track> tracks = trackRepository.findByRoundIdOrderBySequenceOrderAsc(roundId).stream()
+                    .filter(t -> t.getStatus() != TrackStatus.CANCELLED)
+                    .toList();
+            if (tracks.isEmpty()) {
+                throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                        "Chưa có bảng đấu — không thể phát đề Sơ loại");
+            }
+            List<String> missing = tracks.stream()
+                    .filter(t -> !TrackProblemStatementStorage.hasProblemFile(t))
+                    .map(Track::getName)
+                    .toList();
+            if (!missing.isEmpty()) {
+                throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                        "Các bảng đấu chưa có file đề bài: " + String.join(", ", missing));
+            }
+        }
         round.setProblemReleasedAt(LocalDateTime.now());
         Round saved = roundRepository.save(round);
-        auditService.log(AuditAction.ROUND_RELEASE_PROBLEM, "rounds", roundId,
-                java.util.Map.of("url", req.getProblemStatementUrl()));
+        java.util.Map<String, Object> auditMeta = new java.util.HashMap<>();
+        auditMeta.put("isFinal", Boolean.TRUE.equals(saved.getIsFinal()));
+        if (Boolean.TRUE.equals(saved.getIsFinal())) {
+            String filename = RoundProblemStatementStorage.displayFilename(saved);
+            if (filename != null) {
+                auditMeta.put("filename", filename);
+            }
+            if (StringUtils.hasText(saved.getProblemStatementStorageKey())) {
+                auditMeta.put("storageKey", saved.getProblemStatementStorageKey());
+            }
+        } else {
+            auditMeta.put("trackCount", trackRepository.findByRoundIdOrderBySequenceOrderAsc(roundId).stream()
+                    .filter(t -> t.getStatus() != TrackStatus.CANCELLED)
+                    .count());
+        }
+        auditService.log(AuditAction.ROUND_RELEASE_PROBLEM, "rounds", roundId, auditMeta);
         notifyProblemReleased(saved);
         return roundMapper.toSummary(saved, 0, 0, 0f);
     }
@@ -774,8 +818,93 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
     }
 
     private void notifyProblemReleased(Round round) {
+        if (Boolean.TRUE.equals(round.getIsFinal())) {
+            notifyFinalProblemReleased(round);
+        } else {
+            notifyPrelimProblemReleased(round);
+        }
+    }
+
+    private void notifyPrelimProblemReleased(Round round) {
+        List<TeamRoundTrack> assignments = teamRoundTrackRepository.findByTrack_Round_Id(round.getId());
+        List<Track> tracks = trackRepository.findByRoundIdOrderBySequenceOrderAsc(round.getId()).stream()
+                .filter(t -> t.getStatus() != TrackStatus.CANCELLED)
+                .toList();
+
+        for (Track track : tracks) {
+            Set<User> teamMembers = new LinkedHashSet<>();
+            for (TeamRoundTrack trt : assignments) {
+                if (!trt.getTrack().getId().equals(track.getId())) {
+                    continue;
+                }
+                teamMemberRepository.findByTeam_Id(trt.getTeam().getId()).stream()
+                        .filter(tm -> tm.getStatus() == TeamMemberStatus.ACCEPTED)
+                        .map(TeamMember::getUser)
+                        .forEach(teamMembers::add);
+            }
+            if (!teamMembers.isEmpty()) {
+                notificationService.sendBatch(
+                        new ArrayList<>(teamMembers),
+                        "PROBLEM_RELEASED",
+                        "Đề Sơ loại — %s".formatted(track.getName()),
+                        "Đề bài cho bảng \"%s\" đã được phát. Vào trang đội để tải PDF — mỗi đội chỉ thấy đề của bảng mình."
+                                .formatted(track.getName()),
+                        "rounds",
+                        round.getId());
+            }
+        }
+
+        Set<User> staff = collectTrackStaff(round.getId());
+        if (!staff.isEmpty()) {
+            notificationService.sendBatch(
+                    new ArrayList<>(staff),
+                    "PROBLEM_RELEASED",
+                    "Đề Sơ loại đã phát — %s".formatted(round.getName()),
+                    "Coordinator đã phát đề cho tất cả bảng đấu trong vòng Sơ loại.",
+                    "rounds",
+                    round.getId());
+        }
+    }
+
+    private void notifyFinalProblemReleased(Round round) {
+        Integer hackathonId = round.getHackathon().getId();
         Set<User> recipients = new LinkedHashSet<>();
-        for (Track t : trackRepository.findByRoundIdOrderBySequenceOrderAsc(round.getId())) {
+
+        Round prelim = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathonId).stream()
+                .filter(r -> !Boolean.TRUE.equals(r.getIsFinal()))
+                .findFirst()
+                .orElse(null);
+        if (prelim != null) {
+            for (TeamRoundTrack trt : teamRoundTrackRepository.findByTrack_Round_Id(prelim.getId())) {
+                if (trt.getParticipationStatus() != ParticipationStatus.ADVANCED) {
+                    continue;
+                }
+                teamMemberRepository.findByTeam_Id(trt.getTeam().getId()).stream()
+                        .filter(tm -> tm.getStatus() == TeamMemberStatus.ACCEPTED)
+                        .map(TeamMember::getUser)
+                        .forEach(recipients::add);
+            }
+        }
+
+        judgeAssignmentRepository.findByRoundId(round.getId()).stream()
+                .map(JudgeAssignment::getJudge)
+                .forEach(recipients::add);
+
+        if (recipients.isEmpty()) {
+            return;
+        }
+        notificationService.sendBatch(
+                new ArrayList<>(recipients),
+                "PROBLEM_RELEASED",
+                "Đề Chung kết đã được phát",
+                "Đề bài Vòng Chung kết đã sẵn sàng. Vào trang đội để tải PDF đề bài.",
+                "rounds",
+                round.getId());
+    }
+
+    private Set<User> collectTrackStaff(Integer roundId) {
+        Set<User> recipients = new LinkedHashSet<>();
+        for (Track t : trackRepository.findByRoundIdOrderBySequenceOrderAsc(roundId)) {
             if (t.getStatus() == TrackStatus.CANCELLED) {
                 continue;
             }
@@ -786,15 +915,6 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                     .map(JudgeAssignment::getJudge)
                     .forEach(recipients::add);
         }
-        if (recipients.isEmpty()) {
-            return;
-        }
-        notificationService.sendBatch(
-                new ArrayList<>(recipients),
-                "PROBLEM_RELEASED",
-                "Đề bài vòng '%s' đã được phát".formatted(round.getName()),
-                round.getProblemStatementUrl(),
-                "rounds",
-                round.getId());
+        return recipients;
     }
 }

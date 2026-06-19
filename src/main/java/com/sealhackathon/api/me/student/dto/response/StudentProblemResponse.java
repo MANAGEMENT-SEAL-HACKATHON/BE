@@ -14,5 +14,7 @@ public class StudentProblemResponse {
     private Integer roundId;
     private String problemStatement;
     private String problemUrl;
+    private String problemDownloadPath;
+    private String problemFilename;
     private Boolean released;
 }

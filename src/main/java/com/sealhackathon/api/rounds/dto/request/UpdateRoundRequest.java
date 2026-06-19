@@ -38,8 +38,6 @@ public class UpdateRoundRequest {
     @Min(0)
     private Integer codingDurationHours;
 
-    private String problemStatementUrl;
-
     private LocalDateTime problemReleasedAt;
 
     @Min(1)
