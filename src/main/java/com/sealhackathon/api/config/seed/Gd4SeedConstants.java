@@ -3,7 +3,7 @@ package com.sealhackathon.api.config.seed;
 /**
  * Hằng số seed GĐ4 — slug {@link #SLUG_GD4_ADVANCE_READY}.
  *
- * <p>Doc: {@code docs/testing/gd4-gd5-e2e-seed-data.md} § GĐ4
+ * <p>Doc: {@code docs/testing/gd4-full-test-matrix-and-seeds.md}
  */
 public final class Gd4SeedConstants {
 

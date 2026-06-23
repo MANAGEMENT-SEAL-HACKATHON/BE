@@ -1,98 +1,108 @@
 # E2E GĐ6 — Seed data & Postman variables
 
-Profile **`dev`**. Sau mỗi lần **restart app**, tìm log **`[Gd6PendingConfirmDataSeeder]`** để lấy ID thực tế.
+> **Ma trận test đầy đủ:** [gd6-full-test-matrix-and-seeds.md](gd6-full-test-matrix-and-seeds.md)  
+> **GĐ5 handoff:** [gd5-full-test-matrix-and-seeds.md](gd5-full-test-matrix-and-seeds.md)
+
+Profile **`dev`**. Sau mỗi lần start app, xem log các seeder `Gd6*` để lấy **ID thực tế**.
 
 | Account | Email | Password |
 |---------|-------|----------|
 | Coordinator | `coord@fpt.edu.vn` | `Coordinator@dev1` |
-| Student | `student.gd6.leader01@fpt.edu.vn` … `leader03@` | `Student@dev1` |
+| Student | xem bảng slug bên dưới | `Student@dev1` |
 
 ---
 
-## Slug & trạng thái
+## Tất cả slug seed GĐ6
 
-**Slug:** `seal-gd6-pending-confirm`
+| Slug | Mục đích |
+|------|----------|
+| `seal-gd6-pending-confirm` | Happy path — FIRST prize, thêm SECOND, confirm |
+| `seal-gd6-prizes-empty` | 0 prize — `NO_PRIZES_RECORDED` |
+| `seal-gd6-confirm-ready` | 3 giải — confirm một lần |
+| `seal-gd6-finished-export` | `FINISHED` — export + rankings |
+| `seal-gd6-edge-errors` | CK chưa lock — `ROUND_NOT_SCORING_LOCKED` |
+
+---
+
+## Profile 0 — `seal-gd6-pending-confirm`
 
 | Thành phần | Giá trị seed |
 |------------|--------------|
 | Hackathon | **`PENDING_CONFIRM`** |
-| Sơ loại | published + scoring locked |
-| Chung kết | active + **scoring locked** |
-| Events | KICKOFF + WORKSHOP + **AWARDS** (repair startup) |
+| CK | active + **scoring locked** |
 | Teams | 3× `GD6-0x ADVANCED CK` |
-| Submissions | prelim + final `SUBMITTED` mỗi đội |
-| Scores CK | `isFinal=true`, guest judge — t1 > t2 > t3 |
-| Prizes | **FIRST** trên team 01 — còn slot **SECOND** cho team 02 (test 6.2) |
+| Prizes | **FIRST** team 01 |
 
----
+**Students:** `student.gd6.leader01@fpt.edu.vn` … `leader03@`
 
-## Lấy ID nhanh
+### Lấy ID
 
 ```http
 GET /api/v1/hackathons?q=seal-gd6-pending-confirm
-Authorization: Bearer {{coordToken}}
-```
-
-```http
 GET /api/v1/hackathons/{{hackathonId}}/rounds
-Authorization: Bearer {{coordToken}}
 ```
 
-Hoặc copy từ log startup.
-
----
-
-## Postman variables
+### Postman variables
 
 | Variable | Mô tả |
 |----------|--------|
 | `gd6HackathonSlug` | `seal-gd6-pending-confirm` |
 | `hackathonId` | từ GET hackathon |
-| `prelimRoundId` | round `isFinal=false` |
 | `finalRoundId` | round `isFinal=true`, `scoringLocked=true` |
-| `finalCriterionId` | log seeder hoặc `GET /rounds/{finalRoundId}/criteria` |
-| `teamId` (t2) | team `GD6-02 ADVANCED CK` — test POST prize SECOND |
+| `teamId` (t2) | team `GD6-02` — test POST prize SECOND |
+
+### Luồng API
+
+1. `GET /readiness?target=AWARDS`
+2. `GET /team-rankings`
+3. `POST /prizes` — team 02, `prizeRank: "SECOND"`
+4. `PATCH /confirm` `{ "confirm": true }`
+5. `POST /export-jobs` — chỉ sau FINISHED (dùng `seal-gd6-finished-export`)
+
+**Reset:** restart BE — `repairForFullChainRetest` đưa slug Profile 0 về `PENDING_CONFIRM` nếu đã confirm.
 
 ---
 
-## Teams & điểm CK (gợi ý xếp hạng)
+## Profile A — `seal-gd6-prizes-empty`
 
-| Team seed | Student | CK score (seed) | Prize |
-|-----------|---------|-----------------|-------|
-| GD6-01 ADVANCED CK | `student.gd6.leader01@` | ~9.2 | **FIRST** (đã seed) |
-| GD6-02 ADVANCED CK | `student.gd6.leader02@` | ~8.6 | — (test **6.2** SECOND) |
-| GD6-03 ADVANCED CK | `student.gd6.leader03@` | ~8.1 | — |
+**Students:** `student.gd6p.leader01@` … `leader03@`
+
+Test: `PATCH /confirm` → `NO_PRIZES_RECORDED` → `POST /prizes` → confirm.
 
 ---
 
-## Luồng API GĐ6 (6.0 → 6.4)
+## Profile B — `seal-gd6-confirm-ready`
 
-1. **6.0b** `GET /hackathons/{{hackathonId}}/readiness?target=AWARDS` → `ready: true`
-2. **6.1** `GET /hackathons/{{hackathonId}}/team-rankings` *(stub — có thể `[]` cho đến khi implement FR-31)*
-3. **6.2** `POST /hackathons/{{hackathonId}}/prizes` — team 02, `prizeRank: "SECOND"`
-4. **6.2b** `GET /hackathons/{{hackathonId}}/prizes` — 2 giải (FIRST + SECOND)
-5. **6.3** `PATCH /hackathons/{{hackathonId}}/confirm` → `FINISHED` *(stub — kiểm tra response)*
-6. **6.4** `POST /hackathons/{{hackathonId}}/export-jobs` body `{ "type": "CSV_RANKINGS" }`
+**Students:** `student.gd6r.leader01@` … `leader03@`
 
-**Lưu ý:** `chapter-rankings` chỉ trả data khi hackathon **`FINISHED`**.
+3 giải đã seed — `PATCH /confirm` trực tiếp.
 
 ---
 
-## Reset seed GĐ6
+## Profile C — `seal-gd6-finished-export`
 
-Xem [seed-coverage-audit.md §6](seed-coverage-audit.md) — đặt `@slug = 'seal-gd6-pending-confirm'`, chạy SQL xóa, restart app.
+**Students:** `student.gd6f.leader01@` … `leader03@`
+
+```text
+POST /export-jobs { "type": "CSV_RANKINGS" }
+GET /chapter-rankings
+GET /individual-rankings
+```
+
+---
+
+## Profile D — `seal-gd6-edge-errors`
+
+**Students:** `student.gd6e.leader01@` … `leader03@`
+
+`PATCH /confirm` → `ROUND_NOT_SCORING_LOCKED` (CK `scoring_locked=false`).
 
 ---
 
 ## SQL verify nhanh
 
 ```sql
-SELECT id, slug, status FROM hackathons WHERE slug = 'seal-gd6-pending-confirm';
-
-SELECT r.name, r.is_final, r.scoring_locked, r.is_published
-FROM rounds r
-JOIN hackathons h ON h.id = r.hackathon_id
-WHERE h.slug = 'seal-gd6-pending-confirm';
+SELECT id, slug, status FROM hackathons WHERE slug LIKE 'seal-gd6-%';
 
 SELECT t.team_name, p.prize_rank
 FROM prizes p

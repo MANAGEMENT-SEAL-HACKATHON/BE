@@ -26,7 +26,7 @@ import java.util.List;
 /**
  * Seed GĐ6 — hackathon {@link Gd6SeedConstants#SLUG_GD6_PENDING_CONFIRM}.
  *
- * <p>Doc: {@code docs/testing/gd6-e2e-seed-data.md}
+ * <p>Doc: {@code docs/testing/gd6-full-test-matrix-and-seeds.md} § Profile 0
  */
 @Slf4j
 @Component

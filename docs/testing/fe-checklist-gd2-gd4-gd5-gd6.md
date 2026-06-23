@@ -40,7 +40,8 @@
 
 ## 2) GĐ4 — Ranking / Wildcard / Advance
 
-**Hackathon:** `seal-gd4-advance-ready`
+**Hackathon:** `seal-gd4-advance-ready`  
+**Chi tiết ma trận:** [gd4-full-test-matrix-and-seeds.md](gd4-full-test-matrix-and-seeds.md)
 
 ### Luồng của bạn ↔ trạng thái seed hiện tại
 
@@ -71,7 +72,8 @@
 
 ## 3) GĐ5 — Chung kết đang diễn ra (nộp + chấm + lock)
 
-**Hackathon:** `seal-gd5-final-active`
+**Hackathon:** `seal-gd5-final-active`  
+**Chi tiết ma trận:** [gd5-full-test-matrix-and-seeds.md](gd5-full-test-matrix-and-seeds.md)
 
 ### Luồng của bạn ↔ trạng thái seed hiện tại
 
@@ -102,7 +104,9 @@
 
 ## 4) GĐ6 — Confirm & đóng giải
 
-**Hackathon:** `seal-gd6-pending-confirm`
+**Hackathon:** xem [gd6-full-test-matrix-and-seeds.md](gd6-full-test-matrix-and-seeds.md) — slug chính `seal-gd6-pending-confirm`
+
+**Chi tiết ma trận:** [gd6-full-test-matrix-and-seeds.md](gd6-full-test-matrix-and-seeds.md)
 
 ### Luồng của bạn ↔ trạng thái seed hiện tại
 

@@ -11,6 +11,7 @@ import com.sealhackathon.api.team_round_participation.value_object.Participation
 import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.repository.TeamRepository;
+import com.sealhackathon.api.tiebreak_evaluations.repository.TiebreakEvaluationRepository;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.users.entity.User;
 import lombok.RequiredArgsConstructor;
@@ -25,40 +26,41 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Seed GĐ4 — hackathon {@link Gd4SeedConstants#SLUG_GD4_ADVANCE_READY}.
+ * Seed GĐ4 — coordinator đã resolve tiebreak, published, POST /advance OK.
  *
- * <p>Doc: {@code docs/testing/gd4-full-test-matrix-and-seeds.md} § Profile 0
+ * <p>Doc: {@code docs/testing/gd4-full-test-matrix-and-seeds.md} § Profile F
  */
 @Slf4j
 @Component
 @Profile("dev")
 @RequiredArgsConstructor
-public class Gd4AdvanceReadyDataSeeder {
+public class Gd4TiebreakResolvedDataSeeder {
 
     private final HackathonDevSeedHelper seedHelper;
     private final HackathonRepository hackathonRepository;
     private final RoundRepository roundRepository;
     private final TeamRoundTrackRepository teamRoundTrackRepository;
     private final TeamRepository teamRepository;
+    private final TiebreakEvaluationRepository tiebreakEvaluationRepository;
     private final DevSeedCleanup devSeedCleanup;
 
-    @Value("${app.seed.gd4.enabled:true}")
+    @Value("${app.seed.gd4.tiebreak-resolved.enabled:true}")
     private boolean enabled;
 
     @Transactional
     public void ensureSeed() {
         if (!enabled) {
-            log.info("[Gd4AdvanceReadyDataSeeder] Tắt (app.seed.gd4.enabled=false)");
+            log.info("[Gd4TiebreakResolvedDataSeeder] Tắt (app.seed.gd4.tiebreak-resolved.enabled=false)");
             return;
         }
 
         HackathonDevSeedHelper.PrelimState prelimState =
-                new HackathonDevSeedHelper.PrelimState(false, true, true, false, 1, 6);
+                new HackathonDevSeedHelper.PrelimState(false, true, true, true, 1, 6);
         HackathonDevSeedHelper.HackathonStructure structure = seedHelper.ensureHackathonStructure(
-                Gd4SeedConstants.SLUG_GD4_ADVANCE_READY,
-                "SEAL GĐ4 — Advance ready",
+                Gd4TiebreakResolvedSeedConstants.SLUG_GD4_TIEBREAK_RESOLVED,
+                "SEAL GĐ4 — Tiebreak resolved",
                 HackathonStatus.ONGOING,
-                "Seed FE GĐ4 — prelim locked, 8 đội scored, chưa publish/advance",
+                "Seed GĐ4 — tiebreak đã resolve, POST /advance không còn TIEBREAK_REQUIRED",
                 prelimState,
                 new HackathonDevSeedHelper.FinalState(false, false),
                 seedHelper.computeGd4AdvanceReadyDates());
@@ -67,110 +69,101 @@ public class Gd4AdvanceReadyDataSeeder {
         Round prelim = structure.prelim();
         Round finalRound = structure.finalRound();
         Track track1 = structure.track1();
-        Track track2 = structure.track2();
 
-        if (needsGd4Repair(hackathon, prelim, finalRound)) {
-            seedHelper.repairHackathonForGd4Retest(hackathon, prelim, finalRound);
+        if (needsRepair(hackathon, prelim, finalRound)) {
+            seedHelper.repairHackathonForGd4TiebreakResolvedRetest(hackathon, prelim, finalRound);
             hackathon = hackathonRepository.findById(hackathon.getId()).orElse(hackathon);
             prelim = loadPrelim(hackathon.getId());
             finalRound = loadFinal(hackathon.getId());
         }
 
         seedHelper.syncHackathonCalendarFromDates(
-                Gd4SeedConstants.SLUG_GD4_ADVANCE_READY, seedHelper.computeGd4AdvanceReadyDates());
+                Gd4TiebreakResolvedSeedConstants.SLUG_GD4_TIEBREAK_RESOLVED,
+                seedHelper.computeGd4AdvanceReadyDates());
         prelim = loadPrelim(hackathon.getId());
+        prelim.setTopNAdvance(1);
+        roundRepository.save(prelim);
 
         User coordinator = seedHelper.requireCoordinator();
         User judge1 = seedHelper.requireJudge1();
-        User judge2 = seedHelper.requireJudge2();
         Chapter hcm = seedHelper.requireChapter(Gd1SeedConstants.CHAPTER_FPT_HCM);
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime submittedAt = now.minusHours(72);
 
         List<Team> teams = new ArrayList<>();
-        for (int i = 0; i < Gd4SeedConstants.TEAM_NAMES.length; i++) {
+        for (int i = 0; i < Gd4TiebreakResolvedSeedConstants.TEAM_NAMES.length; i++) {
             int idx = i + 1;
             User leader = seedHelper.upsertStudent(
-                    Gd4SeedConstants.studentEmail(idx),
-                    Gd4SeedConstants.studentDisplayName(idx),
+                    Gd4TiebreakResolvedSeedConstants.studentEmail(idx),
+                    Gd4TiebreakResolvedSeedConstants.studentDisplayName(idx),
                     hcm);
             seedHelper.registerStudent(hackathon, leader);
             Team team = seedHelper.ensureActiveTeam(
-                    hackathon, Gd4SeedConstants.TEAM_NAMES[i], leader, hcm, now);
+                    hackathon, Gd4TiebreakResolvedSeedConstants.TEAM_NAMES[i], leader, hcm, now);
             seedHelper.ensureTeamLocked(team, now);
-            Track track = idx <= 4 ? track1 : track2;
-            User judge = idx <= 4 ? judge1 : judge2;
-            seedHelper.ensureLottery(
-                    hackathon, prelim, track, Gd4SeedConstants.GROUPS[i], team, coordinator, now);
+            seedHelper.ensureLottery(hackathon, prelim, track1, "A", team, coordinator, now);
             Submission sub = seedHelper.ensurePrelimSubmission(
-                    hackathon, prelim, track, team,
+                    hackathon, prelim, track1, team,
                     com.sealhackathon.api.submissions.value_object.SubmissionStatus.SUBMITTED,
                     false, submittedAt);
-            seedHelper.scoreAllTrackCriteria(sub, track, judge, Gd4SeedConstants.TEAM_SCORES[i], true);
+            seedHelper.scoreAllTrackCriteria(
+                    sub, track1, judge1, Gd4TiebreakResolvedSeedConstants.TEAM_SCORES[i], true);
             teams.add(team);
         }
 
+        seedHelper.seedCoordinatorTiebreakResolve(
+                prelim,
+                teams.get(0),
+                teams.get(1),
+                coordinator,
+                "Seed coordinator tiebreak resolve — TR02 penalty 0.01");
+
         log.info("""
-                [Gd4AdvanceReadyDataSeeder] slug={} hackathonId={} prelimRoundId={} finalRoundId={}
-                  teams: {} | {} | {} | {} | {} | {} | {} | {}
+                [Gd4TiebreakResolvedDataSeeder] slug={} prelimRoundId={} topN=1
+                  TR01 vs TR02 hòa 9.0 — coordinator resolve xong
+                  POST /advance → 200 (không TIEBREAK_REQUIRED)
                   students: {} … {} password={}
-                  prelim locked, unpublished — sẵn sàng ranking/wildcard/advance
                 """,
-                Gd4SeedConstants.SLUG_GD4_ADVANCE_READY,
-                hackathon.getId(),
+                Gd4TiebreakResolvedSeedConstants.SLUG_GD4_TIEBREAK_RESOLVED,
                 prelim.getId(),
-                finalRound.getId(),
-                teams.get(0).getId(),
-                teams.get(1).getId(),
-                teams.get(2).getId(),
-                teams.get(3).getId(),
-                teams.get(4).getId(),
-                teams.get(5).getId(),
-                teams.get(6).getId(),
-                teams.get(7).getId(),
-                Gd4SeedConstants.studentEmail(1),
-                Gd4SeedConstants.studentEmail(8),
+                Gd4TiebreakResolvedSeedConstants.studentEmail(1),
+                Gd4TiebreakResolvedSeedConstants.studentEmail(4),
                 DevSeedCatalog.DEV_STUDENT_PASSWORD);
     }
 
-    /** Đồng bộ lịch + trạng thái GĐ4 theo giờ máy — gọi sau repairAll mỗi lần start BE. */
     @Transactional
     public void repairForFeTesting() {
         if (!enabled) {
             return;
         }
-        var maybeHackathon = hackathonRepository.findBySlug(Gd4SeedConstants.SLUG_GD4_ADVANCE_READY);
-        if (maybeHackathon.isEmpty()) {
-            return;
-        }
-        Hackathon hackathon = maybeHackathon.get();
-        Round prelim = loadPrelim(hackathon.getId());
-        Round finalRound = loadFinal(hackathon.getId());
-        if (needsGd4Repair(hackathon, prelim, finalRound)) {
-            seedHelper.repairHackathonForGd4Retest(hackathon, prelim, finalRound);
-            prelim = loadPrelim(hackathon.getId());
-        }
-        boolean synced = seedHelper.syncHackathonCalendarFromDates(
-                Gd4SeedConstants.SLUG_GD4_ADVANCE_READY, seedHelper.computeGd4AdvanceReadyDates());
-        if (synced) {
-            log.info(
-                    "[Gd4AdvanceReadyDataSeeder] FE repair — prelim ended slug={} deadline={}",
-                    Gd4SeedConstants.SLUG_GD4_ADVANCE_READY,
-                    loadPrelim(hackathon.getId()).getSubmissionDeadline());
-        }
+        hackathonRepository.findBySlug(Gd4TiebreakResolvedSeedConstants.SLUG_GD4_TIEBREAK_RESOLVED).ifPresent(h -> {
+            Round prelim = loadPrelim(h.getId());
+            Round finalRound = loadFinal(h.getId());
+            if (needsRepair(h, prelim, finalRound)) {
+                seedHelper.repairHackathonForGd4TiebreakResolvedRetest(h, prelim, finalRound);
+                ensureSeed();
+                return;
+            }
+            seedHelper.syncHackathonCalendarFromDates(
+                    Gd4TiebreakResolvedSeedConstants.SLUG_GD4_TIEBREAK_RESOLVED,
+                    seedHelper.computeGd4AdvanceReadyDates());
+        });
     }
 
     @Transactional
     public void resetAndSeed() {
-        devSeedCleanup.purgeIfPresent(Gd4SeedConstants.SLUG_GD4_ADVANCE_READY);
+        devSeedCleanup.purgeIfPresent(Gd4TiebreakResolvedSeedConstants.SLUG_GD4_TIEBREAK_RESOLVED);
         ensureSeed();
     }
 
-    private boolean needsGd4Repair(Hackathon hackathon, Round prelim, Round finalRound) {
+    private boolean needsRepair(Hackathon hackathon, Round prelim, Round finalRound) {
         if (hackathon.getStatus() != HackathonStatus.ONGOING) {
             return true;
         }
-        if (Boolean.TRUE.equals(prelim.getIsPublished()) || Boolean.TRUE.equals(finalRound.getIsActive())) {
+        if (!Boolean.TRUE.equals(prelim.getIsPublished()) || Boolean.TRUE.equals(finalRound.getIsActive())) {
+            return true;
+        }
+        if (tiebreakEvaluationRepository.findByRound_Id(prelim.getId()).isEmpty()) {
             return true;
         }
         return teamRepository.findByHackathon_Id(hackathon.getId()).stream()
