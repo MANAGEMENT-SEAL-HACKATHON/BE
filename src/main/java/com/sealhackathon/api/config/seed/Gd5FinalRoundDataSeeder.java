@@ -25,7 +25,7 @@ import java.util.List;
 /**
  * Seed GĐ5 — hackathon {@link Gd5SeedConstants#SLUG_GD5_FINAL_ACTIVE}.
  *
- * <p>Doc: {@code docs/testing/gd4-gd5-e2e-seed-data.md} § GĐ5
+ * <p>Doc: {@code docs/testing/gd5-full-test-matrix-and-seeds.md} § Profile 0
  */
 @Slf4j
 @Component

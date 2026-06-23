@@ -3,7 +3,7 @@ package com.sealhackathon.api.config.seed;
 /**
  * Hằng số seed GĐ6 — slug {@link #SLUG_GD6_PENDING_CONFIRM}.
  *
- * <p>Doc: {@code docs/testing/gd6-e2e-seed-data.md}
+ * <p>Doc: {@code docs/testing/gd6-full-test-matrix-and-seeds.md}
  */
 public final class Gd6SeedConstants {
 

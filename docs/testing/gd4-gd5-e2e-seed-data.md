@@ -1,6 +1,27 @@
 # E2E GĐ4 & GĐ5 — Seed data & Postman variables
 
-Profile **`dev`**. Sau mỗi lần start app, xem log `[Gd4AdvanceDataSeeder]` và `[Gd5FinalRoundDataSeeder]` để lấy **ID thực tế**.
+> **Ma trận test đầy đủ:** [gd4-full-test-matrix-and-seeds.md](gd4-full-test-matrix-and-seeds.md) · [gd5-full-test-matrix-and-seeds.md](gd5-full-test-matrix-and-seeds.md)  
+> **GĐ3 sơ loại:** [gd3-full-test-matrix-and-seeds.md](gd3-full-test-matrix-and-seeds.md)
+
+Profile **`dev`**. Sau mỗi lần start app, xem log các seeder `Gd4*` / `Gd5*` để lấy **ID thực tế**.
+
+### Tất cả slug seed GĐ4 / GĐ5
+
+| Slug | Giai đoạn | Mục đích |
+|------|-----------|----------|
+| `seal-gd4-advance-ready` | GĐ4 | Happy path publish → advance |
+| `seal-gd4-published` | GĐ4 | Đã publish, test advance |
+| `seal-gd4-tiebreak-gate` | GĐ4 | `TIEBREAK_REQUIRED` |
+| `seal-gd4-ck-activate-ready` | GĐ4 | 6 ADVANCED, test activate CK |
+| `seal-gd4-edge-errors` | GĐ4 | `JUDGE_NOT_ASSIGNED` |
+| `seal-gd4-wildcard-resolved` | GĐ4 | Wildcard 2 approve + 2 reject, sẵn advance |
+| `seal-gd4-tiebreak-resolved` | GĐ4 | Tiebreak đã resolve, POST /advance OK |
+| `seal-gd5-final-active` | GĐ5 | Mixed submit/score/lock |
+| `seal-gd5-submit-open` | GĐ5 | 4 đội, chưa nộp CK |
+| `seal-gd5-scoring-live` | GĐ5 | Queue CK PRESENTING |
+| `seal-gd5-calibration-timer` | GĐ5 | Calibration OPEN + timer QA |
+| `seal-gd5-edge-errors` | GĐ5 | `ROUND_NOT_ACTIVE` |
+| `seal-gd5-late-hardlock` | GĐ5 | Deadline CK qua → `REJECTED` HARD_LOCK |
 
 Password chung student: **`Student@dev1`** (`GdExtendedSeedConstants.DEV_STUDENT_PASSWORD`).
 
@@ -89,7 +110,7 @@ Hoặc copy từ log startup.
 7. **4.5b** `GET /hackathons/{{hackathonId}}/readiness?target=FINAL_ROUND` → `ready: true`
 8. **4.6** `PATCH /rounds/{{finalRoundId}}/activate` body `{ "note": "Start final round" }`
 
-**Tiebreak/wildcard nâng cao (opt-in):** slug `seal-gd4-tiebreak-wildcard` — bật `app.seed.gd4.enabled=true`.
+**Tiebreak trước advance:** slug `seal-gd4-tiebreak-gate` hoặc `seal-gd3-tiebreak-hybrid` (xem [gd4-full-test-matrix-and-seeds.md](gd4-full-test-matrix-and-seeds.md) § Profile B).
 
 ---
 

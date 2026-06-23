@@ -1,5 +1,8 @@
 package com.sealhackathon.api.config.seed;
 
+import com.sealhackathon.api.calibration_sessions.entity.CalibrationSession;
+import com.sealhackathon.api.calibration_sessions.repository.CalibrationSessionRepository;
+import com.sealhackathon.api.calibration_sessions.value_object.CalibrationStatus;
 import com.sealhackathon.api.chapters.entity.Chapter;
 import com.sealhackathon.api.chapters.repository.ChapterRepository;
 import com.sealhackathon.api.criteria.entity.Criteria;
@@ -54,7 +57,11 @@ import com.sealhackathon.api.team_round_tracks.value_object.RegistrationType;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.repository.TeamRepository;
 import com.sealhackathon.api.teams.value_object.TeamStatus;
+import com.sealhackathon.api.tiebreak_evaluations.entity.TiebreakEvaluation;
+import com.sealhackathon.api.tiebreak_evaluations.repository.TiebreakEvaluationRepository;
 import com.sealhackathon.api.tracks.entity.Track;
+import com.sealhackathon.api.wildcard_reviews.entity.WildcardReview;
+import com.sealhackathon.api.wildcard_reviews.repository.WildcardReviewRepository;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.tracks.support.TrackProblemStatementStorage;
 import com.sealhackathon.api.rounds.support.RoundProblemStatementStorage;
@@ -104,6 +111,9 @@ public class HackathonDevSeedHelper {
     private final HackathonRegistrationRepository hackathonRegistrationRepository;
     private final PrizeRepository prizeRepository;
     private final PresentationSlotRepository presentationSlotRepository;
+    private final CalibrationSessionRepository calibrationSessionRepository;
+    private final WildcardReviewRepository wildcardReviewRepository;
+    private final TiebreakEvaluationRepository tiebreakEvaluationRepository;
     private final JdbcTemplate jdbcTemplate;
     private final PasswordEncoder passwordEncoder;
     private final HackathonBannerStorageService bannerStorageService;
@@ -133,6 +143,38 @@ public class HackathonDevSeedHelper {
     }
 
     public record FinalState(boolean active, boolean scoringLocked) {
+    }
+
+    /** Timer state cho slot đang {@code PRESENTING} khi seed queue dev. */
+    public record PresentationTimerSeed(
+            PresentationTimerPhase phase,
+            LocalDateTime presentationStartedAt,
+            LocalDateTime qaStartedAt,
+            LocalDateTime pausedAt,
+            PresentationTimerPhase phaseBeforePause,
+            int pausedAccumulatedSeconds) {
+
+        public static PresentationTimerSeed pausedFromPresenting() {
+            LocalDateTime now = LocalDateTime.now();
+            return new PresentationTimerSeed(
+                    PresentationTimerPhase.PAUSED,
+                    now.minusMinutes(3),
+                    null,
+                    now.minusSeconds(45),
+                    PresentationTimerPhase.PRESENTING,
+                    0);
+        }
+
+        public static PresentationTimerSeed qa() {
+            LocalDateTime now = LocalDateTime.now();
+            return new PresentationTimerSeed(
+                    PresentationTimerPhase.QA,
+                    now.minusMinutes(8),
+                    now.minusMinutes(2),
+                    null,
+                    null,
+                    0);
+        }
     }
 
     public record HackathonStructure(
@@ -281,6 +323,37 @@ public class HackathonDevSeedHelper {
         LocalDateTime prelimExamAt = prelimOpen.minusMinutes(openOffsetMinutes);
         LocalDateTime finalOpen = now.minusHours(2);
         LocalDateTime finalDeadline = now.plusHours(8);
+        LocalDateTime finalExamAt = finalOpen;
+        return new SeedDates(
+                regStart,
+                regEnd,
+                eventStart,
+                eventEnd,
+                prelimDeadline,
+                finalDeadline,
+                prelimExamAt,
+                finalExamAt,
+                prelimOpen,
+                finalOpen);
+    }
+
+    /**
+     * Lịch GĐ5 — CK <b>đang active</b> nhưng deadline nộp <b>đã qua</b> (HARD_LOCK → {@code REJECTED}).
+     */
+    public SeedDates computeGd5LateHardLockDates() {
+        LocalDate today = LocalDate.now();
+        LocalDate regStart = today.minusDays(60);
+        LocalDate regEnd = today.minusDays(30);
+        LocalDate eventStart = today.plusDays(7);
+        LocalDate eventEnd = eventStart.plusDays(30);
+        int prelimHours = RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS;
+        LocalDateTime now = LocalDateTime.now().withSecond(0).withNano(0);
+        LocalDateTime prelimDeadline = now.minusDays(3);
+        long openOffsetMinutes = (prelimHours * 60L * 2L) / 3L;
+        LocalDateTime prelimOpen = prelimDeadline.minusHours(prelimHours).plusMinutes(openOffsetMinutes);
+        LocalDateTime prelimExamAt = prelimOpen.minusMinutes(openOffsetMinutes);
+        LocalDateTime finalOpen = now.minusHours(12);
+        LocalDateTime finalDeadline = now.minusHours(2);
         LocalDateTime finalExamAt = finalOpen;
         return new SeedDates(
                 regStart,
@@ -1392,18 +1465,79 @@ public class HackathonDevSeedHelper {
     }
 
     public void ensureFirstPrize(Hackathon hackathon, Round finalRound, Team team, User coordinator) {
-        if (!prizeRepository.existsByHackathonIdAndPrizeRank(hackathon.getId(), PrizeRank.FIRST)) {
+        ensurePrize(hackathon, finalRound, team, PrizeRank.FIRST, "Giải Nhất", "7000000",
+                "Seed GĐ6 — giải nhất", coordinator);
+    }
+
+    public void ensureSecondPrize(Hackathon hackathon, Round finalRound, Team team, User coordinator) {
+        ensurePrize(hackathon, finalRound, team, PrizeRank.SECOND, "Giải Nhì", "5000000",
+                "Seed GĐ6 — giải nhì", coordinator);
+    }
+
+    public void ensureThirdPrize(Hackathon hackathon, Round finalRound, Team team, User coordinator) {
+        ensurePrize(hackathon, finalRound, team, PrizeRank.THIRD, "Giải Ba", "3000000",
+                "Seed GĐ6 — giải ba", coordinator);
+    }
+
+    public void ensurePrize(
+            Hackathon hackathon,
+            Round finalRound,
+            Team team,
+            PrizeRank rank,
+            String prizeName,
+            String prizeValue,
+            String description,
+            User coordinator) {
+        if (!prizeRepository.existsByHackathonIdAndPrizeRank(hackathon.getId(), rank)) {
             prizeRepository.save(Prize.builder()
                     .hackathon(hackathon)
                     .round(finalRound)
                     .team(team)
-                    .prizeRank(PrizeRank.FIRST)
-                    .prizeName("Giải Nhất")
-                    .prizeValue("7000000")
-                    .description("Seed GĐ6 — giải nhất")
+                    .prizeRank(rank)
+                    .prizeName(prizeName)
+                    .prizeValue(prizeValue)
+                    .description(description)
                     .awardedBy(coordinator)
                     .build());
         }
+    }
+
+    /** Reset GĐ6 prizes-empty — PENDING_CONFIRM, CK locked, không có prize. */
+    @Transactional
+    public void repairHackathonForGd6PrizesEmptyRetest(Hackathon hackathon, Round prelim, Round finalRound) {
+        repairHackathonForGd6Retest(hackathon, prelim, finalRound);
+    }
+
+    /**
+     * Reset GĐ6 confirm-gate — PENDING_CONFIRM nhưng CK <b>chưa</b> scoring_locked.
+     */
+    @Transactional
+    public void repairHackathonForGd6ConfirmGateRetest(Hackathon hackathon, Round prelim, Round finalRound) {
+        User coordinator = requireCoordinator();
+        syncHackathonCalendarFromDates(hackathon.getSlug(), computeGd6PendingConfirmDates());
+        clearGd6ClosureArtifacts(hackathon.getId());
+        applyPrelimState(prelim, new PrelimState(false, true, true, true, 1, 2), coordinator);
+        applyFinalState(finalRound, new FinalState(true, false), coordinator);
+        releaseFinalProblem(finalRound);
+        ensureFinalGuestJudgeAssignment(hackathon, finalRound);
+        hackathon.setIndividualRankingEnabled(true);
+        hackathon.setStatus(HackathonStatus.PENDING_CONFIRM);
+        hackathonRepository.save(hackathon);
+    }
+
+    /** Reset GĐ6 finished-export — FINISHED + giữ/xóa rankings để tính lại trong seeder. */
+    @Transactional
+    public void repairHackathonForGd6FinishedExportRetest(Hackathon hackathon, Round prelim, Round finalRound) {
+        User coordinator = requireCoordinator();
+        syncHackathonCalendarFromDates(hackathon.getSlug(), computeGd6PendingConfirmDates());
+        clearGd6ClosureArtifacts(hackathon.getId());
+        applyPrelimState(prelim, new PrelimState(false, true, true, true, 1, 2), coordinator);
+        applyFinalState(finalRound, new FinalState(true, true), coordinator);
+        releaseFinalProblem(finalRound);
+        ensureFinalGuestJudgeAssignment(hackathon, finalRound);
+        hackathon.setIndividualRankingEnabled(true);
+        hackathon.setStatus(HackathonStatus.FINISHED);
+        hackathonRepository.save(hackathon);
     }
 
     /** Đảm bảo guest judge có FINAL_EXTERNAL trên CK + invitation còn hiệu lực. */
@@ -1465,6 +1599,58 @@ public class HackathonDevSeedHelper {
                 .build());
     }
 
+    /** Đánh dấu slide đã lưu (dev) — FE hiển thị {@code ON_TIME}, không cần file MinIO thật. */
+    public void markSubmissionSlideSeeded(Submission submission) {
+        submission.setSlideStorageKey("dev-seed/slides/submission-" + submission.getId() + ".pdf");
+        submission.setSlideOriginalFilename("seed-slide.pdf");
+        submission.setSlideContentType("application/pdf");
+        submission.setSlideSizeBytes(1024L);
+        submission.setSlideUploadedAt(LocalDateTime.now());
+        submissionRepository.save(submission);
+    }
+
+    public void clearTrackJudgeAssignments(Track track) {
+        judgeAssignmentRepository.deleteByTrackId(track.getId());
+    }
+
+    public boolean isTrackWithoutJudges(Track track) {
+        return judgeAssignmentRepository.findByTrackId(track.getId()).isEmpty();
+    }
+
+    public void repairPrelimState(Round prelim, PrelimState state) {
+        applyPrelimState(prelim, state, requireCoordinator());
+    }
+
+    public void repairFinalState(Round finalRound, FinalState state) {
+        applyFinalState(finalRound, state, requireCoordinator());
+    }
+
+    public CalibrationSession ensureOpenCalibrationSession(
+            Round prelim,
+            Submission sampleSubmission,
+            User coordinator,
+            float targetScore,
+            String instructions) {
+        return calibrationSessionRepository.findByRound_IdOrderByStartedAtDesc(prelim.getId()).stream()
+                .filter(s -> s.getStatus() == CalibrationStatus.OPEN)
+                .findFirst()
+                .map(existing -> {
+                    existing.setSampleSubmission(sampleSubmission);
+                    existing.setTargetScore(targetScore);
+                    existing.setInstructions(instructions);
+                    return calibrationSessionRepository.save(existing);
+                })
+                .orElseGet(() -> calibrationSessionRepository.save(CalibrationSession.builder()
+                        .round(prelim)
+                        .sampleSubmission(sampleSubmission)
+                        .status(CalibrationStatus.OPEN)
+                        .targetScore(targetScore)
+                        .instructions(instructions)
+                        .startedAt(LocalDateTime.now())
+                        .createdBy(coordinator)
+                        .build()));
+    }
+
     public void scoreAllTrackCriteria(
             Submission submission,
             Track track,
@@ -1510,7 +1696,7 @@ public class HackathonDevSeedHelper {
     }
 
     public void seedPresentationQueue(Round prelim, Track track, List<Submission> gradableInOrder) {
-        seedPresentationQueue(prelim, track, gradableInOrder, 0);
+        seedPresentationQueue(prelim, track, gradableInOrder, 0, null);
     }
 
     /**
@@ -1521,6 +1707,18 @@ public class HackathonDevSeedHelper {
             Track track,
             List<Submission> gradableInOrder,
             int presentingIndex) {
+        seedPresentationQueue(prelim, track, gradableInOrder, presentingIndex, null);
+    }
+
+    /**
+     * @param presentingTimer timer cho slot PRESENTING; {@code null} → {@code SETUP}
+     */
+    public void seedPresentationQueue(
+            Round prelim,
+            Track track,
+            List<Submission> gradableInOrder,
+            int presentingIndex,
+            PresentationTimerSeed presentingTimer) {
         presentationSlotRepository.deleteByRound_IdAndTrack_Id(prelim.getId(), track.getId());
         if (gradableInOrder.isEmpty()) {
             return;
@@ -1548,6 +1746,19 @@ public class HackathonDevSeedHelper {
             PresentationTimerPhase timerPhase = status == PresentationQueueStatus.PRESENTING
                     ? PresentationTimerPhase.SETUP
                     : PresentationTimerPhase.IDLE;
+            Integer pausedAccumulated = 0;
+            LocalDateTime presentationStartedAt = null;
+            LocalDateTime qaStartedAt = null;
+            LocalDateTime pausedAt = null;
+            PresentationTimerPhase phaseBeforePause = null;
+            if (status == PresentationQueueStatus.PRESENTING && presentingTimer != null) {
+                timerPhase = presentingTimer.phase();
+                presentationStartedAt = presentingTimer.presentationStartedAt();
+                qaStartedAt = presentingTimer.qaStartedAt();
+                pausedAt = presentingTimer.pausedAt();
+                phaseBeforePause = presentingTimer.phaseBeforePause();
+                pausedAccumulated = presentingTimer.pausedAccumulatedSeconds();
+            }
             presentationSlotRepository.save(PresentationSlot.builder()
                     .round(prelim)
                     .track(track)
@@ -1559,7 +1770,98 @@ public class HackathonDevSeedHelper {
                     .sequenceOrder(order)
                     .queueStatus(status)
                     .timerPhase(timerPhase)
-                    .pausedAccumulatedSeconds(0)
+                    .presentationStartedAt(presentationStartedAt)
+                    .qaStartedAt(qaStartedAt)
+                    .pausedAt(pausedAt)
+                    .timerPhaseBeforePause(phaseBeforePause)
+                    .pausedAccumulatedSeconds(pausedAccumulated)
+                    .build());
+            order++;
+        }
+    }
+
+    public void clearFinalRoundJudgeAssignments(Round finalRound) {
+        judgeAssignmentRepository.deleteByRoundId(finalRound.getId());
+    }
+
+    public void seedFinalPresentationQueue(Round finalRound, List<Submission> gradableInOrder) {
+        seedFinalPresentationQueue(finalRound, gradableInOrder, 0, null);
+    }
+
+    public void seedFinalPresentationQueue(
+            Round finalRound,
+            List<Submission> gradableInOrder,
+            int presentingIndex) {
+        seedFinalPresentationQueue(finalRound, gradableInOrder, presentingIndex, null);
+    }
+
+    /**
+     * Hàng đợi thuyết trình CK — {@code trackId=null}, một pool chung.
+     *
+     * @param presentingIndex slot đang PRESENTING (0-based); {@code -1} = tất cả DONE
+     */
+    public void seedFinalPresentationQueue(
+            Round finalRound,
+            List<Submission> gradableInOrder,
+            int presentingIndex,
+            PresentationTimerSeed presentingTimer) {
+        presentationSlotRepository.deleteByRound_IdAndTrackIsNull(finalRound.getId());
+        if (gradableInOrder.isEmpty()) {
+            return;
+        }
+        LocalDateTime examAt = finalRound.getExamAt() != null
+                ? finalRound.getExamAt()
+                : LocalDateTime.now().withSecond(0).withNano(0);
+        int slotMinutes = finalRound.getDefaultPresentationMinutes() != null
+                && finalRound.getDefaultPresentationMinutes() > 0
+                ? finalRound.getDefaultPresentationMinutes()
+                : 10;
+        int order = 1;
+        for (int i = 0; i < gradableInOrder.size(); i++) {
+            Submission submission = gradableInOrder.get(i);
+            LocalDateTime start = examAt.plusMinutes((long) (order - 1) * slotMinutes);
+            PresentationQueueStatus status;
+            if (presentingIndex < 0) {
+                status = PresentationQueueStatus.DONE;
+            } else if (i < presentingIndex) {
+                status = PresentationQueueStatus.DONE;
+            } else if (i == presentingIndex) {
+                status = PresentationQueueStatus.PRESENTING;
+            } else {
+                status = PresentationQueueStatus.WAITING;
+            }
+            PresentationTimerPhase timerPhase = status == PresentationQueueStatus.PRESENTING
+                    ? PresentationTimerPhase.SETUP
+                    : PresentationTimerPhase.IDLE;
+            Integer pausedAccumulated = 0;
+            LocalDateTime presentationStartedAt = null;
+            LocalDateTime qaStartedAt = null;
+            LocalDateTime pausedAt = null;
+            PresentationTimerPhase phaseBeforePause = null;
+            if (status == PresentationQueueStatus.PRESENTING && presentingTimer != null) {
+                timerPhase = presentingTimer.phase();
+                presentationStartedAt = presentingTimer.presentationStartedAt();
+                qaStartedAt = presentingTimer.qaStartedAt();
+                pausedAt = presentingTimer.pausedAt();
+                phaseBeforePause = presentingTimer.phaseBeforePause();
+                pausedAccumulated = presentingTimer.pausedAccumulatedSeconds();
+            }
+            presentationSlotRepository.save(PresentationSlot.builder()
+                    .round(finalRound)
+                    .track(null)
+                    .submission(submission)
+                    .team(submission.getTeam())
+                    .startsAt(start)
+                    .endsAt(start.plusMinutes(slotMinutes))
+                    .location("CK Phòng " + order)
+                    .sequenceOrder(order)
+                    .queueStatus(status)
+                    .timerPhase(timerPhase)
+                    .presentationStartedAt(presentationStartedAt)
+                    .qaStartedAt(qaStartedAt)
+                    .pausedAt(pausedAt)
+                    .timerPhaseBeforePause(phaseBeforePause)
+                    .pausedAccumulatedSeconds(pausedAccumulated)
                     .build());
             order++;
         }
@@ -1681,6 +1983,186 @@ public class HackathonDevSeedHelper {
             hackathon.setStatus(HackathonStatus.ONGOING);
             hackathonRepository.save(hackathon);
         }
+    }
+
+    /** Reset hackathon GĐ4 published — chưa advance, CK chưa active. */
+    @Transactional
+    public void repairHackathonForGd4PublishedRetest(Hackathon hackathon, Round prelim, Round finalRound) {
+        User coordinator = requireCoordinator();
+        clearFinalRoundArtifacts(hackathon.getId());
+        resetTeamsToPreAdvance(hackathon, prelim, finalRound);
+        syncHackathonCalendarFromDates(hackathon.getSlug(), computeGd4AdvanceReadyDates());
+        applyPrelimState(prelim, new PrelimState(false, true, true, true, 1, 6), coordinator);
+        prelim.setWildcardEnabled(true);
+        roundRepository.save(prelim);
+        applyFinalState(finalRound, new FinalState(false, false), coordinator);
+        if (hackathon.getStatus() != HackathonStatus.ONGOING) {
+            hackathon.setStatus(HackathonStatus.ONGOING);
+            hackathonRepository.save(hackathon);
+        }
+    }
+
+    /** Reset hackathon GĐ4 tiebreak gate — locked, unpublished, chưa advance. */
+    @Transactional
+    public void repairHackathonForGd4TiebreakRetest(Hackathon hackathon, Round prelim, Round finalRound) {
+        repairHackathonForGd4Retest(hackathon, prelim, finalRound);
+    }
+
+    /** Reset hackathon GĐ4 wildcard resolved — locked + published, chưa advance. */
+    @Transactional
+    public void repairHackathonForGd4WildcardResolvedRetest(Hackathon hackathon, Round prelim, Round finalRound) {
+        repairHackathonForGd4PublishedRetest(hackathon, prelim, finalRound);
+    }
+
+    /** Reset hackathon GĐ4 tiebreak resolved — locked + published, chưa advance, xóa penalty cũ. */
+    @Transactional
+    public void repairHackathonForGd4TiebreakResolvedRetest(Hackathon hackathon, Round prelim, Round finalRound) {
+        User coordinator = requireCoordinator();
+        clearFinalRoundArtifacts(hackathon.getId());
+        clearPrelimRoundArtifacts(hackathon.getId());
+        resetTeamsToPreAdvance(hackathon, prelim, finalRound);
+        syncHackathonCalendarFromDates(hackathon.getSlug(), computeGd4AdvanceReadyDates());
+        applyPrelimState(prelim, new PrelimState(false, true, true, true, 1, 6), coordinator);
+        prelim.setTopNAdvance(1);
+        prelim.setWildcardEnabled(true);
+        roundRepository.save(prelim);
+        applyFinalState(finalRound, new FinalState(false, false), coordinator);
+        if (hackathon.getStatus() != HackathonStatus.ONGOING) {
+            hackathon.setStatus(HackathonStatus.ONGOING);
+            hackathonRepository.save(hackathon);
+        }
+    }
+
+    /** Reset hackathon GĐ5 late-hardlock — CK active, deadline đã qua, chưa có submission CK. */
+    @Transactional
+    public void repairHackathonForGd5LateHardLockRetest(Hackathon hackathon, Round prelim, Round finalRound) {
+        User coordinator = requireCoordinator();
+        syncHackathonCalendarFromDates(hackathon.getSlug(), computeGd5LateHardLockDates());
+        if (hackathon.getStatus() != HackathonStatus.ONGOING) {
+            hackathon.setStatus(HackathonStatus.ONGOING);
+            hackathonRepository.save(hackathon);
+        }
+        clearFinalRoundArtifacts(hackathon.getId());
+        applyPrelimState(prelim, new PrelimState(false, true, true, true, 2, 2), coordinator);
+        applyFinalState(finalRound, new FinalState(true, false), coordinator);
+        releaseFinalProblem(finalRound);
+        finalRound.setForceLocked(false);
+        finalRound.setForceLockReason(null);
+        finalRound.setScoringLockedBy(null);
+        roundRepository.save(finalRound);
+        ensureFinalGuestJudgeAssignment(hackathon, finalRound);
+    }
+
+    @Transactional
+    public void ensureWildcardReviewDecision(
+            Round round,
+            Team team,
+            Track track,
+            float avgScore,
+            boolean approved,
+            User coordinator,
+            String note) {
+        LocalDateTime now = LocalDateTime.now();
+        WildcardReview review = wildcardReviewRepository
+                .findByRound_IdAndTeam_Id(round.getId(), team.getId())
+                .orElseGet(() -> WildcardReview.builder()
+                        .round(round)
+                        .team(team)
+                        .track(track)
+                        .avgScore(avgScore)
+                        .build());
+        review.setCoordinatorApproved(approved);
+        review.setCoordinatorNote(note);
+        review.setReviewedBy(coordinator);
+        review.setReviewedAt(now);
+        wildcardReviewRepository.save(review);
+    }
+
+    /**
+     * Seed penalty coordinator sau {@code POST /tiebreak/resolve} — đội thứ hai trong thứ tự bị -0.01.
+     */
+    @Transactional
+    public void seedCoordinatorTiebreakResolve(
+            Round prelim, Team preferredTeam, Team penalizedTeam, User coordinator, String note) {
+        tiebreakEvaluationRepository.findByRound_IdAndTeam_IdAndJudge_Id(
+                        prelim.getId(), preferredTeam.getId(), coordinator.getId())
+                .ifPresent(tiebreakEvaluationRepository::delete);
+        tiebreakEvaluationRepository.findByRound_IdAndTeam_IdAndJudge_Id(
+                        prelim.getId(), penalizedTeam.getId(), coordinator.getId())
+                .ifPresent(tiebreakEvaluationRepository::delete);
+        LocalDateTime now = LocalDateTime.now();
+        tiebreakEvaluationRepository.save(TiebreakEvaluation.builder()
+                .round(prelim)
+                .team(penalizedTeam)
+                .judge(coordinator)
+                .penaltyScore(0.01f)
+                .isCastingVote(true)
+                .tiebreakLevel(2)
+                .notes(note)
+                .evaluatedAt(now)
+                .build());
+    }
+
+    /**
+     * Reset hackathon GĐ4 CK activate ready — published + 6 đội ADVANCED, guest judge, CK inactive.
+     * Không reset participation; gọi {@link #markAdvanced} lại trong seeder nếu cần.
+     */
+    @Transactional
+    public void repairHackathonForGd4CkActivateRetest(Hackathon hackathon, Round prelim, Round finalRound) {
+        User coordinator = requireCoordinator();
+        clearFinalRoundArtifacts(hackathon.getId());
+        syncHackathonCalendarFromDates(hackathon.getSlug(), computeGd4AdvanceReadyDates());
+        applyPrelimState(prelim, new PrelimState(false, true, true, true, 1, 6), coordinator);
+        prelim.setWildcardEnabled(true);
+        roundRepository.save(prelim);
+        applyFinalState(finalRound, new FinalState(false, false), coordinator);
+        releaseFinalProblem(finalRound);
+        ensureFinalGuestJudgeAssignment(hackathon, finalRound);
+        if (hackathon.getStatus() != HackathonStatus.ONGOING) {
+            hackathon.setStatus(HackathonStatus.ONGOING);
+            hackathonRepository.save(hackathon);
+        }
+    }
+
+    /** Reset hackathon GĐ4 edge — published + advanced, CK không có judge. */
+    @Transactional
+    public void repairHackathonForGd4EdgeRetest(Hackathon hackathon, Round prelim, Round finalRound) {
+        User coordinator = requireCoordinator();
+        clearFinalRoundArtifacts(hackathon.getId());
+        syncHackathonCalendarFromDates(hackathon.getSlug(), computeGd4AdvanceReadyDates());
+        applyPrelimState(prelim, new PrelimState(false, true, true, true, 2, 4), coordinator);
+        applyFinalState(finalRound, new FinalState(false, false), coordinator);
+        clearFinalRoundJudgeAssignments(finalRound);
+        if (hackathon.getStatus() != HackathonStatus.ONGOING) {
+            hackathon.setStatus(HackathonStatus.ONGOING);
+            hackathonRepository.save(hackathon);
+        }
+    }
+
+    /** Reset hackathon GĐ5 submit-open — CK active, chưa có submission CK. */
+    @Transactional
+    public void repairHackathonForGd5SubmitOpenRetest(Hackathon hackathon, Round prelim, Round finalRound) {
+        repairHackathonForGd5Retest(hackathon, prelim, finalRound);
+    }
+
+    /** Đồng bộ lịch GĐ5 scoring-live mà không xóa submission/score/queue đã seed. */
+    @Transactional
+    public void repairGd5ScoringLiveFeTesting(Hackathon hackathon, Round prelim, Round finalRound) {
+        repairGd5FeTestingScheduleAndState(hackathon, prelim, finalRound);
+    }
+
+    /** Reset hackathon GĐ5 edge — CK inactive, đội đã ADVANCED. */
+    @Transactional
+    public void repairHackathonForGd5EdgeRetest(Hackathon hackathon, Round prelim, Round finalRound) {
+        User coordinator = requireCoordinator();
+        syncHackathonCalendarFromDates(hackathon.getSlug(), computeGd5FinalActiveDates());
+        if (hackathon.getStatus() != HackathonStatus.ONGOING) {
+            hackathon.setStatus(HackathonStatus.ONGOING);
+            hackathonRepository.save(hackathon);
+        }
+        applyPrelimState(prelim, new PrelimState(false, true, true, true, 2, 2), coordinator);
+        applyFinalState(finalRound, new FinalState(false, false), coordinator);
+        releaseFinalProblem(finalRound);
     }
 
     /** Reset hackathon GĐ4 về trạng thái sẵn sàng publish/advance. */
