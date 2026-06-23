@@ -77,17 +77,16 @@ public class SubmissionServiceImpl implements SubmissionService {
 
     @Override
     public SubmissionResponse submitMultipart(
-            Integer teamId,
-            Integer trackId,
-            Integer roundId,
-            String repoUrl,
-            String lateReason,
+            Integer teamId, Integer trackId, Integer roundId,
+            String repoUrl, String demoUrl, String lateReason,
             MultipartFile slideFile) {
+
         SubmitSubmissionRequest req = SubmitSubmissionRequest.builder()
                 .teamId(teamId)
                 .trackId(trackId)
                 .roundId(roundId)
                 .repoUrl(repoUrl)
+                .demoUrl(demoUrl)
                 .lateReason(lateReason)
                 .build();
         return submitInternal(req, slideFile, true);
@@ -196,8 +195,8 @@ public class SubmissionServiceImpl implements SubmissionService {
         SubmissionStatus status = resolveStatusOnSubmit(submission, round, afterDeadline);
 
         submission.setRepoUrl(req.getRepoUrl());
+        submission.setDemoUrl(req.getDemoUrl());
         if (!multipartMode) {
-            submission.setDemoUrl(req.getDemoUrl());
             submission.setReportUrl(req.getReportUrl());
             submission.setSlideUrl(req.getSlideUrl());
         }
@@ -434,6 +433,7 @@ public class SubmissionServiceImpl implements SubmissionService {
                 .trackId(s.getTrack() != null ? s.getTrack().getId() : null)
                 .roundId(s.getRound() != null ? s.getRound().getId() : null)
                 .repoUrl(s.getRepoUrl())
+                .demoUrl(s.getDemoUrl())
                 .slideFile(slideFile)
                 .slideDownloadPath(slideDownloadPath)
                 .status(s.getStatus())

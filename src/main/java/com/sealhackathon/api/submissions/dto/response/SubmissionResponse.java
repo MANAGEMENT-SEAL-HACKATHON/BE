@@ -22,6 +22,10 @@ public class SubmissionResponse {
     private Integer trackId;
     private Integer roundId;
     private String repoUrl;
+
+    // demoUrl để gửi dữ liệu trả về cho Frontend Giám khảo
+    private String demoUrl;
+
     /** Tên file PDF đã upload (multipart GĐ3). Null nếu chưa có slide lưu trữ. */
     private String slideFile;
     /** Đường API tải slide PDF — dùng GET với Bearer token. */

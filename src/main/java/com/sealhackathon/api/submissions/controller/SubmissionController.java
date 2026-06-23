@@ -44,16 +44,18 @@ public class SubmissionController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @StudentOnly
-    @Operation(summary = "FR-16/26 — Nộp bài multipart (repoUrl + slide PDF)")
+    @Operation(summary = "FR-16/26 — Nộp bài multipart (repoUrl + demoUrl + slide PDF)")
     public ResponseEntity<ApiResponse<SubmissionResponse>> submitMultipart(
             @RequestParam Integer teamId,
             @RequestParam(required = false) Integer trackId,
             @RequestParam(required = false) Integer roundId,
             @RequestParam String repoUrl,
+            @RequestParam(required = false) String demoUrl,
             @RequestParam(required = false) String lateReason,
             @RequestPart(required = false) MultipartFile slideFile) {
+
         return ResponseEntity.status(201).body(ApiResponse.created(
-                submissionService.submitMultipart(teamId, trackId, roundId, repoUrl, lateReason, slideFile)));
+                submissionService.submitMultipart(teamId, trackId, roundId, repoUrl, demoUrl, lateReason, slideFile)));
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)

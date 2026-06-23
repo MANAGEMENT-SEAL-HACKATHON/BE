@@ -105,6 +105,8 @@ public class PresentationTimerServiceImpl implements PresentationTimerService {
         }
         slot.setTimerPhase(PresentationTimerPhase.QA);
         slot.setQaStartedAt(LocalDateTime.now());
+        slot.setPausedAt(null);
+        slot.setPausedAccumulatedSeconds(0);
         presentationSlotRepository.save(slot);
         return publishAndRespond(ctx, slot);
     }

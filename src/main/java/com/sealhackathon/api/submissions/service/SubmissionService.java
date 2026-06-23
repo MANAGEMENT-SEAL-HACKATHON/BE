@@ -14,11 +14,8 @@ public interface SubmissionService {
     SubmissionResponse submit(SubmitSubmissionRequest req);
 
     SubmissionResponse submitMultipart(
-            Integer teamId,
-            Integer trackId,
-            Integer roundId,
-            String repoUrl,
-            String lateReason,
+            Integer teamId, Integer trackId, Integer roundId,
+            String repoUrl, String demoUrl, String lateReason,
             MultipartFile slideFile);
 
     SubmissionSlideDownload getSlideDownload(Integer submissionId);
