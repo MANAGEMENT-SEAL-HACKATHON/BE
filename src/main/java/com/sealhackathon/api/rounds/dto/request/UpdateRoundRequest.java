@@ -55,4 +55,12 @@ public class UpdateRoundRequest {
     private Boolean forceLocked;
 
     private String forceLockReason;
+
+    /** Thời lượng thuyết trình mặc định (phút) — GĐ5 chung kết; GĐ3 fallback khi track không override. */
+    @Min(1)
+    private Integer defaultPresentationMinutes;
+
+    /** Thời lượng Q&A mặc định (phút) — GĐ5 chung kết; GĐ3 fallback khi track không override. */
+    @Min(1)
+    private Integer defaultQaMinutes;
 }

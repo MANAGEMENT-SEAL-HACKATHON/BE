@@ -137,6 +137,12 @@ public class RoundMapper {
 
         entity.setForceLockReason(req.getForceLockReason());
 
+        if (req.getDefaultPresentationMinutes() != null) {
+            entity.setDefaultPresentationMinutes(req.getDefaultPresentationMinutes());
+        }
+        if (req.getDefaultQaMinutes() != null) {
+            entity.setDefaultQaMinutes(req.getDefaultQaMinutes());
+        }
     }
 
 
@@ -212,6 +218,10 @@ public class RoundMapper {
                 .publishedById(e.getPublishedBy() == null ? null : e.getPublishedBy().getId())
 
                 .createdAt(e.getCreatedAt())
+
+                .defaultPresentationMinutes(e.getDefaultPresentationMinutes())
+
+                .defaultQaMinutes(e.getDefaultQaMinutes())
 
                 .build();
 

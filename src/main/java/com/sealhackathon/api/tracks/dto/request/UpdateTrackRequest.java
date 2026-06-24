@@ -48,4 +48,12 @@ public class UpdateTrackRequest {
      * Cho phép đổi status. Nếu chuyển CANCELLED khi đang có team registered → cảnh báo mềm.
      */
     private TrackStatus status;
+
+    /** Override thời lượng thuyết trình (phút) cho track — GĐ3; null = dùng default của round. */
+    @Min(1)
+    private Integer presentationMinutes;
+
+    /** Override thời lượng Q&A (phút) cho track — GĐ3; null = dùng default của round. */
+    @Min(1)
+    private Integer qaMinutes;
 }

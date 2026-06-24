@@ -26,11 +26,8 @@ public final class PresentationTimerCalculator {
             return 0;
         }
 
-        // int presentationSeconds = durationResolver.presentationMinutes(track, round) * 60;
-        // int qaSeconds = durationResolver.qaMinutes(track, round) * 60;
-        // Thay vì nhân phút với 60, ép cứng số giây trực tiếp để test:
-        int presentationSeconds = 20; // 20 giây thuyết trình
-        int qaSeconds = 10;           // 10 giây Q&A
+        int presentationSeconds = durationResolver.presentationMinutes(track, round) * 60;
+        int qaSeconds = durationResolver.qaMinutes(track, round) * 60;
         int paused = slot.getPausedAccumulatedSeconds() != null ? slot.getPausedAccumulatedSeconds() : 0;
         LocalDateTime now = LocalDateTime.now();
 

@@ -103,6 +103,43 @@ class TrackServiceImplUpdateTest {
     }
 
     @Test
+    void update_presentationAndQaMinutes_persistedInResponse() {
+        Hackathon hackathon = Hackathon.builder().id(1).status(HackathonStatus.DRAFT).build();
+        Round round = Round.builder().id(10).hackathon(hackathon).build();
+        Track track = Track.builder()
+                .id(9)
+                .name("Track A")
+                .status(TrackStatus.OPEN)
+                .round(round)
+                .minTeamSize(3)
+                .maxTeamSize(5)
+                .presentationMinutes(10)
+                .qaMinutes(5)
+                .build();
+
+        when(trackRepository.findById(9)).thenReturn(Optional.of(track));
+        when(trackRepository.save(track)).thenAnswer(inv -> inv.getArgument(0));
+
+        UpdateTrackRequest req = UpdateTrackRequest.builder()
+                .name("Track A")
+                .minTeamSize(3)
+                .maxTeamSize(5)
+                .maxTeams(8)
+                .maxTeamsPerGroup(8)
+                .status(TrackStatus.OPEN)
+                .presentationMinutes(15)
+                .qaMinutes(7)
+                .build();
+
+        TrackService.UpdateResult result = trackService.update(9, req);
+
+        assertThat(result.track().getPresentationMinutes()).isEqualTo(15);
+        assertThat(result.track().getQaMinutes()).isEqualTo(7);
+        assertThat(track.getPresentationMinutes()).isEqualTo(15);
+        assertThat(track.getQaMinutes()).isEqualTo(7);
+    }
+
+    @Test
     void update_assignTopic_withoutKickoffEvent_throwsInvalidState() {
         Hackathon hackathon = Hackathon.builder().id(1).status(HackathonStatus.DRAFT).build();
         Round round = Round.builder().id(10).hackathon(hackathon).build();

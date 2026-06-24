@@ -42,6 +42,12 @@ public class TrackMapper {
         if (req.getStatus() != null) {
             entity.setStatus(req.getStatus());
         }
+        if (req.getPresentationMinutes() != null) {
+            entity.setPresentationMinutes(req.getPresentationMinutes());
+        }
+        if (req.getQaMinutes() != null) {
+            entity.setQaMinutes(req.getQaMinutes());
+        }
     }
 
     public TrackResponse toResponse(Track e) {
@@ -71,6 +77,8 @@ public class TrackMapper {
                 .sequenceOrder(e.getSequenceOrder())
                 .problemStatementUrl(TrackProblemStatementUrls.resolveForResponse(e))
                 .problemStatementFilename(TrackProblemStatementStorage.displayFilename(e))
+                .presentationMinutes(e.getPresentationMinutes())
+                .qaMinutes(e.getQaMinutes())
                 .build();
     }
 
@@ -93,6 +101,8 @@ public class TrackMapper {
                 .maxTeamsPerGroup(e.getMaxTeamsPerGroup())
                 .problemStatementUrl(TrackProblemStatementUrls.resolveForResponse(e))
                 .problemStatementFilename(TrackProblemStatementStorage.displayFilename(e))
+                .presentationMinutes(e.getPresentationMinutes())
+                .qaMinutes(e.getQaMinutes())
                 .build();
     }
 }
