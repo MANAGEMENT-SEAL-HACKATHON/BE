@@ -786,6 +786,77 @@ FE: hiển thị `displayCode` từ queue; dùng `submissionId` response để �
 
 Thời lượng: `round.defaultPresentationMinutes` / `defaultQaMinutes`, override trên `track.presentationMinutes` / `qaMinutes`.
 
+### 9.4.1 Cấu hình thời lượng thuyết trình & Q&A (Coordinator)
+
+API chuyên dụng — **không** cần gửi full body `PUT /rounds` hoặc `PUT /tracks`.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| GET | `/api/v1/presentation/duration?roundId=&trackId=` | Xem cấu hình hiện tại (`trackId` optional) |
+| PUT | `/api/v1/presentation/duration` | Cập nhật thời lượng |
+| DELETE | `/api/v1/presentation/duration?roundId=&trackId=` | Gỡ override track (GĐ3) — track dùng lại default round |
+
+**Phạm vi:**
+
+| Giai đoạn | Body `PUT` | Lưu ở đâu |
+|-----------|--------------|-----------|
+| **GĐ3 — default round SL** | `{ "roundId", "presentationMinutes", "qaMinutes" }` — **không** `trackId` | `rounds.default_*` |
+| **GĐ3 — override track** | thêm `"trackId"` | `tracks.presentation_minutes` / `qa_minutes` |
+| **GĐ5 — chung kết** | `{ "roundId", "presentationMinutes", "qaMinutes" }` — **không** `trackId` | `rounds.default_*` trên round FINAL |
+
+**Request mẫu — GĐ3 track:**
+
+```json
+{
+  "roundId": 3,
+  "trackId": 10,
+  "presentationMinutes": 15,
+  "qaMinutes": 7
+}
+```
+
+**Request mẫu — GĐ5 chung kết:**
+
+```json
+{
+  "roundId": 5,
+  "presentationMinutes": 12,
+  "qaMinutes": 8
+}
+```
+
+**Response** (`PresentationDurationResponse`):
+
+```json
+{
+  "roundId": 3,
+  "trackId": 10,
+  "scope": "TRACK",
+  "presentationMinutes": 15,
+  "qaMinutes": 7,
+  "effectivePresentationMinutes": 15,
+  "effectiveQaMinutes": 7
+}
+```
+
+**Ràng buộc vận hành:**
+
+- Chỉ đổi **trước khi start timer** — tức chưa có slot `DONE`, timer chưa ở phase `PRESENTING`/`QA`/`PAUSED`/`ENDED` trong phạm vi round/track.
+- Sau shuffle vẫn được đổi nếu timer chưa start (slot `SETUP`/`IDLE` OK).
+- Sau `PUT` thành công, BE **tự cascade** `presentation_slots.startsAt` / `endsAt` → `presentationSchedule` trên queue hiển thị khung giờ mới.
+- `422 INVALID_STATE` khi round `scoringLocked` hoặc buổi thuyết trình đã bắt đầu.
+
+**Luồng Coordinator khuyến nghị:**
+
+```text
+POST /presentation/queue/shuffle
+→ PUT /presentation/duration   (chỉnh phút nếu cần)
+→ GET /presentation/queue        (xác nhận presentationSchedule)
+→ POST /presentation/timer/start
+```
+
+**GĐ1 — thiết lập sớm (optional):** cùng field trên `GET/PUT /rounds/{id}` và `GET/PUT /tracks/{id}`; xem [fe-gd1-gd2-structure-and-fields.md](fe-gd1-gd2-structure-and-fields.md) §4–5.
+
 ### 9.5 Trao quyền điều khiển
 
 | Scope | API | Mặc định |
@@ -2217,6 +2288,7 @@ Content-Type: application/json
 | Queue | `POST /api/v1/presentation/queue/shuffle` | ✅ §9.2, §19.8 |
 | Queue | `PATCH /api/v1/presentation/queue/next?roundId=` | ✅ §9.3, §19.8 |
 | Timer | `POST /api/v1/presentation/timer/{start\|pause\|resume\|qa\|reset\|next}` | ✅ §9.4, §19.8 |
+| Duration setup | `GET/PUT/DELETE /api/v1/presentation/duration` | ✅ §9.4.1, §19.8 |
 | Controller grant | `PUT /api/v1/presentation/tracks/{trackId}/controller` | ✅ §9.5 |
 | Judge slide | `GET /api/v1/submissions/{id}/slide` | ✅ §6.4b |
 

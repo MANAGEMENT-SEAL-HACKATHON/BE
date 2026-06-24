@@ -2,7 +2,8 @@
 
 > **Mục đích:** Một tài liệu duy nhất để QA / FE / BE test GĐ3 — Sơ loại: nộp bài, duyệt trễ, hàng đợi thuyết trình, chấm điểm live, khóa chấm, đồng điểm & penalty tiebreak.  
 > **Profile:** `dev` · **Password SV:** `Student@dev1` · **Coordinator:** `coord@fpt.edu.vn` / `Coordinator@dev1`  
-> **Judge:** `judge1@fpt.edu.vn`, `judge2@fpt.edu.vn` / `Judge@dev1`
+> **Judge:** `judge1@fpt.edu.vn`, `judge2@fpt.edu.vn` / `Judge@dev1`  
+> **Liên quan:** [gd1-full-test-matrix-and-seeds.md](gd1-full-test-matrix-and-seeds.md) · [gd2-full-test-matrix-and-seeds.md](gd2-full-test-matrix-and-seeds.md) · **GĐ4:** [gd4-full-test-matrix-and-seeds.md](gd4-full-test-matrix-and-seeds.md)
 
 ---
 
@@ -135,6 +136,7 @@ Sau `mvn spring-boot:run` (profile `dev`), `DataInitializer` tạo **6 hackathon
 **API / FE chính:**
 - `GET /api/v1/presentation/queue?roundId=`
 - `POST /presentation/queue/shuffle`
+- `GET|PUT|DELETE /api/v1/presentation/duration` — cấu hình phút thuyết trình/Q&A (trước start timer)
 - `POST /presentation/timer/start|pause|resume|qa|reset`
 - `PATCH /presentation/queue/next` (+ `acknowledgeIncompleteScoring`)
 - `GET|PUT /api/v1/presentation/tracks/{trackId}/controller`
@@ -303,6 +305,12 @@ Luồng BE: Coordinator upload PDF **từng track** → `PATCH /rounds/{id}/rele
 | Q9 | Judge không phải controller gọi timer/next | 403 `NOT_TRACK_CONTROLLER` | Profile B (judge2) |
 | Q10 | Coordinator luôn được shuffle/next/timer | 200 | Profile B |
 | Q11 | WebSocket push sau shuffle/next/timer | Client nhận payload queue mới | Tay (STOMP) |
+| Q12 | GET duration round SL | `defaultPresentationMinutes` / `defaultQaMinutes` | Profile B |
+| Q13 | PUT duration track (sau shuffle, trước start) | 200 + cascade `presentationSchedule` | Profile B |
+| Q14 | PUT duration sau timer start | 422 `INVALID_STATE` | Profile B (S03 sau start) |
+| Q15 | DELETE duration track override | Track `null` → effective = round default | Tay |
+
+**API duration:** `GET|PUT|DELETE /api/v1/presentation/duration` — xem [fe-gd3-api-mapping.md](fe-gd3-api-mapping.md) §9.4.1.
 
 **API controller:** `GET|PUT|DELETE /api/v1/presentation/tracks/{trackId}/controller`
 
@@ -600,6 +608,8 @@ Auth: judge phải được assign track/round tương ứng (`StompSubscribeAut
 | `testing/e2e-gd2-gd3-v41-manual-test.md` | E2E manual từng bước |
 | `testing/dev-seed-guide.md` | Hướng dẫn seed dev tổng |
 | `testing/gd3-v41-implementation-changelog.md` | Changelog BE v4.1 (timer, WS, gate chấm) |
+| `testing/gd1-full-test-matrix-and-seeds.md` | Ma trận test GĐ1 — Chuẩn bị sự kiện |
+| `testing/gd2-full-test-matrix-and-seeds.md` | Ma trận test GĐ2 — Đăng ký & lottery |
 | `testing/gd4-full-test-matrix-and-seeds.md` | Ma trận test GĐ4 — 5 profile seed |
 | `testing/gd5-full-test-matrix-and-seeds.md` | Ma trận test GĐ5 — 5 profile seed |
 | `testing/gd6-full-test-matrix-and-seeds.md` | Ma trận test GĐ6 — 5 profile seed |

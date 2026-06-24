@@ -199,6 +199,11 @@ Sau `PATCH /rounds/{finalId}/lock-scoring` → `PENDING_CONFIRM`. Test đóng gi
 | Q2 | Controller CK | Coordinator grant | Tay |
 | Q3 | Timer CK | `POST /presentation/timer/start?roundId=` | Profile B, C |
 | Q4 | Queue state | PRESENTING / WAITING | Profile B |
+| Q5 | GET duration CK | `scope=ROUND`, `defaultPresentationMinutes` | Profile B |
+| Q6 | PUT duration CK (sau shuffle, trước start) | 200 + cascade schedule | Tay |
+| Q7 | PUT duration sau timer start | 422 `INVALID_STATE` | Profile C |
+
+**API duration CK:** `PUT /api/v1/presentation/duration` body `{ roundId, presentationMinutes, qaMinutes }` — không `trackId`. Chi tiết: [fe-gd3-api-mapping.md](fe-gd3-api-mapping.md) §9.4.1.
 
 ### FR-29 — Calibration CK
 
@@ -341,6 +346,7 @@ app.seed.gd5.late-hardlock.enabled=false
 | POST | `/api/v1/scores` |
 | POST | `/api/v1/scores/calibration` |
 | POST | `/api/v1/presentation/queue/shuffle` |
+| GET/PUT/DELETE | `/api/v1/presentation/duration` |
 | POST | `/api/v1/presentation/timer/start` |
 | PATCH | `/api/v1/rounds/{finalId}/lock-scoring` |
 | GET | `/api/v1/calibration-sessions` |
@@ -353,8 +359,10 @@ app.seed.gd5.late-hardlock.enabled=false
 
 | Tài liệu | Nội dung |
 |----------|----------|
+| [gd1-full-test-matrix-and-seeds.md](gd1-full-test-matrix-and-seeds.md) | GĐ1 Chuẩn bị |
+| [gd2-full-test-matrix-and-seeds.md](gd2-full-test-matrix-and-seeds.md) | GĐ2 Đăng ký & lottery |
 | [gd4-full-test-matrix-and-seeds.md](gd4-full-test-matrix-and-seeds.md) | GĐ4 Chuyển vòng |
 | [gd4-gd5-e2e-seed-data.md](gd4-gd5-e2e-seed-data.md) | Postman variables |
 | [fe-checklist-gd2-gd4-gd5-gd6.md](fe-checklist-gd2-gd4-gd5-gd6.md) | Checklist FE |
 
-*Cập nhật: 2026-06 — 6 profile seed GĐ5 (thêm late-hardlock) + doc chấm CK không gate timer.*
+*Cập nhật: 2026-06-24 — API duration CK + guard trước start timer.*

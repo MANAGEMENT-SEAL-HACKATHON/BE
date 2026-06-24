@@ -472,6 +472,28 @@ IDLE → PRESENTING → QA → ENDED
 - Server trả `remainingSeconds`, `presentationStartedAt`, `pausedAt` trong `timer` block
 - Client tự đếm; khi PAUSED dừng đếm (không spam tick từ server)
 
+### 7.5 API cấu hình thời lượng (Coordinator — GĐ3/GĐ5)
+
+| Method | Path | Hành vi |
+|--------|------|---------|
+| GET | `/api/v1/presentation/duration?roundId=&trackId=` | Đọc cấu hình + `effective*` sau resolve |
+| PUT | `/api/v1/presentation/duration` | Ghi `rounds.default_*` hoặc `tracks.presentation_*` / `qa_*` |
+| DELETE | `/api/v1/presentation/duration?roundId=&trackId=` | Gỡ override track (GĐ3) |
+
+**Body PUT:** `{ roundId, trackId?, presentationMinutes, qaMinutes }` — `@Min(1)` cả hai phút.
+
+**Guard (`PresentationDurationMutationGuard`):**
+
+- Round `scoringLocked` → `422`
+- Slot `DONE` hoặc timer phase `PRESENTING`/`QA`/`PAUSED`/`ENDED` trong phạm vi → `422` *"Buổi thuyết trình đã bắt đầu"*
+- Cho phép sau shuffle nếu timer chưa start (`SETUP`/`IDLE`)
+
+**Cascade:** sau PUT/DELETE thành công → `PresentationSlotCascadeService.rescheduleForRound` cập nhật `startsAt`/`endsAt`.
+
+**GĐ1 (thiết lập sớm):** cùng field trên `GET/PUT /rounds/{id}` (`defaultPresentationMinutes`, `defaultQaMinutes`) và `GET/PUT /tracks/{id}` (`presentationMinutes`, `qaMinutes`).
+
+**Audit:** `PRESENTATION_DURATION_UPDATED`.
+
 ---
 
 ## 8. Phân quyền presentation controller

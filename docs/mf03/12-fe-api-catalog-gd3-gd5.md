@@ -93,10 +93,16 @@ Theo dõi khi BE cập nhật: [09-be-backlog-gd4-gd5-gd6.md](09-be-backlog-gd4-
 | 25 | GET | `/rounds/{id}/rbl/progress` | Coord | ⏳ | Tiến độ chấm CK/RBL (§6.3) |
 | 26 | GET | `/teams/{teamId}/journey` | Auth | ⏳ | Timeline đội (§4.8) |
 | 27 | WS | `/ws` + 3 topic | Auth | ✅ GĐ3 | Payload JSON (§7) |
+| 28 | GET | `/presentation/queue?roundId=&trackId=` | Auth | ✅ GĐ3/GĐ5 | Queue + timer block (§4.9) |
+| 29 | POST | `/presentation/queue/shuffle` | Coord/Judge | ✅ | Shuffle slots (§4.9) |
+| 30 | GET/PUT/DELETE | `/presentation/duration` | Coord | ✅ | Cấu hình phút thuyết trình/Q&A (§4.9) |
+| 31 | POST | `/presentation/timer/{action}` | Judge/Coord | ✅ | Start/pause/resume/qa/reset/next (§4.9) |
 
 \* Student: bắt buộc `?teamId=`; Judge: bắt buộc `?roundId=` + assigned.
 
 **Deprecated (không dùng):** `PATCH /submissions/{id}/resubmit` → `POST /submissions`; `PATCH /submissions/{id}/review` → `review-late`; `POST .../wildcard/approve|reject` → `PATCH /wildcard-reviews/{id}`; `POST .../advance-teams` → `POST .../advance`.
+
+**GĐ1 — field timer trên CRUD (thiết lập sớm):** `GET/PUT /rounds/{id}` (`defaultPresentationMinutes`, `defaultQaMinutes`); `GET/PUT /tracks/{id}` (`presentationMinutes`, `qaMinutes`). Xem [fe-gd1-gd2-structure-and-fields.md](../testing/fe-gd1-gd2-structure-and-fields.md).
 
 ---
 

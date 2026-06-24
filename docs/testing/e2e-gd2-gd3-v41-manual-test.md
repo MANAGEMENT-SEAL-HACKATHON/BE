@@ -243,7 +243,18 @@ Authorization: Bearer {{coordToken}}
 | # | Kiểm tra | Pass khi | ☐ |
 |---|----------|----------|---|
 | B.1.1 | `problemReleasedAt` hoặc problem URL | Đã phát đề (seed) | |
-| B.1.2 | `defaultPresentationMinutes` | `10` (hoặc giá trị seed) | |
+| B.1.2 | `defaultPresentationMinutes` / `defaultQaMinutes` | `10` / `5` (hoặc giá trị seed) | |
+| B.1.3 | Track `GET /tracks/{track1Id}` | `presentationMinutes` / `qaMinutes` null hoặc override | |
+
+**Tùy chọn — chỉnh sớm (GĐ1 field trên CRUD):**
+
+```http
+PUT {{baseUrl}}/api/v1/rounds/{{prelimRoundId}}
+Authorization: Bearer {{coordToken}}
+Content-Type: application/json
+```
+
+Thêm vào body round (cùng các field bắt buộc khác): `"defaultPresentationMinutes": 10`, `"defaultQaMinutes": 5`.
 
 ---
 
@@ -350,6 +361,32 @@ POST .../shuffle  body: { "roundId": ..., "trackIds": [{{track2Id}}] }
 | # | Kiểm tra | Pass khi | ☐ |
 |---|----------|----------|---|
 | B.3.8 | Track 2 slotCount | ≥ 1 (team 05, 06 gradable) | |
+
+### B.3b Coordinator — cấu hình thời lượng (trước start timer)
+
+> Chỉ `PUT` **sau shuffle, trước** `timer/start`. Sau start → `422 INVALID_STATE`. BE cascade `presentationSchedule`.
+
+```http
+PUT {{baseUrl}}/api/v1/presentation/duration
+Authorization: Bearer {{coordToken}}
+Content-Type: application/json
+
+{
+  "roundId": {{prelimRoundId}},
+  "trackId": {{track1Id}},
+  "presentationMinutes": 12,
+  "qaMinutes": 8
+}
+```
+
+| # | Kiểm tra | Pass khi | ☐ |
+|---|----------|----------|---|
+| B.3b.1 | HTTP | `200` | |
+| B.3b.2 | `data.effectivePresentationMinutes` | `12` | |
+| B.3b.3 | `GET .../presentation/queue` | `presentationSchedule` khớp khung mới | |
+| B.3b.4 | Sau `timer/start`, gọi lại PUT | `422` | |
+
+**GĐ5:** body `{ "roundId": {{finalRoundId}}, "presentationMinutes", "qaMinutes" }` — không `trackId`.
 
 ---
 

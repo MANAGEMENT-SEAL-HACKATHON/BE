@@ -12,7 +12,11 @@
 | **[postman-playbook-gd2-gd3-integration.md](postman-playbook-gd2-gd3-integration.md)** | **Postman GĐ2+GĐ3** — 7 integration test + **§0.5 quy trình Presentation/timer cho FE** |
 | **[e2e-gd2-gd3-v41-manual-test.md](e2e-gd2-gd3-v41-manual-test.md)** | E2E manual GĐ2→GĐ3 v4.1 (multipart, shuffle, timer, negative) |
 | **[test-strategy-gd1-gd6-unit-to-e2e.md](test-strategy-gd1-gd6-unit-to-e2e.md)** | Chiến lược unit → integration → E2E GĐ1–6 |
-| **[dev-seed-guide.md](dev-seed-guide.md)** | **Seed dev** — 2 chuỗi rõ ràng (Spring 2026 + GĐ1 demo) |
+| **[gd1-full-test-matrix-and-seeds.md](gd1-full-test-matrix-and-seeds.md)** | **GĐ1** — ma trận test + seed (events, rounds, tracks, timer defaults) |
+| **[gd2-full-test-matrix-and-seeds.md](gd2-full-test-matrix-and-seeds.md)** | **GĐ2** — ma trận test + seed (teams, lottery, orphan) |
+| **[gd3-full-test-matrix-and-seeds.md](gd3-full-test-matrix-and-seeds.md)** | **GĐ3** — ma trận test + 6 profile seed |
+| **[gd5-full-test-matrix-and-seeds.md](gd5-full-test-matrix-and-seeds.md)** | **GĐ5** — ma trận test + 6 profile seed |
+| **[dev-seed-guide.md](dev-seed-guide.md)** | **Seed dev** — `seal-e2e-2026` + archive FINISHED |
 | **[gd4-gd5-e2e-seed-data.md](gd4-gd5-e2e-seed-data.md)** | **GĐ4/GĐ5** — ma trận teams, Postman vars, SQL verify |
 | [api-catalog-with-json.md](api-catalog-with-json.md) | Bản rút Phần III (cùng nội dung) — mở tab riêng khi chỉ tra API |
 
@@ -28,21 +32,18 @@
 
 ## Seed theo giai đoạn (dev)
 
-Xem **[dev-seed-guide.md](dev-seed-guide.md)** — chỉ **8 hackathon**, 2 chuỗi:
+| GĐ | Ma trận + seed |
+|----|----------------|
+| GĐ1 | [gd1-full-test-matrix-and-seeds.md](gd1-full-test-matrix-and-seeds.md) — `seal-e2e-2026`, `seal-fall-2025-finished` |
+| GĐ2 | [gd2-full-test-matrix-and-seeds.md](gd2-full-test-matrix-and-seeds.md) — 7 đội + 3 orphan trên `seal-e2e-2026` |
+| GĐ3 | [gd3-full-test-matrix-and-seeds.md](gd3-full-test-matrix-and-seeds.md) |
+| GĐ4 | [gd4-full-test-matrix-and-seeds.md](gd4-full-test-matrix-and-seeds.md) |
+| GĐ5 | [gd5-full-test-matrix-and-seeds.md](gd5-full-test-matrix-and-seeds.md) |
+| GĐ6 | [gd6-full-test-matrix-and-seeds.md](gd6-full-test-matrix-and-seeds.md) |
 
-**Chuỗi A — SEAL Spring 2026** (24 đội × 3 track):
+Xem thêm **[dev-seed-guide.md](dev-seed-guide.md)** — tóm tắt 2 hackathon dev.
 
-| Slug | GĐ |
-|------|-----|
-| `seal-spring-2026` | GĐ1/GĐ2 |
-| `seal-spring-2026-gd3` | GĐ3 |
-| `seal-spring-2026-gd4` | GĐ4 |
-| `seal-spring-2026-gd5` | GĐ5 |
-| `seal-spring-2026-gd6` | GĐ6 |
-
-**Chuỗi B — GĐ1 demo:** `seal-gd1-incomplete`, `seal-fall-2025-finished` (đã xóa `seal-gd1-ready`)
-
-Chi tiết SQL legacy: **[seed-coverage-audit.md](seed-coverage-audit.md)** (cần cập nhật slug mới).
+**Legacy (đã xóa khi start dev):** `seal-spring-2026*`, `seal-gd1-incomplete`, `seal-gd1-ready`.
 
 ## Cập nhật catalog (dev)
 

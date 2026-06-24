@@ -95,6 +95,7 @@ public final class AuditAction {
     public static final String PRESENTATION_QUEUE_SHUFFLE = "PRESENTATION_QUEUE_SHUFFLE";
     public static final String PRESENTATION_CONTROLLER_GRANTED = "PRESENTATION_CONTROLLER_GRANTED";
     public static final String PRESENTATION_CONTROLLER_REVOKED = "PRESENTATION_CONTROLLER_REVOKED";
+    public static final String PRESENTATION_DURATION_UPDATED = "PRESENTATION_DURATION_UPDATED";
     public static final String SCORE_UPSERT                 = "SCORE_UPSERT";
     public static final String ROUND_RELEASE_PROBLEM        = "ROUND_RELEASE_PROBLEM";
     public static final String ROUND_PUBLISH                = "ROUND_PUBLISH";

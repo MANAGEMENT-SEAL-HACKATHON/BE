@@ -53,6 +53,8 @@
 
 Tiếp tục trên **cùng** hackathon `seal-e2e-2026` theo [`happy-path-gd1-gd6-responses.md`](./happy-path-gd1-gd6-responses.md) (đổi slug).
 
+**Ma trận chi tiết:** [gd1-full-test-matrix-and-seeds.md](gd1-full-test-matrix-and-seeds.md) · [gd2-full-test-matrix-and-seeds.md](gd2-full-test-matrix-and-seeds.md)
+
 ---
 
 ## Tài khoản hệ thống

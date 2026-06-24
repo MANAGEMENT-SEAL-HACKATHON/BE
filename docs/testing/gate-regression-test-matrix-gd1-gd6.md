@@ -2,7 +2,8 @@
 
 > **Mục đích:** Test đủ 6 giai đoạn sau refactor readiness / event order / timeline sync.  
 > **Chạy sau:** `spring.profiles.active=dev` + seed xong.  
-> **Playbook E2E:** [full-workflow-api-test-gd1-gd6.md](full-workflow-api-test-gd1-gd6.md) · **FE mapping:** [fe-gd1-gd2-gd3-workflow-mapping.md](fe-gd1-gd2-gd3-workflow-mapping.md)
+> **Playbook E2E:** [full-workflow-api-test-gd1-gd6.md](full-workflow-api-test-gd1-gd6.md) · **FE mapping:** [fe-gd1-gd2-gd3-workflow-mapping.md](fe-gd1-gd2-gd3-workflow-mapping.md)  
+> **Ma trận chi tiết:** [gd1-full-test-matrix-and-seeds.md](gd1-full-test-matrix-and-seeds.md) · [gd2-full-test-matrix-and-seeds.md](gd2-full-test-matrix-and-seeds.md)
 
 ---
 

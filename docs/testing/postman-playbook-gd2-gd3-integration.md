@@ -742,6 +742,39 @@ Authorization: Bearer {{coordToken}}
 
 ---
 
+### U3-12 — `PresentationDurationServiceImplTest` / API duration
+
+| Unit case | Postman | Kỳ vọng |
+|-----------|---------|---------|
+| `updateDuration_roundScope` | `PUT /presentation/duration` CK — không `trackId` | `scope=ROUND`, cascade schedule |
+| `updateDuration_trackScope` | `PUT` + `trackId` sau shuffle, trước start | `scope=TRACK`, `effective*` khớp |
+| `updateDuration_whenTimerAlreadyStarted` | `PUT` sau `timer/start` | `422 INVALID_STATE` |
+| `clearTrackOverride` | `DELETE /presentation/duration?roundId=&trackId=` | Track dùng default round |
+
+```http
+PUT {{baseUrl}}/api/v1/presentation/duration
+Authorization: Bearer {{coordToken}}
+Content-Type: application/json
+
+{
+  "roundId": {{prelimRoundId}},
+  "trackId": {{track1Id}},
+  "presentationMinutes": 12,
+  "qaMinutes": 8
+}
+```
+
+```http
+GET {{baseUrl}}/api/v1/presentation/duration?roundId={{prelimRoundId}}&trackId={{track1Id}}
+Authorization: Bearer {{coordToken}}
+```
+
+| ☐ | PUT sau shuffle, trước start → 200 |
+| ☐ | GET queue → `presentationSchedule` đổi theo phút mới |
+| ☐ | PUT sau timer start → 422 |
+
+---
+
 ## 3. Setup chung (tiên quyết)
 
 ### 3.1 Bootstrap seed GĐ3 (`seal-gd3-prelim-open`)

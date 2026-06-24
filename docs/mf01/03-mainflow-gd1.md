@@ -43,4 +43,6 @@ flowchart LR
 | G4 | Round FINAL: có Criteria, SUM(weight)=1.0 |
 | G5 | ≥1 event type=KICKOFF hợp lệ |
 
+**Optional (timer GĐ3/GĐ5):** Round SL/CK — `defaultPresentationMinutes` / `defaultQaMinutes` (GET/PUT `/rounds/{id}`); Track SL — `presentationMinutes` / `qaMinutes` (GET/PUT `/tracks/{id}`). Default **10+5** phút. Vận hành: `PUT /presentation/duration` — xem [fe-gd3-api-mapping.md](../testing/fe-gd3-api-mapping.md) §9.4.1.
+
 Chi tiết: [01-business-rules.md](01-business-rules.md) §1.4.

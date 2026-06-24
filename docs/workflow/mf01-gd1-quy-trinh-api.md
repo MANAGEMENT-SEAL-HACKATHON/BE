@@ -152,8 +152,17 @@ flowchart LR
 |--------|------|----------------|
 | GET | `/api/v1/hackathons/{hackathonId}/rounds` | List rounds theo thứ tự |
 | GET | `/api/v1/rounds/{id}` | Chi tiết một round |
-| PUT | `/api/v1/rounds/{id}` | Cập nhật deadline, lock chấm điểm, … |
+| PUT | `/api/v1/rounds/{id}` | Cập nhật deadline, lock chấm điểm, **thời lượng timer** (`defaultPresentationMinutes`, `defaultQaMinutes`), … |
 | DELETE | `/api/v1/rounds/{id}` | Xóa — không khi `isActive` hoặc có submission; nếu không active → tự xóa Criteria con rồi xóa Round |
+
+**Field thời lượng timer (GĐ1 — thiết lập sớm, optional):**
+
+| Field | Round SL | Round CK | Ghi chú |
+|-------|----------|----------|---------|
+| `defaultPresentationMinutes` | ✅ GET/PUT | ✅ GET/PUT | Phút thuyết trình; default **10** |
+| `defaultQaMinutes` | ✅ GET/PUT | ✅ GET/PUT | Phút Q&A; default **5** |
+
+Round SL: default fallback cho mọi track chưa override. Round CK: dùng trực tiếp cho timer GĐ5. Khi vận hành GĐ3/GĐ5, Coordinator có thể dùng thêm `PUT /api/v1/presentation/duration` (không cần full body round).
 
 Response list round gồm `trackCount` (số track con; 0 nếu FINAL), `criteriaCount`, `currentWeightTotal`.
 
@@ -200,8 +209,17 @@ Lặp lại với `sequenceOrder: 2` cho Track 2 (nếu cần).
 | **GET** | **`/api/v1/rounds/{roundId}/tracks`** | **List tracks thuộc một round** (sort `sequenceOrder`; query `status` tùy chọn) — UI “round gồm track nào” |
 | GET | `/api/v1/hackathons/{hackathonId}/tracks` | List toàn bộ tracks hackathon (mỗi item có `roundId`, `sequenceOrder`) |
 | GET | `/api/v1/tracks/{id}` | Chi tiết |
-| PUT | `/api/v1/tracks/{id}` | Sửa; **topic** sau KICKOFF (GĐ2) — cần đã có event KICKOFF |
+| PUT | `/api/v1/tracks/{id}` | Sửa; **topic** sau KICKOFF (GĐ2); **override timer** (`presentationMinutes`, `qaMinutes`) |
 | DELETE | `/api/v1/tracks/{id}` | Hard delete — FE xác nhận một bước; không bắt `CANCELLED` trước. Chặn nếu còn team active hoặc Round cha `is_active=TRUE`. Criteria/Mentor/Judge con cascade (DB) |
+
+**Field thời lượng timer (GĐ1 — optional trên Track Sơ loại):**
+
+| Field | GET/PUT | Ghi chú |
+|-------|---------|---------|
+| `presentationMinutes` | ✅ | Override phút thuyết trình cho track; `null` = dùng default round |
+| `qaMinutes` | ✅ | Override phút Q&A cho track |
+
+Không có trên `POST` tạo track — mặc định `null` (fallback round). Có thể set sớm bằng `PUT` hoặc lúc GĐ3 qua `PUT /api/v1/presentation/duration?trackId=`.
 
 **Hủy track:** `PUT` body `{ "status": "CANCELLED" }` — block nếu còn đội (`TRACK_CANCEL_HAS_TEAMS`).
 
