@@ -16,9 +16,9 @@ import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.repository.TeamRepository;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.users.entity.User;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,7 +35,6 @@ import java.util.List;
 @Slf4j
 @Component
 @Profile("dev")
-@RequiredArgsConstructor
 public class Gd6FinishedExportDataSeeder {
 
     private final HackathonDevSeedHelper seedHelper;
@@ -46,17 +45,51 @@ public class Gd6FinishedExportDataSeeder {
     private final ChapterRankingService chapterRankingService;
     private final IndividualRankingService individualRankingService;
     private final DevSeedCleanup devSeedCleanup;
+    private final Gd6FinishedExportDataSeeder self;
+
+    public Gd6FinishedExportDataSeeder(
+            HackathonDevSeedHelper seedHelper,
+            HackathonRepository hackathonRepository,
+            RoundRepository roundRepository,
+            TeamRepository teamRepository,
+            PrizeRepository prizeRepository,
+            ChapterRankingService chapterRankingService,
+            IndividualRankingService individualRankingService,
+            DevSeedCleanup devSeedCleanup,
+            @Lazy Gd6FinishedExportDataSeeder self) {
+        this.seedHelper = seedHelper;
+        this.hackathonRepository = hackathonRepository;
+        this.roundRepository = roundRepository;
+        this.teamRepository = teamRepository;
+        this.prizeRepository = prizeRepository;
+        this.chapterRankingService = chapterRankingService;
+        this.individualRankingService = individualRankingService;
+        this.devSeedCleanup = devSeedCleanup;
+        this.self = self;
+    }
 
     @Value("${app.seed.gd6.finished-export.enabled:true}")
     private boolean enabled;
 
-    @Transactional
     public void ensureSeed() {
         if (!enabled) {
             log.info("[Gd6FinishedExportDataSeeder] Tắt (app.seed.gd6.finished-export.enabled=false)");
             return;
         }
 
+        Integer hackathonId = self.seedFinishedExportInTransaction();
+        refreshPersistedRankings(hackathonId);
+
+        log.info("""
+                [Gd6FinishedExportDataSeeder] slug={} hackathonId={} status=FINISHED
+                  POST /export-jobs type=CSV_RANKINGS → 201 DONE
+                """,
+                Gd6FinishedExportSeedConstants.SLUG_GD6_FINISHED_EXPORT,
+                hackathonId);
+    }
+
+    @Transactional
+    Integer seedFinishedExportInTransaction() {
         HackathonDevSeedHelper.HackathonStructure structure = seedHelper.ensureHackathonStructure(
                 Gd6FinishedExportSeedConstants.SLUG_GD6_FINISHED_EXPORT,
                 "SEAL GĐ6 — Finished export",
@@ -93,33 +126,48 @@ public class Gd6FinishedExportDataSeeder {
         seedHelper.ensureSecondPrize(hackathon, finalRound, teams.get(1), coordinator);
         seedHelper.ensureThirdPrize(hackathon, finalRound, teams.get(2), coordinator);
 
-        chapterRankingService.calculateAsync(hackathon.getId());
-        individualRankingService.calculateAsync(hackathon.getId());
-
-        log.info("""
-                [Gd6FinishedExportDataSeeder] slug={} hackathonId={} status=FINISHED
-                  POST /export-jobs type=CSV_RANKINGS → 201 DONE
-                """,
-                Gd6FinishedExportSeedConstants.SLUG_GD6_FINISHED_EXPORT,
-                hackathon.getId());
+        return hackathon.getId();
     }
 
-    @Transactional
     public void repairForFeTesting() {
         if (!enabled) {
             return;
         }
-        hackathonRepository.findBySlug(Gd6FinishedExportSeedConstants.SLUG_GD6_FINISHED_EXPORT).ifPresent(h -> {
-            Round prelim = loadPrelim(h.getId());
-            Round finalRound = loadFinal(h.getId());
-            if (needsRepair(h, prelim, finalRound)) {
-                seedHelper.repairHackathonForGd6FinishedExportRetest(h, prelim, finalRound);
-                reapplyFinishedState(h, prelim, finalRound);
-            }
-            seedHelper.syncHackathonCalendarFromDates(
-                    Gd6FinishedExportSeedConstants.SLUG_GD6_FINISHED_EXPORT,
-                    seedHelper.computeGd6PendingConfirmDates());
-        });
+        Integer hackathonId = self.repairFinishedExportInTransaction();
+        if (hackathonId != null) {
+            refreshPersistedRankings(hackathonId);
+        }
+    }
+
+    @Transactional
+    Integer repairFinishedExportInTransaction() {
+        return hackathonRepository.findBySlug(Gd6FinishedExportSeedConstants.SLUG_GD6_FINISHED_EXPORT)
+                .map(h -> {
+                    Round prelim = loadPrelim(h.getId());
+                    Round finalRound = loadFinal(h.getId());
+                    Integer hackathonId = h.getId();
+                    if (needsRepair(h, prelim, finalRound)) {
+                        seedHelper.repairHackathonForGd6FinishedExportRetest(h, prelim, finalRound);
+                        reapplyFinishedState(h, prelim, finalRound);
+                        return hackathonId;
+                    }
+                    seedHelper.syncHackathonCalendarFromDates(
+                            Gd6FinishedExportSeedConstants.SLUG_GD6_FINISHED_EXPORT,
+                            seedHelper.computeGd6PendingConfirmDates());
+                    return null;
+                })
+                .orElse(null);
+    }
+
+    /**
+     * {@code calculateAsync} dùng {@code REQUIRES_NEW} — phải gọi sau khi transaction seed đã commit.
+     */
+    private void refreshPersistedRankings(Integer hackathonId) {
+        if (hackathonId == null) {
+            return;
+        }
+        chapterRankingService.calculateAsync(hackathonId);
+        individualRankingService.calculateAsync(hackathonId);
     }
 
     private void reapplyFinishedState(Hackathon hackathon, Round prelim, Round finalRound) {
@@ -141,8 +189,6 @@ public class Gd6FinishedExportDataSeeder {
         hackathon.setStatus(HackathonStatus.FINISHED);
         hackathon.setIndividualRankingEnabled(true);
         hackathonRepository.save(hackathon);
-        chapterRankingService.calculateAsync(hackathon.getId());
-        individualRankingService.calculateAsync(hackathon.getId());
     }
 
     @Transactional
