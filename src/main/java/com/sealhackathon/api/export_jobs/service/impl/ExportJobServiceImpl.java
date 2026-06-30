@@ -90,9 +90,9 @@ public class ExportJobServiceImpl implements ExportJobService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public ExportFileDownload downloadFile(Integer jobId) {
-        ExportJob job = exportJobRepository.findById(jobId)
+        ExportJob job = exportJobRepository.findByIdWithHackathon(jobId)
                 .orElseThrow(() -> new ResourceNotFoundException("ExportJob", jobId));
 
         if (job.getStatus() != ExportJobStatus.DONE) {

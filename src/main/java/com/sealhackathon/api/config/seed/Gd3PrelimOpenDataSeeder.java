@@ -164,6 +164,7 @@ public class Gd3PrelimOpenDataSeeder {
         if (prelimAfterRepair.getProblemReleasedAt() != null) {
             seedHelper.seedPrelimTrackProblems(prelimAfterRepair);
         }
+        seedHelper.repairRemoveGuestJudgeFromPrelimTracks(hackathon);
     }
 
     /** Khôi phục trạng thái demo sau mỗi lần restart (idempotent). */

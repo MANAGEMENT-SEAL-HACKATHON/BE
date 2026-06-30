@@ -1,7 +1,9 @@
 package com.sealhackathon.api.presentation.support;
 
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
+import com.sealhackathon.api.events.repository.JudgeSubmissionScoringConfirmationRepository;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
+import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.scores.repository.ScoreRepository;
 import com.sealhackathon.api.scores.value_object.ScoreType;
@@ -24,6 +26,7 @@ public class PresentationScoringCompletionHelper {
     private final JudgeAssignmentRepository judgeAssignmentRepository;
     private final ScoreRepository scoreRepository;
     private final CriteriaRepository criteriaRepository;
+    private final JudgeSubmissionScoringConfirmationRepository scoringConfirmationRepository;
 
     public int countAssignedJudges(Integer trackId, Integer roundId) {
         if (trackId != null) {
@@ -84,29 +87,67 @@ public class PresentationScoringCompletionHelper {
         return myCriteriaScored >= criteriaCount;
     }
 
+    public int countJudgesConfirmed(Integer submissionId) {
+        if (submissionId == null) {
+            return 0;
+        }
+        return scoringConfirmationRepository.countDistinctJudgesBySubmissionId(submissionId);
+    }
+
+    /**
+     * Đủ điều kiện chuyển đội tiếp.
+     * Sơ loại (GD3): 2+ judge → confirm; 1 judge → đủ điểm tiêu chí.
+     * Chung kết (GD5): luôn bắt buộc confirm (Chốt điểm).
+     */
     public boolean canAdvanceQueue(Submission submission, Integer trackId, Integer roundId) {
+        if (submission == null || submission.getId() == null) {
+            return false;
+        }
         int judgesAssigned = Math.max(1, countAssignedJudges(trackId, roundId));
-        int judgesFullyScored = countJudgesFullyScored(submission);
-        return judgesFullyScored >= judgesAssigned;
+        if (isFinalSubmission(submission) || judgesAssigned >= 2) {
+            return countJudgesConfirmed(submission.getId()) >= judgesAssigned;
+        }
+        return countJudgesFullyScored(submission) >= judgesAssigned;
     }
 
     public boolean isScoringIncomplete(Submission submission, Integer trackId, Round round) {
         if (submission == null || submission.getId() == null) {
             return true;
         }
+        int judgesAssigned = Math.max(1, countAssignedJudges(trackId, round));
+        if ((round != null && Boolean.TRUE.equals(round.getIsFinal())) || judgesAssigned >= 2) {
+            return countJudgesConfirmed(submission.getId()) < judgesAssigned;
+        }
         long scoreCount = scoreRepository.countBySubmission_IdAndScoreType(submission.getId(), ScoreType.NORMAL);
         if (scoreCount == 0) {
             return true;
         }
-        int judgesAssigned = Math.max(1, countAssignedJudges(trackId, round));
         return countJudgesFullyScored(submission) < judgesAssigned;
     }
 
-    private long criteriaCountFor(Submission submission) {
-        Integer trackId = submission.getTrack() != null ? submission.getTrack().getId() : null;
-        if (trackId != null) {
-            return criteriaRepository.countByTrackId(trackId);
+    private boolean isFinalSubmission(Submission submission) {
+        if (submission.getRound() != null && Boolean.TRUE.equals(submission.getRound().getIsFinal())) {
+            return true;
         }
-        return criteriaRepository.countByRoundIdOrTracksInRound(submission.getRound().getId());
+        if (submission.getTrack() != null
+                && submission.getTrack().getRound() != null
+                && Boolean.TRUE.equals(submission.getTrack().getRound().getIsFinal())) {
+            return true;
+        }
+        return false;
+    }
+
+    private long criteriaCountFor(Submission submission) {
+        if (submission == null || submission.getRound() == null) {
+            return 0;
+        }
+        Round round = submission.getRound();
+        if (Boolean.TRUE.equals(round.getIsFinal())) {
+            return criteriaRepository.countNormalByFinalRoundId(round.getId());
+        }
+        if (submission.getTrack() != null) {
+            return criteriaRepository.countNormalByTrackId(submission.getTrack().getId());
+        }
+        return 0;
     }
 }

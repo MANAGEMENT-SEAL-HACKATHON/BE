@@ -9,7 +9,10 @@ import com.sealhackathon.api.events.repository.PresentationSlotRepository;
 import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
 import com.sealhackathon.api.presentation.dto.request.PresentationDurationSetupRequest;
 import com.sealhackathon.api.presentation.dto.response.PresentationDurationResponse;
+import com.sealhackathon.api.presentation.dto.response.PresentationQueueResponse;
+import com.sealhackathon.api.presentation.service.PresentationQueueService;
 import com.sealhackathon.api.presentation.service.PresentationSlotCascadeService;
+import com.sealhackathon.api.live_scoring.PresentationQueuePublisher;
 import com.sealhackathon.api.presentation.support.PresentationDurationMutationGuard;
 import com.sealhackathon.api.presentation.support.PresentationDurationResolver;
 import com.sealhackathon.api.presentation.value_object.PresentationQueueStatus;
@@ -46,6 +49,8 @@ class PresentationDurationServiceImplTest {
     @Mock PresentationSlotCascadeService slotCascadeService;
     @Spy HackathonArchiveGuard archiveGuard = new HackathonArchiveGuard();
     @Mock AuditService auditService;
+    @Mock PresentationQueueService presentationQueueService;
+    @Mock PresentationQueuePublisher queuePublisher;
 
     @InjectMocks PresentationDurationServiceImpl service;
 
@@ -61,6 +66,7 @@ class PresentationDurationServiceImplTest {
         when(presentationSlotRepository.findByRound_IdAndTrackIsNullOrderBySequenceOrderAsc(5))
                 .thenReturn(List.of());
         when(roundRepository.save(round)).thenAnswer(inv -> inv.getArgument(0));
+        when(presentationQueueService.getQueue(5, null)).thenReturn(PresentationQueueResponse.builder().build());
 
         PresentationDurationSetupRequest req = PresentationDurationSetupRequest.builder()
                 .roundId(5)
@@ -99,6 +105,7 @@ class PresentationDurationServiceImplTest {
         when(presentationSlotRepository.findByRound_IdAndTrack_IdOrderBySequenceOrderAsc(3, 10))
                 .thenReturn(List.of());
         when(trackRepository.save(track)).thenAnswer(inv -> inv.getArgument(0));
+        when(presentationQueueService.getQueue(3, 10)).thenReturn(PresentationQueueResponse.builder().build());
 
         PresentationDurationSetupRequest req = PresentationDurationSetupRequest.builder()
                 .roundId(3)
@@ -177,6 +184,7 @@ class PresentationDurationServiceImplTest {
         when(presentationSlotRepository.findByRound_IdAndTrack_IdOrderBySequenceOrderAsc(3, 10))
                 .thenReturn(List.of());
         when(trackRepository.save(track)).thenAnswer(inv -> inv.getArgument(0));
+        when(presentationQueueService.getQueue(3, 10)).thenReturn(PresentationQueueResponse.builder().build());
 
         PresentationDurationResponse response = service.clearTrackOverride(3, 10);
 

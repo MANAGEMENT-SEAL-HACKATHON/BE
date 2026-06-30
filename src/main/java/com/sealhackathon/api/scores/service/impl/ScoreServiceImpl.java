@@ -187,9 +187,6 @@ public class ScoreServiceImpl implements ScoreService {
     }
 
     private void requireScoringOpen(Round round, Submission submission) {
-        if (Boolean.TRUE.equals(round.getIsFinal())) {
-            return;
-        }
         if (roundPhaseResolver.resolve(round) != RoundPhase.JUDGING) {
             throw new BusinessRuleException(ErrorCode.SCORING_NOT_OPEN, "Chấm điểm chưa mở cho vòng này");
         }

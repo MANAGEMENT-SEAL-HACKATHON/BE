@@ -12,6 +12,9 @@ import com.sealhackathon.api.presentation.dto.request.PresentationDurationSetupR
 import com.sealhackathon.api.presentation.dto.response.PresentationDurationResponse;
 import com.sealhackathon.api.presentation.service.PresentationDurationService;
 import com.sealhackathon.api.presentation.service.PresentationSlotCascadeService;
+import com.sealhackathon.api.live_scoring.PresentationQueuePublisher;
+import com.sealhackathon.api.presentation.dto.response.PresentationQueueResponse;
+import com.sealhackathon.api.presentation.service.PresentationQueueService;
 import com.sealhackathon.api.presentation.support.PresentationDurationMutationGuard;
 import com.sealhackathon.api.presentation.support.PresentationDurationResolver;
 import com.sealhackathon.api.rounds.entity.Round;
@@ -41,6 +44,8 @@ public class PresentationDurationServiceImpl implements PresentationDurationServ
     private final PresentationSlotCascadeService slotCascadeService;
     private final HackathonArchiveGuard archiveGuard;
     private final AuditService auditService;
+    private final PresentationQueueService presentationQueueService;
+    private final PresentationQueuePublisher queuePublisher;
 
     @Override
     @Transactional(readOnly = true)
@@ -76,6 +81,7 @@ public class PresentationDurationServiceImpl implements PresentationDurationServ
                             "scope", SCOPE_TRACK,
                             "presentationMinutes", request.getPresentationMinutes(),
                             "qaMinutes", request.getQaMinutes()));
+            broadcastQueue(round.getId(), track.getId());
             return toTrackResponse(round, track);
         }
 
@@ -88,6 +94,7 @@ public class PresentationDurationServiceImpl implements PresentationDurationServ
                         "scope", SCOPE_ROUND,
                         "presentationMinutes", request.getPresentationMinutes(),
                         "qaMinutes", request.getQaMinutes()));
+        broadcastQueue(round.getId(), null);
         return toRoundResponse(round);
     }
 
@@ -108,7 +115,13 @@ public class PresentationDurationServiceImpl implements PresentationDurationServ
         slotCascadeService.rescheduleForRound(round.getId());
         auditService.log(AuditAction.PRESENTATION_DURATION_UPDATED, "tracks", track.getId(),
                 Map.of("roundId", roundId, "scope", SCOPE_TRACK, "clearedOverride", true));
+        broadcastQueue(round.getId(), track.getId());
         return toTrackResponse(round, track);
+    }
+
+    private void broadcastQueue(Integer roundId, Integer trackId) {
+        PresentationQueueResponse payload = presentationQueueService.getQueue(roundId, trackId);
+        queuePublisher.publish(roundId, trackId, payload);
     }
 
     private void assertDurationMutable(Round round, Integer trackId) {

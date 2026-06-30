@@ -59,7 +59,7 @@ public class PresentationNextScoringGuard {
         }
         if (snap.isIncomplete() && !acknowledgeIncompleteScoring) {
             throw new BusinessRuleException(ErrorCode.SCORING_INCOMPLETE_BEFORE_NEXT,
-                    "Chưa đủ judge chấm xong — mỗi judge cần chấm đủ tiêu chí và Chốt điểm",
+                    "Chưa đủ judge Chốt điểm — mỗi judge cần chấm đủ tiêu chí rồi bấm Chốt điểm",
                     Map.of(
                             "submissionId", snap.getSubmissionId(),
                             "reason", "MISSING_JUDGE_SCORES",

@@ -32,6 +32,7 @@ import com.sealhackathon.api.submissions.policy.SubmissionGradablePolicy;
 import com.sealhackathon.api.submissions.repository.SubmissionRepository;
 import com.sealhackathon.api.team_round_participation.entity.TeamRoundParticipation;
 import com.sealhackathon.api.team_round_participation.repository.TeamRoundParticipationRepository;
+import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.users.value_object.UserRole;
@@ -232,6 +233,13 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
         PresentationQueueNextResponse.ScoringSnapshot scoringSnapshot = null;
         if (presenting != null) {
             if (presenting.getSubmission() != null) {
+                if (Boolean.TRUE.equals(round.getIsFinal())) {
+                    PresentationTimerPhase phase = presenting.getTimerPhase();
+                    if (phase != PresentationTimerPhase.QA && phase != PresentationTimerPhase.ENDED) {
+                        throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                                "Chỉ chuyển đội tiếp sau phần thuyết trình (QA hoặc hết giờ)");
+                    }
+                }
                 nextScoringGuard.validateBeforeNext(
                         presenting.getSubmission(), trackId, round, acknowledgeIncompleteScoring);
                 scoringSnapshot = nextScoringGuard.snapshot(
@@ -346,11 +354,42 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
     private PresentationQueueResponse.TrackQueueItem buildFinalTrackItem(Round round, boolean anonymous) {
         List<PresentationSlot> slots = presentationSlotRepository
                 .findByRound_IdAndTrackIsNullOrderBySequenceOrderAsc(round.getId());
+        Integer participatingTeamCount = null;
+        Integer gradableTeamCount = null;
+        List<PresentationQueueResponse.EligibleTeamItem> eligibleTeams = null;
+
+        if (!anonymous) {
+            List<TeamRoundParticipation> participants =
+                    teamRoundParticipationRepository.findByRound_Id(round.getId());
+            participatingTeamCount = participants.size();
+            eligibleTeams = new ArrayList<>();
+            int gradable = 0;
+            for (TeamRoundParticipation participation : participants) {
+                Team team = participation.getTeam();
+                var submissionOpt = submissionRepository.findTopByTeam_IdAndRound_IdOrderBySubmittedAtDesc(
+                        team.getId(), round.getId());
+                boolean isGradable = submissionOpt.filter(SubmissionGradablePolicy::isGradable).isPresent();
+                if (isGradable) {
+                    gradable++;
+                }
+                eligibleTeams.add(PresentationQueueResponse.EligibleTeamItem.builder()
+                        .teamId(team.getId())
+                        .teamName(team.getTeamName())
+                        .gradable(isGradable)
+                        .submissionStatus(submissionOpt.map(s -> s.getStatus().name()).orElse(null))
+                        .build());
+            }
+            gradableTeamCount = gradable;
+        }
+
         return PresentationQueueResponse.TrackQueueItem.builder()
                 .trackId(null)
                 .trackName("Chung kết")
                 .shuffled(!slots.isEmpty())
                 .items(slots.stream().map(slot -> toQueueItem(slot, null, round, anonymous)).toList())
+                .participatingTeamCount(participatingTeamCount)
+                .gradableTeamCount(gradableTeamCount)
+                .eligibleTeams(eligibleTeams)
                 .build();
     }
 

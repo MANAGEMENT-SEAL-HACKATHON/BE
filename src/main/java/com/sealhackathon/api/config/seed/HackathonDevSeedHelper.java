@@ -1109,7 +1109,7 @@ public class HackathonDevSeedHelper {
         LocalDateTime at = LocalDateTime.now();
         if (judgeAssignmentRepository.findByTrackId(track1.getId()).isEmpty()) {
             saveJudgeTrack(judge1, track1, coordinator, at);
-            saveJudgeTrack(guestJudge, track1, coordinator, at);
+            saveJudgeTrack(judge2, track1, coordinator, at);
         }
         if (judgeAssignmentRepository.findByTrackId(track2.getId()).isEmpty()) {
             saveJudgeTrack(judge1, track2, coordinator, at);
@@ -1145,6 +1145,22 @@ public class HackathonDevSeedHelper {
                 .assignedBy(coordinator)
                 .assignedAt(at)
                 .build());
+    }
+
+    /** Gỡ guest judge khỏi track sơ loại — guest chỉ thuộc round CK (FINAL_EXTERNAL). */
+    @Transactional
+    public void repairRemoveGuestJudgeFromPrelimTracks(Hackathon hackathon) {
+        userRepository.findByEmail(Gd1SeedConstants.EMAIL_GUEST_JUDGE).ifPresent(guest -> {
+            roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathon.getId()).stream()
+                    .filter(r -> !Boolean.TRUE.equals(r.getIsFinal()))
+                    .forEach(prelim -> trackRepository.findByRoundIdOrderBySequenceOrderAsc(prelim.getId())
+                            .forEach(track -> {
+                                judgeAssignmentRepository.findByTrackId(track.getId()).stream()
+                                        .filter(ja -> guest.getId().equals(ja.getJudge().getId()))
+                                        .forEach(judgeAssignmentRepository::delete);
+                                ensureHeadJudgeOnTrack(track);
+                            }));
+        });
     }
 
     /** Idempotent — DB cũ có thể chỉ có NORMAL; promotion judge đầu tiên lên HEAD. */
@@ -1446,6 +1462,12 @@ public class HackathonDevSeedHelper {
     public void clearGd6ClosureArtifacts(Integer hackathonId) {
         jdbcTemplate.update("DELETE FROM individual_rankings WHERE hackathon_id = ?", hackathonId);
         jdbcTemplate.update("DELETE FROM chapter_rankings WHERE hackathon_id = ?", hackathonId);
+        jdbcTemplate.update("DELETE FROM prizes WHERE hackathon_id = ?", hackathonId);
+    }
+
+    /** Xóa chỉ prizes (giữ rankings) — reset Profile 0 sau API matrix. */
+    @Transactional
+    public void clearGd6Prizes(Integer hackathonId) {
         jdbcTemplate.update("DELETE FROM prizes WHERE hackathon_id = ?", hackathonId);
     }
 

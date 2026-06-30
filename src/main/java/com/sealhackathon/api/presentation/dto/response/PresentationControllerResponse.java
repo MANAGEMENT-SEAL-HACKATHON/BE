@@ -13,5 +13,9 @@ public class PresentationControllerResponse {
 
     private Integer judgeId;
     private String judgeName;
+    /** Tên đầy đủ — alias cho FE */
+    private String judgeFullName;
+    /** OVERRIDE = coordinator chỉ định; AUTO_DEFAULT = tự chọn theo rule guard */
     private String source;
+    private Boolean isDeptHead;
 }

@@ -43,7 +43,7 @@ public class PresentationControllerServiceImpl implements PresentationController
         if (track.getControllerJudge() != null) {
             source = "OVERRIDE";
         } else if (controllerId != null) {
-            source = "HEAD_DEFAULT";
+            source = "AUTO_DEFAULT";
         } else {
             source = "UNASSIGNED";
         }
@@ -150,9 +150,12 @@ public class PresentationControllerServiceImpl implements PresentationController
             return PresentationControllerResponse.builder().source(source).build();
         }
         User judge = userRepository.findById(judgeId).orElse(null);
+        String fullName = judge != null ? judge.getFullName() : null;
         return PresentationControllerResponse.builder()
                 .judgeId(judgeId)
-                .judgeName(judge != null ? judge.getFullName() : null)
+                .judgeName(fullName)
+                .judgeFullName(fullName)
+                .isDeptHead(judge != null && Boolean.TRUE.equals(judge.getIsDeptHead()))
                 .source(source)
                 .build();
     }

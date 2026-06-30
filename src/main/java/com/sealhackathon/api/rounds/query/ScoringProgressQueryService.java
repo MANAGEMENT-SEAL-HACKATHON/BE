@@ -39,7 +39,7 @@ public class ScoringProgressQueryService {
                 continue;
             }
             gradable++;
-            if (isFullyScored(s, round.getScoringLocked())) {
+            if (isFullyScored(s, round)) {
                 scored++;
             }
         }
@@ -52,7 +52,40 @@ public class ScoringProgressQueryService {
                 .build();
     }
 
-    private boolean isFullyScored(Submission submission, Boolean scoringLocked) {
+    private boolean isFullyScored(Submission submission, Round round) {
+        if (Boolean.TRUE.equals(round.getIsFinal())) {
+            return isFullyScoredForFinalRound(submission, round.getScoringLocked());
+        }
+        return isFullyScoredForPrelimTrack(submission, round.getScoringLocked());
+    }
+
+    /** GD5 — tiêu chí gắn round (track null), submission có thể không có track. */
+    private boolean isFullyScoredForFinalRound(Submission submission, Boolean scoringLocked) {
+        Integer roundId = submission.getRound() != null
+                ? submission.getRound().getId()
+                : null;
+        if (roundId == null) {
+            return false;
+        }
+        boolean useFinal = Boolean.TRUE.equals(scoringLocked);
+        List<Criteria> criteria = criteriaRepository.findByFinalRoundIdOrderByDisplayOrderAsc(roundId).stream()
+                .filter(c -> c.getType() != CriteriaType.PENALTY)
+                .toList();
+        if (criteria.isEmpty()) {
+            return false;
+        }
+        for (Criteria criterion : criteria) {
+            long count = scoreRepository.countBySubmission_IdAndCriterion_IdAndScoreTypeAndIsFinal(
+                    submission.getId(), criterion.getId(), ScoreType.NORMAL, useFinal);
+            if (count == 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** GD3 — tiêu chí theo track (giữ nguyên). */
+    private boolean isFullyScoredForPrelimTrack(Submission submission, Boolean scoringLocked) {
         if (submission.getTrack() == null) {
             return false;
         }

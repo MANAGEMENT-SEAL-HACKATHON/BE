@@ -9,7 +9,10 @@ import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.value_object.RoundType;
 import com.sealhackathon.api.submissions.entity.Submission;
+import com.sealhackathon.api.prizes.repository.PrizeRepository;
+import com.sealhackathon.api.prizes.value_object.PrizeRank;
 import com.sealhackathon.api.teams.entity.Team;
+import com.sealhackathon.api.teams.repository.TeamRepository;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.users.entity.User;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +42,8 @@ public class Gd6PendingConfirmDataSeeder {
     private final HackathonDevSeedHelper seedHelper;
     private final HackathonRepository hackathonRepository;
     private final RoundRepository roundRepository;
+    private final TeamRepository teamRepository;
+    private final PrizeRepository prizeRepository;
     private final DevSeedCleanup devSeedCleanup;
 
     @Value("${app.seed.gd6.enabled:true}")
@@ -64,6 +69,7 @@ public class Gd6PendingConfirmDataSeeder {
             }
             if (hackathon.getStatus() == HackathonStatus.FINISHED) {
                 seedHelper.repairHackathonForGd6Retest(hackathon, prelim, finalRound);
+                reseedProfile0FirstPrize(hackathon, finalRound);
                 log.info("[Gd6PendingConfirmDataSeeder] repairForFullChainRetest — {} → PENDING_CONFIRM",
                         Gd6SeedConstants.SLUG_GD6_PENDING_CONFIRM);
             }
@@ -166,6 +172,45 @@ public class Gd6PendingConfirmDataSeeder {
                 Gd6SeedConstants.studentEmail(3),
                 DevSeedCatalog.DEV_STUDENT_PASSWORD,
                 Gd1SeedConstants.EMAIL_GUEST_JUDGE);
+    }
+
+    /** Reset Profile 0 về 3 team XH + đúng 1 giải FIRST (R1-api / P5-api Playwright). */
+    @Transactional
+    public void repairForApiMatrixReadiness() {
+        if (!enabled) {
+            return;
+        }
+        repairForFullChainRetest();
+        hackathonRepository.findBySlug(Gd6SeedConstants.SLUG_GD6_PENDING_CONFIRM).ifPresent(hackathon -> {
+            if (hackathon.getStatus() != HackathonStatus.PENDING_CONFIRM) {
+                return;
+            }
+            Round finalRound = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathon.getId()).stream()
+                    .filter(r -> Boolean.TRUE.equals(r.getIsFinal()))
+                    .findFirst()
+                    .orElse(null);
+            if (finalRound == null) {
+                return;
+            }
+            var prizes = prizeRepository.findByRound_Hackathon_IdOrderByAwardedAtDesc(hackathon.getId());
+            boolean baseline = prizes.size() == 1
+                    && prizeRepository.existsByHackathonIdAndPrizeRank(hackathon.getId(), PrizeRank.FIRST);
+            if (!baseline) {
+                reseedProfile0FirstPrize(hackathon, finalRound);
+                log.info("[Gd6PendingConfirmDataSeeder] repairForApiMatrixReadiness — Profile 0 prizes → FIRST only");
+            }
+        });
+    }
+
+    private void reseedProfile0FirstPrize(Hackathon hackathon, Round finalRound) {
+        Team team01 = teamRepository
+                .findByHackathon_IdAndTeamNameIgnoreCase(hackathon.getId(), Gd6SeedConstants.TEAM_01)
+                .orElse(null);
+        if (team01 == null) {
+            return;
+        }
+        seedHelper.clearGd6Prizes(hackathon.getId());
+        seedHelper.ensureFirstPrize(hackathon, finalRound, team01, seedHelper.requireCoordinator());
     }
 
     /** Đồng bộ lịch đã kết thúc + reset FINISHED → PENDING_CONFIRM khi cần. */

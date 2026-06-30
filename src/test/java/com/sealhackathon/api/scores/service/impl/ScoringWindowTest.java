@@ -143,6 +143,24 @@ class ScoringWindowTest {
     }
 
     @Test
+    void finalRoundScore_blockedWhenSlotWaiting() {
+        mockHappyPath(SubmissionStatus.SUBMITTED, true);
+        when(presentationSlotRepository.findByRound_IdAndSubmission_Id(5, 42))
+                .thenReturn(Optional.of(PresentationSlot.builder()
+                        .queueStatus(PresentationQueueStatus.WAITING)
+                        .build()));
+
+        assertThatThrownBy(() -> scoreService.submitScore(SubmitScoreRequest.builder()
+                        .submissionId(42)
+                        .criterionId(1)
+                        .scoreValue(8f)
+                        .build()))
+                .isInstanceOf(BusinessRuleException.class)
+                .extracting(ex -> ((BusinessRuleException) ex).getCode())
+                .isEqualTo(ErrorCode.SCORING_NOT_OPEN);
+    }
+
+    @Test
     void normalScore_blockedWhenScoringLocked() {
         mockHappyPath(SubmissionStatus.SUBMITTED);
         Round locked = Round.builder()
@@ -162,10 +180,15 @@ class ScoringWindowTest {
     }
 
     private void mockHappyPath(SubmissionStatus status) {
+        mockHappyPath(status, false);
+    }
+
+    private void mockHappyPath(SubmissionStatus status, boolean isFinal) {
         Track track = Track.builder().id(3).build();
         Round round = Round.builder()
                 .id(5)
                 .isActive(true)
+                .isFinal(isFinal)
                 .examAt(LocalDateTime.now().minusHours(1))
                 .scoringLocked(false)
                 .build();

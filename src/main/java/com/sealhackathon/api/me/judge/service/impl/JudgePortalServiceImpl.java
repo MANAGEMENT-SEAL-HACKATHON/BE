@@ -1,5 +1,7 @@
 package com.sealhackathon.api.me.judge.service.impl;
 
+import com.sealhackathon.api.calibration_sessions.dto.response.CalibrationSessionResponse;
+import com.sealhackathon.api.calibration_sessions.service.CalibrationSessionService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.AuthException;
 import com.sealhackathon.api.common.exception.ErrorCode;
@@ -19,8 +21,9 @@ import com.sealhackathon.api.events.entity.PresentationSlot;
 import com.sealhackathon.api.events.repository.JudgeSubmissionScoringConfirmationRepository;
 import com.sealhackathon.api.events.repository.PresentationSlotRepository;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
-import com.sealhackathon.api.presentation.support.PresentationScoringCompletionHelper;
+import com.sealhackathon.api.presentation.guard.PresentationControllerGuard;
 import com.sealhackathon.api.presentation.value_object.PresentationQueueStatus;
+import com.sealhackathon.api.presentation.value_object.PresentationTimerPhase;
 import com.sealhackathon.api.scores.guard.JudgeAssignmentGuard;
 import com.sealhackathon.api.submissions.entity.Submission;
 import com.sealhackathon.api.submissions.policy.SubmissionGradablePolicy;
@@ -31,6 +34,9 @@ import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.scores.entity.Score;
 import com.sealhackathon.api.scores.repository.ScoreRepository;
 import com.sealhackathon.api.scores.value_object.ScoreType;
+import com.sealhackathon.api.presentation.support.PresentationScoringCompletionHelper;
+import com.sealhackathon.api.tracks.entity.Track;
+import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.repository.TeamRepository;
 import com.sealhackathon.api.tiebreak_evaluations.entity.TiebreakEvaluation;
@@ -63,6 +69,9 @@ public class JudgePortalServiceImpl implements JudgePortalService {
     private final PresentationSlotRepository presentationSlotRepository;
     private final JudgeSubmissionScoringConfirmationRepository scoringConfirmationRepository;
     private final PresentationScoringCompletionHelper scoringCompletionHelper;
+    private final CalibrationSessionService calibrationSessionService;
+    private final PresentationControllerGuard presentationControllerGuard;
+    private final TrackRepository trackRepository;
 
     @Override
     public List<JudgeTrackAssignmentResponse> listTrackAssignments() {
@@ -133,6 +142,18 @@ public class JudgePortalServiceImpl implements JudgePortalService {
                             .build();
                 })
                 .toList();
+    }
+
+    @Override
+    public List<CalibrationSessionResponse> listCalibrationSessions(Integer roundId) {
+        Integer judgeId = currentUserAccessor.currentUserId();
+        if (roundId == null) {
+            throw new AuthException(ErrorCode.VALIDATION_FAILED, "roundId bắt buộc", HttpStatus.BAD_REQUEST);
+        }
+        if (!judgeAssignmentRepository.existsByJudgeIdAndRoundScope(judgeId, roundId)) {
+            throw new AuthException(ErrorCode.FORBIDDEN, "Judge chưa được phân công round này", HttpStatus.FORBIDDEN);
+        }
+        return calibrationSessionService.listByRound(roundId);
     }
 
     @Override
@@ -390,12 +411,20 @@ public class JudgePortalServiceImpl implements JudgePortalService {
             throw new AuthException(ErrorCode.FORBIDDEN, "Judge chưa được phân công round này", HttpStatus.FORBIDDEN);
         }
 
+        Round round = roundRepository.findById(roundId)
+                .orElseThrow(() -> new ResourceNotFoundException("Round", roundId));
+        Track track = trackId != null ? trackRepository.findById(trackId).orElse(null) : null;
+        boolean canControl = track != null
+                ? presentationControllerGuard.canControlTrack(judgeId, track, round, false)
+                : presentationControllerGuard.canControlRound(judgeId, round, false);
+
         PresentationSlot presenting = resolvePresentingSlot(roundId, trackId);
         if (presenting == null || presenting.getSubmission() == null) {
             return JudgePresentationScoringStatusResponse.builder()
                     .roundId(roundId)
                     .trackId(trackId)
                     .judgesAssigned(scoringCompletionHelper.countAssignedJudges(trackId, roundId))
+                    .canControlPresentation(canControl)
                     .build();
         }
 
@@ -403,10 +432,17 @@ public class JudgePortalServiceImpl implements JudgePortalService {
         int judgesAssigned = scoringCompletionHelper.countAssignedJudges(trackId, roundId);
         int judgesScored = scoringCompletionHelper.countDistinctJudgesWithAnyScore(submission.getId());
         int judgesFullyScored = scoringCompletionHelper.countJudgesFullyScored(submission);
+        int judgesConfirmed = scoringCompletionHelper.countJudgesConfirmed(submission.getId());
         boolean myScored = scoringCompletionHelper.hasJudgeFullyScored(judgeId, submission);
         boolean myConfirmed = scoringConfirmationRepository.existsBySubmission_IdAndJudge_Id(
                 submission.getId(), judgeId);
-        boolean canAdvance = scoringCompletionHelper.canAdvanceQueue(submission, trackId, roundId);
+        boolean scoringComplete = scoringCompletionHelper.canAdvanceQueue(submission, trackId, roundId);
+        boolean canAdvance = scoringComplete;
+        if (Boolean.TRUE.equals(round.getIsFinal())) {
+            PresentationTimerPhase phase = presenting.getTimerPhase();
+            boolean timerReady = phase == PresentationTimerPhase.QA || phase == PresentationTimerPhase.ENDED;
+            canAdvance = scoringComplete && timerReady;
+        }
 
         return JudgePresentationScoringStatusResponse.builder()
                 .roundId(roundId)
@@ -416,9 +452,11 @@ public class JudgePortalServiceImpl implements JudgePortalService {
                 .judgesAssigned(judgesAssigned)
                 .judgesScored(judgesScored)
                 .judgesFullyScored(judgesFullyScored)
+                .judgesConfirmed(judgesConfirmed)
                 .myConfirmed(myConfirmed)
                 .myScored(myScored)
                 .canAdvanceQueue(canAdvance)
+                .canControlPresentation(canControl)
                 .build();
     }
 

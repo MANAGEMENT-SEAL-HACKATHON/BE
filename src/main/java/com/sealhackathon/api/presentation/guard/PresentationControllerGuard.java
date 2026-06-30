@@ -5,7 +5,6 @@ import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
-import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.users.value_object.UserRole;
@@ -13,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
+import java.util.Comparator;
 import java.util.Optional;
 
 @Component
@@ -66,7 +66,7 @@ public class PresentationControllerGuard {
         if (track.getControllerJudge() != null) {
             return track.getControllerJudge().getId();
         }
-        return findHeadJudgeId(track.getId()).orElse(null);
+        return findDefaultControllerJudgeId(track.getId()).orElse(null);
     }
 
     public Integer resolveRoundControllerId(Round round) {
@@ -76,9 +76,29 @@ public class PresentationControllerGuard {
         return null;
     }
 
-    private Optional<Integer> findHeadJudgeId(Integer trackId) {
-        return judgeAssignmentRepository.findByTrackId(trackId).stream()
-                .filter(ja -> ja.getAssignmentType() == JudgeAssignmentType.HEAD)
+    /**
+     * Mặc định: trưởng ban (is_dept_head) trên track, nếu không có thì judge được gán đầu tiên (assignedAt).
+     * Không dùng assignment_type HEAD — đó chỉ là nhãn phân công, không phải trưởng ban thật.
+     */
+    private Optional<Integer> findDefaultControllerJudgeId(Integer trackId) {
+        var assignments = judgeAssignmentRepository.findByTrackId(trackId);
+        if (assignments.isEmpty()) {
+            return Optional.empty();
+        }
+        Comparator<JudgeAssignment> byAssignedAt = Comparator.comparing(
+                JudgeAssignment::getAssignedAt,
+                Comparator.nullsLast(Comparator.naturalOrder()));
+
+        Optional<Integer> deptHead = assignments.stream()
+                .filter(ja -> ja.getJudge() != null && Boolean.TRUE.equals(ja.getJudge().getIsDeptHead()))
+                .sorted(byAssignedAt)
+                .map(ja -> ja.getJudge().getId())
+                .findFirst();
+        if (deptHead.isPresent()) {
+            return deptHead;
+        }
+        return assignments.stream()
+                .sorted(byAssignedAt)
                 .map(ja -> ja.getJudge().getId())
                 .findFirst();
     }

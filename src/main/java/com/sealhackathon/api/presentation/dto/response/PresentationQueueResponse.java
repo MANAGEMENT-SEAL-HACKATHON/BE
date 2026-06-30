@@ -26,6 +26,23 @@ public class PresentationQueueResponse {
         private String trackName;
         private Boolean shuffled;
         private List<QueueItem> items;
+        /** Chung kết — tổng đội vào vòng (TeamRoundParticipation). */
+        private Integer participatingTeamCount;
+        /** Chung kết — đội đã nộp bài đủ điều kiện vào queue. */
+        private Integer gradableTeamCount;
+        /** Chung kết — danh sách đội (coordinator), gồm cả chưa nộp. */
+        private List<EligibleTeamItem> eligibleTeams;
+    }
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class EligibleTeamItem {
+        private Integer teamId;
+        private String teamName;
+        private Boolean gradable;
+        private String submissionStatus;
     }
 
     @Getter

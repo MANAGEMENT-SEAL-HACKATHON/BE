@@ -115,6 +115,7 @@ public class DataInitializer implements CommandLineRunner {
         gd5EdgeErrorsDataSeeder.ensureSeed();
         gd5LateHardlockDataSeeder.ensureSeed();
         gd6PendingConfirmDataSeeder.repairForFullChainRetest();
+        gd6PendingConfirmDataSeeder.repairForApiMatrixReadiness();
         gd6PendingConfirmDataSeeder.ensureSeed();
         gd6PrizesEmptyDataSeeder.ensureSeed();
         gd6ConfirmReadyDataSeeder.ensureSeed();
@@ -142,6 +143,7 @@ public class DataInitializer implements CommandLineRunner {
         gd5EdgeErrorsDataSeeder.repairForFeTesting();
         gd5LateHardlockDataSeeder.repairForFeTesting();
         gd6PendingConfirmDataSeeder.repairForFeTesting();
+        gd6PendingConfirmDataSeeder.repairForApiMatrixReadiness();
         gd6PrizesEmptyDataSeeder.repairForFeTesting();
         gd6ConfirmReadyDataSeeder.repairForFeTesting();
         gd6FinishedExportDataSeeder.repairForFeTesting();
