@@ -1,4 +1,4 @@
-# MF-01 — API Conventions
+﻿# MF-01 — API Conventions
 
 ## 1. Base path
 
@@ -37,7 +37,7 @@
     "code":    "HACKATHON_DUPLICATE",
     "message": "Kỳ thi đã tồn tại",
     "status":  409,
-    "details": { "name": "SEAL Spring 2026", "season": "Spring", "year": 2026 }
+    "details": { "name": "SEAL E2E 2026", "season": "Spring", "year": 2026 }
   },
   "traceId":   "uuid-v4",
   "timestamp": "2026-05-16T09:57:00Z"

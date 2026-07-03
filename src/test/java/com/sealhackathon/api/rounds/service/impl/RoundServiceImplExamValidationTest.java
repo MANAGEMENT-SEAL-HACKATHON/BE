@@ -4,6 +4,7 @@ import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ConflictException;
 import com.sealhackathon.api.common.exception.ErrorCode;
+import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.criteria.service.WeightSummaryService;
 import com.sealhackathon.api.events.repository.EventRepository;
@@ -66,6 +67,7 @@ class RoundServiceImplExamValidationTest {
     @Mock private EventRepository eventRepository;
     @Spy private HackathonArchiveGuard archiveGuard = new HackathonArchiveGuard();
     @Mock private HackathonRoundTimelineSyncService hackathonRoundTimelineSyncService;
+    @Mock private CurrentUserAccessor currentUserAccessor;
     @Mock private com.sealhackathon.api.presentation.service.PresentationSlotCascadeService presentationSlotCascadeService;
 
     @InjectMocks
@@ -207,7 +209,7 @@ class RoundServiceImplExamValidationTest {
     @Test
     void createFinal_blocksWhenAwardsStartsBeforeSubmissionDeadline() {
         mockHackathon();
-        LocalDateTime day = LocalDateTime.of(2026, 6, 10, 0, 0);
+        LocalDateTime day = LocalDateTime.now().plusDays(40).withHour(0).withMinute(0).withSecond(0).withNano(0);
         when(roundRepository.findPreliminaryLikeByHackathonId(1))
                 .thenReturn(List.of(Round.builder().id(10).build()));
         when(roundRepository.countByHackathon_IdAndIsFinalTrue(1)).thenReturn(0L);
@@ -443,16 +445,18 @@ class RoundServiceImplExamValidationTest {
         when(roundRepository.save(any())).thenReturn(Round.builder().id(12).hackathon(h).build());
         when(roundMapper.toResponse(any())).thenReturn(RoundResponse.builder().id(12).name("test").build());
 
+        LocalDateTime examAt = LocalDateTime.now().plusDays(10).withHour(8).withMinute(0).withSecond(0).withNano(0);
+
         CreateRoundRequest req = CreateRoundRequest.builder()
                 .name("test")
-                .examAt(LocalDateTime.of(2026, 6, 9, 8, 0))
+                .examAt(examAt)
                 .isFinal(false)
                 .roundType(RoundType.PRELIMINARY)
                 .codingDurationHours(5)
                 .lateSubmissionPolicy(com.sealhackathon.api.rounds.value_object.LateSubmissionPolicy.HARD_LOCK)
-                .problemReleasedAt(LocalDateTime.of(2026, 6, 9, 8, 0))
-                .submissionOpen(LocalDateTime.of(2026, 6, 9, 11, 20))
-                .submissionDeadline(LocalDateTime.of(2026, 6, 9, 13, 0))
+                .problemReleasedAt(examAt)
+                .submissionOpen(examAt.plusHours(3).plusMinutes(20))
+                .submissionDeadline(examAt.plusHours(5))
                 .wildcardEnabled(false)
                 .tiebreakRule(com.sealhackathon.api.rounds.value_object.TiebreakRule.PENALTY_SCORE)
                 .build();

@@ -1,4 +1,4 @@
-# FE GĐ1–GĐ3 Workflow mapping (BTC gate model)
+﻿# FE GĐ1–GĐ3 Workflow mapping (BTC gate model)
 
 > Tài liệu gửi **Frontend** để đối chiếu luồng Coordinator / Student GĐ1→3 với BE canonical.  
 > Cập nhật: **2026-06-07** — đồng bộ với seed dev, readiness phased, lottery `PATCH`, events POST order vs lịch.
@@ -131,7 +131,7 @@ flowchart LR
 ```json
 {
   "type": "KICKOFF",
-  "title": "Kickoff SEAL Spring 2026",
+  "title": "Kickoff SEAL E2E 2026",
   "scheduledAt": "2026-06-07T09:00:00",
   "location": "Online"
 }
@@ -175,8 +175,8 @@ flowchart TB
     J2[Judge NORMAL → Track B]
   end
   subgraph gd2 [GĐ2 Lottery]
-    Team1[Team GD2-01]
-    Team2[Team GD2-02]
+    Team1[Team E2E-T01]
+    Team2[Team E2E-T02]
   end
   T1 --> M1
   T1 --> J1
@@ -266,8 +266,8 @@ DB trigger + BE enforce: **cùng một user không được vừa là Mentor v�
 | Slug | Status | Mục đích FE |
 |------|--------|-------------|
 | `seal-gd1-incomplete` | DRAFT | Readiness `ready: false` — test blocker UI |
-| `seal-gd1-ready` | DRAFT | Đủ G1–G5 — chỉ test bước readiness + PATCH ONGOING |
-| `seal-spring-2026` | ONGOING | GĐ2 shortcut (đội `GD2-*`) |
+| `seal-e2e-2026` | DRAFT | Đủ G1–G5 — chỉ test bước readiness + PATCH ONGOING |
+| `seal-e2e-2026` | ONGOING | GĐ2 shortcut (đội `E2E-T*`) |
 | `seal-fall-2025-finished` | FINISHED | Archive read-only |
 
 Login dev: `coord@fpt.edu.vn` / `Coordinator@dev1` · xem log `[Gd1DataSeeder]` khi start app (`profile=dev`).
@@ -326,7 +326,7 @@ hoặc bỏ hẳn `assignments`.
 
 ### 4.4 Seed shortcut
 
-Slug **`seal-spring-2026`** — ONGOING, 9 đội `GD2-*`, lottery một phần.  
+Slug **`seal-e2e-2026`** — ONGOING, 9 đội `E2E-T*`, lottery một phần.  
 Student mẫu: `student.gd2.hcm.leader03@fpt.edu.vn` / `Student@dev1`.
 
 ---

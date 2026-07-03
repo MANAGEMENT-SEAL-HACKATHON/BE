@@ -103,6 +103,9 @@ public class SocialAuthService {
             String existingAccountPassword,
             HttpServletRequest httpRequest) {
         User user = resolveLoginUser(identity, existingAccountPassword);
+        if (user.getEmailVerifiedAt() == null) {
+            user.setEmailVerifiedAt(LocalDateTime.now());
+        }
         assertApproved(user);
         guestJudgeLifecycleService.assertHackathonNotEndedForTempJudge(user);
 

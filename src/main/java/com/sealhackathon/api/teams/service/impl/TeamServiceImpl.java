@@ -4,20 +4,20 @@ import com.sealhackathon.api.common.audit.AuditAction;
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.*;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
-import com.sealhackathon.api.hackathon_registrations.entity.HackathonRegistration;
-import com.sealhackathon.api.hackathon_registrations.repository.HackathonRegistrationRepository;
+import com.sealhackathon.api.hackathons.entity.HackathonRegistration;
+import com.sealhackathon.api.hackathons.repository.HackathonRegistrationRepository;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.notifications.service.NotificationService;
-import com.sealhackathon.api.mentor_team_assignments.repository.MentorTeamAssignmentRepository;
+import com.sealhackathon.api.mentors.repository.MentorTeamAssignmentRepository;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
-import com.sealhackathon.api.team_members.entity.TeamMember;
-import com.sealhackathon.api.team_members.entity.TeamMemberId;
-import com.sealhackathon.api.team_members.repository.TeamMemberRepository;
-import com.sealhackathon.api.team_members.value_object.TeamMemberRole;
-import com.sealhackathon.api.team_members.value_object.TeamMemberStatus;
-import com.sealhackathon.api.team_round_participation.repository.TeamRoundParticipationRepository;
-import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
+import com.sealhackathon.api.teams.entity.TeamMember;
+import com.sealhackathon.api.teams.entity.TeamMemberId;
+import com.sealhackathon.api.teams.repository.TeamMemberRepository;
+import com.sealhackathon.api.teams.value_object.TeamMemberRole;
+import com.sealhackathon.api.teams.value_object.TeamMemberStatus;
+import com.sealhackathon.api.teams.repository.TeamRoundParticipationRepository;
+import com.sealhackathon.api.teams.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.teams.dto.request.*;
 import com.sealhackathon.api.teams.dto.response.BulkApproveTeamsResponse;
 import com.sealhackathon.api.teams.dto.response.TeamDetailResponse;
@@ -30,7 +30,7 @@ import com.sealhackathon.api.teams.service.TeamService;
 import com.sealhackathon.api.hackathons.support.HackathonRegistrationSupport;
 import com.sealhackathon.api.teams.support.HackathonTeamSizeResolver;
 import com.sealhackathon.api.teams.support.TeamAccessGuard;
-import com.sealhackathon.api.team_round_participation.value_object.ParticipationStatus;
+import com.sealhackathon.api.teams.value_object.ParticipationStatus;
 import com.sealhackathon.api.teams.value_object.TeamStatus;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.users.dto.response.UserSummaryResponse;
@@ -95,10 +95,10 @@ public class TeamServiceImpl implements TeamService {
                     "Trưởng nhóm chưa xác nhận thành lập đội. Chỉ duyệt sau khi leader bấm xác nhận.");
         }
         long acceptedCount = teamMemberRepository.countByTeam_IdAndStatus(
-                teamId, com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED);
+                teamId, com.sealhackathon.api.teams.value_object.TeamMemberStatus.ACCEPTED);
         assertAcceptedCountInRange(acceptedCount, limitsFor(team));
         long pendingCount = teamMemberRepository.countByTeam_IdAndStatus(
-                teamId, com.sealhackathon.api.team_members.value_object.TeamMemberStatus.PENDING);
+                teamId, com.sealhackathon.api.teams.value_object.TeamMemberStatus.PENDING);
         if (pendingCount > 0) {
             throw new BusinessRuleException(ErrorCode.TEAM_HAS_PENDING_MEMBERS,
                     "Đội vẫn còn " + pendingCount + " lời mời chờ phản hồi, cần xử lý trước khi duyệt.");
@@ -152,7 +152,7 @@ public class TeamServiceImpl implements TeamService {
                 leader.getId(),
                 hackathon.getId(),
                 java.util.List.of(TeamStatus.ACTIVE, TeamStatus.PENDING),
-                com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED
+                com.sealhackathon.api.teams.value_object.TeamMemberStatus.ACCEPTED
         );
 
         if (alreadyInTeam) {
@@ -171,12 +171,12 @@ public class TeamServiceImpl implements TeamService {
         Team savedTeam = teamRepository.save(team);
 
         // 5. Thêm Leader vào danh sách thành viên
-        com.sealhackathon.api.team_members.entity.TeamMember leaderMember = com.sealhackathon.api.team_members.entity.TeamMember.builder()
-                .id(new com.sealhackathon.api.team_members.entity.TeamMemberId(savedTeam.getId(), leader.getId()))
+        com.sealhackathon.api.teams.entity.TeamMember leaderMember = com.sealhackathon.api.teams.entity.TeamMember.builder()
+                .id(new com.sealhackathon.api.teams.entity.TeamMemberId(savedTeam.getId(), leader.getId()))
                 .team(savedTeam)
                 .user(leader)
-                .roleInTeam(com.sealhackathon.api.team_members.value_object.TeamMemberRole.LEADER)
-                .status(com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED)
+                .roleInTeam(com.sealhackathon.api.teams.value_object.TeamMemberRole.LEADER)
+                .status(com.sealhackathon.api.teams.value_object.TeamMemberStatus.ACCEPTED)
                 .joinedAt(java.time.LocalDateTime.now())
                 .build();
         teamMemberRepository.save(leaderMember);
@@ -195,13 +195,13 @@ public class TeamServiceImpl implements TeamService {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new ResourceNotFoundException("Team", teamId));
 
-        java.util.List<com.sealhackathon.api.team_members.entity.TeamMember> members = teamMemberRepository.findByTeam_Id(teamId);
+        java.util.List<com.sealhackathon.api.teams.entity.TeamMember> members = teamMemberRepository.findByTeam_Id(teamId);
 
         int acceptedCount = (int) members.stream()
-                .filter(m -> m.getStatus() == com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED)
+                .filter(m -> m.getStatus() == com.sealhackathon.api.teams.value_object.TeamMemberStatus.ACCEPTED)
                 .count();
         int pendingCount = (int) members.stream()
-                .filter(m -> m.getStatus() == com.sealhackathon.api.team_members.value_object.TeamMemberStatus.PENDING)
+                .filter(m -> m.getStatus() == com.sealhackathon.api.teams.value_object.TeamMemberStatus.PENDING)
                 .count();
 
         java.util.List<com.sealhackathon.api.teams.dto.response.TeamMemberResponse> memberResponses = members.stream()
@@ -215,14 +215,14 @@ public class TeamServiceImpl implements TeamService {
                 .toList();
 
         // Lấy thông tin Track (bảng đấu) của đội
-        java.util.List<com.sealhackathon.api.team_round_tracks.entity.TeamRoundTrack> trackAssignments = teamRoundTrackRepository.findByTeam_Id(teamId);
+        java.util.List<com.sealhackathon.api.teams.entity.TeamRoundTrack> trackAssignments = teamRoundTrackRepository.findByTeam_Id(teamId);
         Integer trackId = null;
         String trackName = null;
         String assignedGroup = null;
 
         // Nếu đội đã được bốc thăm, lấy Track mới nhất
         if (!trackAssignments.isEmpty()) {
-            com.sealhackathon.api.team_round_tracks.entity.TeamRoundTrack latestTrack = trackAssignments.get(trackAssignments.size() - 1);
+            com.sealhackathon.api.teams.entity.TeamRoundTrack latestTrack = trackAssignments.get(trackAssignments.size() - 1);
             trackId = latestTrack.getTrack().getId();
             trackName = latestTrack.getTrack().getName();
             assignedGroup = latestTrack.getAssignedGroup();
@@ -278,8 +278,8 @@ public class TeamServiceImpl implements TeamService {
                     currentUserId,
                     hackathonId,
                     java.util.List.of(
-                            com.sealhackathon.api.team_members.value_object.TeamMemberStatus.PENDING,
-                            com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED));
+                            com.sealhackathon.api.teams.value_object.TeamMemberStatus.PENDING,
+                            com.sealhackathon.api.teams.value_object.TeamMemberStatus.ACCEPTED));
             if (status != null) {
                 teams = teams.stream().filter(t -> t.getStatus() == status).toList();
             }
@@ -343,11 +343,11 @@ public class TeamServiceImpl implements TeamService {
         }
 
         long acceptedCount = teamMemberRepository.countByTeam_IdAndStatus(
-                teamId, com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED);
+                teamId, com.sealhackathon.api.teams.value_object.TeamMemberStatus.ACCEPTED);
         assertAcceptedCountInRange(acceptedCount, limitsFor(team));
 
         long pendingCount = teamMemberRepository.countByTeam_IdAndStatus(
-                teamId, com.sealhackathon.api.team_members.value_object.TeamMemberStatus.PENDING);
+                teamId, com.sealhackathon.api.teams.value_object.TeamMemberStatus.PENDING);
         if (pendingCount > 0) {
             throw new BusinessRuleException(ErrorCode.TEAM_FORMATION_PENDING_INVITES,
                     "Đội đang còn " + pendingCount + " lời mời chờ phản hồi. "
@@ -438,19 +438,19 @@ public class TeamServiceImpl implements TeamService {
         assertLeaderCanChangeMembership(team);
 
         Integer newLeaderId = req.getNewLeaderId();
-        com.sealhackathon.api.team_members.entity.TeamMember newLeaderMember = teamMemberRepository.findById(new com.sealhackathon.api.team_members.entity.TeamMemberId(teamId, newLeaderId))
+        com.sealhackathon.api.teams.entity.TeamMember newLeaderMember = teamMemberRepository.findById(new com.sealhackathon.api.teams.entity.TeamMemberId(teamId, newLeaderId))
                 .orElseThrow(() -> new BusinessRuleException(ErrorCode.NEW_LEADER_NOT_MEMBER, "Người được chọn không có trong đội"));
 
-        if (newLeaderMember.getStatus() != com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED) {
+        if (newLeaderMember.getStatus() != com.sealhackathon.api.teams.value_object.TeamMemberStatus.ACCEPTED) {
             throw new BusinessRuleException(ErrorCode.NEW_LEADER_NOT_APPROVED, "Người được chọn phải đã ACCEPTED vào đội");
         }
 
         // 1. Hạ quyền Leader cũ xuống Member
-        com.sealhackathon.api.team_members.entity.TeamMember oldLeaderMember = teamMemberRepository.findById(new com.sealhackathon.api.team_members.entity.TeamMemberId(teamId, team.getLeader().getId())).orElseThrow();
-        oldLeaderMember.setRoleInTeam(com.sealhackathon.api.team_members.value_object.TeamMemberRole.MEMBER);
+        com.sealhackathon.api.teams.entity.TeamMember oldLeaderMember = teamMemberRepository.findById(new com.sealhackathon.api.teams.entity.TeamMemberId(teamId, team.getLeader().getId())).orElseThrow();
+        oldLeaderMember.setRoleInTeam(com.sealhackathon.api.teams.value_object.TeamMemberRole.MEMBER);
 
         // 2. Nâng quyền Member mới lên Leader
-        newLeaderMember.setRoleInTeam(com.sealhackathon.api.team_members.value_object.TeamMemberRole.LEADER);
+        newLeaderMember.setRoleInTeam(com.sealhackathon.api.teams.value_object.TeamMemberRole.LEADER);
 
         teamMemberRepository.save(oldLeaderMember);
         teamMemberRepository.save(newLeaderMember);
@@ -503,17 +503,17 @@ public class TeamServiceImpl implements TeamService {
         team.setRejectionReason("Đội đã giải tán");
         teamRepository.save(team);
 
-        java.util.List<com.sealhackathon.api.team_members.entity.TeamMember> members = teamMemberRepository.findByTeam_Id(teamId);
-        for(com.sealhackathon.api.team_members.entity.TeamMember m : members) {
-            m.setStatus(com.sealhackathon.api.team_members.value_object.TeamMemberStatus.LEFT);
+        java.util.List<com.sealhackathon.api.teams.entity.TeamMember> members = teamMemberRepository.findByTeam_Id(teamId);
+        for(com.sealhackathon.api.teams.entity.TeamMember m : members) {
+            m.setStatus(com.sealhackathon.api.teams.value_object.TeamMemberStatus.LEFT);
             m.setLeftAt(java.time.LocalDateTime.now());
         }
         teamMemberRepository.saveAll(members);
 
-        java.util.List<com.sealhackathon.api.team_round_tracks.entity.TeamRoundTrack> trts = teamRoundTrackRepository.findByTeam_Id(teamId);
+        java.util.List<com.sealhackathon.api.teams.entity.TeamRoundTrack> trts = teamRoundTrackRepository.findByTeam_Id(teamId);
         teamRoundTrackRepository.deleteAll(trts);
 
-        java.util.List<com.sealhackathon.api.team_round_participation.entity.TeamRoundParticipation> trps = teamRoundParticipationRepository.findByTeam_Id(teamId);
+        java.util.List<com.sealhackathon.api.teams.entity.TeamRoundParticipation> trps = teamRoundParticipationRepository.findByTeam_Id(teamId);
         teamRoundParticipationRepository.deleteAll(trps);
 
         auditService.log(com.sealhackathon.api.common.audit.AuditAction.TEAM_DISBAND, "teams", teamId);
@@ -543,11 +543,11 @@ public class TeamServiceImpl implements TeamService {
             throw new BusinessRuleException(ErrorCode.INVITEE_NOT_APPROVED, "Tài khoản của người được mời chưa được BTC duyệt");
         }
 
-        java.util.List<com.sealhackathon.api.team_members.entity.TeamMember> currentMembers = teamMemberRepository.findByTeam_Id(teamId);
+        java.util.List<com.sealhackathon.api.teams.entity.TeamMember> currentMembers = teamMemberRepository.findByTeam_Id(teamId);
         HackathonTeamSizeResolver.TeamSizeLimits inviteLimits = limitsFor(team);
         long activeOrPendingCount = currentMembers.stream()
-                .filter(m -> m.getStatus() == com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED
-                        || m.getStatus() == com.sealhackathon.api.team_members.value_object.TeamMemberStatus.PENDING)
+                .filter(m -> m.getStatus() == com.sealhackathon.api.teams.value_object.TeamMemberStatus.ACCEPTED
+                        || m.getStatus() == com.sealhackathon.api.teams.value_object.TeamMemberStatus.PENDING)
                 .count();
         if (activeOrPendingCount >= inviteLimits.maxTeamSize()) {
             throw new BusinessRuleException(ErrorCode.TEAM_MEMBER_FULL,
@@ -559,7 +559,7 @@ public class TeamServiceImpl implements TeamService {
                 invitee.getId(),
                 team.getHackathon().getId(),
                 java.util.List.of(TeamStatus.ACTIVE, TeamStatus.PENDING),
-                com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED
+                com.sealhackathon.api.teams.value_object.TeamMemberStatus.ACCEPTED
         );
         if (alreadyInTeam) {
             throw new ConflictException(ErrorCode.USER_IN_ANOTHER_TEAM, "Người này đã tham gia một đội khác trong kỳ Hackathon này");
@@ -567,18 +567,18 @@ public class TeamServiceImpl implements TeamService {
 
         boolean alreadyInvited = currentMembers.stream()
                 .anyMatch(m -> m.getUser().getId().equals(invitee.getId()) &&
-                        (m.getStatus() == com.sealhackathon.api.team_members.value_object.TeamMemberStatus.PENDING
-                                || m.getStatus() == com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED));
+                        (m.getStatus() == com.sealhackathon.api.teams.value_object.TeamMemberStatus.PENDING
+                                || m.getStatus() == com.sealhackathon.api.teams.value_object.TeamMemberStatus.ACCEPTED));
         if (alreadyInvited) {
             throw new ConflictException(ErrorCode.DUPLICATE_PENDING_INVITATION, "Người này đã ở trong đội hoặc đang có lời mời chờ xác nhận");
         }
 
-        com.sealhackathon.api.team_members.entity.TeamMember newMember = com.sealhackathon.api.team_members.entity.TeamMember.builder()
-                .id(new com.sealhackathon.api.team_members.entity.TeamMemberId(teamId, invitee.getId()))
+        com.sealhackathon.api.teams.entity.TeamMember newMember = com.sealhackathon.api.teams.entity.TeamMember.builder()
+                .id(new com.sealhackathon.api.teams.entity.TeamMemberId(teamId, invitee.getId()))
                 .team(team)
                 .user(invitee)
-                .roleInTeam(com.sealhackathon.api.team_members.value_object.TeamMemberRole.MEMBER)
-                .status(com.sealhackathon.api.team_members.value_object.TeamMemberStatus.PENDING)
+                .roleInTeam(com.sealhackathon.api.teams.value_object.TeamMemberRole.MEMBER)
+                .status(com.sealhackathon.api.teams.value_object.TeamMemberStatus.PENDING)
                 .build();
         teamMemberRepository.save(newMember);
 
@@ -592,8 +592,8 @@ public class TeamServiceImpl implements TeamService {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new ResourceNotFoundException("Team", teamId));
 
-        com.sealhackathon.api.team_members.entity.TeamMember member = teamMemberRepository.findById(
-                        new com.sealhackathon.api.team_members.entity.TeamMemberId(teamId, userId))
+        com.sealhackathon.api.teams.entity.TeamMember member = teamMemberRepository.findById(
+                        new com.sealhackathon.api.teams.entity.TeamMemberId(teamId, userId))
                 .orElseThrow(() -> new ResourceNotFoundException("TeamMember", userId));
 
         com.sealhackathon.api.teams.value_object.TeamMemberAction action = req.getAction();
@@ -625,39 +625,39 @@ public class TeamServiceImpl implements TeamService {
         }
 
         if (action == com.sealhackathon.api.teams.value_object.TeamMemberAction.ACCEPT) {
-            if (member.getStatus() != com.sealhackathon.api.team_members.value_object.TeamMemberStatus.PENDING) {
+            if (member.getStatus() != com.sealhackathon.api.teams.value_object.TeamMemberStatus.PENDING) {
                 throw new BusinessRuleException(ErrorCode.INVALID_STATUS_TRANSITION, "Chỉ có thể ACCEPT lời mời đang ở trạng thái PENDING");
             }
-            long acceptedCount = teamMemberRepository.countByTeam_IdAndStatus(teamId, com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED);
+            long acceptedCount = teamMemberRepository.countByTeam_IdAndStatus(teamId, com.sealhackathon.api.teams.value_object.TeamMemberStatus.ACCEPTED);
             HackathonTeamSizeResolver.TeamSizeLimits acceptLimits = limitsFor(team);
             if (acceptedCount >= acceptLimits.maxTeamSize()) {
                 throw new BusinessRuleException(ErrorCode.TEAM_MEMBER_FULL,
                         "Đội đã đủ %d thành viên chính thức".formatted(acceptLimits.maxTeamSize()));
             }
-            member.setStatus(com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED);
+            member.setStatus(com.sealhackathon.api.teams.value_object.TeamMemberStatus.ACCEPTED);
             member.setJoinedAt(java.time.LocalDateTime.now());
             auditActionLog = com.sealhackathon.api.common.audit.AuditAction.MEMBER_ACCEPTED;
 
         } else if (action == com.sealhackathon.api.teams.value_object.TeamMemberAction.REJECT) {
-            if (member.getStatus() != com.sealhackathon.api.team_members.value_object.TeamMemberStatus.PENDING) {
+            if (member.getStatus() != com.sealhackathon.api.teams.value_object.TeamMemberStatus.PENDING) {
                 throw new BusinessRuleException(ErrorCode.INVALID_STATUS_TRANSITION, "Chỉ có thể REJECT lời mời đang PENDING");
             }
-            member.setStatus(com.sealhackathon.api.team_members.value_object.TeamMemberStatus.REJECTED);
+            member.setStatus(com.sealhackathon.api.teams.value_object.TeamMemberStatus.REJECTED);
             auditActionLog = com.sealhackathon.api.common.audit.AuditAction.MEMBER_REJECTED;
 
         } else if (action == com.sealhackathon.api.teams.value_object.TeamMemberAction.LEFT) {
-            if (member.getRoleInTeam() == com.sealhackathon.api.team_members.value_object.TeamMemberRole.LEADER) {
+            if (member.getRoleInTeam() == com.sealhackathon.api.teams.value_object.TeamMemberRole.LEADER) {
                 throw new BusinessRuleException(ErrorCode.LEADER_CANNOT_LEAVE_TEAM,
                         "Leader không thể rời đội. Hãy chuyển quyền (Transfer) trước.");
             }
             if (!isSelf) {
-                if (member.getStatus() != com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED) {
+                if (member.getStatus() != com.sealhackathon.api.teams.value_object.TeamMemberStatus.ACCEPTED) {
                     throw new BusinessRuleException(ErrorCode.INVALID_STATUS_TRANSITION,
                             "Chỉ có thể mời rời thành viên đã tham gia. Lời mời đang chờ hãy dùng Hủy lời mời.");
                 }
                 auditMeta.put("removedByLeader", true);
             }
-            member.setStatus(com.sealhackathon.api.team_members.value_object.TeamMemberStatus.LEFT);
+            member.setStatus(com.sealhackathon.api.teams.value_object.TeamMemberStatus.LEFT);
             member.setLeftAt(java.time.LocalDateTime.now());
             auditActionLog = com.sealhackathon.api.common.audit.AuditAction.MEMBER_LEFT;
         }
@@ -674,9 +674,9 @@ public class TeamServiceImpl implements TeamService {
             throw new BusinessRuleException(ErrorCode.FORBIDDEN, "Chỉ nhóm trưởng mới được hủy lời mời");
         }
         assertLeaderCanChangeMembership(team);
-        com.sealhackathon.api.team_members.entity.TeamMember member = teamMemberRepository.findById(new com.sealhackathon.api.team_members.entity.TeamMemberId(teamId, userId))
+        com.sealhackathon.api.teams.entity.TeamMember member = teamMemberRepository.findById(new com.sealhackathon.api.teams.entity.TeamMemberId(teamId, userId))
                 .orElseThrow(() -> new ResourceNotFoundException("TeamMember", userId));
-        if (member.getStatus() != com.sealhackathon.api.team_members.value_object.TeamMemberStatus.PENDING) {
+        if (member.getStatus() != com.sealhackathon.api.teams.value_object.TeamMemberStatus.PENDING) {
             throw new BusinessRuleException(ErrorCode.CANNOT_DELETE_ACCEPTED_MEMBER, "Chỉ được xóa lời mời đang chờ (PENDING)");
         }
 
@@ -686,7 +686,7 @@ public class TeamServiceImpl implements TeamService {
 
     @Override
     public TeamResponse reassignTrack(Integer teamId, Integer roundId, ReassignTeamTrackRequest req) {
-        com.sealhackathon.api.team_round_tracks.entity.TeamRoundTrack trt = teamRoundTrackRepository.findByTeam_IdAndTrack_Round_Id(teamId, roundId)
+        com.sealhackathon.api.teams.entity.TeamRoundTrack trt = teamRoundTrackRepository.findByTeam_IdAndTrack_Round_Id(teamId, roundId)
                 .orElseThrow(() -> new ResourceNotFoundException("TeamRoundTrack", "teamId=" + teamId + ", roundId=" + roundId));
 
         com.sealhackathon.api.rounds.entity.Round round = roundRepository.findById(roundId).orElseThrow();
@@ -722,7 +722,7 @@ public class TeamServiceImpl implements TeamService {
 
     @Override
     public void assignMentor(Integer teamId, Integer roundId, AssignTeamMentorRequest req) {
-        com.sealhackathon.api.team_round_participation.entity.TeamRoundParticipation trp = teamRoundParticipationRepository.findByTeam_IdAndRound_Id(teamId, roundId)
+        com.sealhackathon.api.teams.entity.TeamRoundParticipation trp = teamRoundParticipationRepository.findByTeam_IdAndRound_Id(teamId, roundId)
                 .orElseThrow(() -> new BusinessRuleException(ErrorCode.TEAM_NOT_IN_ROUND, "Đội chưa tham gia vào vòng này"));
 
         com.sealhackathon.api.rounds.entity.Round round = trp.getRound();
@@ -741,7 +741,7 @@ public class TeamServiceImpl implements TeamService {
             throw new BusinessRuleException(ErrorCode.USER_INVALID_ROLE, "User được gán phải có role là MENTOR");
         }
 
-        com.sealhackathon.api.mentor_team_assignments.entity.MentorTeamAssignment mta = com.sealhackathon.api.mentor_team_assignments.entity.MentorTeamAssignment.builder()
+        com.sealhackathon.api.mentors.entity.MentorTeamAssignment mta = com.sealhackathon.api.mentors.entity.MentorTeamAssignment.builder()
                 .mentor(mentor)
                 .team(trp.getTeam())
                 .round(round)
@@ -752,7 +752,7 @@ public class TeamServiceImpl implements TeamService {
             mta.setAssignedBy(userRepository.findById(currentUserAccessor.currentUserId()).orElse(null));
         }
 
-        com.sealhackathon.api.mentor_team_assignments.entity.MentorTeamAssignment saved = mentorTeamAssignmentRepository.save(mta);
+        com.sealhackathon.api.mentors.entity.MentorTeamAssignment saved = mentorTeamAssignmentRepository.save(mta);
 
         auditService.log(com.sealhackathon.api.common.audit.AuditAction.MENTOR_TEAM_ASSIGNED, "mentor_team_assignments", saved.getId(),
                 java.util.Map.of("teamId", teamId, "roundId", roundId, "mentorId", mentor.getId()));
@@ -760,7 +760,7 @@ public class TeamServiceImpl implements TeamService {
 
     @Override
     public void removeMentor(Integer teamId, Integer roundId) {
-        com.sealhackathon.api.mentor_team_assignments.entity.MentorTeamAssignment mta = mentorTeamAssignmentRepository.findByTeam_IdAndRound_Id(teamId, roundId)
+        com.sealhackathon.api.mentors.entity.MentorTeamAssignment mta = mentorTeamAssignmentRepository.findByTeam_IdAndRound_Id(teamId, roundId)
                 .orElseThrow(() -> new ResourceNotFoundException("MentorTeamAssignment", "teamId=" + teamId + ", roundId=" + roundId));
 
         mentorTeamAssignmentRepository.delete(mta);
@@ -773,7 +773,7 @@ public class TeamServiceImpl implements TeamService {
     @Transactional(readOnly = true)
     public TeamMentorHistoryResponse listMentorHistory(Integer teamId) {
         teamAccessGuard.assertCanViewTeamDetails(teamId);
-        java.util.List<com.sealhackathon.api.mentor_team_assignments.entity.MentorTeamAssignment> assignments = mentorTeamAssignmentRepository.findByTeam_IdOrderByRound_IdAsc(teamId);
+        java.util.List<com.sealhackathon.api.mentors.entity.MentorTeamAssignment> assignments = mentorTeamAssignmentRepository.findByTeam_IdOrderByRound_IdAsc(teamId);
 
         java.util.List<TeamMentorHistoryResponse.Item> items = assignments.stream()
                 .map(a -> TeamMentorHistoryResponse.Item.builder()
@@ -804,7 +804,7 @@ public class TeamServiceImpl implements TeamService {
         Team saved = teamRepository.save(team);
 
         var teamTracks = teamRoundTrackRepository.findByTeam_Id(teamId);
-        for (com.sealhackathon.api.team_round_tracks.entity.TeamRoundTrack trt : teamTracks) {
+        for (com.sealhackathon.api.teams.entity.TeamRoundTrack trt : teamTracks) {
             trt.setParticipationStatus(ParticipationStatus.ELIMINATED);
         }
         teamRoundTrackRepository.saveAll(teamTracks);
@@ -850,28 +850,28 @@ public class TeamServiceImpl implements TeamService {
         Team savedTeam = teamRepository.save(team);
 
         // Chuẩn bị danh sách thành viên (bao gồm Leader và các Members)
-        List<com.sealhackathon.api.team_members.entity.TeamMember> newMembers = new java.util.ArrayList<>();
+        List<com.sealhackathon.api.teams.entity.TeamMember> newMembers = new java.util.ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
 
         // 1. Thêm Leader
-        newMembers.add(com.sealhackathon.api.team_members.entity.TeamMember.builder()
-                .id(new com.sealhackathon.api.team_members.entity.TeamMemberId(savedTeam.getId(), leader.getId()))
+        newMembers.add(com.sealhackathon.api.teams.entity.TeamMember.builder()
+                .id(new com.sealhackathon.api.teams.entity.TeamMemberId(savedTeam.getId(), leader.getId()))
                 .team(savedTeam)
                 .user(leader)
-                .roleInTeam(com.sealhackathon.api.team_members.value_object.TeamMemberRole.LEADER)
-                .status(com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED) // ACCEPTED thẳng
+                .roleInTeam(com.sealhackathon.api.teams.value_object.TeamMemberRole.LEADER)
+                .status(com.sealhackathon.api.teams.value_object.TeamMemberStatus.ACCEPTED) // ACCEPTED thẳng
                 .joinedAt(now)
                 .build());
 
         // 2. Thêm Members
         for (Integer memberId : req.getMemberIds()) {
             User memberUser = userRepository.findById(memberId).orElseThrow();
-            newMembers.add(com.sealhackathon.api.team_members.entity.TeamMember.builder()
-                    .id(new com.sealhackathon.api.team_members.entity.TeamMemberId(savedTeam.getId(), memberUser.getId()))
+            newMembers.add(com.sealhackathon.api.teams.entity.TeamMember.builder()
+                    .id(new com.sealhackathon.api.teams.entity.TeamMemberId(savedTeam.getId(), memberUser.getId()))
                     .team(savedTeam)
                     .user(memberUser)
-                    .roleInTeam(com.sealhackathon.api.team_members.value_object.TeamMemberRole.MEMBER)
-                    .status(com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED) // ACCEPTED thẳng
+                    .roleInTeam(com.sealhackathon.api.teams.value_object.TeamMemberRole.MEMBER)
+                    .status(com.sealhackathon.api.teams.value_object.TeamMemberStatus.ACCEPTED) // ACCEPTED thẳng
                     .joinedAt(now)
                     .build());
         }

@@ -10,6 +10,7 @@ import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.config.AppProperties;
 import com.sealhackathon.api.config.FrontendUrls;
+import com.sealhackathon.api.invitations.service.EmailService;
 import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
 import com.sealhackathon.api.users.value_object.UserStatus;
@@ -40,6 +41,7 @@ public class PasswordResetService {
     private final AppProperties appProperties;
     private final UserSessionService userSessionService;
     private final AuditService auditService;
+    private final EmailService emailService;
 
     @Transactional
     public ForgotPasswordResponse requestReset(String email) {
@@ -51,8 +53,15 @@ public class PasswordResetService {
             if (user.getStatus() == UserStatus.APPROVED && user.getPasswordHash() != null) {
                 String token = jwtTokenService.createPasswordResetToken(user.getId());
                 String resetUrl = FrontendUrls.resetPasswordUrl(appProperties, token);
+                LocalDateTime expiresAt =
+                        LocalDateTime.now().plusHours(jwtProperties.getPasswordResetTtlHours());
                 log.info("[Auth] Forgot password {} — reset token (dev/log): {}", normalized, token);
                 log.info("[Auth] Forgot password {} — reset URL: {}", normalized, resetUrl);
+                try {
+                    emailService.sendPasswordReset(user.getEmail(), user.getFullName(), resetUrl, expiresAt);
+                } catch (RuntimeException ex) {
+                    log.warn("[Auth] Forgot password email failed for {}: {}", normalized, ex.getMessage());
+                }
                 auditService.log(AuditAction.ACCOUNT_PASSWORD_RESET_REQUESTED, "users", user.getId(),
                         Map.of("email", normalized));
 

@@ -2,7 +2,7 @@ package com.sealhackathon.api.presentation.support;
 
 import com.sealhackathon.api.events.entity.PresentationSlot;
 import com.sealhackathon.api.rounds.entity.Round;
-import com.sealhackathon.api.team_round_tracks.entity.TeamRoundTrack;
+import com.sealhackathon.api.teams.entity.TeamRoundTrack;
 import com.sealhackathon.api.teams.entity.Team;
 
 import java.time.LocalDateTime;

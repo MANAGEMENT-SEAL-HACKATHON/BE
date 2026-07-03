@@ -90,9 +90,10 @@ class GuestJudgeLifecycleServiceImplTest {
                 .role(UserRole.JUDGE)
                 .hackathon(ended)
                 .build();
-        when(invitationRepository.findFirstByEmailAndRoleOrderByCreatedAtDesc(
-                user.getEmail(), UserRole.JUDGE))
-                .thenReturn(Optional.of(inv));
+        when(invitationRepository.findByEmail(user.getEmail()))
+                .thenReturn(List.of(inv));
+        when(judgeAssignmentRepository.findByJudgeId(user.getId()))
+                .thenReturn(List.of());
 
         AuthException ex = assertThrows(AuthException.class,
                 () -> lifecycleService.assertHackathonNotEndedForTempJudge(user));

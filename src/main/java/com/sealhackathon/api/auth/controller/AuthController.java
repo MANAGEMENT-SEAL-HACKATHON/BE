@@ -8,13 +8,17 @@ import com.sealhackathon.api.auth.dto.request.OAuthGithubCodeRequest;
 import com.sealhackathon.api.auth.dto.request.OAuthGoogleRequest;
 import com.sealhackathon.api.auth.dto.request.RefreshTokenRequest;
 import com.sealhackathon.api.auth.dto.request.RegisterRequest;
+import com.sealhackathon.api.auth.dto.request.ResendVerificationRequest;
 import com.sealhackathon.api.auth.dto.request.ResetPasswordRequest;
+import com.sealhackathon.api.auth.dto.request.VerifyEmailRequest;
 import com.sealhackathon.api.common.security.ApprovedOnly;
 import com.sealhackathon.api.auth.dto.response.AuthTokenResponse;
 import com.sealhackathon.api.auth.dto.response.ForgotPasswordResponse;
 import com.sealhackathon.api.auth.dto.response.OAuthLinkStatusResponse;
 import com.sealhackathon.api.auth.dto.response.RegisterResponse;
+import com.sealhackathon.api.auth.dto.response.ResendVerificationResponse;
 import com.sealhackathon.api.auth.service.AuthService;
+import com.sealhackathon.api.auth.service.EmailVerificationService;
 import com.sealhackathon.api.auth.service.PasswordResetService;
 import com.sealhackathon.api.auth.service.RegistrationService;
 import com.sealhackathon.api.auth.service.SocialAuthService;
@@ -40,6 +44,7 @@ public class AuthController {
     private final RegistrationService registrationService;
     private final AuthService authService;
     private final PasswordResetService passwordResetService;
+    private final EmailVerificationService emailVerificationService;
     private final SocialAuthService socialAuthService;
 
     @PostMapping("/register")
@@ -135,6 +140,21 @@ public class AuthController {
             @Valid @RequestBody ResetPasswordRequest req) {
         passwordResetService.resetPassword(req);
         return ResponseEntity.ok(ApiResponse.ok(null, "Mật khẩu đã được đặt lại"));
+    }
+
+    @PostMapping("/verify-email")
+    @Operation(summary = "Xác thực email bằng token từ link")
+    public ResponseEntity<ApiResponse<Void>> verifyEmail(
+            @Valid @RequestBody VerifyEmailRequest req) {
+        emailVerificationService.verify(req.getToken());
+        return ResponseEntity.ok(ApiResponse.ok(null, "Email đã được xác thực thành công"));
+    }
+
+    @PostMapping("/resend-verification")
+    @Operation(summary = "Gửi lại email xác thực (message chung chống dò email)")
+    public ResponseEntity<ApiResponse<ResendVerificationResponse>> resendVerification(
+            @Valid @RequestBody ResendVerificationRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(emailVerificationService.resend(req)));
     }
 
     @PostMapping("/logout")

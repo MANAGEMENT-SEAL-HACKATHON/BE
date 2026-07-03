@@ -13,11 +13,4 @@ public interface PresentationTimerService {
     PresentationTimerActionResponse qa(Integer roundId, Integer trackId);
 
     PresentationTimerActionResponse reset(Integer roundId, Integer trackId);
-
-    PresentationTimerActionResponse next(
-            Integer roundId,
-            Integer trackId,
-            Integer currentSubmissionId,
-            Integer currentTeamId,
-            boolean acknowledgeIncompleteScoring);
 }

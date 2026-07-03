@@ -71,7 +71,7 @@
 
 Sau `mvn spring-boot:run` (profile `dev`), `Gd1DataSeeder` + `E2eWorkflowDataSeeder` tạo dữ liệu GĐ1/GĐ2 trên cùng hackathon chính.
 
-> **Lưu ý:** Slug legacy (`seal-gd1-ready`, `seal-gd1-incomplete`, `seal-spring-2026*`) bị **xóa tự động** khi start dev — xem [dev-seed-guide.md](dev-seed-guide.md).
+> **Lưu ý:** Slug legacy (`seal-spring-2026*`, `seal-gd1-ready`) bị **xóa tự động** khi start dev — xem [dev-seed-guide.md](dev-seed-guide.md). Slug dev GĐ1: `seal-e2e-2026`, `seal-gd1-incomplete`, `seal-gd1-no-kickoff`, `seal-gd1-no-awards`, `seal-fall-2025-finished`.
 
 ### Profile 0 — E2E ONGOING (happy path GĐ1→GĐ6)
 
@@ -135,13 +135,127 @@ Không có slug riêng — Coordinator tạo mới:
 
 ### Profile C — Readiness fail (negative)
 
-| Cách test | Mô tả |
-|-----------|--------|
-| **Unit / integration** | `RoundReadinessServiceTest`, `EventOrderValidatorTest` |
-| **Tay** | Hackathon `DRAFT` không round → `readiness` blockers |
-| **Tay** | Thiếu KICKOFF → `PATCH ONGOING` fail |
+| | |
+|--|--|
+| **Slug** | `seal-gd1-incomplete` |
+| **Seeder** | `Gd1DataSeeder.ensureIncompleteSeed()` |
+| **Trạng thái** | `DRAFT` — **không** có round/track |
 
-Slug `seal-gd1-incomplete` **không còn** seed tự động — dùng Profile B bỏ bước round hoặc testcase **G1-N04** trong [gate-regression-test-matrix-gd1-gd6.md](gate-regression-test-matrix-gd1-gd6.md).
+```http
+GET /api/v1/hackathons?q=seal-gd1-incomplete
+GET /api/v1/hackathons/{id}/readiness?target=ONGOING
+```
+
+Kỳ vọng `ready: false`, blockers (thiếu round, track, …).
+
+**FE:** `/hackathons/{id}/setup?tab=review` — hiển thị lỗi bắt buộc.
+
+**Dùng khi:** TC-G1-N08, regression readiness fail tự động (không cần tạo tay).
+
+---
+
+### Profile D — Partial readiness: thiếu KICKOFF
+
+| | |
+|--|--|
+| **Slug** | `seal-gd1-no-kickoff` |
+| **Seeder** | `Gd1NoKickoffDataSeeder` |
+| **Trạng thái** | `DRAFT` — đủ round/track/criteria, có WORKSHOP, **không** KICKOFF |
+
+```http
+GET /api/v1/hackathons?q=seal-gd1-no-kickoff
+GET /api/v1/hackathons/{id}/readiness?target=ONGOING
+```
+
+Kỳ vọng `ready: false`, blocker `EVENT_KICKOFF_MISSING`.
+
+**FE:** `/hackathons/{id}/setup?tab=review`
+
+---
+
+### Profile E — Partial readiness: thiếu AWARDS
+
+| | |
+|--|--|
+| **Slug** | `seal-gd1-no-awards` |
+| **Seeder** | `Gd1NoAwardsDataSeeder` |
+| **Trạng thái** | `ONGOING` — đủ cấu trúc, **không** event AWARDS |
+
+```http
+GET /api/v1/hackathons/{id}/readiness?target=AWARDS
+```
+
+Kỳ vọng `ready: false` (checklist GĐ6 trao giải).
+
+---
+
+### Profile F — Event order bad (0 milestone)
+
+| | |
+|--|--|
+| **Slug** | `seal-gd1-event-order-bad` |
+| **Seeder** | `Gd1EventOrderBadDataSeeder` |
+| **Trạng thái** | `ONGOING` — đủ round/track, **không** milestone event nào |
+
+```http
+POST /api/v1/hackathons/{id}/events  { "type": "WORKSHOP", ... }
+```
+
+Kỳ vọng **422 `EVENT_KICKOFF_MISSING`** (G1-N01). Khác với `seal-gd1-event-order-violation` (đã có KICKOFF).
+
+**FE:** `/hackathons/{id}/setup?tab=events`
+
+---
+
+### Profile G — Event order violation
+
+| | |
+|--|--|
+| **Slug** | `seal-gd1-event-order-violation` |
+| **Seeder** | `Gd1EventOrderViolationDataSeeder` |
+| **Trạng thái** | `ONGOING` — có KICKOFF, **chưa** WORKSHOP/AWARDS |
+
+```http
+POST /api/v1/hackathons/{id}/events  { "type": "AWARDS", ... }
+```
+
+Kỳ vọng **422 `EVENT_ORDER_VIOLATION`** (G1-N02).
+
+**Toggle:** `app.seed.gd1.event-order-violation.enabled`
+
+---
+
+### Profile H — Prelim only (thiếu CK shell)
+
+| | |
+|--|--|
+| **Slug** | `seal-gd1-prelim-only` |
+| **Seeder** | `Gd1PrelimOnlyDataSeeder` |
+| **Trạng thái** | `DRAFT` — có round SL + tracks, **không** round Chung kết |
+
+```http
+GET /api/v1/hackathons/{id}/readiness?target=ONGOING
+```
+
+Kỳ vọng `ready: false`, blocker **`MISSING_FINAL_ROUND`** (G1-N08). Khác `seal-gd1-incomplete` (0 round).
+
+**Toggle:** `app.seed.gd1.prelim-only.enabled`
+
+---
+
+### Profile I — Judge final early (FINAL readiness)
+
+| | |
+|--|--|
+| **Slug** | `seal-gd1-judge-final-early` |
+| **Seeder** | `Gd1JudgeFinalEarlyDataSeeder` |
+| **Trạng thái** | `ONGOING` — đủ cấu trúc, **chưa** guest judge CK |
+
+```http
+GET /api/v1/hackathons/{id}/readiness?target=FINAL_ROUND
+```
+
+Kỳ vọng `ready: false` — blocker gán judge Chung kết (G1-N05).
 
 ---
 
@@ -162,7 +276,7 @@ Slug `seal-gd1-incomplete` **không còn** seed tự động — dùng Profile B
 |---|------|---------|---------|
 | E1 | POST KICKOFF → WORKSHOP | 201 | 0, B |
 | N1 | WORKSHOP trước KICKOFF | 422 | C / unit |
-| N2 | AWARDS trước WORKSHOP | 422 `EVENT_ORDER_VIOLATION` | unit |
+| N2 | AWARDS trước WORKSHOP | 422 `EVENT_ORDER_VIOLATION` | G (event-order-violation) |
 | N3 | DELETE KICKOFF khi còn WS | 422 | unit G1-N06 |
 
 ### FR-02/03 — Round & Track
@@ -195,7 +309,7 @@ Slug `seal-gd1-incomplete` **không còn** seed tự động — dùng Profile B
 | G1 | `readiness?target=ONGOING` | `ready: true` | 0 |
 | G2 | `PATCH status` → ONGOING | 200 | 0, B |
 | N1 | Thiếu final round | `ready: false` | C |
-| N2 | Thiếu KICKOFF | block PATCH | C |
+| N2 | Thiếu KICKOFF | block PATCH | D |
 
 ---
 

@@ -45,6 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "security.jwt.secret=12345678901234567890123456789012",
         "security.jwt.enabled=true",
+        "security.jwt.dev-expose-email-verification-token=true",
         "app.storage.type=local",
         "app.storage.local-dir=target/test-uploads/storage"
 })
@@ -95,6 +96,13 @@ class AuthOnboardingFlowIntegrationTest {
         Integer userId = registerJson.path("data").path("userId").asInt();
         assertThat(userId).isPositive();
         assertThat(registerJson.path("data").path("status").asText()).isEqualTo("PENDING");
+
+        String verifyToken = registerJson.path("data").path("devVerificationToken").asText(null);
+        assertThat(verifyToken).isNotBlank();
+        mockMvc.perform(post("/api/v1/auth/verify-email")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"token\":\"" + verifyToken + "\"}"))
+                .andExpect(status().isOk());
 
         // 2) login as pending student
         String loginBody = """

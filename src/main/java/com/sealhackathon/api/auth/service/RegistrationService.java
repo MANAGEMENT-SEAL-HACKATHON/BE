@@ -1,5 +1,6 @@
 package com.sealhackathon.api.auth.service;
 
+import com.sealhackathon.api.auth.config.JwtProperties;
 import com.sealhackathon.api.auth.dto.request.RegisterRequest;
 import com.sealhackathon.api.auth.dto.response.RegisterResponse;
 import com.sealhackathon.api.common.audit.AuditAction;
@@ -7,12 +8,15 @@ import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ConflictException;
 import com.sealhackathon.api.common.exception.ErrorCode;
+import com.sealhackathon.api.config.AppProperties;
+import com.sealhackathon.api.config.FrontendUrls;
 import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
 import com.sealhackathon.api.users.value_object.UserRole;
 import com.sealhackathon.api.users.value_object.UserStatus;
 import com.sealhackathon.api.users.value_object.UserType;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,12 +26,17 @@ import java.util.Locale;
 import java.util.Map;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class RegistrationService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
+    private final EmailVerificationService emailVerificationService;
+    private final JwtTokenService jwtTokenService;
+    private final JwtProperties jwtProperties;
+    private final AppProperties appProperties;
 
     @Transactional
     public RegisterResponse register(RegisterRequest req) {
@@ -56,7 +65,7 @@ public class RegistrationService {
                 .status(UserStatus.PENDING)
                 .isTempAccount(false)
                 .isDeptHead(false)
-                .emailVerifiedAt(now)
+                .emailVerifiedAt(null)
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
@@ -67,12 +76,21 @@ public class RegistrationService {
                 "userType", UserType.UNSPECIFIED.name(),
                 "status", UserStatus.PENDING.name()));
 
-        return RegisterResponse.builder()
+        emailVerificationService.sendVerificationEmail(saved);
+
+        RegisterResponse.RegisterResponseBuilder builder = RegisterResponse.builder()
                 .userId(saved.getId())
                 .email(email)
                 .status(UserStatus.PENDING.name())
-                .message("Đăng ký thành công. Vui lòng hoàn thiện hồ sơ.")
-                .build();
+                .message("Đăng ký thành công. Vui lòng kiểm tra email để xác thực tài khoản trước khi đăng nhập.");
+
+        if (jwtProperties.isDevExposeEmailVerificationToken()) {
+            String token = jwtTokenService.createEmailVerificationToken(saved.getId());
+            builder.devVerificationToken(token)
+                    .devVerificationUrl(FrontendUrls.verifyEmailUrl(appProperties, token));
+        }
+
+        return builder.build();
     }
 
     private static String normalizeEmail(String email) {

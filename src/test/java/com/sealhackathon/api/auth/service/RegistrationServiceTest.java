@@ -1,9 +1,11 @@
 package com.sealhackathon.api.auth.service;
 
+import com.sealhackathon.api.auth.config.JwtProperties;
 import com.sealhackathon.api.auth.dto.request.RegisterRequest;
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ConflictException;
+import com.sealhackathon.api.config.AppProperties;
 import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
 import com.sealhackathon.api.users.value_object.UserStatus;
@@ -32,6 +34,14 @@ class RegistrationServiceTest {
     private PasswordEncoder passwordEncoder;
     @Mock
     private AuditService auditService;
+    @Mock
+    private EmailVerificationService emailVerificationService;
+    @Mock
+    private JwtTokenService jwtTokenService;
+    @Mock
+    private JwtProperties jwtProperties;
+    @Mock
+    private AppProperties appProperties;
 
     @InjectMocks
     private RegistrationService registrationService;
@@ -45,6 +55,7 @@ class RegistrationServiceTest {
             u.setId(10);
             return u;
         });
+        when(jwtProperties.isDevExposeEmailVerificationToken()).thenReturn(false);
 
         RegisterRequest req = new RegisterRequest();
         req.setFullName("SV FPT");
@@ -55,6 +66,7 @@ class RegistrationServiceTest {
         var response = registrationService.register(req);
 
         assertThat(response.getStatus()).isEqualTo(UserStatus.PENDING.name());
+        assertThat(response.getMessage()).contains("xác thực");
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(captor.capture());
         assertThat(captor.getValue().getEmail()).isEqualTo("sv@fpt.edu.vn");
@@ -63,7 +75,8 @@ class RegistrationServiceTest {
         assertThat(captor.getValue().getStudentCode()).isNull();
         assertThat(captor.getValue().getChapter()).isNull();
         assertThat(captor.getValue().getInstitution()).isNull();
-        assertThat(captor.getValue().getEmailVerifiedAt()).isNotNull();
+        assertThat(captor.getValue().getEmailVerifiedAt()).isNull();
+        verify(emailVerificationService).sendVerificationEmail(any(User.class));
     }
 
     @Test

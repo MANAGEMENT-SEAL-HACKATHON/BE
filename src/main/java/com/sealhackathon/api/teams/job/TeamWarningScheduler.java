@@ -1,12 +1,12 @@
 package com.sealhackathon.api.teams.job;
 
-import com.sealhackathon.api.hackathon_registrations.entity.HackathonRegistration;
-import com.sealhackathon.api.hackathon_registrations.repository.HackathonRegistrationRepository;
+import com.sealhackathon.api.hackathons.entity.HackathonRegistration;
+import com.sealhackathon.api.hackathons.repository.HackathonRegistrationRepository;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.notifications.service.NotificationService;
-import com.sealhackathon.api.team_members.repository.TeamMemberRepository;
+import com.sealhackathon.api.teams.repository.TeamMemberRepository;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.repository.TeamRepository;
 import com.sealhackathon.api.teams.support.HackathonTeamSizeResolver;
@@ -99,7 +99,7 @@ public class TeamWarningScheduler {
         List<User> leadersToWarn = new ArrayList<>();
         HackathonTeamSizeResolver.TeamSizeLimits limits = teamSizeResolver.forHackathon(h.getId());
         for (Team t : incompleteTeams) {
-            long acceptedCount = teamMemberRepository.countByTeam_IdAndStatus(t.getId(), com.sealhackathon.api.team_members.value_object.TeamMemberStatus.ACCEPTED);
+            long acceptedCount = teamMemberRepository.countByTeam_IdAndStatus(t.getId(), com.sealhackathon.api.teams.value_object.TeamMemberStatus.ACCEPTED);
             if (acceptedCount < limits.minTeamSize()) {
                 leadersToWarn.add(t.getLeader());
             }

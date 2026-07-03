@@ -6,6 +6,7 @@ import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ConflictException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
+import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.criteria.service.WeightSummaryService;
 import com.sealhackathon.api.events.repository.EventRepository;
@@ -82,6 +83,7 @@ public class RoundServiceImpl implements RoundService {
     private final EventRepository eventRepository;
     private final HackathonArchiveGuard archiveGuard;
     private final HackathonRoundTimelineSyncService hackathonRoundTimelineSyncService;
+    private final CurrentUserAccessor currentUserAccessor;
     private final PresentationSlotCascadeService presentationSlotCascadeService;
     private final RoundProblemStatementStorage problemStatementStorage;
 
@@ -166,8 +168,9 @@ public class RoundServiceImpl implements RoundService {
         RoundResponse after = roundMapper.toResponse(saved);
 
         if (!prevScoringLocked && Boolean.TRUE.equals(saved.getScoringLocked())) {
+            Integer actorId = currentUserAccessor.currentUserId();
             auditService.log(AuditAction.ROUND_LOCK, "rounds", saved.getId(),
-                    Map.of("by", "stub-coordinator"));
+                    Map.of("by", actorId != null ? actorId : "system"));
         }
         if (!prevForceLocked && Boolean.TRUE.equals(saved.getForceLocked())) {
             auditService.log(AuditAction.ROUND_FORCE_LOCK, "rounds", saved.getId(),

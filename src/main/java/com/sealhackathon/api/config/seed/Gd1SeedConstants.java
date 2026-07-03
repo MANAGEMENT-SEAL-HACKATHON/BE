@@ -59,6 +59,9 @@ public final class Gd1SeedConstants {
     public static final String EMAIL_MENTOR = "mentor@fpt.edu.vn";
     public static final String EMAIL_PENDING_JUDGE = "pending.judge@fpt.edu.vn";
 
+    /** Student archive Fall 2025 — FR-U-32 annual awards e2e. */
+    public static final String EMAIL_ARCHIVE_STUDENT = "student.archive.fall2025@fpt.edu.vn";
+
     private static final String[] SEED_EMAILS = {
             EMAIL_COORDINATOR,
             EMAIL_JUDGE1,

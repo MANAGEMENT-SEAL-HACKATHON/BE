@@ -130,6 +130,9 @@ public class EventServiceImpl implements EventService {
         EventResponse before = eventMapper.toResponse(e);
         LocalDateTime prevStart = e.getStartsAt();
         eventMapper.applyUpdate(e, req);
+        if (!e.getStartsAt().equals(prevStart)) {
+            e.setReminderSentAt(null);
+        }
         Event saved = eventRepository.save(e);
         EventResponse after = eventMapper.toResponse(saved);
 

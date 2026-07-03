@@ -1,4 +1,4 @@
-# MF-03 GĐ3–GĐ6 — API Reference (GD03 v4.1)
+﻿# MF-03 GĐ3–GĐ6 — API Reference (GD03 v4.1)
 
 **Nguồn:** `GD03_05_SEAL_MF_v4_1.docx` · **Base:** `http://localhost:8080/api/v1`  
 **Auth:** `Authorization: Bearer {{accessToken}}` — [mf02/01-auth-users.md](../mf02/01-auth-users.md)  
@@ -405,7 +405,7 @@ Authorization: Bearer <coordinator>
   "prizeName": "Giải Nhất",
   "prizeRank": "FIRST",
   "prizeValue": "7000000",
-  "description": "SEAL Spring 2026"
+  "description": "SEAL E2E 2026"
 }
 ```
 
@@ -428,7 +428,7 @@ Authorization: Bearer <coordinator>
   "prizeName": "Giải Nhất",
   "prizeRank": "FIRST",
   "prizeValue": "7000000",
-  "description": "SEAL Spring 2026",
+  "description": "SEAL E2E 2026",
   "awardedAt": "2026-05-29T14:00:00",
   "awardedById": 5
 }
@@ -468,7 +468,7 @@ Authorization: Bearer <coordinator>
 ```json
 {
   "confirm": true,
-  "note": "BTC xác nhận kết quả SEAL Spring 2026"
+  "note": "BTC xác nhận kết quả SEAL E2E 2026"
 }
 ```
 

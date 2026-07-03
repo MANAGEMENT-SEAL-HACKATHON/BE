@@ -13,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 
 @Component
@@ -66,23 +67,24 @@ public class PresentationControllerGuard {
         if (track.getControllerJudge() != null) {
             return track.getControllerJudge().getId();
         }
-        return findDefaultControllerJudgeId(track.getId()).orElse(null);
+        return findDefaultControllerJudgeId(judgeAssignmentRepository.findByTrackId(track.getId()))
+                .orElse(null);
     }
 
     public Integer resolveRoundControllerId(Round round) {
         if (round.getControllerJudge() != null) {
             return round.getControllerJudge().getId();
         }
-        return null;
+        return findDefaultControllerJudgeId(judgeAssignmentRepository.findByRoundId(round.getId()))
+                .orElse(null);
     }
 
     /**
-     * Mặc định: trưởng ban (is_dept_head) trên track, nếu không có thì judge được gán đầu tiên (assignedAt).
+     * Mặc định: trưởng ban (is_dept_head), nếu không có thì judge được gán sớm nhất (assignedAt).
      * Không dùng assignment_type HEAD — đó chỉ là nhãn phân công, không phải trưởng ban thật.
      */
-    private Optional<Integer> findDefaultControllerJudgeId(Integer trackId) {
-        var assignments = judgeAssignmentRepository.findByTrackId(trackId);
-        if (assignments.isEmpty()) {
+    static Optional<Integer> findDefaultControllerJudgeId(List<JudgeAssignment> assignments) {
+        if (assignments == null || assignments.isEmpty()) {
             return Optional.empty();
         }
         Comparator<JudgeAssignment> byAssignedAt = Comparator.comparing(
@@ -117,7 +119,7 @@ public class PresentationControllerGuard {
     }
 
     private static AuthException forbidden(Integer id, String scope) {
-        return new AuthException(ErrorCode.FORBIDDEN,
+        return new AuthException(ErrorCode.NOT_TRACK_CONTROLLER,
                 "Không có quyền điều khiển presentation " + scope + " " + id,
                 HttpStatus.FORBIDDEN);
     }

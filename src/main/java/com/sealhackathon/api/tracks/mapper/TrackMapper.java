@@ -79,6 +79,7 @@ public class TrackMapper {
                 .problemStatementFilename(TrackProblemStatementStorage.displayFilename(e))
                 .presentationMinutes(e.getPresentationMinutes())
                 .qaMinutes(e.getQaMinutes())
+                .problemReleasedAt(e.getProblemReleasedAt())
                 .build();
     }
 
@@ -103,6 +104,7 @@ public class TrackMapper {
                 .problemStatementFilename(TrackProblemStatementStorage.displayFilename(e))
                 .presentationMinutes(e.getPresentationMinutes())
                 .qaMinutes(e.getQaMinutes())
+                .problemReleasedAt(e.getProblemReleasedAt())
                 .build();
     }
 }

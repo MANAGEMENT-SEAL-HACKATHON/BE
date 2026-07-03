@@ -1,6 +1,6 @@
 package com.sealhackathon.api.hackathons.listener;
 
-import com.sealhackathon.api.chapter_rankings.service.ChapterRankingService;
+import com.sealhackathon.api.chapters.service.ChapterRankingService;
 import com.sealhackathon.api.hackathons.event.HackathonFinishedEvent;
 import com.sealhackathon.api.individual_rankings.service.IndividualRankingService;
 import lombok.RequiredArgsConstructor;

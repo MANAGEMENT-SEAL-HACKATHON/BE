@@ -46,7 +46,7 @@
 | FR-17 metadata fetch | 🔶 enqueue `PENDING` only | `SubmissionMetadataServiceImpl` — chưa worker GitHub/API. **Optional** theo spec. |
 | `PATCH /submissions/{id}/resubmit`, `/review` | ➖ deprecated | FE dùng `POST /submissions` + `review-late`. Xóa sau 1 sprint. |
 | `GET /teams/{id}/journey` | ⏳ stub | Không thuộc GĐ3 bắt buộc — làm sau GĐ4 nếu cần UI timeline. |
-| Gate `TIEBREAK_REQUIRED` trước advance | ⏳ | Thuộc GĐ4 tiebreak — hiện Coordinator tự chọn list advance. |
+| Gate `TIEBREAK_REQUIRED` trước advance | ✅ | `RoundProgressionServiceImpl.advanceTeams` — probe API xác nhận sau publish. |
 | API gợi ý top-N từ `top_n_advance` | ➖ | Field round có; BE chưa auto-suggest — FE/Coord chọn tay qua ranking. |
 | `03-api-reference-gd3.md` bảng trạng thái | 📝 | Một số dòng GĐ4 vẫn ghi ⏳ stub — xem mục **Docs cần sync** bên dưới. |
 
@@ -72,15 +72,15 @@
 
 ### Phase 2 — Progression & công bố (ưu tiên cao)
 
-| # | FR | Endpoint | Trạng thái | Việc cần làm | File gợi ý |
-|---|-----|----------|------------|--------------|------------|
-| G4-1 | FR-22B | `GET /rounds/{id}/tiebreak` | ⏳ `List.of()` | Phát hiện đồng điểm tại ranh giới `top_n_advance` theo `tiebreak_rule` (PENALTY_SCORE / SUBMISSION_TIME / COORDINATOR_DECISION). Trả danh sách nhóm cần xử lý. | `RoundProgressionServiceImpl.tiebreak`, query mới hoặc mở rộng `RoundRankingQueryService` |
-| G4-2 | FR-22B | `POST /rounds/{id}/tiebreak/resolve` | ⏳ | Ghi `tiebreak_evaluations`; cập nhật thứ hạng; clear `TIEBREAK_REQUIRED`. | `RoundProgressionServiceImpl.resolveTiebreak`, `tiebreak_evaluations/` |
-| G4-3 | FR-22B | Gate advance | ⏳ | Trước `advance`: nếu còn tiebreak chưa resolve → `TIEBREAK_REQUIRED` (422). | `RoundProgressionServiceImpl.advanceTeams` |
-| G4-4 | FR-22A | `GET /rounds/{id}/wildcard-candidates` | ⏳ | Khi `advancedCount < min_teams_final` && `wildcard_enabled`: liệt kê ứng viên (từ ranking + rule). Warning `MIN_TEAMS_NOT_REACHED`. | `RoundProgressionServiceImpl.wildcardCandidates` |
-| G4-5 | FR-22A | `PATCH /wildcard-reviews/{id}` | ⏳ echo | Approve/reject → cập nhật `wildcard_reviews`; approve thì team vào pool advance. | `RoundProgressionServiceImpl.decideWildcardReview`, `wildcard_reviews/entity` |
-| G4-6 | FR-22A | Deprecated wildcard routes | ⏳ | `POST .../wildcard/approve|reject` — redirect logic sang wildcard-reviews hoặc xóa. | `RoundProgressionController` |
-| G4-7 | FR-20 | `GET /rounds/{id}/scoreboard` | ⏳ | Bảng điểm **public** (no JWT): ranking sau publish, ẩn chi tiết nhạy cảm. | `RoundProgressionServiceImpl.scoreboard` + security permit |
+| # | FR | Endpoint | Trạng thái | Ghi chú |
+|---|-----|----------|------------|---------|
+| G4-1 | FR-22B | `GET /rounds/{id}/tiebreak` | ✅ | `RoundProgressionServiceImpl.tiebreak` |
+| G4-2 | FR-22B | `POST /rounds/{id}/tiebreak/resolve` | ✅ | `RoundProgressionServiceImpl.resolveTiebreak` |
+| G4-3 | FR-22B | Gate advance | ✅ | `TIEBREAK_REQUIRED` (422) trước advance |
+| G4-4 | FR-22A | `GET /rounds/{id}/wildcard-candidates` | ✅ | `RoundProgressionServiceImpl.wildcardCandidates` |
+| G4-5 | FR-22A | `PATCH /wildcard-reviews/{id}` | ✅ | `RoundProgressionServiceImpl.decideWildcardReview` |
+| G4-6 | FR-22A | Deprecated wildcard routes | 🔶 | Legacy routes vẫn có; logic chuyển sang wildcard-reviews |
+| G4-7 | FR-20 | `GET /rounds/{id}/scoreboard` | ✅ | Public scoreboard sau publish |
 
 **Acceptance GĐ4 phase 2:** Happy path đầy đủ: lock SL → ranking → (tiebreak nếu có) → (wildcard nếu thiếu đội) → publish → advance → assign judges → activate CK — **không** cần FE workaround stub `[]`.
 

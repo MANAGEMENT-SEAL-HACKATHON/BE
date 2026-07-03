@@ -1,4 +1,4 @@
-# API Test Playbook — Giai đoạn 1 → 6
+﻿# API Test Playbook — Giai đoạn 1 → 6
 
 **Dành cho:** QA / Tester / Dev tích hợp  
 **Phiên bản:** 2026-06-05 · **166** REST endpoint (theo Controller)  
@@ -75,7 +75,7 @@
 | `gd4HackathonSlug` | `seal-gd4-advance-ready` | Slug seed GĐ4 |
 | `gd5HackathonSlug` | `seal-gd5-final-active` | Slug seed GĐ5 |
 | `gd6HackathonSlug` | `seal-gd6-pending-confirm` | Slug seed GĐ6 |
-| `lateSubmissionId` | `8` | Submission `LATE_PENDING` — log `[Gd3DataSeeder]` |
+| `lateSubmissionId` | `8` | Submission `LATE_PENDING` — log `[Gd3PrelimOpenDataSeeder]` |
 | `wildcardReviewId` | `1` | Từ `GET .../wildcard-candidates` (GĐ4) |
 | `calibrationSessionId` | `1` | `GET /calibration-sessions?roundId=` (GĐ5) |
 
@@ -102,12 +102,12 @@ Content-Type: application/json
 
 | Hackathon | Slug | Trạng thái | Dùng cho |
 |-----------|------|------------|----------|
-| SEAL Spring 2026 | `seal-spring-2026` | ONGOING | **GĐ2** nhanh (đội `GD2-*` đã seed) |
-| GĐ1 sẵn sàng | `seal-gd1-ready` | DRAFT, đủ G1–G5 | Chỉ test bước 1.11–1.12 |
+| SEAL E2E 2026 | `seal-e2e-2026` | ONGOING | **GĐ2** nhanh (đội `E2E-T*` đã seed) |
+| GĐ1 sẵn sàng | `seal-e2e-2026` | DRAFT, đủ G1–G5 | Chỉ test bước 1.11–1.12 |
 | GĐ1 thiếu | `seal-gd1-incomplete` | DRAFT, không round | Test readiness `ready=false` |
 | **GĐ3 Sơ loại mở** | `seal-gd3-prelim-open` | ONGOING, prelim **active**, chưa lock | **GĐ3** E2E — nộp/chấm/late/calibration/presentation |
 | **GĐ4 Advance ready** | `seal-gd4-advance-ready` | ONGOING, prelim **locked**, chưa publish | **GĐ4** E2E — ranking/wildcard/advance/activate CK |
-| GĐ4 tiebreak (opt-in) | `seal-gd4-tiebreak-wildcard` | ONGOING | Tiebreak 3-way + wildcard — `app.seed.gd4.enabled=true` |
+| GĐ4 tiebreak (opt-in) | `seal-gd4-tiebreak-gate` | ONGOING | Tiebreak 3-way + wildcard — `app.seed.gd4.enabled=true` |
 | **GĐ5 CK active** | `seal-gd5-final-active` | ONGOING, CK **active**, chưa lock CK | **GĐ5** E2E — nộp/chấm CK → `PENDING_CONFIRM` |
 | GĐ6 sau lock CK | `seal-gd6-pending-confirm` | `PENDING_CONFIRM` | **GĐ6** — prizes/confirm (snapshot sau lock CK) |
 | Archive mẫu | `seal-fall-2025-finished` | `FINISHED` | Tra cứu lịch sử / archive |
@@ -116,7 +116,7 @@ Lấy ID: `GET {{baseUrl}}/api/v1/hackathons?q=<slug>` → `data.content[0].id`,
 
 | Log startup | Giai đoạn |
 |-------------|-----------|
-| `[Gd3DataSeeder]` | GĐ3 — `hackathonId`, `prelimRoundId`, `track1Id`, `track2Id`, team/submission IDs |
+| `[Gd3PrelimOpenDataSeeder]` | GĐ3 — `hackathonId`, `prelimRoundId`, `track1Id`, `track2Id`, team/submission IDs |
 | `[Gd4AdvanceDataSeeder]` | GĐ4 — `prelimRoundId`, `finalRoundId`, 8 `teamId`, gợi ý advance |
 | `[Gd5FinalRoundDataSeeder]` | GĐ5 — `finalRoundId`, `finalCriterionId`, `finalSubmissionId(t2)`, team t3 cho 5.1 |
 | `[Gd6PendingConfirmDataSeeder]` | GĐ6 — hackathon đã `PENDING_CONFIRM` |
@@ -188,10 +188,10 @@ Profile **`dev`**. Mỗi slug = hackathon riêng, idempotent mỗi lần start.
 
 | GĐ | Slug | Log startup | Bước E2E bắt đầu | Bỏ qua (đã seed) |
 |----|------|-------------|------------------|------------------|
-| GĐ2 | `seal-spring-2026` | `[Gd2DataSeeder]` | §2.0 | Teams, lottery một phần |
-| **GĐ3** | `seal-gd3-prelim-open` | `[Gd3DataSeeder]` | **3.0** | Activate, đề, 6 teams, scores draft, mentor, queue |
+| GĐ2 | `seal-e2e-2026` | `[E2eWorkflowDataSeeder]` | §2.0 | Teams, lottery một phần |
+| **GĐ3** | `seal-gd3-prelim-open` | `[Gd3PrelimOpenDataSeeder]` | **3.0** | Activate, đề, 6 teams, scores draft, mentor, queue |
 | **GĐ4** | `seal-gd4-advance-ready` | `[Gd4AdvanceDataSeeder]` | **4.0** | Prelim locked+scored, 8 teams, chưa publish |
-| **GĐ4+** | `seal-gd4-tiebreak-wildcard` | `[Gd4TestDataSeeder]` | 4.x tiebreak | `app.seed.gd4.enabled=true` |
+| **GĐ4+** | `seal-gd4-tiebreak-gate` | `[Gd4AdvanceReadyDataSeeder]` | 4.x tiebreak | `app.seed.gd4.enabled=true` |
 | **GĐ5** | `seal-gd5-final-active` | `[Gd5FinalRoundDataSeeder]` | **5.0** | CK active, 4 ADVANCED, guest judge CK |
 | GĐ6 | `seal-gd6-pending-confirm` | `[Gd6PendingConfirmDataSeeder]` | §6.0 | Đã `PENDING_CONFIRM` sau lock CK |
 
@@ -302,10 +302,10 @@ Authorization: Bearer {{studentToken}}
 
 **Thứ tự bắt buộc:** 1.2 Sơ loại **trước** 1.3 CK (tránh `ROUND_PRELIM_DEADLINE_AFTER_FINAL_EXAM` nếu tạo CK trước rồi chỉnh deadline Sơ loại).
 
-### Đường tắt GĐ1 (đã seed `seal-gd1-ready`)
+### Đường tắt GĐ1 (đã seed `seal-e2e-2026`)
 
 1. Chạy GĐ0.1 → lấy `coordToken`.
-2. `GET {{baseUrl}}/api/v1/hackathons?q=seal-gd1-ready` → `hackathonId`.
+2. `GET {{baseUrl}}/api/v1/hackathons?q=seal-e2e-2026` → `hackathonId`.
 3. Chỉ chạy **1.11** và **1.12** (đã có round/track/criteria/events/assignments).
 
 ---
@@ -689,11 +689,11 @@ Content-Type: application/json
 
 ## E2E — GĐ2 — Đăng ký & Đội
 
-**Hackathon:** dùng hackathon vừa ONGOING ở GĐ1 **hoặc** seed `seal-spring-2026` (đã ONGOING + 9 đội `GD2-*`).
+**Hackathon:** dùng hackathon vừa ONGOING ở GĐ1 **hoặc** seed `seal-e2e-2026` (đã ONGOING + 9 đội `E2E-T*`).
 
 | # | API | Role | Header |
 |---|-----|------|--------|
-| 2.0 | `GET /hackathons?q=seal-spring-2026` | COORD | `coordToken` |
+| 2.0 | `GET /hackathons?q=seal-e2e-2026` | COORD | `coordToken` |
 | 2.1 | `POST /auth/register` | Public | — |
 | 2.1b | `PATCH /users/me` | STU (PENDING) | `studentToken` |
 | 2.1c | `POST /users/me/student-card` | STU (PENDING) | **Bắt buộc** trước 2.2 |
@@ -706,19 +706,19 @@ Content-Type: application/json
 | 2.6b | *(chờ cron hoặc SQL)* | — | `GET /teams/{id}` → `isLocked=true` |
 | 2.7 | `PATCH /hackathons/{hackathonId}/lottery` | COORD | `coordToken` |
 
-### Đường tắt GĐ2 (seed `seal-spring-2026`)
+### Đường tắt GĐ2 (seed `seal-e2e-2026`)
 
 | Mục tiêu test | Tài khoản | API gợi ý |
 |---------------|-----------|-----------|
-| Duyệt đội 4 người | `coord@fpt.edu.vn` | `GET /teams?hackathonId=&status=PENDING` → team `GD2-03...` → **2.6** |
-| Accept lời mời | `student.gd2.ext.pending@gmail.com` | **2.5** trên team `GD2-02...` |
-| Bốc thăm đội 07 | Coordinator | **2.7** với `teamId` đội `GD2-07...` |
+| Duyệt đội 4 người | `coord@fpt.edu.vn` | `GET /teams?hackathonId=&status=PENDING` → team `E2E-T03...` → **2.6** |
+| Accept lời mời | `student.gd2.ext.pending@gmail.com` | **2.5** trên team `E2E-T02...` |
+| Bốc thăm đội 07 | Coordinator | **2.7** với `teamId` đội `E2E-T07...` |
 | Tạo đội mới | Leader seed / register | **2.3**–**2.7** full path bên dưới |
 
 **2.0 Lấy ID hackathon ONGOING**
 
 ```http
-GET {{baseUrl}}/api/v1/hackathons?q=seal-spring-2026&size=5
+GET {{baseUrl}}/api/v1/hackathons?q=seal-e2e-2026&size=5
 Authorization: Bearer {{coordToken}}
 ```
 
@@ -959,7 +959,7 @@ Authorization: Bearer {{coordToken}}
 
 *(Không body.)* **Kỳ vọng `200`:** `data.status` = `"ACTIVE"` (đủ 3–5 ACCEPTED).
 
-**Negative (seed):** duyệt `GD2-01 Chờ duyệt (1 người)` → `422` `TEAM_INVALID_MEMBER_COUNT`.
+**Negative (seed):** duyệt `E2E-T01 Chờ duyệt (1 người)` → `422` `TEAM_INVALID_MEMBER_COUNT`.
 
 ---
 
@@ -981,7 +981,7 @@ Lottery **chỉ** chấp nhận đội `status=ACTIVE` và **`is_locked=true`**.
 |---------------|--------|
 | **Chờ ngày** | Sang ngày sau `registrationEnd`, cron ≤ 1 phút |
 | **DRAFT** | Khi tạo hackathon (1.1), đặt `registrationEnd` **hôm qua** rồi mới PATCH ONGOING |
-| **Seed** | `seal-spring-2026` — đội `GD2-04` / `GD2-05` đã `is_locked=true` |
+| **Seed** | `seal-e2e-2026` — đội `E2E-T04` / `E2E-T05` đã `is_locked=true` |
 | **SQL tạm** | `UPDATE teams SET is_locked=1, locked_at=NOW() WHERE id=22;` |
 
 ```http
@@ -1076,7 +1076,7 @@ Content-Type: application/json
 
 ### Đường tắt GĐ3 (seed `seal-gd3-prelim-open`)
 
-**Không cần** chạy GĐ1/GĐ2 trước. Start app profile `dev` → copy log `[Gd3DataSeeder]`.
+**Không cần** chạy GĐ1/GĐ2 trước. Start app profile `dev` → copy log `[Gd3PrelimOpenDataSeeder]`.
 
 | Thành phần seed | Giá trị |
 |-----------------|---------|
@@ -1336,7 +1336,7 @@ Content-Type: application/json
 
 ### Đường tắt GĐ4 (seed `seal-gd4-advance-ready`)
 
-**Không dùng** `seal-spring-2026`. Start app `dev` → log `[Gd4AdvanceDataSeeder]`.
+**Không dùng** `seal-e2e-2026`. Start app `dev` → log `[Gd4AdvanceDataSeeder]`.
 
 | Thành phần seed | Giá trị |
 |-----------------|---------|
@@ -1362,7 +1362,7 @@ Student: `student.gd4a.leader01@` … `leader08@` / pwd `Student@dev1`
 
 **Luồng:** **4.0** lấy ID → **4.1** ranking (8 dòng) → **4.2** wildcard (**2** candidate) → **4.2b** approve → **4.3** publish → **4.4** advance (ID từ log) → **4.5** judge (409 duplicate → bỏ qua) → **4.5b** readiness → **4.6** activate CK.
 
-Tiebreak nâng cao: `seal-gd4-tiebreak-wildcard` + `app.seed.gd4.enabled=true`.
+Tiebreak nâng cao: `seal-gd4-tiebreak-gate` + `app.seed.gd4.enabled=true`.
 
 ### 4.2b Duyệt wildcard (nếu có)
 

@@ -132,7 +132,20 @@ Sau `mvn spring-boot:run` (profile `dev`), `DataInitializer` tạo **5 hackathon
 |-----------|------------------|
 | Trao giải khi `ONGOING` | `seal-gd5-final-active` → `HACKATHON_NOT_PENDING_CONFIRM` |
 | Export khi chưa `FINISHED` | Profile A → `INVALID_STATE` |
-| `PRIZE_DUPLICATE` | Profile 0 — POST trùng rank/team |
+
+---
+
+### Profile E — Prize duplicate (seeded)
+
+| | |
+|--|--|
+| **Slug** | `seal-gd6-prize-duplicate` |
+| **Seeder** | `Gd6PrizeDuplicateDataSeeder` |
+| **Config** | `app.seed.gd6.prize-duplicate.enabled=true` |
+
+`PENDING_CONFIRM`, đã có prize rank **FIRST** cho team A. `POST /prizes` thứ 2 cùng rank/team → **409 `PRIZE_DUPLICATE`**.
+
+**FE:** tab Giải thưởng — UI disable/warn khi trùng.
 
 ---
 
@@ -152,8 +165,8 @@ Sau `mvn spring-boot:run` (profile `dev`), `DataInitializer` tạo **5 hackathon
 |---|------|-----|---------|------|
 | P1 | Trao FIRST | `POST /hackathons/{id}/prizes` | 201 | Profile A |
 | P2 | Trao SECOND | POST team 02 | 201 | Profile 0 |
-| P3 | Trùng rank | POST SECOND lại | 409 `PRIZE_DUPLICATE` | Sau P2 |
-| P4 | Trùng team | POST cùng team | 409 `PRIZE_DUPLICATE` | Tay |
+| P3 | Trùng rank | POST SECOND lại | 409 `PRIZE_DUPLICATE` | E (đã có FIRST) |
+| P4 | Trùng team | POST cùng team | 409 `PRIZE_DUPLICATE` | E |
 | P5 | List prizes | `GET /hackathons/{id}/prizes` | ≥1 item | Profile 0, C |
 | P6 | List khi ONGOING | GET | 422 `INVALID_STATE` | GĐ5 |
 | P7 | Trao khi ONGOING | POST | 422 `HACKATHON_NOT_PENDING_CONFIRM` | GĐ5 |

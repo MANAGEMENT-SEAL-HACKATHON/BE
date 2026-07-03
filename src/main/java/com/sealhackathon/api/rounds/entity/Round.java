@@ -175,6 +175,10 @@ public class Round {
     @JoinColumn(name = "published_by")
     private User publishedBy;
 
+    /** Set when the submission-deadline reminder (student + judge) was sent (idempotent scheduler). */
+    @Column(name = "deadline_reminder_sent_at")
+    private LocalDateTime deadlineReminderSentAt;
+
     @Builder.Default
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();

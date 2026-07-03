@@ -29,6 +29,7 @@ public class JwtTokenService {
     public static final String CLAIM_TOKEN_TYPE = "typ";
     public static final String TYPE_ACCESS = "access";
     public static final String TYPE_PASSWORD_RESET = "password_reset";
+    public static final String TYPE_EMAIL_VERIFICATION = "email_verification";
 
     private final JwtProperties jwtProperties;
 
@@ -74,7 +75,8 @@ public class JwtTokenService {
     }
 
     public Integer parsePasswordResetUserId(String token) {
-        Claims claims = parseClaimsForPasswordReset(token);
+        Claims claims = parseSignedTokenClaims(token, ErrorCode.PASSWORD_RESET_TOKEN_INVALID,
+                "Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn");
         if (!TYPE_PASSWORD_RESET.equals(claims.get(CLAIM_TOKEN_TYPE, String.class))) {
             throw new AuthException(ErrorCode.PASSWORD_RESET_TOKEN_INVALID,
                     "Link đặt lại mật khẩu không hợp lệ", HttpStatus.BAD_REQUEST);
@@ -82,7 +84,30 @@ public class JwtTokenService {
         return Integer.parseInt(claims.getSubject());
     }
 
-    private Claims parseClaimsForPasswordReset(String token) {
+    public String createEmailVerificationToken(Integer userId) {
+        Instant now = Instant.now();
+        Instant exp = now.plusSeconds(jwtProperties.getEmailVerificationTtlHours() * 3600L);
+        return Jwts.builder()
+                .issuer(jwtProperties.getIssuer())
+                .subject(String.valueOf(userId))
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(exp))
+                .claim(CLAIM_TOKEN_TYPE, TYPE_EMAIL_VERIFICATION)
+                .signWith(signingKey())
+                .compact();
+    }
+
+    public Integer parseEmailVerificationUserId(String token) {
+        Claims claims = parseSignedTokenClaims(token, ErrorCode.EMAIL_VERIFICATION_TOKEN_INVALID,
+                "Link xác thực email không hợp lệ hoặc đã hết hạn");
+        if (!TYPE_EMAIL_VERIFICATION.equals(claims.get(CLAIM_TOKEN_TYPE, String.class))) {
+            throw new AuthException(ErrorCode.EMAIL_VERIFICATION_TOKEN_INVALID,
+                    "Link xác thực email không hợp lệ", HttpStatus.BAD_REQUEST);
+        }
+        return Integer.parseInt(claims.getSubject());
+    }
+
+    private Claims parseSignedTokenClaims(String token, String invalidCode, String invalidMessage) {
         try {
             return Jwts.parser()
                     .verifyWith(signingKey())
@@ -91,8 +116,7 @@ public class JwtTokenService {
                     .parseSignedClaims(token)
                     .getPayload();
         } catch (JwtException | IllegalArgumentException ex) {
-            throw new AuthException(ErrorCode.PASSWORD_RESET_TOKEN_INVALID,
-                    "Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn",
+            throw new AuthException(invalidCode, invalidMessage,
                     HttpStatus.BAD_REQUEST, Map.of("reason", ex.getMessage()));
         }
     }

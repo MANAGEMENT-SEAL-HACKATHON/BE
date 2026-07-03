@@ -23,7 +23,7 @@ class PresentationTimerPauseTest {
                 .timerPhase(PresentationTimerPhase.PAUSED)
                 .timerPhaseBeforePause(PresentationTimerPhase.PRESENTING)
                 .presentationStartedAt(started)
-                .pausedAt(LocalDateTime.now().minusSeconds(30))
+                .pausedAt(LocalDateTime.now())
                 .pausedAccumulatedSeconds(0)
                 .build();
 

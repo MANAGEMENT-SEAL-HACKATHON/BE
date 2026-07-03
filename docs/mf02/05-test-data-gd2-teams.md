@@ -3,7 +3,7 @@
 Dùng song song với [03-api-reference-gd2.md](03-api-reference-gd2.md) và PDF `Bao_Cao_API_Data_Test_MF02_GD2.pdf`.  
 Auth / token: [04-test-data.md](04-test-data.md).
 
-**Profile dev:** `Gd2DataSeeder` tự chạy sau `Gd1DataSeeder` — mỗi bảng GĐ2 có **≥ 5 bản ghi đa dạng** (trạng thái, chapter, track, mentor…).
+**Profile dev:** `E2eWorkflowDataSeeder` tự chạy sau `Gd1DataSeeder` — mỗi bảng GĐ2 có **≥ 5 bản ghi đa dạng** (trạng thái, chapter, track, mentor…).
 
 ---
 
@@ -12,7 +12,7 @@ Auth / token: [04-test-data.md](04-test-data.md).
 | Mục | Giá trị |
 |-----|---------|
 | Base URL | `http://localhost:8080/api/v1` |
-| Hackathon test | slug `seal-spring-2026` (ONGOING) — lấy `hackathonId` qua `GET /hackathons?q=seal-spring-2026` |
+| Hackathon test | slug `seal-e2e-2026` (ONGOING) — lấy `hackathonId` qua `GET /hackathons?q=seal-e2e-2026` |
 | Vòng bốc thăm | Round **Sơ loại** (`PRELIMINARY`) — `roundId` từ `GET /hackathons/{id}/rounds` |
 | Track | `trackId` 1–2 (Track 1 RAG, Track 2 AI Agent) trên cùng round sơ loại |
 
@@ -68,26 +68,26 @@ ORDER BY id;
 
 ## 2. Bảng `teams` — 9 đội (≥ 5 trạng thái khác nhau)
 
-Hackathon: **SEAL Spring 2026** (`seal-spring-2026`). Tên đội prefix `GD2-`.
+Hackathon: **SEAL E2E 2026** (`seal-e2e-2026`). Tên đội prefix `E2E-T`.
 
 | # | teamName | status | isLocked | accepted | Kịch bản |
 |---|----------|--------|----------|----------|----------|
-| 01 | `GD2-01 Chờ duyệt (1 người)` | PENDING | false | 1 | `PATCH .../status` ACTIVE → `422 TEAM_INVALID_MEMBER_COUNT` |
-| 02 | `GD2-02 Chờ duyệt (2 ACCEPTED + 1 PENDING)` | PENDING | false | 2 | Thiếu người; có invite PENDING |
-| 03 | `GD2-03 Sẵn duyệt ACTIVE (4 người)` | PENDING | false | 4 | Coordinator duyệt OK → ACTIVE |
-| 04 | `GD2-04 ACTIVE + bốc thăm Track 1` | ACTIVE | false | 4 | Lottery bảng A; có mentor |
-| 05 | `GD2-05 ACTIVE đã khóa + bốc thăm` | ACTIVE | **true** | 4 | `TEAM_LOCKED` khi mời/sửa |
-| 06 | `GD2-06 REJECTED` | REJECTED | false | 3 | Có `rejectionReason` |
-| 07 | `GD2-07 ACTIVE chưa mentor (bốc thăm)` | ACTIVE | false | 3 | `POST .../mentor` |
-| 08 | `GD2-08 ELIMINATED` | ELIMINATED | false | 3 | Loại cuộc thi |
-| 09 | `GD2-09 ACTIVE bốc thăm Track 2` | ACTIVE | false | 3 | Track 2, bảng B |
+| 01 | `E2E-T01 Chờ duyệt (1 người)` | PENDING | false | 1 | `PATCH .../status` ACTIVE → `422 TEAM_INVALID_MEMBER_COUNT` |
+| 02 | `E2E-T02 Chờ duyệt (2 ACCEPTED + 1 PENDING)` | PENDING | false | 2 | Thiếu người; có invite PENDING |
+| 03 | `E2E-T03 Sẵn duyệt ACTIVE (4 người)` | PENDING | false | 4 | Coordinator duyệt OK → ACTIVE |
+| 04 | `E2E-T04 ACTIVE + bốc thăm Track 1` | ACTIVE | false | 4 | Lottery bảng A; có mentor |
+| 05 | `E2E-T05 ACTIVE đã khóa + bốc thăm` | ACTIVE | **true** | 4 | `TEAM_LOCKED` khi mời/sửa |
+| 06 | `E2E-T06 REJECTED` | REJECTED | false | 3 | Có `rejectionReason` |
+| 07 | `E2E-T07 ACTIVE chưa mentor (bốc thăm)` | ACTIVE | false | 3 | `POST .../mentor` |
+| 08 | `E2E-T08 ELIMINATED` | ELIMINATED | false | 3 | Loại cuộc thi |
+| 09 | `E2E-T09 ACTIVE bốc thăm Track 2` | ACTIVE | false | 3 | Track 2, bảng B |
 
 ```sql
 SELECT t.id, t.team_name, t.status, t.is_locked, t.rejection_reason, u.email AS leader_email
 FROM teams t
 JOIN users u ON u.id = t.leader_id
 JOIN hackathons h ON h.id = t.hackathon_id
-WHERE h.slug = 'seal-spring-2026' AND t.team_name LIKE 'GD2-%'
+WHERE h.slug = 'seal-e2e-2026' AND t.team_name LIKE 'E2E-T%'
 ORDER BY t.team_name;
 ```
 
@@ -136,11 +136,11 @@ Kỳ vọng: `409` `USER_IN_ANOTHER_TEAM`.
 
 | Đội | Round | Ghi chú |
 |-----|-------|---------|
-| GD2-04 | Sơ loại | ACTIVE |
-| GD2-05 | Sơ loại | ACTIVE locked |
-| GD2-07 | Sơ loại | Chưa mentor |
-| GD2-08 | Sơ loại | ELIMINATED (vẫn có participation để đọc lịch sử) |
-| GD2-09 | Sơ loại | Track 2 |
+| E2E-T04 | Sơ loại | ACTIVE |
+| E2E-T05 | Sơ loại | ACTIVE locked |
+| E2E-T07 | Sơ loại | Chưa mentor |
+| E2E-T08 | Sơ loại | ELIMINATED (vẫn có participation để đọc lịch sử) |
+| E2E-T09 | Sơ loại | Track 2 |
 
 ---
 
@@ -148,11 +148,11 @@ Kỳ vọng: `409` `USER_IN_ANOTHER_TEAM`.
 
 | Đội | track (seed) | assignedGroup |
 |-----|--------------|---------------|
-| GD2-04 | Track 1 — RAG | Bảng A |
-| GD2-05 | Track 1 — RAG | Bảng B |
-| GD2-07 | Track 2 — AI Agent | Bảng A |
-| GD2-08 | Track 1 — RAG | Bảng C |
-| GD2-09 | Track 2 — AI Agent | Bảng B |
+| E2E-T04 | Track 1 — RAG | Bảng A |
+| E2E-T05 | Track 1 — RAG | Bảng B |
+| E2E-T07 | Track 2 — AI Agent | Bảng A |
+| E2E-T08 | Track 1 — RAG | Bảng C |
+| E2E-T09 | Track 2 — AI Agent | Bảng B |
 
 **API lottery (Coordinator) — thêm đội mới:**
 
@@ -181,13 +181,13 @@ Mentor seed: `mentor@fpt.edu.vn` — vòng **Sơ loại** (không gán FINAL).
 
 | Đội | Ghi chú |
 |-----|---------|
-| GD2-03 | PENDING (mentor sớm — edge case) |
-| GD2-04 | ACTIVE đầy đủ |
-| GD2-05 | ACTIVE locked |
-| GD2-07 | — |
-| GD2-09 | — |
+| E2E-T03 | PENDING (mentor sớm — edge case) |
+| E2E-T04 | ACTIVE đầy đủ |
+| E2E-T05 | ACTIVE locked |
+| E2E-T07 | — |
+| E2E-T09 | — |
 
-**GD2-07** cố ý **không** có mentor trong seed → test:
+**E2E-T07** cố ý **không** có mentor trong seed → test:
 
 ```http
 POST {{baseUrl}}/api/v1/teams/{{teamId07}}/rounds/{{roundIdPrelim}}/mentor
@@ -211,7 +211,7 @@ Kỳ vọng: `409` `TEAM_HAS_MENTOR_CANNOT_DISBAND`.
 
 | API | Body / điều kiện | Error |
 |-----|------------------|-------|
-| `POST /teams` trùng tên `GD2-01...` | — | `409 TEAM_NAME_DUPLICATE` |
+| `POST /teams` trùng tên `E2E-T01...` | — | `409 TEAM_NAME_DUPLICATE` |
 | `PATCH .../status` ACTIVE đội 01 | `{ "status": "ACTIVE" }` | `422 TEAM_INVALID_MEMBER_COUNT` |
 | `POST .../invite` pool.busy | email busy | `409 USER_IN_ANOTHER_TEAM` |
 | `PATCH .../status` ACTIVE đội 03 | `{ "status": "ACTIVE" }` | `200` |
@@ -238,21 +238,21 @@ Kỳ vọng: `409` `TEAM_HAS_MENTOR_CANNOT_DISBAND`.
 
 ## 9. Reset / seed lại GĐ2
 
-Seed chỉ chạy **một lần** (kiểm tra tên `GD2-01...`). Để seed lại:
+Seed chỉ chạy **một lần** (kiểm tra tên `E2E-T01...`). Để seed lại:
 
 ```sql
 DELETE tm FROM team_members tm
 JOIN teams t ON t.id = tm.team_id
 JOIN hackathons h ON h.id = t.hackathon_id
-WHERE h.slug = 'seal-spring-2026' AND t.team_name LIKE 'GD2-%';
+WHERE h.slug = 'seal-e2e-2026' AND t.team_name LIKE 'E2E-T%';
 
-DELETE FROM teams WHERE team_name LIKE 'GD2-%'
-  AND hackathon_id = (SELECT id FROM hackathons WHERE slug = 'seal-spring-2026' LIMIT 1);
+DELETE FROM teams WHERE team_name LIKE 'E2E-T%'
+  AND hackathon_id = (SELECT id FROM hackathons WHERE slug = 'seal-e2e-2026' LIMIT 1);
 
 DELETE FROM users WHERE email LIKE 'student.gd2.%' OR email LIKE 'student.gd2.pool.%';
 ```
 
-Restart app (`profile=dev`) → `Gd2DataSeeder` chạy lại.
+Restart app (`profile=dev`) → `E2eWorkflowDataSeeder` chạy lại.
 
 ---
 
@@ -261,23 +261,23 @@ Restart app (`profile=dev`) → `Gd2DataSeeder` chạy lại.
 ```json
 {
   "teamsPendingList": [
-    { "id": 1, "teamName": "GD2-01 Chờ duyệt (1 người)", "status": "PENDING", "acceptedMemberCount": 1 },
-    { "id": 2, "teamName": "GD2-02 Chờ duyệt (2 ACCEPTED + 1 PENDING)", "status": "PENDING", "acceptedMemberCount": 2, "pendingInviteCount": 1 },
-    { "id": 3, "teamName": "GD2-03 Sẵn duyệt ACTIVE (4 người)", "status": "PENDING", "acceptedMemberCount": 4 }
+    { "id": 1, "teamName": "E2E-T01 Chờ duyệt (1 người)", "status": "PENDING", "acceptedMemberCount": 1 },
+    { "id": 2, "teamName": "E2E-T02 Chờ duyệt (2 ACCEPTED + 1 PENDING)", "status": "PENDING", "acceptedMemberCount": 2, "pendingInviteCount": 1 },
+    { "id": 3, "teamName": "E2E-T03 Sẵn duyệt ACTIVE (4 người)", "status": "PENDING", "acceptedMemberCount": 4 }
   ],
   "teamActiveLocked": {
-    "teamName": "GD2-05 ACTIVE đã khóa + bốc thăm",
+    "teamName": "E2E-T05 ACTIVE đã khóa + bốc thăm",
     "status": "ACTIVE",
     "isLocked": true,
     "acceptedMemberCount": 4
   },
   "teamRejected": {
-    "teamName": "GD2-06 REJECTED",
+    "teamName": "E2E-T06 REJECTED",
     "status": "REJECTED",
     "rejectionReason": "Hồ sơ không khớp quy chế chapter FPT-HCM"
   },
   "teamEliminated": {
-    "teamName": "GD2-08 ELIMINATED",
+    "teamName": "E2E-T08 ELIMINATED",
     "status": "ELIMINATED",
     "eliminationReason": "Không nộp bài sơ loại"
   }

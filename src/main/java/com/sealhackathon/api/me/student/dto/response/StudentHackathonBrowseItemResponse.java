@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
+
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
@@ -19,4 +21,15 @@ public class StudentHackathonBrowseItemResponse {
     private Boolean registrationWithdrawn;
     /** Đã đăng ký một giải ONGOING khác — không đăng ký thêm. */
     private Boolean registeredElsewhere;
+
+    // Thông tin hiển thị để tăng chuyển đổi đăng ký
+    private String description;
+    private String bannerUrl;
+    private String season;
+    private Integer year;
+    private LocalDate registrationStart;
+    private LocalDate registrationEnd;
+    private LocalDate eventStart;
+    private LocalDate eventEnd;
+    private Integer maxParticipants;
 }

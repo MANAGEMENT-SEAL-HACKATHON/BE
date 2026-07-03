@@ -7,13 +7,14 @@ import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.criteria.service.WeightSummaryService;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
-import com.sealhackathon.api.mentor_assignments.repository.MentorAssignmentRepository;
+import com.sealhackathon.api.mentors.repository.MentorAssignmentRepository;
 import com.sealhackathon.api.notifications.service.NotificationService;
+import com.sealhackathon.api.rounds.dto.response.RoundResponse;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.mapper.RoundMapper;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
-import com.sealhackathon.api.team_round_participation.repository.TeamRoundParticipationRepository;
-import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
+import com.sealhackathon.api.teams.repository.TeamRoundParticipationRepository;
+import com.sealhackathon.api.teams.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.tracks.value_object.TrackStatus;
@@ -30,6 +31,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -50,6 +52,26 @@ class RoundActivationServiceImplTest {
 
     @InjectMocks
     private RoundActivationServiceImpl activationService;
+
+    @Test
+    void activate_whenAlreadyActive_returnsIdempotentResponse() {
+        Round round = Round.builder()
+                .id(5)
+                .isActive(true)
+                .isFinal(false)
+                .hackathon(Hackathon.builder().id(1).build())
+                .build();
+        RoundResponse response = RoundResponse.builder().id(5).isActive(true).build();
+
+        when(roundRepository.findById(5)).thenReturn(Optional.of(round));
+        when(roundMapper.toResponse(round)).thenReturn(response);
+
+        RoundResponse result = activationService.activate(5, "re-activate");
+
+        assertEquals(5, result.getId());
+        assertEquals(true, result.getIsActive());
+        verifyNoInteractions(notificationService);
+    }
 
     @Test
     void activatePreliminary_failsWhenTrackHasNoJudge() {

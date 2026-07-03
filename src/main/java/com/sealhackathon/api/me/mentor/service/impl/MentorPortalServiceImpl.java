@@ -3,23 +3,21 @@ package com.sealhackathon.api.me.mentor.service.impl;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.events.repository.PresentationSlotRepository;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
-import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.me.mentor.dto.response.*;
 import com.sealhackathon.api.me.mentor.service.MentorPortalService;
 import com.sealhackathon.api.me.support.MentorAccessGuard;
 import com.sealhackathon.api.presentation.support.PresentationSlotHelper;
 import com.sealhackathon.api.rounds.entity.Round;
-import com.sealhackathon.api.mentor_assignments.entity.MentorAssignment;
-import com.sealhackathon.api.mentor_assignments.repository.MentorAssignmentRepository;
-import com.sealhackathon.api.mentor_team_assignments.entity.MentorTeamAssignment;
-import com.sealhackathon.api.mentor_team_assignments.repository.MentorTeamAssignmentRepository;
+import com.sealhackathon.api.mentors.entity.MentorAssignment;
+import com.sealhackathon.api.mentors.repository.MentorAssignmentRepository;
+import com.sealhackathon.api.mentors.entity.MentorTeamAssignment;
+import com.sealhackathon.api.mentors.repository.MentorTeamAssignmentRepository;
 import com.sealhackathon.api.rounds.query.RoundRankingQueryService;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.submissions.repository.SubmissionRepository;
-import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
+import com.sealhackathon.api.teams.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.teams.repository.TeamRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -69,20 +67,13 @@ public class MentorPortalServiceImpl implements MentorPortalService {
     public List<MentorRoundResponse> getMentorRounds() {
         Integer mentorId = currentUserAccessor.currentUserId();
         List<MentorTeamAssignment> assignments = mentorTeamAssignmentRepository.findByMentor_Id(mentorId);
-        Integer hackathonId = null;
 
-        if (!assignments.isEmpty()) {
-            hackathonId = assignments.get(0).getHackathon().getId();
-        } else {
-            var ongoingPage = hackathonRepository.search(
-                    HackathonStatus.ONGOING, null, null, null, PageRequest.of(0, 1));
-            if (ongoingPage.hasContent()) {
-                hackathonId = ongoingPage.getContent().get(0).getId();
-            }
-        }
-        if (hackathonId == null) {
+        if (assignments.isEmpty()) {
+            // FR-M-05: mentor chỉ gán track — FE bootstrap khi rounds rỗng
             return Collections.emptyList();
         }
+
+        Integer hackathonId = assignments.get(0).getHackathon().getId();
 
         List<Round> rounds = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathonId);
         return rounds.stream()

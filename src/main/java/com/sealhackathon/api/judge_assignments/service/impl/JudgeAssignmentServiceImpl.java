@@ -7,6 +7,9 @@ import com.sealhackathon.api.common.exception.ConflictException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
+import com.sealhackathon.api.config.AppProperties;
+import com.sealhackathon.api.config.FrontendUrls;
+import com.sealhackathon.api.invitations.service.EmailService;
 import com.sealhackathon.api.common.response.Warning;
 import com.sealhackathon.api.common.response.WarningCode;
 import com.sealhackathon.api.judge_assignments.dto.request.CreateJudgeAssignmentRequest;
@@ -17,7 +20,7 @@ import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentReposit
 import com.sealhackathon.api.judge_assignments.service.JudgeAssignmentService;
 import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
 import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
-import com.sealhackathon.api.mentor_assignments.repository.MentorAssignmentRepository;
+import com.sealhackathon.api.mentors.repository.MentorAssignmentRepository;
 import com.sealhackathon.api.notifications.service.NotificationService;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
@@ -57,6 +60,8 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
     private final CurrentUserAccessor currentUserAccessor;
     private final NotificationService notificationService;
     private final HackathonArchiveGuard archiveGuard;
+    private final EmailService emailService;
+    private final AppProperties appProperties;
 
     @Override
     public CreateResult assign(CreateJudgeAssignmentRequest req) {
@@ -105,6 +110,8 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
                 "Bạn được phân công làm Judge Track '%s'".formatted(track.getName()),
                 "Track: %s".formatted(track.getName()),
                 "tracks", trackId);
+        sendJudgeAssignmentEmail(judge, "Bảng đấu '%s'".formatted(track.getName()),
+                track.getHackathon() == null ? null : track.getHackathon().getName());
         return new CreateResult(response, List.of());
     }
 
@@ -176,6 +183,8 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
                 "Bạn được phân công làm Judge Chung kết '%s'".formatted(round.getName()),
                 "Round: %s".formatted(round.getName()),
                 "rounds", finalRoundId);
+        sendJudgeAssignmentEmail(judge, "Chung kết '%s'".formatted(round.getName()),
+                round.getHackathon() == null ? null : round.getHackathon().getName());
         return new CreateResult(response, warnings);
     }
 
@@ -221,6 +230,15 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
         auditService.log(AuditAction.JUDGE_UNASSIGNED, "judge_assignments", id,
                 Map.of("judgeId", judge.getId()));
         return id;
+    }
+
+    private void sendJudgeAssignmentEmail(User judge, String assignmentLabel, String hackathonName) {
+        try {
+            emailService.sendJudgeAssignment(judge.getEmail(), judge.getFullName(),
+                    assignmentLabel, hackathonName, FrontendUrls.loginUrl(appProperties));
+        } catch (RuntimeException ex) {
+            log.warn("[JudgeAssign] email failed for {}: {}", judge.getEmail(), ex.getMessage());
+        }
     }
 
     private User loadApprovedPersonnel(Integer userId) {

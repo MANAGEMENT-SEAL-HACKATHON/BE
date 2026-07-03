@@ -28,4 +28,6 @@ public class TrackResponse {
     private final Integer presentationMinutes;
     /** Override thời lượng Q&A (phút) — GĐ3; null = dùng default của round. */
     private final Integer qaMinutes;
+    /** Thời điểm phát đề riêng cho bảng đấu (Sơ loại). */
+    private final java.time.LocalDateTime problemReleasedAt;
 }

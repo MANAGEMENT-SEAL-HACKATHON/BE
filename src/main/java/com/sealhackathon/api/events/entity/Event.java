@@ -52,6 +52,10 @@ public class Event {
     @Column(name = "is_public", nullable = false)
     private Boolean isPublic = true;
 
+    /** Set when {@code EVENT_UPCOMING} reminder batch was sent (idempotent scheduler). */
+    @Column(name = "reminder_sent_at")
+    private LocalDateTime reminderSentAt;
+
     // FK -> users(id)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")

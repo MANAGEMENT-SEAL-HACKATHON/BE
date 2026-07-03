@@ -10,7 +10,7 @@
 ## Mục lục
 
 1. [Phạm vi GĐ3 & điều kiện vào](#1-phạm-vi-gđ3--điều-kiện-vào)
-2. [6 profile seed dev](#2-6-profile-seed-dev)
+2. [8 profile seed dev](#2-8-profile-seed-dev)
 3. [Ma trận test theo chức năng (FR)](#3-ma-trận-test-theo-chức-năng-fr)
 4. [Luồng end-to-end (workflow)](#4-luồng-end-to-end-workflow)
 5. [Business rules (tóm tắt)](#5-business-rules-tóm-tắt)
@@ -64,9 +64,9 @@
 
 ---
 
-## 2. 6 profile seed dev
+## 2. 8 profile seed dev
 
-Sau `mvn spring-boot:run` (profile `dev`), `DataInitializer` tạo **6 hackathon GĐ3** độc lập:
+Sau `mvn spring-boot:run` (profile `dev`), `DataInitializer` tạo **8 hackathon GĐ3** độc lập:
 
 ### Profile 0 — Demo tương tác (happy path cơ bản)
 
@@ -232,6 +232,40 @@ Sau `mvn spring-boot:run` (profile `dev`), `DataInitializer` tạo **6 hackathon
 
 ---
 
+### Profile F — Bad: Mentor = Judge cùng track
+
+| | |
+|--|--|
+| **Slug** | `seal-gd3-judge-mentor-conflict` |
+| **Seeder** | `Gd3JudgeMentorConflictDataSeeder` |
+| **Config** | `app.seed.gd3.judge-mentor-conflict.enabled=true` |
+
+| Thành phần | Giá trị |
+|------------|---------|
+| Prelim | **active**, queue track1 slot `PRESENTING` + timer mở |
+| Conflict | `judge1` vừa `MentorAssignment` vừa `JudgeAssignment` track1 |
+
+**API:** `POST /scores` với judge1 → **409 `CONFLICT_MENTOR_JUDGE_SAME_TRACK`**
+
+---
+
+### Profile G — Bad: Round config (weight / criteria)
+
+| | |
+|--|--|
+| **Slug** | `seal-gd3-round-config-edge` |
+| **Seeder** | `Gd3RoundConfigEdgeDataSeeder` |
+| **Config** | `app.seed.gd3.round-config-edge.enabled=true` |
+
+| Track | Lỗi khi activate |
+|-------|------------------|
+| Track1 | Tổng weight ≠ 1 → `ROUND_WEIGHT_NOT_ONE` |
+| Track2 | Không criteria → `ROUND_NO_CRITERIA` |
+
+Prelim **inactive** (`is_active=false`).
+
+---
+
 ## 3. Ma trận test theo chức năng (FR)
 
 ### FR-20 / FR-32 — Activate round
@@ -239,8 +273,8 @@ Sau `mvn spring-boot:run` (profile `dev`), `DataInitializer` tạo **6 hackathon
 | # | Case | Role | Kỳ vọng | Seed |
 |---|------|------|---------|------|
 | A1 | Activate prelim khi đủ criteria + judge | Coordinator | 200, `is_active=true` | Profile 0 (đã active) |
-| A2 | Activate khi weight criteria ≠ 1 | Coordinator | 422 `ROUND_WEIGHT_NOT_ONE` | Tạo tay trên E2E |
-| A2b | Activate khi track thiếu criteria | Coordinator | 422 `ROUND_NO_CRITERIA` | Tạo tay |
+| A2 | Activate khi weight criteria ≠ 1 | Coordinator | 422 `ROUND_WEIGHT_NOT_ONE` | Profile G |
+| A2b | Activate khi track thiếu criteria | Coordinator | 422 `ROUND_NO_CRITERIA` | Profile G |
 | A3 | Activate khi thiếu judge track | Coordinator | 422 `JUDGE_NOT_ASSIGNED` | Profile D |
 | A4 | Activate round 2 → round 1 auto off | Coordinator | Chỉ 1 active | Profile 0 |
 | A5 | Activate khi không có đội participation | Coordinator | 422 `NO_TEAMS_IN_ROUND` | Tạo tay (hackathon trống) |
@@ -329,7 +363,7 @@ Luồng BE: Coordinator upload PDF **từng track** → `PATCH /rounds/{id}/rele
 | J7 | Chấm đủ tiêu chí → `canAdvanceQueue=true` | `GET .../judge/submissions/{id}/scoring-status` | Profile B |
 | J7b | Judge confirm chốt điểm | `POST .../judge/submissions/{id}/confirm-scoring` → 204 | Profile B |
 | J8 | `GET judge-track-assignments` | `totalTeams`, `scoredTeams` | Profile B |
-| J9 | Mentor = Judge cùng track | 409 `CONFLICT_MENTOR_JUDGE_SAME_TRACK` | Tay |
+| J9 | Mentor = Judge cùng track | 409 `CONFLICT_MENTOR_JUDGE_SAME_TRACK` | Profile F |
 
 ### FR-26 — Khóa chấm
 
@@ -338,7 +372,7 @@ Luồng BE: Coordinator upload PDF **từng track** → `PATCH /rounds/{id}/rele
 | K1 | Lock scoring bình thường | `scoring_locked=true`, scores `is_final=1` | Profile C (đã lock) |
 | K2 | POST score sau lock | 423 `SCORING_LOCKED` | Profile C |
 | K3 | Force lock thiếu reason | 422 `FORCE_LOCK_REASON_REQUIRED` | Tay |
-| K4 | Warning partial scoring | 200 + `PARTIAL_SCORING_BEFORE_LOCK`, vẫn lock | Tay |
+| K4 | Warning partial scoring | 200 + `PARTIAL_SCORING_BEFORE_LOCK`, vẫn lock | Profile B (`scoring-live`) |
 
 ### FR-27 / FR-28 — Ranking, preview & tiebreak
 
@@ -349,7 +383,7 @@ Luồng BE: Coordinator upload PDF **từng track** → `PATCH /rounds/{id}/rele
 | T3 | HEAD penalty vote | `tiebreak_evaluations` | Profile C (seeded) |
 | T4 | Sau penalty T01 > T02 | Ranking đúng thứ tự | Profile C |
 | T5 | Rule `SUBMISSION_TIME` / `COORDINATOR_DECISION` | Theo `tiebreak_rule` | Tay đổi round config |
-| T6 | Ranking preview thiếu điểm | 200 + warning `INCOMPLETE_SCORING_IN_RANKING` | Tay (đội chưa chấm đủ) |
+| T6 | Ranking preview thiếu điểm | 200 + warning `INCOMPLETE_SCORING_IN_RANKING` | Profile B (`scoring-live`) |
 
 ### FR-29 — Calibration (RBL)
 
@@ -365,8 +399,8 @@ Luồng BE: Coordinator upload PDF **từng track** → `PATCH /rounds/{id}/rele
 
 | # | Code | Khi nào | Seed |
 |---|------|---------|------|
-| W1 | `PARTIAL_SCORING_BEFORE_LOCK` | Lock khi còn đội chưa chấm đủ | Tay |
-| W2 | `INCOMPLETE_SCORING_IN_RANKING` | Preview ranking thiếu điểm | Tay |
+| W1 | `PARTIAL_SCORING_BEFORE_LOCK` | Lock khi còn đội chưa chấm đủ | Profile B (`scoring-live`) |
+| W2 | `INCOMPLETE_SCORING_IN_RANKING` | Preview ranking thiếu điểm | Profile B (`scoring-live`) |
 | W3 | `JUDGE_PARTICIPATED_IN_PRELIM` | Assign judge CK đã chấm sơ loại | GĐ4 (ngoài GĐ3) |
 
 ---
@@ -501,6 +535,8 @@ app.seed.gd3.scoring-live.enabled=false
 app.seed.gd3.tiebreak-hybrid.enabled=false
 app.seed.gd3.edge-errors.enabled=false
 app.seed.gd3.calibration-timer.enabled=false
+app.seed.gd3.judge-mentor-conflict.enabled=false
+app.seed.gd3.round-config-edge.enabled=false
 ```
 
 ---
@@ -617,4 +653,4 @@ Auth: judge phải được assign track/round tương ứng (`StompSubscribeAut
 
 ---
 
-*Cập nhật: 2026-06 — 6 seed GĐ3 + ma trận đồng bộ BE (controller, confirm, warnings, mã lỗi đầy đủ).*
+*Cập nhật: 2026-06 — 8 seed GĐ3 + ma trận đồng bộ BE (Phase 2: mentor conflict, round config).*

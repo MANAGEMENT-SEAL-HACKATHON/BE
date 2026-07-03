@@ -15,7 +15,7 @@ import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.invitations.service.GuestJudgeLifecycleService;
 import com.sealhackathon.api.oauth_accounts.entity.OAuthAccount;
 import com.sealhackathon.api.oauth_accounts.repository.OAuthAccountRepository;
-import com.sealhackathon.api.user_sessions.entity.UserSession;
+import com.sealhackathon.api.users.entity.UserSession;
 import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
 import com.sealhackathon.api.users.value_object.UserStatus;

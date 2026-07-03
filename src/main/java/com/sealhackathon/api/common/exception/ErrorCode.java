@@ -45,6 +45,8 @@ public final class ErrorCode {
     public static final String INVALID_STATUS_TRANSITION = "INVALID_STATUS_TRANSITION";
     public static final String REFRESH_TOKEN_INVALID    = "REFRESH_TOKEN_INVALID";
     public static final String PASSWORD_RESET_TOKEN_INVALID = "PASSWORD_RESET_TOKEN_INVALID";
+    public static final String EMAIL_NOT_VERIFIED = "EMAIL_NOT_VERIFIED";
+    public static final String EMAIL_VERIFICATION_TOKEN_INVALID = "EMAIL_VERIFICATION_TOKEN_INVALID";
     public static final String OAUTH_TOKEN_INVALID      = "OAUTH_TOKEN_INVALID";
     public static final String OAUTH_ACCOUNT_NOT_LINKED = "OAUTH_ACCOUNT_NOT_LINKED";
     public static final String OAUTH_ACCOUNT_ALREADY_LINKED = "OAUTH_ACCOUNT_ALREADY_LINKED";
@@ -74,9 +76,6 @@ public final class ErrorCode {
 
     // ---------- FR-03 ROUND ----------
     public static final String ROUND_DEADLINE_INVALID   = "ROUND_DEADLINE_INVALID";
-    /** @deprecated dùng {@link #ROUND_FINAL_EXAM_ORDER} */
-    @Deprecated
-    public static final String ROUND_FINAL_SEQUENCE_ORDER = "ROUND_FINAL_EXAM_ORDER";
     public static final String ROUND_FINAL_EXAM_ORDER     = "ROUND_FINAL_EXAM_ORDER";
     public static final String ROUND_PRELIM_EXAM_ORDER    = "ROUND_PRELIM_EXAM_ORDER";
     public static final String ROUND_DUPLICATE_FINAL      = "ROUND_DUPLICATE_FINAL";
@@ -144,9 +143,6 @@ public final class ErrorCode {
     // ---------- FR-03 ROUND examAt vs events ----------
     public static final String ROUND_EXAM_BEFORE_KICKOFF       = "ROUND_EXAM_BEFORE_KICKOFF";
     public static final String ROUND_EXAM_OUTSIDE_PRESENTATION = "ROUND_EXAM_OUTSIDE_PRESENTATION";
-    /** @deprecated dùng {@link #ROUND_EXAM_OUTSIDE_AWARDS} */
-    @Deprecated
-    public static final String ROUND_EXAM_ON_OR_AFTER_AWARDS   = "ROUND_EXAM_OUTSIDE_AWARDS";
     public static final String ROUND_EXAM_OUTSIDE_AWARDS       = "ROUND_EXAM_OUTSIDE_AWARDS";
 
     // ---------- FR-07 READINESS (G1–G5) ----------
@@ -223,9 +219,6 @@ public final class ErrorCode {
     public static final String SCORE_EXCEEDS_MAX                          = "SCORE_EXCEEDS_MAX";
     public static final String SCORING_LOCKED                             = "SCORING_LOCKED";
     public static final String CONFLICT_MENTOR_JUDGE_SAME_TRACK           = "CONFLICT_MENTOR_JUDGE_SAME_TRACK";
-    /** @deprecated v4.1 — dùng {@link #CRITERION_WRONG_ROUND} */
-    @Deprecated
-    public static final String CRITERION_WRONG_TRACK                      = "CRITERION_WRONG_TRACK";
     public static final String CRITERION_WRONG_ROUND                      = "CRITERION_WRONG_ROUND";
     public static final String INVALID_REPO_PLATFORM                      = "INVALID_REPO_PLATFORM";
     public static final String REPO_NOT_PUBLIC                            = "REPO_NOT_PUBLIC";
@@ -234,6 +227,7 @@ public final class ErrorCode {
     public static final String INVALID_SLIDE_FILE                         = "INVALID_SLIDE_FILE";
     public static final String SCORING_NOT_OPEN                           = "SCORING_NOT_OPEN";
     public static final String SCORING_INCOMPLETE_BEFORE_NEXT             = "SCORING_INCOMPLETE_BEFORE_NEXT";
+    public static final String SCORING_INCOMPLETE_BEFORE_CONFIRM          = "SCORING_INCOMPLETE_BEFORE_CONFIRM";
     public static final String NOT_TRACK_CONTROLLER                       = "NOT_TRACK_CONTROLLER";
     public static final String REVIEW_NOTE_REQUIRED                       = "REVIEW_NOTE_REQUIRED";
     public static final String SUBMISSION_NOT_LATE_PENDING                = "SUBMISSION_NOT_LATE_PENDING";
@@ -254,4 +248,6 @@ public final class ErrorCode {
     public static final String NO_PRIZES_RECORDED                           = "NO_PRIZES_RECORDED";
     public static final String EXPORT_JOB_NOT_READY                         = "EXPORT_JOB_NOT_READY";
     public static final String TRACK_DELETE_HAS_SUBMISSIONS                 = "TRACK_DELETE_HAS_SUBMISSIONS";
+    public static final String CONCURRENT_MODIFICATION                      = "CONCURRENT_MODIFICATION";
+    public static final String ACTIVE_TEAMS_NOT_LOCKED                      = "ACTIVE_TEAMS_NOT_LOCKED";
 }

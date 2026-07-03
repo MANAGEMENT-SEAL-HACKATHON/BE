@@ -1,4 +1,4 @@
-# FR-01 — Tạo / quản lý Hackathon
+﻿# FR-01 — Tạo / quản lý Hackathon
 
 > Workflow v3.1 ref: GĐ1 — Bước 1 | DB v2.1 ref: `hackathons`
 
@@ -19,8 +19,8 @@
 ### Request
 ```json
 {
-  "name":               "SEAL Spring 2026",
-  "slug":               "seal-spring-2026",
+  "name":               "SEAL E2E 2026",
+  "slug":               "seal-e2e-2026",
   "season":             "Spring",
   "year":               2026,
   "description":        "...",
@@ -56,8 +56,8 @@
   "success": true,
   "data": {
     "id": 42,
-    "name": "SEAL Spring 2026",
-    "slug": "seal-spring-2026",
+    "name": "SEAL E2E 2026",
+    "slug": "seal-e2e-2026",
     "season": "Spring",
     "year": 2026,
     "status": "DRAFT",

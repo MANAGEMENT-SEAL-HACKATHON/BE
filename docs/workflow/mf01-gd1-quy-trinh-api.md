@@ -1,4 +1,4 @@
-# Quy trình chạy API — Giai đoạn 1 (MF-01)
+﻿# Quy trình chạy API — Giai đoạn 1 (MF-01)
 
 **Dự án:** SEAL Hackathon Management System — Backend  
 **Phạm vi:** Giai đoạn Chuẩn bị sự kiện (GĐ1) — Coordinator only  
@@ -71,8 +71,8 @@ flowchart LR
 
 ```json
 {
-  "name": "SEAL Spring 2026",
-  "slug": "seal-spring-2026-test",
+  "name": "SEAL E2E 2026",
+  "slug": "seal-e2e-2026-test",
   "season": "Spring",
   "year": 2026,
   "description": "...",
@@ -459,13 +459,13 @@ Thứ tự tối thiểu sau khi có `hackathonId`, `prelimRoundId`, `finalRound
 9. `GET /hackathons/{id}/readiness?target=ONGOING`
 10. `PATCH /hackathons/{id}/status` `{ "status": "ONGOING" }`
 
-**Hoặc dùng seed có sẵn:** slug `seal-gd1-ready` — chỉ cần bước 9–10.
+**Hoặc dùng seed có sẵn:** slug `seal-e2e-2026` — chỉ cần bước 9–10.
 
 | Slug | Mục đích |
 |------|----------|
 | `seal-gd1-incomplete` | Readiness **fail** |
-| `seal-gd1-ready` | Readiness **pass** → PATCH ONGOING |
-| `seal-spring-2026` | Đã ONGOING — dataset đầy đủ |
+| `seal-e2e-2026` | Readiness **pass** → PATCH ONGOING |
+| `seal-e2e-2026` | Đã ONGOING — dataset đầy đủ |
 
 ---
 

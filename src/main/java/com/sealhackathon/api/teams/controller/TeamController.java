@@ -28,9 +28,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
-import java.net.URI;
 import java.util.List;
 
 /**
@@ -46,18 +44,6 @@ import java.util.List;
 public class TeamController {
 
     private final TeamService teamService;
-
-    @PostMapping
-    @StudentOnly
-    @Operation(summary = "FR-11 — Leader tạo đội")
-    public ResponseEntity<ApiResponse<TeamResponse>> create(@Valid @RequestBody CreateTeamRequest req) {
-        TeamResponse data = teamService.createTeam(req);
-        URI location = ServletUriComponentsBuilder.fromCurrentRequest()
-                .path("/{id}")
-                .buildAndExpand(data.getId())
-                .toUri();
-        return ResponseEntity.created(location).body(ApiResponse.created(data));
-    }
 
     @GetMapping
     @ApprovedOnly

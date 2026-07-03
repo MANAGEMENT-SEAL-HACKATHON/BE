@@ -8,6 +8,8 @@ import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.common.security.CurrentUserStub;
+import com.sealhackathon.api.notifications.service.NotificationService;
+import com.sealhackathon.api.teams.entity.TeamMember;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.rounds.entity.Round;
@@ -27,11 +29,11 @@ import com.sealhackathon.api.submissions.support.SubmissionSlideStorage;
 import com.sealhackathon.api.storage.StoredObject;
 import com.sealhackathon.api.submissions.value_object.LateReviewDecision;
 import com.sealhackathon.api.submissions.value_object.SubmissionStatus;
-import com.sealhackathon.api.team_members.repository.TeamMemberRepository;
-import com.sealhackathon.api.team_members.value_object.TeamMemberStatus;
-import com.sealhackathon.api.team_round_participation.repository.TeamRoundParticipationRepository;
-import com.sealhackathon.api.team_round_participation.value_object.ParticipationStatus;
-import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
+import com.sealhackathon.api.teams.repository.TeamMemberRepository;
+import com.sealhackathon.api.teams.value_object.TeamMemberStatus;
+import com.sealhackathon.api.teams.repository.TeamRoundParticipationRepository;
+import com.sealhackathon.api.teams.value_object.ParticipationStatus;
+import com.sealhackathon.api.teams.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.repository.TeamRepository;
 import com.sealhackathon.api.teams.value_object.TeamStatus;
@@ -74,6 +76,7 @@ public class SubmissionServiceImpl implements SubmissionService {
     private final TeamRoundParticipationRepository teamRoundParticipationRepository;
     private final GitHubRepoValidator gitHubRepoValidator;
     private final SubmissionSlideStorage submissionSlideStorage;
+    private final NotificationService notificationService;
 
     @Override
     public SubmissionResponse submitMultipart(
@@ -90,11 +93,6 @@ public class SubmissionServiceImpl implements SubmissionService {
                 .lateReason(lateReason)
                 .build();
         return submitInternal(req, slideFile, true);
-    }
-
-    @Override
-    public SubmissionResponse submit(SubmitSubmissionRequest req) {
-        return submitInternal(req, null, false);
     }
 
     private SubmissionResponse submitInternal(
@@ -226,8 +224,39 @@ public class SubmissionServiceImpl implements SubmissionService {
         auditService.log(isCreate ? AuditAction.SUBMISSION_CREATE : AuditAction.SUBMISSION_UPDATE,
                 "submissions", saved.getId(),
                 Map.of("teamId", team.getId(), "roundId", round.getId()));
+        notifySubmissionReceived(team, round, track, saved, isCreate);
         submissionMetadataService.enqueueFetch(saved.getId());
         return toResponse(saved, false);
+    }
+
+    private void notifySubmissionReceived(Team team, Round round, Track track,
+                                          Submission saved, boolean isCreate) {
+        List<User> members = teamMemberRepository.findByTeam_Id(team.getId()).stream()
+                .filter(tm -> tm.getStatus() == TeamMemberStatus.ACCEPTED)
+                .map(TeamMember::getUser)
+                .filter(u -> u != null)
+                .toList();
+        if (members.isEmpty()) {
+            return;
+        }
+        String scope = track != null ? track.getName() : round.getName();
+        String statusNote = switch (saved.getStatus()) {
+            case SUBMITTED -> "Bài đã được ghi nhận đúng hạn.";
+            case LATE_PENDING -> "Bài nộp trễ đang chờ Coordinator duyệt.";
+            case LATE_APPROVED -> "Bài nộp trễ đã được duyệt.";
+            case ACCEPTED -> "Bài đã được chấp nhận.";
+            default -> "Bài đã được ghi nhận.";
+        };
+        notificationService.sendBatch(
+                members,
+                "SUBMISSION_RECEIVED",
+                "%s bài — %s".formatted(isCreate ? "Đã nộp" : "Đã cập nhật", scope),
+                "Đội \"%s\" %s %s".formatted(
+                        team.getTeamName(),
+                        isCreate ? "vừa nộp bài cho" : "vừa cập nhật bài nộp cho",
+                        "\"%s\". %s".formatted(scope, statusNote)),
+                "submissions",
+                saved.getId());
     }
 
     @Override
@@ -331,8 +360,7 @@ public class SubmissionServiceImpl implements SubmissionService {
             return computed;
         }
         return switch (existing.getStatus()) {
-            case LATE_APPROVED, ACCEPTED -> existing.getStatus();
-            case SUBMITTED -> afterDeadline ? computed : SubmissionStatus.SUBMITTED;
+            case LATE_APPROVED, ACCEPTED, SUBMITTED -> existing.getStatus();
             case LATE_PENDING -> computed;
             default -> computed;
         };

@@ -2,13 +2,13 @@ package com.sealhackathon.api.teams.service.impl;
 
 import com.sealhackathon.api.common.audit.AuditAction;
 import com.sealhackathon.api.common.audit.AuditService;
-import com.sealhackathon.api.hackathon_registrations.repository.HackathonRegistrationRepository;
-import com.sealhackathon.api.hackathon_registrations.repository.HackathonRegistrationWithdrawalRepository;
+import com.sealhackathon.api.hackathons.repository.HackathonRegistrationRepository;
+import com.sealhackathon.api.hackathons.repository.HackathonRegistrationWithdrawalRepository;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.notifications.service.NotificationService;
-import com.sealhackathon.api.team_members.entity.TeamMember;
-import com.sealhackathon.api.team_members.repository.TeamMemberRepository;
-import com.sealhackathon.api.team_members.value_object.TeamMemberStatus;
+import com.sealhackathon.api.teams.entity.TeamMember;
+import com.sealhackathon.api.teams.repository.TeamMemberRepository;
+import com.sealhackathon.api.teams.value_object.TeamMemberStatus;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.repository.TeamRepository;
 import com.sealhackathon.api.teams.service.FormationGraceExpiryService;
@@ -86,7 +86,7 @@ public class FormationGraceExpiryServiceImpl implements FormationGraceExpiryServ
         if (!hackathonRegistrationWithdrawalRepository.existsByHackathon_IdAndUser_Id(
                 hackathon.getId(), user.getId())) {
             hackathonRegistrationWithdrawalRepository.save(
-                    com.sealhackathon.api.hackathon_registrations.entity.HackathonRegistrationWithdrawal.builder()
+                    com.sealhackathon.api.hackathons.entity.HackathonRegistrationWithdrawal.builder()
                             .hackathon(hackathon)
                             .user(user)
                             .build());

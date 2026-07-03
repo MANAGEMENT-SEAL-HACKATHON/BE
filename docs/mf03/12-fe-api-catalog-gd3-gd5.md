@@ -1,4 +1,4 @@
-# Hướng dẫn tích hợp API MF-03 (GĐ3 → GĐ5) cho Frontend
+﻿# Hướng dẫn tích hợp API MF-03 (GĐ3 → GĐ5) cho Frontend
 
 Tài liệu này mô tả **những gì FE cần gọi** khi tích hợp Thi & chấm (GĐ3), Chuyển vòng (GĐ4), Chung kết (GĐ5). Mỗi API có **request/response JSON mẫu** — FE không cần đọc code Java.
 
@@ -389,7 +389,7 @@ Sau lock scoring: `isFinal: true`.
 {
   "id": 6,
   "hackathonId": 1,
-  "teamName": "GD2-06 Dropped",
+  "teamName": "E2E-T06 Dropped",
   "leaderId": 106,
   "chapterId": 1,
   "status": "ELIMINATED",
@@ -607,7 +607,7 @@ Response `data`: shape §4.2 với `trackId: null`, `roundId: 2`.
 **Lock CK** `PATCH /rounds/2/lock-scoring` — response §4.4; side effect 🔶: `GET /hackathons/1` → `status: "PENDING_CONFIRM"`.
 
 ```json
-{ "id": 1, "name": "SEAL Spring 2026", "status": "PENDING_CONFIRM" }
+{ "id": 1, "name": "SEAL E2E 2026", "status": "PENDING_CONFIRM" }
 ```
 
 ---

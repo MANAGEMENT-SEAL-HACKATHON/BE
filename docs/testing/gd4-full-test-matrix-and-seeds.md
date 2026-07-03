@@ -10,7 +10,7 @@
 ## Mục lục
 
 1. [Phạm vi GĐ4 & điều kiện vào](#1-phạm-vi-gđ4--điều-kiện-vào)
-2. [7 profile seed dev](#2-7-profile-seed-dev)
+2. [10 profile seed dev](#2-10-profile-seed-dev)
 3. [Ma trận test theo chức năng (FR)](#3-ma-trận-test-theo-chức-năng-fr)
 4. [Luồng end-to-end](#4-luồng-end-to-end)
 5. [Business rules](#5-business-rules)
@@ -44,9 +44,9 @@
 
 ---
 
-## 2. 7 profile seed dev
+## 2. 11 profile seed dev
 
-Sau `mvn spring-boot:run` (profile `dev`), `DataInitializer` tạo **7 hackathon GĐ4** độc lập.
+Sau `mvn spring-boot:run` (profile `dev`), `DataInitializer` tạo **11 hackathon GĐ4** độc lập.
 
 ### Profile 0 — Advance ready (happy path đầy đủ)
 
@@ -188,6 +188,60 @@ Sơ loại **published + locked**. `GET /tiebreak` → rỗng. `POST /advance` �
 
 ---
 
+### Profile G — Wildcard disabled
+
+| | |
+|--|--|
+| **Slug** | `seal-gd4-wildcard-disabled` |
+| **Seeder** | `Gd4WildcardDisabledDataSeeder` |
+| **Config** | `app.seed.gd4.wildcard-disabled.enabled=true` |
+
+Giống Profile 0 (8 đội, locked, chưa publish) nhưng `hackathon.wildcardEnabled=false`.
+
+**API:** `GET /wildcard-candidates` → `candidates=[]`, `hackathonWildcardEnabled=false`
+
+---
+
+### Profile H — Judge assign warnings
+
+| | |
+|--|--|
+| **Slug** | `seal-gd4-judge-assign-warnings` |
+| **Seeder** | `Gd4JudgeAssignWarningsDataSeeder` |
+| **Config** | `app.seed.gd4.judge-assign-warnings.enabled=true` |
+
+Published + 6 ADVANCED, **0 judge CK**. `POST /rounds/{finalId}/judge-assignments` với `judge1` → warnings `JUDGE_PARTICIPATED_IN_PRELIM` + `MIN_FINAL_JUDGES_NOT_MET`.
+
+---
+
+### Profile I — CK thiếu criteria
+
+| | |
+|--|--|
+| **Slug** | `seal-gd4-ck-no-criteria` |
+| **Seeder** | `Gd4CkNoCriteriaDataSeeder` |
+| **Config** | `app.seed.gd4.ck-no-criteria.enabled=true` |
+
+Giống Profile C (published + 6 ADVANCED + guest judge) nhưng **xóa criteria CK**.
+
+**API:** `PATCH /rounds/{finalId}/activate` → 422 `ROUND_NO_CRITERIA`
+
+---
+
+### Profile J — CK activate khi SL chưa publish
+
+| | |
+|--|--|
+| **Slug** | `seal-gd4-ck-unpublished` |
+| **Seeder** | `Gd4CkUnpublishedDataSeeder` |
+| **Config** | `app.seed.gd4.ck-unpublished.enabled=true` |
+
+Sơ loại **locked + chưa publish**, 6 đội ADVANCED, guest judge CK đã gán.
+
+**API:** `PATCH /rounds/{finalId}/activate` → 422 **`RESULT_NOT_PUBLISHED`** (G4-N01).
+
+---
+
 ## 3. Ma trận test theo chức năng (FR)
 
 ### FR-27 — Ranking sơ loại
@@ -197,7 +251,7 @@ Sơ loại **published + locked**. `GET /tiebreak` → rỗng. `POST /advance` �
 | R1 | Ranking chính thức | `GET /rounds/{prelimId}/ranking` | 200, đủ dòng | Profile 0, A |
 | R2 | Ranking khi chưa lock | `GET .../ranking` | 422 `ROUND_NOT_SCORING_LOCKED` | Tay GĐ3 |
 | R3 | Preview khi chưa lock | `GET .../ranking/preview` | 200 | `seal-gd3-prelim-open` |
-| R4 | Warning thiếu điểm | Preview | `INCOMPLETE_SCORING_IN_RANKING` | Tay |
+| R4 | Warning thiếu điểm | Preview | `INCOMPLETE_SCORING_IN_RANKING` | `seal-gd3-scoring-live` |
 
 ### FR-22A — Wildcard
 
@@ -206,7 +260,7 @@ Sơ loại **published + locked**. `GET /tiebreak` → rỗng. `POST /advance` �
 | W1 | List candidates | `GET /rounds/{prelimId}/wildcard-candidates` | 2 candidate, `availableSlots=2` | Profile 0 |
 | W2 | Approve wildcard | `PATCH /wildcard-reviews/{id}` | approved | Profile 0 |
 | W3 | Reject wildcard | `PATCH ...` reject | rejected | Profile E (W04) |
-| W4 | Wildcard tắt | `wildcardEnabled=false` | `candidates=[]` | Tay |
+| W4 | Wildcard tắt | `wildcardEnabled=false` | `candidates=[]` | Profile G |
 | W5 | Đủ suất → auto-reject | Approve đủ 2 slot | pending còn lại → rejected | Profile E |
 | W6 | Advance sau wildcard resolved | `POST /advance` | 6 ADVANCED | Profile E |
 
@@ -246,7 +300,7 @@ Sơ loại **published + locked**. `GET /tiebreak` → rỗng. `POST /advance` �
 |---|------|-----|---------|------|
 | J1 | Assign guest | `POST /rounds/{finalId}/judge-assignments` | `FINAL_EXTERNAL` | Profile 0, C |
 | J2 | Duplicate | POST lại | 409 `JUDGE_ASSIGN_DUPLICATE` | Tay |
-| J3 | Warning judge SL | Response warnings | `JUDGE_PARTICIPATED_IN_PRELIM` | Tay (judge1) |
+| J3 | Warning judge SL | Response warnings | `JUDGE_PARTICIPATED_IN_PRELIM` | Profile H |
 | J4 | Assign nhầm SL | POST prelim | 422 `INVALID_FINAL_ROUND` | Tay |
 | J5 | API GĐ1 cũ | `POST /judge-assignments` | 422 `JUDGE_FINAL_AT_PHASE1` | E2E GĐ1 |
 
@@ -255,9 +309,9 @@ Sơ loại **published + locked**. `GET /tiebreak` → rỗng. `POST /advance` �
 | # | Case | API | Kỳ vọng | Seed |
 |---|------|-----|---------|------|
 | K1 | Activate đủ gate | `PATCH /rounds/{finalId}/activate` | `is_active=true` | Profile C |
-| K2 | SL chưa publish | `PATCH .../activate` | 422 `RESULT_NOT_PUBLISHED` | Profile 0 |
+| K2 | SL chưa publish | `PATCH .../activate` | 422 `RESULT_NOT_PUBLISHED` | Profile J (`ck-unpublished`) |
 | K3 | Thiếu judge CK | `PATCH .../activate` | 422 `JUDGE_NOT_ASSIGNED` | Profile D |
-| K4 | Thiếu criteria CK | | 422 `ROUND_NO_CRITERIA` | Tay |
+| K4 | Thiếu criteria CK | | 422 `ROUND_NO_CRITERIA` | Profile I |
 | K5 | Readiness | `GET /hackathons/{id}/readiness?target=FINAL_ROUND` | `ready: true` | Profile C |
 
 ### FR-20 — Scoring progress
@@ -349,6 +403,12 @@ cd BE && mvn spring-boot:run -Dspring-boot.run.profiles=dev
 1. PATCH /rounds/{finalId}/activate → 422 JUDGE_NOT_ASSIGNED
 ```
 
+### Profile J — `seal-gd4-ck-unpublished`
+
+```text
+1. PATCH /rounds/{finalId}/activate → 422 RESULT_NOT_PUBLISHED
+```
+
 ### Tắt seed
 
 ```properties
@@ -356,9 +416,13 @@ app.seed.gd4.enabled=false
 app.seed.gd4.published.enabled=false
 app.seed.gd4.tiebreak-gate.enabled=false
 app.seed.gd4.ck-activate-ready.enabled=false
+app.seed.gd4.ck-unpublished.enabled=false
 app.seed.gd4.edge-errors.enabled=false
 app.seed.gd4.wildcard-resolved.enabled=false
 app.seed.gd4.tiebreak-resolved.enabled=false
+app.seed.gd4.wildcard-disabled.enabled=false
+app.seed.gd4.judge-assign-warnings.enabled=false
+app.seed.gd4.ck-no-criteria.enabled=false
 ```
 
 ---
@@ -413,4 +477,4 @@ app.seed.gd4.tiebreak-resolved.enabled=false
 | [gd4-gd5-e2e-seed-data.md](gd4-gd5-e2e-seed-data.md) | Postman variables |
 | [fe-checklist-gd2-gd4-gd5-gd6.md](fe-checklist-gd2-gd4-gd5-gd6.md) | Checklist FE |
 
-*Cập nhật: 2026-06 — 7 profile seed GĐ4 (thêm wildcard-resolved, tiebreak-resolved).*
+*Cập nhật: 2026-06 — 10 profile seed GĐ4 (Phase 2: wildcard-disabled, judge-assign-warnings, ck-no-criteria).*

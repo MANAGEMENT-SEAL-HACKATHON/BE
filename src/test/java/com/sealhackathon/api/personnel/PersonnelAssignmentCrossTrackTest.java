@@ -11,11 +11,11 @@ import com.sealhackathon.api.judge_assignments.dto.request.CreateJudgeAssignment
 import com.sealhackathon.api.judge_assignments.mapper.JudgeAssignmentMapper;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.judge_assignments.service.impl.JudgeAssignmentServiceImpl;
-import com.sealhackathon.api.mentor_assignments.dto.request.CreateMentorAssignmentRequest;
-import com.sealhackathon.api.mentor_assignments.dto.response.MentorAssignmentResponse;
-import com.sealhackathon.api.mentor_assignments.mapper.MentorAssignmentMapper;
-import com.sealhackathon.api.mentor_assignments.repository.MentorAssignmentRepository;
-import com.sealhackathon.api.mentor_assignments.service.impl.MentorAssignmentServiceImpl;
+import com.sealhackathon.api.mentors.dto.request.CreateMentorAssignmentRequest;
+import com.sealhackathon.api.mentors.dto.response.MentorAssignmentResponse;
+import com.sealhackathon.api.mentors.mapper.MentorAssignmentMapper;
+import com.sealhackathon.api.mentors.repository.MentorAssignmentRepository;
+import com.sealhackathon.api.mentors.service.impl.MentorAssignmentServiceImpl;
 import com.sealhackathon.api.notifications.service.NotificationService;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;

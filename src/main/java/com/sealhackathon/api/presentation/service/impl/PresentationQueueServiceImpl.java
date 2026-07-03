@@ -3,9 +3,11 @@ package com.sealhackathon.api.presentation.service.impl;
 import com.sealhackathon.api.common.audit.AuditAction;
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
+import com.sealhackathon.api.common.exception.AuthException;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
+import com.sealhackathon.api.hackathons.repository.HackathonRegistrationRepository;
 import com.sealhackathon.api.events.repository.JudgeSubmissionScoringConfirmationRepository;
 import com.sealhackathon.api.events.entity.PresentationSlot;
 import com.sealhackathon.api.events.repository.PresentationSlotRepository;
@@ -30,14 +32,15 @@ import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.submissions.entity.Submission;
 import com.sealhackathon.api.submissions.policy.SubmissionGradablePolicy;
 import com.sealhackathon.api.submissions.repository.SubmissionRepository;
-import com.sealhackathon.api.team_round_participation.entity.TeamRoundParticipation;
-import com.sealhackathon.api.team_round_participation.repository.TeamRoundParticipationRepository;
+import com.sealhackathon.api.teams.entity.TeamRoundParticipation;
+import com.sealhackathon.api.teams.repository.TeamRoundParticipationRepository;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.users.value_object.UserRole;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -66,12 +69,14 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
     private final CurrentUserAccessor currentUserAccessor;
     private final PresentationNextScoringGuard nextScoringGuard;
     private final JudgeSubmissionScoringConfirmationRepository scoringConfirmationRepository;
+    private final HackathonRegistrationRepository hackathonRegistrationRepository;
 
     @Override
     @Transactional(readOnly = true)
     public PresentationQueueResponse getQueue(Integer roundId, Integer trackIdFilter) {
         boolean anonymous = isJudgeAnonymousView();
         Round round = resolveRound(roundId);
+        assertCanViewQueue(round);
         List<PresentationQueueResponse.TrackQueueItem> trackItems = new ArrayList<>();
 
         if (Boolean.TRUE.equals(round.getIsFinal())) {
@@ -338,6 +343,30 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
     private boolean isJudgeAnonymousView() {
         var user = currentUserAccessor.currentUser();
         return user != null && user.getRole() == UserRole.JUDGE;
+    }
+
+    /**
+     * Chống IDOR/snooping cross-hackathon: STUDENT chỉ xem được hàng đợi của hackathon mình
+     * có đăng ký. Coordinator/Judge/Mentor (staff) được xem để điều phối/chấm/theo dõi
+     * (Judge đã bị ẩn danh tên đội qua {@link #isJudgeAnonymousView()}).
+     */
+    private void assertCanViewQueue(Round round) {
+        var user = currentUserAccessor.currentUser();
+        if (user == null) {
+            return;
+        }
+        UserRole role = user.getRole();
+        if (role == UserRole.COORDINATOR || role == UserRole.JUDGE || role == UserRole.MENTOR) {
+            return;
+        }
+        Integer hackathonId = round.getHackathon() != null ? round.getHackathon().getId() : null;
+        if (hackathonId != null
+                && hackathonRegistrationRepository.existsByHackathon_IdAndUser_Id(hackathonId, user.getUserId())) {
+            return;
+        }
+        throw new AuthException(ErrorCode.FORBIDDEN,
+                "Bạn không có quyền xem hàng đợi thuyết trình của hackathon này",
+                HttpStatus.FORBIDDEN);
     }
 
     private PresentationQueueResponse.TrackQueueItem buildTrackItem(Round round, Track track, boolean anonymous) {

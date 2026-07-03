@@ -1,4 +1,4 @@
-# Ma trận regression — Gate BTC & workflow GĐ1→GĐ6
+﻿# Ma trận regression — Gate BTC & workflow GĐ1→GĐ6
 
 > **Mục đích:** Test đủ 6 giai đoạn sau refactor readiness / event order / timeline sync.  
 > **Chạy sau:** `spring.profiles.active=dev` + seed xong.  
@@ -54,11 +54,11 @@ Lịch:     WS (sớm hơn) → KO → AWARDS
 
 | Slug | Dùng test |
 |------|-----------|
-| `seal-gd1-ready` | GĐ1 bước 1.11–1.12 (đủ G1–G5) |
+| `seal-e2e-2026` | GĐ1 bước 1.11–1.12 (đủ G1–G5) |
 | `seal-gd1-incomplete` | TC-G1-N08 readiness fail |
-| `seal-spring-2026` | GĐ2 teams |
+| `seal-e2e-2026` | GĐ2 teams |
 | `seal-gd3-prelim-open` | GĐ3 portal + submit |
-| `seal-gd4-tiebreak-wildcard` | GĐ4 (cần `app.seed.gd4.enabled=true`) |
+| `seal-gd4-tiebreak-gate` | GĐ4 (cần `app.seed.gd4.enabled=true`) |
 | `seal-gd5-final-active` | GĐ5 CK |
 | `seal-gd6-pending-confirm` | GĐ6 trao giải |
 

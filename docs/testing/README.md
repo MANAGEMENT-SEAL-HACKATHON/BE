@@ -16,7 +16,7 @@
 | **[gd2-full-test-matrix-and-seeds.md](gd2-full-test-matrix-and-seeds.md)** | **GĐ2** — ma trận test + seed (teams, lottery, orphan) |
 | **[gd3-full-test-matrix-and-seeds.md](gd3-full-test-matrix-and-seeds.md)** | **GĐ3** — ma trận test + 6 profile seed |
 | **[gd5-full-test-matrix-and-seeds.md](gd5-full-test-matrix-and-seeds.md)** | **GĐ5** — ma trận test + 6 profile seed |
-| **[dev-seed-guide.md](dev-seed-guide.md)** | **Seed dev** — `seal-e2e-2026` + archive FINISHED |
+| **[dev-seed-guide.md](dev-seed-guide.md)** | **Seed dev** — 40 slug (`seal-e2e-2026`, `seal-gd1-incomplete`, `seal-gd2-teams-edge`, `seal-gd3-*`…`seal-gd6-*`) |
 | **[gd4-gd5-e2e-seed-data.md](gd4-gd5-e2e-seed-data.md)** | **GĐ4/GĐ5** — ma trận teams, Postman vars, SQL verify |
 | [api-catalog-with-json.md](api-catalog-with-json.md) | Bản rút Phần III (cùng nội dung) — mở tab riêng khi chỉ tra API |
 
@@ -34,16 +34,16 @@
 
 | GĐ | Ma trận + seed |
 |----|----------------|
-| GĐ1 | [gd1-full-test-matrix-and-seeds.md](gd1-full-test-matrix-and-seeds.md) — `seal-e2e-2026`, `seal-fall-2025-finished` |
+| GĐ1 | [gd1-full-test-matrix-and-seeds.md](gd1-full-test-matrix-and-seeds.md) — `seal-e2e-2026`, `seal-gd1-incomplete`, `seal-fall-2025-finished` |
 | GĐ2 | [gd2-full-test-matrix-and-seeds.md](gd2-full-test-matrix-and-seeds.md) — 7 đội + 3 orphan trên `seal-e2e-2026` |
 | GĐ3 | [gd3-full-test-matrix-and-seeds.md](gd3-full-test-matrix-and-seeds.md) |
 | GĐ4 | [gd4-full-test-matrix-and-seeds.md](gd4-full-test-matrix-and-seeds.md) |
 | GĐ5 | [gd5-full-test-matrix-and-seeds.md](gd5-full-test-matrix-and-seeds.md) |
 | GĐ6 | [gd6-full-test-matrix-and-seeds.md](gd6-full-test-matrix-and-seeds.md) |
 
-Xem thêm **[dev-seed-guide.md](dev-seed-guide.md)** — tóm tắt 2 hackathon dev.
+Xem thêm **[dev-seed-guide.md](dev-seed-guide.md)** — tóm tắt 40 slug dev.
 
-**Legacy (đã xóa khi start dev):** `seal-spring-2026*`, `seal-gd1-incomplete`, `seal-gd1-ready`.
+**Legacy (đã xóa khi start dev):** `seal-spring-2026*`, `seal-gd1-ready`.
 
 ## Cập nhật catalog (dev)
 

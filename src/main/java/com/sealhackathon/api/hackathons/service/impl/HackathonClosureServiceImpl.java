@@ -18,6 +18,7 @@ import com.sealhackathon.api.hackathons.service.HackathonClosureService;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.prizes.repository.PrizeRepository;
 import com.sealhackathon.api.rounds.entity.Round;
+import com.sealhackathon.api.rounds.query.RoundRankingQueryService;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -35,6 +36,7 @@ public class HackathonClosureServiceImpl implements HackathonClosureService {
 
     private final HackathonRepository hackathonRepository;
     private final RoundRepository roundRepository;
+    private final RoundRankingQueryService roundRankingQueryService;
     private final PrizeRepository prizeRepository;
     private final HackathonMapper hackathonMapper;
     private final FinalRankingQueryService finalRankingQueryService;
@@ -65,6 +67,12 @@ public class HackathonClosureServiceImpl implements HackathonClosureService {
         if (!Boolean.TRUE.equals(finalRound.getScoringLocked())) {
             throw new BusinessRuleException(ErrorCode.ROUND_NOT_SCORING_LOCKED,
                     "Phải khóa chấm Chung kết trước khi confirm",
+                    Map.of("finalRoundId", finalRound.getId()));
+        }
+
+        if (roundRankingQueryService.hasIncompleteScoring(finalRound.getId(), false)) {
+            throw new BusinessRuleException(ErrorCode.SCORING_INCOMPLETE_BEFORE_CONFIRM,
+                    "Chưa chấm đủ điểm Chung kết — không thể confirm kết quả",
                     Map.of("finalRoundId", finalRound.getId()));
         }
 

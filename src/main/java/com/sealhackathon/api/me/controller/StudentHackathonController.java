@@ -3,7 +3,7 @@ package com.sealhackathon.api.me.controller;
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.StudentOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
-import com.sealhackathon.api.hackathon_registrations.service.HackathonRegistrationService;
+import com.sealhackathon.api.hackathons.service.HackathonRegistrationService;
 import com.sealhackathon.api.me.student.dto.response.StudentHackathonBrowseItemResponse;
 import com.sealhackathon.api.me.student.service.StudentPortalService;
 import io.swagger.v3.oas.annotations.Operation;

@@ -1,4 +1,4 @@
-# FE God Mode — Luồng test E2E (GĐ1 → GĐ6 + Smoke God Mode)
+﻿# FE God Mode — Luồng test E2E (GĐ1 → GĐ6 + Smoke God Mode)
 
 > Tích hợp FE theo `TeamManagement_API_Documentation.pdf`  
 > Build verify: `npm run build` trong `seal-hackathon-fe`
@@ -62,13 +62,13 @@ npm run dev
 | GĐ | Slug | Coordinator | Student |
 |----|------|-------------|---------|
 | GĐ1 fail | `seal-gd1-incomplete` | Readiness FAIL | — |
-| GĐ1 happy | `seal-spring-2026` | Setup, maxParticipants, ONGOING | Đăng ký, đội, matchmaking |
-| GĐ1 teams | `seal-spring-2026` | `/teams` duyệt đội | Lời mời |
-| GĐ2 | `seal-spring-2026` | Bốc thăm 24/3 track | Xem track |
-| GĐ3 | `seal-spring-2026-gd3` | Chấm, LATE T19–T21 | Nộp bài, kết quả |
-| GĐ4 | `seal-spring-2026-gd4` | Ranking, wildcard | — |
-| GĐ5 | `seal-spring-2026-gd5` | Calibration, CK | Nộp CK |
-| GĐ6 | `seal-spring-2026-gd6` | Kết quả, RBL, giải | Student results |
+| GĐ1 happy | `seal-e2e-2026` | Setup, maxParticipants, ONGOING | Đăng ký, đội, matchmaking |
+| GĐ1 teams | `seal-e2e-2026` | `/teams` duyệt đội | Lời mời |
+| GĐ2 | `seal-e2e-2026` | Bốc thăm 24/3 track | Xem track |
+| GĐ3 | `seal-gd3-prelim-open` | Chấm, LATE T19–T21 | Nộp bài, kết quả |
+| GĐ4 | `seal-gd4-advance-ready` | Ranking, wildcard | — |
+| GĐ5 | `seal-gd5-final-active` | Calibration, CK | Nộp CK |
+| GĐ6 | `seal-gd6-pending-confirm` | Kết quả, RBL, giải | Student results |
 
 Chi tiết seed: [`dev-seed-guide.md`](./dev-seed-guide.md)
 

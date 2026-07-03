@@ -16,6 +16,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -77,6 +78,26 @@ class PresentationControllerAuthTest {
         when(currentUserAccessor.currentUser()).thenReturn(
                 CurrentUserStub.builder().userId(12).role(UserRole.JUDGE).build());
         when(currentUserAccessor.currentUserId()).thenReturn(12);
+        assertThatCode(() -> guard.requireControllerForRound(20, round)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void deptHeadJudgeAutoDefaultForFinalRound() {
+        Round round = Round.builder().id(20).build();
+        User deptHead = User.builder().id(9).isDeptHead(true).build();
+        User otherJudge = User.builder().id(11).build();
+        when(currentUserAccessor.currentUser()).thenReturn(
+                CurrentUserStub.builder().userId(9).role(UserRole.JUDGE).build());
+        when(currentUserAccessor.currentUserId()).thenReturn(9);
+        when(judgeAssignmentRepository.findByRoundId(20)).thenReturn(List.of(
+                JudgeAssignment.builder()
+                        .judge(otherJudge)
+                        .assignedAt(LocalDateTime.now().minusDays(1))
+                        .build(),
+                JudgeAssignment.builder()
+                        .judge(deptHead)
+                        .assignedAt(LocalDateTime.now())
+                        .build()));
         assertThatCode(() -> guard.requireControllerForRound(20, round)).doesNotThrowAnyException();
     }
 }

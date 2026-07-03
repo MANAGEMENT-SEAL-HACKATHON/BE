@@ -110,14 +110,14 @@ public class GuestJudgeLifecycleServiceImpl implements GuestJudgeLifecycleServic
     private Optional<Hackathon> resolveHackathon(User user) {
         for (JudgeAssignment ja : judgeAssignmentRepository.findByJudgeId(user.getId())) {
             Hackathon h = hackathonFromAssignment(ja);
-            if (h != null && isGuestJudgeHackathonActive(h)) {
+            if (h != null) {
                 return Optional.of(h);
             }
         }
         return invitationRepository.findByEmail(user.getEmail()).stream()
                 .filter(inv -> inv.getRole() == UserRole.JUDGE)
                 .map(Invitation::getHackathon)
-                .filter(h -> h != null && isGuestJudgeHackathonActive(h))
+                .filter(h -> h != null)
                 .findFirst();
     }
 
@@ -131,14 +131,10 @@ public class GuestJudgeLifecycleServiceImpl implements GuestJudgeLifecycleServic
         return null;
     }
 
-    private static boolean isGuestJudgeHackathonActive(Hackathon hackathon) {
-        if (hackathon.getStatus() == HackathonStatus.FINISHED) {
-            return false;
-        }
-        return !isHackathonEnded(hackathon);
-    }
-
     private static boolean isHackathonEnded(Hackathon hackathon) {
+        if (hackathon.getStatus() == HackathonStatus.FINISHED) {
+            return true;
+        }
         LocalDate eventEnd = hackathon.getEventEnd();
         return eventEnd != null && LocalDate.now().isAfter(eventEnd);
     }

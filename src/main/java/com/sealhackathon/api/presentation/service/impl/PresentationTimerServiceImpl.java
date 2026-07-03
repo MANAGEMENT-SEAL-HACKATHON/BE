@@ -125,22 +125,6 @@ public class PresentationTimerServiceImpl implements PresentationTimerService {
         return publishAndRespond(ctx, slot);
     }
 
-    @Override
-    public PresentationTimerActionResponse next(
-            Integer roundId,
-            Integer trackId,
-            Integer currentSubmissionId,
-            Integer currentTeamId,
-            boolean acknowledgeIncompleteScoring) {
-        presentationQueueService.advanceNext(
-                roundId, trackId, currentSubmissionId, currentTeamId, acknowledgeIncompleteScoring);
-        TimerContext ctx = resolveContext(roundId, trackId);
-        PresentationSlot slot = findPresentingSlot(ctx).orElse(null);
-        return slot == null
-                ? PresentationTimerActionResponse.builder().roundId(roundId).trackId(trackId).build()
-                : publishAndRespond(ctx, slot);
-    }
-
     private PresentationTimerActionResponse publishAndRespond(TimerContext ctx, PresentationSlot slot) {
         PresentationQueueResponse payload = presentationQueueService.getQueue(ctx.round().getId(), ctx.trackId());
         queuePublisher.publish(ctx.round().getId(), ctx.trackId(), payload);

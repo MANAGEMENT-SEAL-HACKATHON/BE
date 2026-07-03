@@ -14,8 +14,9 @@ public class CorsConfig {
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/**")                      // Áp dụng cho mọi API
                         .allowedOrigins(
-                                "http://localhost:5173",                  // Cho FE chạy local
-                                "https://seal-hackathon-fe.vercel.app"    // Domain FE trên Vercel
+                                "http://localhost:5173",
+                                "http://127.0.0.1:5173",
+                                "https://seal-hackathon-fe.vercel.app"
                         )
                         .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                         .allowedHeaders("*")

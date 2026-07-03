@@ -32,5 +32,8 @@ public interface TrackService {
 
     Resource downloadProblemStatement(Integer id);
 
+    /** Phát đề cho một bảng đấu (Sơ loại) — one-way, không cần các track khác sẵn sàng. */
+    TrackResponse releaseProblem(Integer trackId);
+
     record UpdateResult(TrackResponse track, java.util.List<Warning> warnings) {}
 }

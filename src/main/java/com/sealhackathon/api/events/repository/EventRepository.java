@@ -65,6 +65,17 @@ public interface EventRepository extends JpaRepository<Event, Integer> {
                             @Param("from") LocalDateTime from,
                             @Param("to") LocalDateTime to);
 
+    /** Public events within lead window that have not yet received EVENT_UPCOMING. */
+    @Query("""
+            SELECT e FROM Event e
+            WHERE e.isPublic = true
+              AND e.reminderSentAt IS NULL
+              AND e.startsAt > :now
+              AND e.startsAt <= :deadline
+            """)
+    List<Event> findPublicUpcomingWithoutReminder(@Param("now") LocalDateTime now,
+                                                  @Param("deadline") LocalDateTime deadline);
+
     /** OTHER chồng khung giờ milestone (Spring/Fall — tránh lịch phụ đè workshop/kickoff/thi). */
     @Query("""
             SELECT e FROM Event e

@@ -215,9 +215,9 @@ Auto lottery: chỉ gửi `roundId` — BE chia track round-robin + tạo `assig
 
 ### Wizard GĐ1 (Coordinator)
 
-- [ ] Step **Round SL**: có `topNAdvance`, `minTeamsFinal`, `wildcardEnabled`, `examAt`, `codingDurationHours`
-- [ ] Step **Round CK**: `isFinal: true` — **không** field advance, **không** tạo track
-- [ ] Step **Track**: chỉ field §2.4 — **không** copy `topNAdvance` / `minTeamsFinal` vào đây
+- [ ] Step **Round SL**: có `topNAdvance`, `minTeamsFinal`, `wildcardEnabled`, `examAt`, `codingDurationHours` — **không** expose timer thuyết trình (fallback nội bộ 10/5)
+- [ ] Step **Round CK**: `isFinal: true` — **không** field advance, **không** tạo track; có `defaultPresentationMinutes`, `defaultQaMinutes` (optional)
+- [ ] Step **Track**: field §2.4 + optional `presentationMinutes`, `qaMinutes` (override theo bảng đấu)
 - [ ] Hiển thị help text: *Track = chủ đề; Bảng = `assignedGroup` sau lottery*
 
 ### Màn GĐ2 (Student / Coordinator)
@@ -235,8 +235,8 @@ Auto lottery: chỉ gửi `roundId` — BE chia track round-robin + tạo `assig
 | `maxTeams` | Số đội tối đa **trên track** |
 | `maxTeamsPerGroup` | Số đội tối đa **mỗi bảng** trong track |
 | `minTeamSize` / `maxTeamSize` | Số thành viên / đội (áp dụng sau khi vào track) |
-| **`defaultPresentationMinutes`** | **Round SL & CK** — thời lượng thuyết trình mặc định (phút); default **10** |
-| **`defaultQaMinutes`** | **Round SL & CK** — thời lượng Q&A mặc định (phút); default **5** |
+| **`defaultPresentationMinutes`** | **Round CK** (GĐ1 UI) — thời lượng thuyết trình (phút); Round SL chỉ fallback API 10 |
+| **`defaultQaMinutes`** | **Round CK** (GĐ1 UI) — thời lượng Q&A (phút); Round SL chỉ fallback API 5 |
 | **`presentationMinutes`** | **Track SL** (optional) — override thuyết trình theo track; `null` = dùng default round |
 | **`qaMinutes`** | **Track SL** (optional) — override Q&A theo track |
 

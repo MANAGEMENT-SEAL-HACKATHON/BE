@@ -16,8 +16,8 @@ import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.judge_assignments.service.JudgeAssignmentService;
 import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
 import com.sealhackathon.api.live_scoring.event.ScoringLockedEvent;
-import com.sealhackathon.api.mentor_assignments.entity.MentorAssignment;
-import com.sealhackathon.api.mentor_assignments.repository.MentorAssignmentRepository;
+import com.sealhackathon.api.mentors.entity.MentorAssignment;
+import com.sealhackathon.api.mentors.repository.MentorAssignmentRepository;
 import com.sealhackathon.api.rounds.guard.RoundAccessGuard;
 import com.sealhackathon.api.rounds.query.RoundRankingQueryService;
 import com.sealhackathon.api.rounds.query.ScoringProgressQueryService;
@@ -46,14 +46,14 @@ import com.sealhackathon.api.rounds.support.WildcardCandidateSelection;
 import com.sealhackathon.api.tracks.support.TrackProblemStatementStorage;
 import com.sealhackathon.api.scores.entity.Score;
 import com.sealhackathon.api.scores.repository.ScoreRepository;
-import com.sealhackathon.api.team_members.entity.TeamMember;
-import com.sealhackathon.api.team_members.repository.TeamMemberRepository;
-import com.sealhackathon.api.team_members.value_object.TeamMemberStatus;
-import com.sealhackathon.api.team_round_participation.entity.TeamRoundParticipation;
-import com.sealhackathon.api.team_round_participation.repository.TeamRoundParticipationRepository;
-import com.sealhackathon.api.team_round_tracks.entity.TeamRoundTrack;
-import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
-import com.sealhackathon.api.team_round_participation.value_object.ParticipationStatus;
+import com.sealhackathon.api.teams.entity.TeamMember;
+import com.sealhackathon.api.teams.repository.TeamMemberRepository;
+import com.sealhackathon.api.teams.value_object.TeamMemberStatus;
+import com.sealhackathon.api.teams.entity.TeamRoundParticipation;
+import com.sealhackathon.api.teams.repository.TeamRoundParticipationRepository;
+import com.sealhackathon.api.teams.entity.TeamRoundTrack;
+import com.sealhackathon.api.teams.repository.TeamRoundTrackRepository;
+import com.sealhackathon.api.teams.value_object.ParticipationStatus;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.tiebreak_evaluations.entity.TiebreakEvaluation;
 import com.sealhackathon.api.tiebreak_evaluations.repository.TiebreakEvaluationRepository;
@@ -291,10 +291,13 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
     @Transactional(readOnly = true)
     public List<TiebreakItemResponse> tiebreak(Integer roundId) {
         Round round = roundAccessGuard.requireRound(roundId);
-        Integer topNAdvance = round.getTopNAdvance();
 
-        // Chung kết không có chỉ tiêu thăng vòng, bỏ qua Tiebreak
-        if (Boolean.TRUE.equals(round.getIsFinal()) || topNAdvance == null || topNAdvance <= 0) {
+        if (Boolean.TRUE.equals(round.getIsFinal())) {
+            return tiebreakForFinalRound(roundId);
+        }
+
+        Integer topNAdvance = round.getTopNAdvance();
+        if (topNAdvance == null || topNAdvance <= 0) {
             return List.of();
         }
 
@@ -345,6 +348,35 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         return tiebreakItems;
     }
 
+    private List<TiebreakItemResponse> tiebreakForFinalRound(Integer roundId) {
+        List<RoundRankingItemResponse> ranking = roundRankingQueryService.rankingForRound(roundId, false);
+        if (ranking.isEmpty()) {
+            return List.of();
+        }
+
+        List<TiebreakItemResponse> tiebreakItems = new ArrayList<>();
+        int i = 0;
+        while (i < ranking.size()) {
+            Double score = ranking.get(i).getTotalScore();
+            int j = i + 1;
+            while (j < ranking.size() && java.util.Objects.equals(ranking.get(j).getTotalScore(), score)) {
+                j++;
+            }
+            if (j - i > 1) {
+                List<Integer> tiedTeamIds = ranking.subList(i, j).stream()
+                        .map(RoundRankingItemResponse::getTeamId)
+                        .toList();
+                tiebreakItems.add(TiebreakItemResponse.builder()
+                        .partitionKey("FINAL")
+                        .cutoffRank(ranking.get(i).getRank())
+                        .candidateTeamIds(tiedTeamIds)
+                        .build());
+            }
+            i = j;
+        }
+        return tiebreakItems;
+    }
+
     // =========================================================================
     // NHIỆM VỤ 1.2: CẬP NHẬT KẾT QUẢ PHÂN XỬ ĐỒNG ĐIỂM (COORDINATOR DECISION)
     // =========================================================================
@@ -357,6 +389,20 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
 
         User coordinator = userRepository.findById(currentUserAccessor.currentUserId()).orElseThrow();
         List<Integer> orderedIds = req.getOrderedTeamIds();
+
+        java.util.Set<Integer> orderedSet = new java.util.HashSet<>(orderedIds);
+        if (orderedSet.size() != orderedIds.size()) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "orderedTeamIds không được trùng lặp",
+                    java.util.Map.of("orderedTeamIds", orderedIds));
+        }
+        boolean matchesTiedGroup = tiebreak(roundId).stream()
+                .anyMatch(item -> orderedSet.equals(new java.util.HashSet<>(item.getCandidateTeamIds())));
+        if (!matchesTiedGroup) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "orderedTeamIds phải khớp nhóm đội đang hòa điểm cần tiebreak",
+                    java.util.Map.of("orderedTeamIds", orderedIds));
+        }
 
         // Áp dụng điểm Penalty tăng dần để tách top (VD: Đội 1: 0đ, Đội 2: -0.01đ, Đội 3: -0.02đ)
         // Đội xếp đầu tiên trong Request sẽ giữ nguyên điểm, các đội sau sẽ bị trừ dần để tụt hạng.

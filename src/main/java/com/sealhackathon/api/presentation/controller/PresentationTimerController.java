@@ -3,7 +3,6 @@ package com.sealhackathon.api.presentation.controller;
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.ApprovedOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
-import com.sealhackathon.api.presentation.dto.request.PresentationQueueNextRequest;
 import com.sealhackathon.api.presentation.dto.response.PresentationTimerActionResponse;
 import com.sealhackathon.api.presentation.service.PresentationTimerService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,7 +11,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -69,21 +67,5 @@ public class PresentationTimerController {
             @RequestParam Integer roundId,
             @RequestParam(required = false) Integer trackId) {
         return ResponseEntity.ok(ApiResponse.ok(presentationTimerService.reset(roundId, trackId)));
-    }
-
-    @PostMapping("/next")
-    @ApprovedOnly
-    @Operation(summary = "Chuyển đội tiếp theo (alias queue/next — không auto-start timer)")
-    public ResponseEntity<ApiResponse<PresentationTimerActionResponse>> next(
-            @RequestParam Integer roundId,
-            @RequestParam(required = false) Integer trackId,
-            @RequestBody(required = false) PresentationQueueNextRequest request) {
-        Integer currentSubmissionId = request != null ? request.getCurrentSubmissionId() : null;
-        Integer currentTeamId = request != null ? request.getCurrentTeamId() : null;
-        boolean acknowledge = request != null
-                && Boolean.TRUE.equals(request.getAcknowledgeIncompleteScoring());
-        return ResponseEntity.ok(ApiResponse.ok(
-                presentationTimerService.next(
-                        roundId, trackId, currentSubmissionId, currentTeamId, acknowledge)));
     }
 }

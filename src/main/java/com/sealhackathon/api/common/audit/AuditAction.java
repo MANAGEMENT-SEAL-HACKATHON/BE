@@ -51,6 +51,8 @@ public final class AuditAction {
     public static final String ACCOUNT_PASSWORD_CHANGED   = "ACCOUNT_PASSWORD_CHANGED";
     public static final String ACCOUNT_PASSWORD_RESET_REQUESTED = "ACCOUNT_PASSWORD_RESET_REQUESTED";
     public static final String ACCOUNT_PASSWORD_RESET     = "ACCOUNT_PASSWORD_RESET";
+    public static final String ACCOUNT_EMAIL_VERIFIED   = "ACCOUNT_EMAIL_VERIFIED";
+    public static final String ACCOUNT_EMAIL_VERIFICATION_RESENT = "ACCOUNT_EMAIL_VERIFICATION_RESENT";
     public static final String ACCOUNT_OAUTH_LINKED       = "ACCOUNT_OAUTH_LINKED";
     public static final String ACCOUNT_OAUTH_UNLINKED     = "ACCOUNT_OAUTH_UNLINKED";
 
@@ -97,6 +99,7 @@ public final class AuditAction {
     public static final String PRESENTATION_CONTROLLER_REVOKED = "PRESENTATION_CONTROLLER_REVOKED";
     public static final String PRESENTATION_DURATION_UPDATED = "PRESENTATION_DURATION_UPDATED";
     public static final String SCORE_UPSERT                 = "SCORE_UPSERT";
+    public static final String TRACK_RELEASE_PROBLEM       = "TRACK_RELEASE_PROBLEM";
     public static final String ROUND_RELEASE_PROBLEM        = "ROUND_RELEASE_PROBLEM";
     public static final String ROUND_PUBLISH                = "ROUND_PUBLISH";
     public static final String ROUND_ADVANCE_TEAMS          = "ROUND_ADVANCE_TEAMS";

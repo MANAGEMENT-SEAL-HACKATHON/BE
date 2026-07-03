@@ -25,7 +25,7 @@
 | Hạng mục | Mô tả |
 |----------|--------|
 | **Đăng ký hackathon** | Student APPROVED đăng ký mùa |
-| **Tạo đội** | Leader `POST /teams` → `PENDING` |
+| **Tạo đội** | Leader `POST /me/teams` → `PENDING` |
 | **Mời / accept thành viên** | FR-12 |
 | **Coordinator duyệt đội** | `PENDING` → `ACTIVE` / `REJECTED` |
 | **Khóa roster** | Sau `registration_end` → `is_locked=true` |
@@ -130,8 +130,58 @@ Không có slug riêng — sau khi chạy lottery trên `seal-e2e-2026`:
 |------|-----------|
 | Tạo đội khi DRAFT | Hackathon không ONGOING → 422 |
 | Lottery chưa lock | `is_locked=false` → 422 `TEAM_NOT_LOCKED` |
-| Lottery khi round active | 422 `ROUND_ALREADY_ACTIVE` |
+| Lottery khi round active | 422 `ROUND_ALREADY_ACTIVE` | Profile F (`seal-gd2-round-active`) |
 | User PENDING login | 401 |
+
+---
+
+### Profile D — Teams edge matrix (9 đội)
+
+| | |
+|--|--|
+| **Slug** | `seal-gd2-teams-edge` |
+| **Seeder** | `Gd2TeamsEdgeDataSeeder` |
+| **Trạng thái** | `ONGOING` — 9 đội: PENDING (T01–T03), ACTIVE+mentor (T04), ACTIVE locked (T05), REJECTED (T06), ACTIVE chưa mentor (T07), ELIMINATED (T08), ACTIVE track2 (T09) |
+
+**Account:** `student.gd2.*@fpt.edu.vn` / `Student@dev1` — xem [mf02/05-test-data-gd2-teams.md](../mf02/05-test-data-gd2-teams.md).
+
+**Dùng khi:** `TEAM_INVALID_MEMBER_COUNT`, `TEAM_HAS_PENDING_MEMBERS`, `TEAM_LOCKED`, `TEAM_HAS_MENTOR_CANNOT_DISBAND`, UI tab Chờ duyệt / Đã duyệt.
+
+**FE E2E:** `e2e-gd2-teams-edge.spec.js` (read-only).
+
+---
+
+### Profile E — Registration closed
+
+| | |
+|--|--|
+| **Slug** | `seal-gd2-registration-closed` |
+| **Seeder** | `Gd2RegistrationClosedDataSeeder` |
+| **Trạng thái** | `ONGOING`, `registration_end` **đã qua**, 1–2 đội unlocked |
+
+`POST /me/teams` hoặc invite → **422 `REGISTRATION_CLOSED`**.
+
+**Account:** `student.gd2.rc.leader01@fpt.edu.vn` / `Student@dev1`
+
+---
+
+### Profile F — Round active (re-lottery blocked)
+
+| | |
+|--|--|
+| **Slug** | `seal-gd2-round-active` |
+| **Seeder** | `Gd2RoundActiveDataSeeder` |
+| **Trạng thái** | `ONGOING` — 4 đội locked + lottery xong, prelim **`is_active=true`** |
+
+```http
+PATCH /api/v1/hackathons/{id}/lottery  { "roundId": prelimId }
+```
+
+Kỳ vọng **423 `ROUND_ALREADY_ACTIVE`** (B-N2).
+
+**Account:** `student.gd2.ra.leader01@fpt.edu.vn` … `leader04@` / `Student@dev1`
+
+**Toggle:** `app.seed.gd2.round-active.enabled`
 
 ---
 
@@ -149,10 +199,10 @@ Không có slug riêng — sau khi chạy lottery trên `seal-e2e-2026`:
 
 | # | Case | Kỳ vọng | Profile |
 |---|------|---------|---------|
-| T1 | POST /teams ONGOING | 201 `PENDING` | Tay |
+| T1 | POST /me/teams ONGOING | 201 `PENDING` | Tay |
 | T2 | Leader = current user | team_members LEADER | T1 |
 | N1 | Hackathon DRAFT | 422 `HACKATHON_NOT_ONGOING` | C |
-| N2 | Sau registration_end | 422 `REGISTRATION_CLOSED` | C |
+| N2 | Sau registration_end | 422 `REGISTRATION_CLOSED` | E |
 | N3 | Tên đội trùng | 409 `TEAM_NAME_DUPLICATE` | Tay |
 | N4 | User đã có đội ACTIVE | 409 `USER_IN_ANOTHER_TEAM` | 0 |
 
@@ -190,7 +240,7 @@ Không có slug riêng — sau khi chạy lottery trên `seal-e2e-2026`:
 | B2 | Lottery manual assignments | 200 | Tay |
 | B3 | GET /me/teams — có track | 200 | B |
 | N1 | Lottery chưa lock | 422 `TEAM_NOT_LOCKED` | 0 (trước lock) |
-| N2 | Re-lottery round active | 423 `ROUND_ALREADY_ACTIVE` | GĐ3 slug |
+| N2 | Re-lottery round active | 423 `ROUND_ALREADY_ACTIVE` | F (`seal-gd2-round-active`) |
 
 ### FR-13C — Mentor
 
@@ -208,7 +258,7 @@ Không có slug riêng — sau khi chạy lottery trên `seal-e2e-2026`:
 
 ```text
 1. student mới: POST /me/hackathons/{id}/register
-2. POST /teams  → PENDING
+2. POST /me/teams  → PENDING
 3. POST /teams/{id}/members/invite  (orphan1..3)
 4. orphan PATCH accept
 5. Coordinator PATCH /teams/{id}/status ACTIVE
@@ -274,7 +324,7 @@ app.seed.e2e.enabled=true trong application-dev.properties
 | Mã | HTTP | Khi nào | Ma trận |
 |----|------|---------|---------|
 | `HACKATHON_NOT_ONGOING` | 422 | Tạo đội khi không ONGOING | T N1 |
-| `REGISTRATION_CLOSED` | 422 | Sau registration_end | T N2 |
+| `REGISTRATION_CLOSED` | 422 | Sau registration_end | T N2 (Profile E) |
 | `TEAM_NAME_DUPLICATE` | 409 | Tên trùng | T N3 |
 | `USER_IN_ANOTHER_TEAM` | 409 | Đã có đội | T N4 |
 | `TEAM_LOCKED` | 403 | Mời/sửa sau lock | M N1, L2 |
@@ -287,7 +337,7 @@ app.seed.e2e.enabled=true trong application-dev.properties
 | Method | Path | Actor |
 |--------|------|-------|
 | POST | `/api/v1/me/hackathons/{id}/register` | Student |
-| POST | `/api/v1/teams` | Student |
+| POST | `/api/v1/me/teams` | Student (leader) |
 | GET | `/api/v1/teams`, `/api/v1/me/teams` | All |
 | PATCH | `/api/v1/teams/{id}/status`, `/approve` | Coordinator |
 | POST | `/api/v1/teams/{id}/members/invite` | Leader |

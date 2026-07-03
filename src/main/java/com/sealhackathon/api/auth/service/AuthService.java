@@ -54,6 +54,7 @@ public class AuthService {
         }
 
         assertApproved(user);
+        assertEmailVerified(user);
         assertGuestJudgeInvitationValid(user);
         guestJudgeLifecycleService.assertHackathonNotEndedForTempJudge(user);
 
@@ -124,6 +125,7 @@ public class AuthService {
                 httpRequest.getHeader("User-Agent"));
         User user = rotated.session().getUser();
         assertApproved(user);
+        assertEmailVerified(user);
         guestJudgeLifecycleService.assertHackathonNotEndedForTempJudge(user);
         String access = jwtTokenService.createAccessToken(user);
         return AuthTokenResponse.builder()
@@ -146,6 +148,22 @@ public class AuthService {
         Integer userId = currentUserAccessor.currentUserId();
         userSessionService.revokeAllForUser(userId);
         auditService.log(AuditAction.ACCOUNT_LOGOUT_ALL, "users", userId, Map.of());
+    }
+
+    private void assertEmailVerified(User user) {
+        if (Boolean.TRUE.equals(user.getIsTempAccount())) {
+            return;
+        }
+        if (user.getEmailVerifiedAt() != null) {
+            return;
+        }
+        if (user.getPasswordHash() == null) {
+            return;
+        }
+        throw new AuthException(ErrorCode.EMAIL_NOT_VERIFIED,
+                "Email chưa được xác thực. Vui lòng kiểm tra hộp thư hoặc gửi lại email xác thực.",
+                HttpStatus.UNAUTHORIZED,
+                Map.of("email", user.getEmail()));
     }
 
     private void assertGuestJudgeInvitationValid(User user) {

@@ -959,7 +959,9 @@ Envelope 2xx: `{ success, data, message?, traceId, timestamp }` — JSON dưới
 
 ---
 
-### 2.002 `POST /api/v1/teams`
+### 2.002 `POST /api/v1/me/teams` (canonical — tạo đội)
+
+> **Đã gỡ** `POST /api/v1/teams` (trùng logic). Student portal dùng `/me/teams`.
 
 **Request:**
 ```json
@@ -1622,18 +1624,11 @@ Envelope 2xx: `{ success, data, message?, traceId, timestamp }` — JSON dưới
 
 ---
 
-### 3.004 `POST /api/v1/submissions`
+### 3.004 `POST /api/v1/submissions` (multipart)
 
-**Request:**
-```json
-{
-  "teamId": 10,
-  "trackId": 5,
-  "repoUrl": "https://github.com/o/r",
-  "demoUrl": "https://d.example.com",
-  "slideUrl": "https://s.example.com"
-}
-```
+> **Đã gỡ** variant `application/json` (legacy). Chỉ dùng `multipart/form-data`.
+
+**Request:** `multipart/form-data` — `teamId`, `trackId` hoặc `roundId`, `repoUrl`, `demoUrl` (optional), `lateReason` (optional), `slideFile` (optional PDF).
 
 **Response `data`:**
 ```json

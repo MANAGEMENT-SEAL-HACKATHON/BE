@@ -15,10 +15,10 @@ import com.sealhackathon.api.hackathons.service.HackathonLotteryService;
 import com.sealhackathon.api.hackathons.support.HackathonRegistrationSupport;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
-import com.sealhackathon.api.team_round_participation.entity.TeamRoundParticipation;
-import com.sealhackathon.api.team_round_participation.repository.TeamRoundParticipationRepository;
-import com.sealhackathon.api.team_round_tracks.entity.TeamRoundTrack;
-import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
+import com.sealhackathon.api.teams.entity.TeamRoundParticipation;
+import com.sealhackathon.api.teams.repository.TeamRoundParticipationRepository;
+import com.sealhackathon.api.teams.entity.TeamRoundTrack;
+import com.sealhackathon.api.teams.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.repository.TeamRepository;
 import com.sealhackathon.api.teams.value_object.TeamStatus;
@@ -63,11 +63,16 @@ public class HackathonLotteryServiceImpl implements HackathonLotteryService {
         if (hackathon.getStatus() != com.sealhackathon.api.hackathons.value_object.HackathonStatus.ONGOING) {
             throw new BusinessRuleException(ErrorCode.HACKATHON_NOT_ONGOING, "Chỉ bốc thăm khi Hackathon đang ONGOING");
         }
-        if (!HackathonRegistrationSupport.canRunLottery(hackathon)) {
-            throw new BusinessRuleException(ErrorCode.REGISTRATION_CLOSED,
-                    "Chưa thể bốc thăm: giai đoạn đăng ký chưa kết thúc. "
-                            + "Hết hạn tự nhiên thì bốc thăm từ ngày sau registrationEnd; "
-                            + "hoặc dùng «Kết thúc đăng ký sớm» để bốc thăm ngay.");
+        List<Team> hackathonTeams = teamRepository.findByHackathon_Id(hackathonId);
+        if (!HackathonRegistrationSupport.canRunLottery(hackathon, hackathonTeams)) {
+            if (!HackathonRegistrationSupport.isRegistrationPeriodEnded(hackathon)) {
+                throw new BusinessRuleException(ErrorCode.REGISTRATION_CLOSED,
+                        "Chưa thể bốc thăm: giai đoạn đăng ký chưa kết thúc. "
+                                + "Hết hạn tự nhiên thì bốc thăm từ ngày sau registrationEnd; "
+                                + "hoặc dùng «Kết thúc đăng ký sớm» để bốc thăm ngay.");
+            }
+            throw new BusinessRuleException(ErrorCode.ACTIVE_TEAMS_NOT_LOCKED,
+                    "Chưa thể bốc thăm: còn đội ACTIVE chưa khóa sau khi hết hạn đăng ký.");
         }
 
         Round round = roundRepository.findById(req.getRoundId())
@@ -187,7 +192,7 @@ public class HackathonLotteryServiceImpl implements HackathonLotteryService {
                     .team(team)
                     .track(track)
                     .assignedGroup(assignedGroup)
-                    .registrationType(com.sealhackathon.api.team_round_tracks.value_object.RegistrationType.ASSIGNED)
+                    .registrationType(com.sealhackathon.api.teams.value_object.RegistrationType.ASSIGNED)
                     .assignedAt(LocalDateTime.now())
                     .assignedBy(coordinator)
                     .build();

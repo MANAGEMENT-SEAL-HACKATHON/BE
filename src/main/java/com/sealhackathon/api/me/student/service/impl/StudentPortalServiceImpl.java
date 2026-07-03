@@ -3,15 +3,21 @@ package com.sealhackathon.api.me.student.service.impl;
 import com.sealhackathon.api.appeals.service.AppealService;
 import com.sealhackathon.api.certificates.repository.CertificateRepository;
 import com.sealhackathon.api.certificates.support.CertificateFileResolver;
+import com.sealhackathon.api.common.audit.AuditAction;
+import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
-import com.sealhackathon.api.hackathon_registrations.repository.HackathonRegistrationRepository;
-import com.sealhackathon.api.hackathon_registrations.repository.HackathonRegistrationWithdrawalRepository;
+import com.sealhackathon.api.hackathons.repository.HackathonRegistrationRepository;
+import com.sealhackathon.api.hackathons.repository.HackathonRegistrationWithdrawalRepository;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
+import com.sealhackathon.api.hackathons.support.HackathonRegistrationSupport;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
+import com.sealhackathon.api.hackathons.value_object.Season;
+import com.sealhackathon.api.individual_rankings.entity.IndividualRanking;
+import com.sealhackathon.api.individual_rankings.repository.IndividualRankingRepository;
 import com.sealhackathon.api.me.student.dto.request.CreateAppealRequest;
 import com.sealhackathon.api.me.student.dto.request.RelotteryTrackRequest;
 import com.sealhackathon.api.me.student.dto.response.*;
@@ -26,15 +32,23 @@ import com.sealhackathon.api.submissions.entity.Submission;
 import com.sealhackathon.api.submissions.repository.SubmissionRepository;
 import com.sealhackathon.api.submissions.support.SubmissionSlideStorage;
 import com.sealhackathon.api.submissions.value_object.SubmissionStatus;
-import com.sealhackathon.api.team_members.entity.TeamMember;
-import com.sealhackathon.api.team_members.repository.TeamMemberRepository;
-import com.sealhackathon.api.team_members.value_object.TeamMemberStatus;
+import com.sealhackathon.api.teams.entity.TeamMember;
+import com.sealhackathon.api.teams.repository.TeamMemberRepository;
+import com.sealhackathon.api.teams.value_object.TeamMemberStatus;
+import com.sealhackathon.api.teams.entity.TeamRoundParticipation;
+import com.sealhackathon.api.teams.repository.TeamRoundParticipationRepository;
+import com.sealhackathon.api.teams.entity.TeamRoundTrack;
+import com.sealhackathon.api.teams.repository.TeamRoundTrackRepository;
+import com.sealhackathon.api.teams.value_object.RegistrationType;
 import com.sealhackathon.api.teams.entity.Team;
+import com.sealhackathon.api.teams.repository.TeamRepository;
 import com.sealhackathon.api.teams.value_object.TeamStatus;
-import com.sealhackathon.api.team_round_tracks.entity.TeamRoundTrack;
-import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
+import com.sealhackathon.api.tracks.dto.response.TrackSummaryResponse;
 import com.sealhackathon.api.tracks.entity.Track;
+import com.sealhackathon.api.tracks.mapper.TrackMapper;
+import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.tracks.support.TrackProblemStatementStorage;
+import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.prizes.repository.PrizeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
@@ -45,9 +59,12 @@ import org.springframework.util.StringUtils;
 
 import java.net.MalformedURLException;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.Year;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -63,7 +80,12 @@ public class StudentPortalServiceImpl implements StudentPortalService {
     private final HackathonRegistrationRepository hackathonRegistrationRepository;
     private final HackathonRegistrationWithdrawalRepository hackathonRegistrationWithdrawalRepository;
     private final TeamMemberRepository teamMemberRepository;
+    private final TeamRepository teamRepository;
     private final TeamRoundTrackRepository teamRoundTrackRepository;
+    private final TeamRoundParticipationRepository teamRoundParticipationRepository;
+    private final TrackRepository trackRepository;
+    private final TrackMapper trackMapper;
+    private final IndividualRankingRepository individualRankingRepository;
     private final RoundRepository roundRepository;
     private final SubmissionRepository submissionRepository;
     private final RoundRankingQueryService roundRankingQueryService;
@@ -71,6 +93,7 @@ public class StudentPortalServiceImpl implements StudentPortalService {
     private final CertificateRepository certificateRepository;
     private final CertificateFileResolver certificateFileResolver;
     private final AppealService appealService;
+    private final AuditService auditService;
     private final RoundProblemStatementStorage roundProblemStatementStorage;
     private final TrackProblemStatementStorage trackProblemStatementStorage;
 
@@ -104,6 +127,15 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                             .registered(isRegistered)
                             .registrationWithdrawn(registrationWithdrawn)
                             .registeredElsewhere(registeredElsewhere)
+                            .description(h.getDescription())
+                            .bannerUrl(h.getBannerUrl())
+                            .season(h.getSeason() == null ? null : h.getSeason().name())
+                            .year(h.getYear())
+                            .registrationStart(h.getRegistrationStart())
+                            .registrationEnd(h.getRegistrationEnd())
+                            .eventStart(h.getEventStart())
+                            .eventEnd(h.getEventEnd())
+                            .maxParticipants(h.getMaxParticipants())
                             .build();
                 })
                 .toList();
@@ -128,6 +160,8 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                     .teamId(team.getId())
                     .teamName(team.getTeamName())
                     .hackathonId(team.getHackathon().getId())
+                    .leaderId(team.getLeader().getId())
+                    .status(team.getStatus().name())
                     .trackId(trtOpt.map(trt -> trt.getTrack().getId()).orElse(null))
                     .trackName(trtOpt.map(trt -> trt.getTrack().getName()).orElse(null))
                     .lotteryStatus(trtOpt.map(trt -> trt.getParticipationStatus().name()).orElse("PENDING"))
@@ -140,14 +174,13 @@ public class StudentPortalServiceImpl implements StudentPortalService {
         Round round = roundRepository.findById(roundId)
                 .orElseThrow(() -> new ResourceNotFoundException("Round", roundId));
 
-        if (round.getProblemReleasedAt() == null) {
-            throw new BusinessRuleException(ErrorCode.RESOURCE_NOT_FOUND,
-                    "Đề bài vòng thi này chưa được Ban Tổ Chức công bố.");
-        }
-
-        String studentDownloadPath = studentProblemDownloadPath(roundId);
         if (Boolean.TRUE.equals(round.getIsFinal())) {
+            if (round.getProblemReleasedAt() == null) {
+                throw new BusinessRuleException(ErrorCode.RESOURCE_NOT_FOUND,
+                        "Đề bài vòng thi này chưa được Ban Tổ Chức công bố.");
+            }
             String filename = RoundProblemStatementStorage.displayFilename(round);
+            String studentDownloadPath = studentProblemDownloadPath(roundId);
             return StudentProblemResponse.builder()
                     .roundId(roundId)
                     .problemStatement(filename)
@@ -159,6 +192,9 @@ public class StudentPortalServiceImpl implements StudentPortalService {
         }
 
         Track track = resolveStudentTrackForRound(roundId);
+        assertPrelimProblemReleased(round, track);
+
+        String studentDownloadPath = studentProblemDownloadPath(roundId);
         String filename = TrackProblemStatementStorage.displayFilename(track);
         return StudentProblemResponse.builder()
                 .roundId(roundId)
@@ -174,15 +210,31 @@ public class StudentPortalServiceImpl implements StudentPortalService {
     public Resource downloadRoundProblemStatement(Integer roundId) {
         Round round = roundRepository.findById(roundId)
                 .orElseThrow(() -> new ResourceNotFoundException("Round", roundId));
-        if (round.getProblemReleasedAt() == null) {
-            throw new BusinessRuleException(ErrorCode.RESOURCE_NOT_FOUND,
-                    "Đề bài vòng thi này chưa được Ban Tổ Chức công bố.");
-        }
         if (Boolean.TRUE.equals(round.getIsFinal())) {
+            if (round.getProblemReleasedAt() == null) {
+                throw new BusinessRuleException(ErrorCode.RESOURCE_NOT_FOUND,
+                        "Đề bài vòng thi này chưa được Ban Tổ Chức công bố.");
+            }
             return resolveRoundProblemResource(round);
         }
         Track track = resolveStudentTrackForRound(roundId);
+        assertPrelimProblemReleased(round, track);
         return resolveTrackProblemResource(track);
+    }
+
+    private void assertPrelimProblemReleased(Round round, Track track) {
+        if (track.getProblemReleasedAt() != null || round.getProblemReleasedAt() != null) {
+            return;
+        }
+        throw new BusinessRuleException(ErrorCode.RESOURCE_NOT_FOUND,
+                "Đề bài cho bảng đấu của bạn chưa được Ban Tổ Chức công bố.");
+    }
+
+    private boolean isPrelimProblemReleased(Round round, Track track) {
+        if (track != null && track.getProblemReleasedAt() != null) {
+            return true;
+        }
+        return round.getProblemReleasedAt() != null;
     }
 
     private Resource resolveRoundProblemResource(Round round) {
@@ -269,10 +321,19 @@ public class StudentPortalServiceImpl implements StudentPortalService {
     public StudentRoundDeadlineResponse getCurrentDeadline(Integer hackathonId) {
         Integer userId = currentUserAccessor.currentUserId();
         Round activeRound = findActivePrelimRoundForUser(userId, hackathonId);
+        boolean problemReleased = activeRound.getProblemReleasedAt() != null;
+        if (!problemReleased) {
+            try {
+                Track track = resolveStudentTrackForRound(activeRound.getId());
+                problemReleased = isPrelimProblemReleased(activeRound, track);
+            } catch (BusinessRuleException | ResourceNotFoundException ignored) {
+                // Chưa phân bảng — coi như chưa phát đề
+            }
+        }
         return StudentRoundDeadlineResponse.builder()
                 .roundId(activeRound.getId())
                 .deadline(activeRound.getSubmissionDeadline())
-                .problemReleased(activeRound.getProblemReleasedAt() != null)
+                .problemReleased(problemReleased)
                 .build();
     }
 
@@ -431,7 +492,12 @@ public class StudentPortalServiceImpl implements StudentPortalService {
 
     @Override
     public List<AnnualAwardResponse> getAnnualAwards(Integer year) {
-        return Collections.emptyList();
+        Integer userId = currentUserAccessor.currentUserId();
+        int targetYear = year != null ? year : Year.now().getValue();
+
+        return individualRankingRepository.findFallAwardsForUser(userId, targetYear).stream()
+                .map(this::toAnnualAward)
+                .toList();
     }
 
     // =================================================================================
@@ -452,15 +518,147 @@ public class StudentPortalServiceImpl implements StudentPortalService {
             throw new BusinessRuleException("ROUND_ALREADY_ACTIVE", "Vòng thi đã bắt đầu. Không thể đổi Track nữa.");
         }
 
-        var newTrack = com.sealhackathon.api.tracks.entity.Track.builder().id(request.getTrackId()).build();
+        var newTrack = trackRepository.findById(request.getTrackId())
+                .orElseThrow(() -> new ResourceNotFoundException("Track", request.getTrackId()));
+
+        if (!Objects.equals(newTrack.getRound().getId(), roundId)) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Track không thuộc vòng Sơ loại đang chọn.",
+                    Map.of("trackId", newTrack.getId(), "roundId", roundId));
+        }
+        if (!Objects.equals(newTrack.getRound().getHackathon().getId(), trt.getTeam().getHackathon().getId())) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Track không thuộc cùng Hackathon với đội.",
+                    Map.of("trackId", newTrack.getId(), "hackathonId", trt.getTeam().getHackathon().getId()));
+        }
+        if (newTrack.getStatus() == com.sealhackathon.api.tracks.value_object.TrackStatus.CANCELLED) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Không thể chọn Track đã hủy.",
+                    Map.of("trackId", newTrack.getId()));
+        }
+
+        Integer oldTrackId = trt.getTrack().getId();
         trt.setTrack(newTrack);
         teamRoundTrackRepository.save(trt);
+
+        auditService.log(AuditAction.TEAM_TRACK_CHANGED, "team_round_tracks", trt.getId(),
+                Map.of("teamId", teamId, "roundId", roundId,
+                        "fromTrackId", oldTrackId, "toTrackId", newTrack.getId()));
     }
 
     @Override
     @Transactional
     public void selectFallTrack(Integer trackId) {
-        throw new BusinessRuleException(ErrorCode.NOT_IMPLEMENTED, "Tính năng tự chọn Track không áp dụng cho mùa giải hiện tại.");
+        Integer userId = currentUserAccessor.currentUserId();
+        FallTrackSelectContext ctx = resolveFallTrackSelectForLeader(userId);
+
+        Track track = trackRepository.findById(trackId)
+                .orElseThrow(() -> new ResourceNotFoundException("Track", trackId));
+
+        if (track.getRound() == null || !Objects.equals(track.getRound().getId(), ctx.prelim().getId())) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Track không thuộc vòng Sơ loại của kỳ Hackathon này.");
+        }
+
+        persistFallTrackSelection(ctx.team(), ctx.prelim(), ctx.hackathon(), track, userId);
+    }
+
+    @Override
+    public List<TrackSummaryResponse> listSelectableFallTracks(Integer hackathonId) {
+        Integer userId = currentUserAccessor.currentUserId();
+        FallTrackSelectContext ctx = resolveFallTrackSelectForHackathon(userId, hackathonId);
+        return trackRepository.findByRoundIdOrderBySequenceOrderAsc(ctx.prelim().getId()).stream()
+                .map(trackMapper::toSummary)
+                .toList();
+    }
+
+    private record FallTrackSelectContext(Team team, Hackathon hackathon, Round prelim) {}
+
+    private FallTrackSelectContext resolveFallTrackSelectForLeader(Integer userId) {
+        Team team = teamRepository.findByLeader_Id(userId).stream()
+                .filter(t -> t.getStatus() == TeamStatus.ACTIVE)
+                .filter(t -> t.getHackathon().getStatus() == HackathonStatus.ONGOING)
+                .findFirst()
+                .orElseThrow(() -> new BusinessRuleException(ErrorCode.FORBIDDEN,
+                        "Không tìm thấy đội ACTIVE đang tham gia kỳ Hackathon."));
+        return validateFallTrackSelectContext(team);
+    }
+
+    private FallTrackSelectContext resolveFallTrackSelectForHackathon(Integer userId, Integer hackathonId) {
+        Team team = teamRepository.findByLeader_Id(userId).stream()
+                .filter(t -> Objects.equals(t.getHackathon().getId(), hackathonId))
+                .filter(t -> t.getStatus() == TeamStatus.ACTIVE)
+                .filter(t -> t.getHackathon().getStatus() == HackathonStatus.ONGOING)
+                .findFirst()
+                .orElseThrow(() -> new BusinessRuleException(ErrorCode.FORBIDDEN,
+                        "Không tìm thấy đội ACTIVE đang tham gia kỳ Hackathon."));
+        return validateFallTrackSelectContext(team);
+    }
+
+    private FallTrackSelectContext validateFallTrackSelectContext(Team team) {
+        studentAccessGuard.assertTeamLeader(team.getId());
+
+        Hackathon hackathon = team.getHackathon();
+        if (hackathon.getSeason() != Season.Fall) {
+            throw new BusinessRuleException("NOT_APPLICABLE",
+                    "Tính năng tự chọn Track chỉ áp dụng cho mùa Fall.");
+        }
+
+        if (HackathonRegistrationSupport.isRegistrationClosed(hackathon)) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Thời gian đăng ký đã kết thúc. Không thể chọn Track.");
+        }
+
+        Round prelim = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathon.getId()).stream()
+                .filter(r -> !Boolean.TRUE.equals(r.getIsFinal()))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Round", "prelim"));
+
+        if (Boolean.TRUE.equals(prelim.getIsActive())) {
+            throw new BusinessRuleException("ROUND_ALREADY_ACTIVE",
+                    "Vòng thi đã bắt đầu. Không thể chọn Track nữa.");
+        }
+
+        return new FallTrackSelectContext(team, hackathon, prelim);
+    }
+
+    private void persistFallTrackSelection(Team team, Round prelim, Hackathon hackathon, Track track, Integer userId) {
+        User assigner = User.builder().id(userId).build();
+        LocalDateTime now = LocalDateTime.now();
+
+        Optional<TeamRoundTrack> existing = teamRoundTrackRepository
+                .findByTeam_IdAndTrack_Round_Id(team.getId(), prelim.getId());
+
+        TeamRoundTrack trt;
+        if (existing.isPresent()) {
+            trt = existing.get();
+            trt.setTrack(track);
+            trt.setRegistrationType(RegistrationType.PREFERRED);
+            trt.setAssignedAt(now);
+            trt.setAssignedBy(assigner);
+        } else {
+            if (teamRoundParticipationRepository.findByTeam_IdAndRound_Id(team.getId(), prelim.getId()).isEmpty()) {
+                teamRoundParticipationRepository.save(TeamRoundParticipation.builder()
+                        .team(team)
+                        .round(prelim)
+                        .hackathon(hackathon)
+                        .createdAt(now)
+                        .build());
+            }
+            trt = TeamRoundTrack.builder()
+                    .team(team)
+                    .track(track)
+                    .registrationType(RegistrationType.PREFERRED)
+                    .assignedAt(now)
+                    .assignedBy(assigner)
+                    .build();
+        }
+
+        teamRoundTrackRepository.save(trt);
+
+        auditService.log(AuditAction.TEAM_TRACK_ASSIGNED, "team_round_tracks", trt.getId(),
+                Map.of("teamId", team.getId(), "trackId", track.getId(), "roundId", prelim.getId(),
+                        "registrationType", RegistrationType.PREFERRED.name()));
     }
 
     @Override
@@ -502,6 +700,31 @@ public class StudentPortalServiceImpl implements StudentPortalService {
         return java.util.stream.Stream.concat(a.stream(), b.stream())
                 .distinct()
                 .toList();
+    }
+
+    private AnnualAwardResponse toAnnualAward(IndividualRanking ranking) {
+        Hackathon hackathon = ranking.getHackathon();
+        Integer rank = ranking.getRank();
+        return AnnualAwardResponse.builder()
+                .hackathonId(hackathon.getId())
+                .hackathonName(hackathon.getName())
+                .year(hackathon.getYear())
+                .rank(rank)
+                .awardName(deriveAwardName(rank))
+                .category("INDIVIDUAL")
+                .build();
+    }
+
+    private static String deriveAwardName(Integer rank) {
+        if (rank == null) {
+            return "Fall Individual Award";
+        }
+        return switch (rank) {
+            case 1 -> "Best Innovator";
+            case 2 -> "Outstanding Performer";
+            case 3 -> "Rising Star";
+            default -> "Top " + rank + " Fall";
+        };
     }
 
     private StudentSubmissionStatusResponse toSubmissionStatus(Submission s) {

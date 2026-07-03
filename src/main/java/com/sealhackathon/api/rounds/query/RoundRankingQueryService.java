@@ -12,9 +12,9 @@ import com.sealhackathon.api.scores.value_object.ScoreType;
 import com.sealhackathon.api.submissions.entity.Submission;
 import com.sealhackathon.api.submissions.policy.SubmissionGradablePolicy;
 import com.sealhackathon.api.submissions.repository.SubmissionRepository;
-import com.sealhackathon.api.team_round_tracks.entity.TeamRoundTrack;
-import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
-import com.sealhackathon.api.team_round_participation.value_object.ParticipationStatus;
+import com.sealhackathon.api.teams.entity.TeamRoundTrack;
+import com.sealhackathon.api.teams.repository.TeamRoundTrackRepository;
+import com.sealhackathon.api.teams.value_object.ParticipationStatus;
 import com.sealhackathon.api.tiebreak_evaluations.entity.TiebreakEvaluation;
 import com.sealhackathon.api.tiebreak_evaluations.repository.TiebreakEvaluationRepository;
 import lombok.RequiredArgsConstructor;
@@ -132,23 +132,38 @@ public class RoundRankingQueryService {
     static List<RoundRankingItemResponse> assignRanks(List<RankRow> sortedRows, boolean isFinalRound) {
         List<RoundRankingItemResponse> result = new ArrayList<>();
         if (isFinalRound) {
+            Map<Double, Long> scoreCounts = sortedRows.stream()
+                    .collect(Collectors.groupingBy(RankRow::totalScore, Collectors.counting()));
             int rank = 1;
             for (RankRow row : sortedRows) {
-                result.add(toRankingItem(row, rank++));
+                boolean tie = scoreCounts.getOrDefault(row.totalScore(), 0L) > 1;
+                result.add(toRankingItem(row, rank++, tie));
             }
             return result;
         }
 
         String currentGroup = null;
         int rankInGroup = 0;
-        for (RankRow row : sortedRows) {
-            String group = row.assignedGroup() != null ? row.assignedGroup() : "";
-            if (!Objects.equals(group, currentGroup)) {
-                currentGroup = group;
-                rankInGroup = 0;
+        for (int i = 0; i < sortedRows.size(); ) {
+            String group = sortedRows.get(i).assignedGroup() != null ? sortedRows.get(i).assignedGroup() : "";
+            int j = i;
+            while (j < sortedRows.size()) {
+                String g = sortedRows.get(j).assignedGroup() != null ? sortedRows.get(j).assignedGroup() : "";
+                if (!Objects.equals(g, group)) {
+                    break;
+                }
+                j++;
             }
-            rankInGroup++;
-            result.add(toRankingItem(row, rankInGroup));
+            List<RankRow> groupSlice = sortedRows.subList(i, j);
+            Map<Double, Long> scoreCounts = groupSlice.stream()
+                    .collect(Collectors.groupingBy(RankRow::totalScore, Collectors.counting()));
+            rankInGroup = 0;
+            for (RankRow row : groupSlice) {
+                rankInGroup++;
+                boolean tie = scoreCounts.getOrDefault(row.totalScore(), 0L) > 1;
+                result.add(toRankingItem(row, rankInGroup, tie));
+            }
+            i = j;
         }
         return result;
     }
@@ -171,7 +186,7 @@ public class RoundRankingQueryService {
         return ParticipationStatus.ELIMINATED.name().equals(row.participationStatus());
     }
 
-    private static RoundRankingItemResponse toRankingItem(RankRow row, int rank) {
+    private static RoundRankingItemResponse toRankingItem(RankRow row, int rank, boolean tiebreakRequired) {
         return RoundRankingItemResponse.builder()
                 .rank(rank)
                 .teamId(row.teamId())
@@ -179,7 +194,7 @@ public class RoundRankingQueryService {
                 .trackId(row.trackId())
                 .assignedGroup(row.assignedGroup())
                 .totalScore(row.totalScore())
-                .tiebreakRequired(false)
+                .tiebreakRequired(tiebreakRequired)
                 .participationStatus(row.participationStatus())
                 .build();
     }

@@ -42,4 +42,7 @@ public interface HackathonRepository extends JpaRepository<Hackathon, Integer> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT h FROM Hackathon h WHERE h.id = :id")
     Optional<Hackathon> findByIdForUpdate(@Param("id") Integer id);
+
+    /** DRAFT hackathons that have not yet received the coordinator setup reminder. */
+    java.util.List<Hackathon> findByStatusAndDraftReminderSentAtIsNull(HackathonStatus status);
 }

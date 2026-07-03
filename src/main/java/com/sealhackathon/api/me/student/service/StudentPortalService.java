@@ -3,6 +3,7 @@ package com.sealhackathon.api.me.student.service;
 import com.sealhackathon.api.me.student.dto.request.CreateAppealRequest;
 import com.sealhackathon.api.me.student.dto.request.RelotteryTrackRequest;
 import com.sealhackathon.api.me.student.dto.response.*;
+import com.sealhackathon.api.tracks.dto.response.TrackSummaryResponse;
 
 import java.util.List;
 
@@ -15,6 +16,8 @@ public interface StudentPortalService {
     void relotteryTrack(Integer teamId, Integer roundId, RelotteryTrackRequest request);
 
     void selectFallTrack(Integer trackId);
+
+    List<TrackSummaryResponse> listSelectableFallTracks(Integer hackathonId);
 
     StudentProblemResponse getRoundProblem(Integer roundId);
 

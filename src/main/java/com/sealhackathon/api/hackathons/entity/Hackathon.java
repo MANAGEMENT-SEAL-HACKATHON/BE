@@ -75,6 +75,10 @@ public class Hackathon {
     @Column(name = "max_participants")
     private Integer maxParticipants;
 
+    /** Set when the coordinator DRAFT-setup reminder was sent (idempotent scheduler). */
+    @Column(name = "draft_reminder_sent_at")
+    private LocalDateTime draftReminderSentAt;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
     private User createdBy;

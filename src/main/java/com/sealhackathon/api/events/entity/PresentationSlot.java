@@ -81,4 +81,9 @@ public class PresentationSlot {
     @Enumerated(EnumType.STRING)
     @Column(name = "queue_status", length = 20)
     private PresentationQueueStatus queueStatus = PresentationQueueStatus.WAITING;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    @Builder.Default
+    private Long version = 0L;
 }

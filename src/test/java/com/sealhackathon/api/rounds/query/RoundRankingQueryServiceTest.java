@@ -1,7 +1,7 @@
 package com.sealhackathon.api.rounds.query;
 
 import com.sealhackathon.api.rounds.dto.response.RoundRankingItemResponse;
-import com.sealhackathon.api.team_round_participation.value_object.ParticipationStatus;
+import com.sealhackathon.api.teams.value_object.ParticipationStatus;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -59,6 +59,23 @@ class RoundRankingQueryServiceTest {
                         tuple("BANG-1", "B1-Elim"),
                         tuple("BANG-2", "B2-Active"),
                         tuple("BANG-2", "B2-Elim"));
+    }
+
+    @Test
+    void assignRanks_flagsTiedScoresWithinGroup() {
+        List<RankRow> sorted = List.of(
+                row(3, "GD3-03", 5.60, ParticipationStatus.PARTICIPATING),
+                row(1, "GD3-01", 5.60, ParticipationStatus.PARTICIPATING),
+                row(5, "GD3-05", 3.10, ParticipationStatus.PARTICIPATING));
+
+        List<RoundRankingItemResponse> ranked =
+                RoundRankingQueryService.assignRanks(sorted, false);
+
+        assertThat(ranked).extracting(RoundRankingItemResponse::getTeamName, RoundRankingItemResponse::getTiebreakRequired)
+                .containsExactly(
+                        tuple("GD3-03", true),
+                        tuple("GD3-01", true),
+                        tuple("GD3-05", false));
     }
 
     private static RankRow row(int teamId, String name, double score, ParticipationStatus status) {

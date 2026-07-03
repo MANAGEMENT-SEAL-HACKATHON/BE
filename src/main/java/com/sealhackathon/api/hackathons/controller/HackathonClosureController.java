@@ -1,7 +1,7 @@
 package com.sealhackathon.api.hackathons.controller;
 
-import com.sealhackathon.api.chapter_rankings.dto.response.ChapterRankingItemResponse;
-import com.sealhackathon.api.chapter_rankings.service.ChapterRankingService;
+import com.sealhackathon.api.chapters.dto.response.ChapterRankingItemResponse;
+import com.sealhackathon.api.chapters.service.ChapterRankingService;
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
 import com.sealhackathon.api.config.OpenApiConfig;

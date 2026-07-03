@@ -7,7 +7,6 @@ import com.sealhackathon.api.common.security.SubmissionListAccess;
 import com.sealhackathon.api.config.OpenApiConfig;
 import com.sealhackathon.api.submissions.dto.request.RejectLateSubmissionRequest;
 import com.sealhackathon.api.submissions.dto.request.ReviewLateSubmissionRequest;
-import com.sealhackathon.api.submissions.dto.request.SubmitSubmissionRequest;
 import com.sealhackathon.api.submissions.dto.response.SubmissionResponse;
 import com.sealhackathon.api.submissions.service.SubmissionService;
 import com.sealhackathon.api.submissions.value_object.LateReviewDecision;
@@ -56,13 +55,6 @@ public class SubmissionController {
 
         return ResponseEntity.status(201).body(ApiResponse.created(
                 submissionService.submitMultipart(teamId, trackId, roundId, repoUrl, demoUrl, lateReason, slideFile)));
-    }
-
-    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    @StudentOnly
-    @Operation(summary = "FR-16/26 — Nộp bài JSON (legacy)")
-    public ResponseEntity<ApiResponse<SubmissionResponse>> submit(@Valid @RequestBody SubmitSubmissionRequest req) {
-        return ResponseEntity.status(201).body(ApiResponse.created(submissionService.submit(req)));
     }
 
     @GetMapping("/{id}/slide")

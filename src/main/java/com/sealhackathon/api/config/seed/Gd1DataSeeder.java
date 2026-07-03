@@ -16,8 +16,8 @@ import com.sealhackathon.api.hackathons.value_object.Season;
 import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
-import com.sealhackathon.api.mentor_assignments.entity.MentorAssignment;
-import com.sealhackathon.api.mentor_assignments.repository.MentorAssignmentRepository;
+import com.sealhackathon.api.mentors.entity.MentorAssignment;
+import com.sealhackathon.api.mentors.repository.MentorAssignmentRepository;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.value_object.LateSubmissionPolicy;
@@ -194,6 +194,7 @@ public class Gd1DataSeeder {
                 dates,
                 "Hackathon E2E — GĐ1 sẵn sàng, 7 đội + 3 SV chưa có nhóm (test GĐ2→GĐ6)");
         FullHackathonSeed finished = seedFinishedHackathon(users);
+        seedIncompleteHackathon(users.coordinator(), dates);
 
         SeedSummary summary = new SeedSummary(users, ongoing, finished);
         logSummary(summary);
@@ -525,6 +526,17 @@ public class Gd1DataSeeder {
                 Gd1SeedConstants.EMAIL_GUEST_JUDGE, Gd1SeedConstants.DEV_GUEST_JUDGE_PASSWORD,
                 Gd1SeedConstants.EMAIL_MENTOR, Gd1SeedConstants.DEV_MENTOR_PASSWORD,
                 Gd1SeedConstants.EMAIL_PENDING_JUDGE, Gd1SeedConstants.DEV_PENDING_JUDGE_PASSWORD);
+    }
+
+    @Transactional
+    public void ensureIncompleteSeed() {
+        tryLoadSeedUsers().ifPresent(users -> {
+            if (!hackathonRepository.existsBySlug(Gd1SeedConstants.SLUG_INCOMPLETE)) {
+                seedIncompleteHackathon(users.coordinator(), computeDates());
+                log.info("[Gd1DataSeeder] Ensured slug={} (readiness FAIL negative)",
+                        Gd1SeedConstants.SLUG_INCOMPLETE);
+            }
+        });
     }
 
     private Hackathon seedIncompleteHackathon(User coordinator, SeedDates dates) {

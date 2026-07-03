@@ -140,7 +140,7 @@ GET /api/v1/rounds/{prelimRoundId}/tracks
 | `teamId` (student) | `GET /me/teams` → `teamId` + **`trackId`** |
 | `criterionId` (judge) | `GET /tracks/{trackId}/criteria` hoặc criteria batch seed |
 
-Seed shortcut: copy log `[Gd3DataSeeder]` khi start app `profile=dev`.
+Seed shortcut: copy log `[Gd3PrelimOpenDataSeeder]` khi start app `profile=dev`.
 
 ---
 
@@ -746,7 +746,7 @@ Content-Type: application/json
 
 **Hậu quả:** đội hiện tại → `DONE` (**không chấm được nữa**); đội kế → queue `PRESENTING`, `timer.phase` = **`SETUP`** (chờ setup máy, chưa chấm) → controller `timer/start` khi sẵn sàng.
 
-**Alias:** `POST /api/v1/presentation/timer/next` (cùng query + body).
+> **Đã gỡ** alias `POST /api/v1/presentation/timer/next` — chỉ dùng `PATCH /api/v1/presentation/queue/next`.
 
 > Coordinator vẫn bypass guard BE (dev/test) — **UI production chỉ hiện Next cho judge giữ quyền**, không gán cho màn Coordinator.
 
@@ -759,9 +759,10 @@ Content-Type: application/json
 | POST | `…/resume` | Resume — cộng `pausedAccumulatedSeconds` |
 | POST | `…/qa` | Chuyển sang Q&A |
 | POST | `…/reset` | Reset timer slot hiện tại |
-| POST | `…/next` | Kết thúc slot + chuyển tiếp (alias `PATCH queue/next`; **không** auto-start) |
 
 **Query:** chỉ `roundId` (+ `trackId` bắt buộc ở sơ loại). **Không** có `submissionId` — áp dụng lên slot `PRESENTING` duy nhất của track đó.
+
+**Chuyển đội:** `PATCH /api/v1/presentation/queue/next` (không dùng timer endpoint).
 
 **Phase `SETUP`:** sau `next`, đội kế tiếp có `queue.status=PRESENTING` nhưng `timer.phase=SETUP` — cửa sổ setup trước `start`.
 
@@ -1017,16 +1018,16 @@ BE **không dùng ngày cố định** nữa. Mỗi lần khởi động app:
 
 | Seeder | Slug | Hành vi |
 |--------|------|---------|
-| `Gd1DataSeeder.repairSeededTimeline()` | `seal-spring-2026` (GĐ1/GĐ2) | `registrationEnd = today + 14` — đăng ký **đang mở** |
-| `Gd2DataSeeder.repairForFeTesting()` | `seal-spring-2026` | Prelim **inactive**; unlock teams (trừ `GD2-05` demo locked) |
-| `Gd3DataSeeder.repairForFeTesting()` | `seal-gd3-prelim-open` | Sơ loại thi **hôm nay** 08:00; sync deadline + LATE_PENDING timestamps |
+| `Gd1DataSeeder.repairSeededTimeline()` | `seal-e2e-2026` (GĐ1/GĐ2) | `registrationEnd = today + 14` — đăng ký **đang mở** |
+| `E2eWorkflowDataSeeder.repairForFeTesting()` | `seal-e2e-2026` | Prelim **inactive**; unlock teams (trừ `E2E-T05` demo locked) |
+| `Gd3PrelimOpenDataSeeder.repairForFeTesting()` | `seal-gd3-prelim-open` | Sơ loại thi **hôm nay** 08:00; sync deadline + LATE_PENDING timestamps |
 
-**FE không cần sửa DB.** Chỉ cần restart Spring Boot và đọc log `[Gd2DataSeeder]` / `[Gd3DataSeeder]`.
+**FE không cần sửa DB.** Chỉ cần restart Spring Boot và đọc log `[E2eWorkflowDataSeeder]` / `[Gd3PrelimOpenDataSeeder]`.
 
 ### GĐ3 — slug riêng
 
 **Slug:** `seal-gd3-prelim-open` — không cần chạy GĐ1/GĐ2 trước.  
-Start app `profile=dev` → log `[Gd3DataSeeder]` (hackathonId, prelimRoundId, trackIds, teamIds).
+Start app `profile=dev` → log `[Gd3PrelimOpenDataSeeder]` (hackathonId, prelimRoundId, trackIds, teamIds).
 
 | Thành phần | Giá trị |
 |------------|---------|
@@ -1125,8 +1126,8 @@ Start app `profile=dev` → log `[Gd3DataSeeder]` (hackathonId, prelimRoundId, t
 1. Chạy BE: `spring.profiles.active=dev` (port 8080).
 2. Đợi log startup — xác nhận:
    - `[Gd1DataSeeder] Repair timeline` (nếu có thay đổi)
-   - `[Gd2DataSeeder] FE repair` — `registration: … → … (today=…)` và `đăng ký ĐANG MỞ`
-   - `[Gd3DataSeeder] FE repair` — `examAt` = hôm nay 08:00, `deadline` theo coding hours
+   - `[E2eWorkflowDataSeeder] FE repair` — `registration: … → … (today=…)` và `đăng ký ĐANG MỞ`
+   - `[Gd3PrelimOpenDataSeeder] FE repair` — `examAt` = hôm nay 08:00, `deadline` theo coding hours
 3. Login API: `POST /api/v1/auth/login` → lấy `data.accessToken`.
 
 Nếu GĐ2 báo `đăng ký ĐÃ ĐÓNG` hoặc teams bị khóa hàng loạt → **restart app** (repair chạy lại), không sửa MySQL thủ công.
@@ -1135,24 +1136,24 @@ Nếu GĐ2 báo `đăng ký ĐÃ ĐÓNG` hoặc teams bị khóa hàng loạt �
 
 ### 18.1 Giai đoạn 2 — Teams & Lottery
 
-**Hackathon:** `seal-spring-2026` (`ONGOING`)  
+**Hackathon:** `seal-e2e-2026` (`ONGOING`)  
 **Password SV:** `Student@dev1` · **Coord:** `coord@fpt.edu.vn` / `Coordinator@dev1`
 
 | # | Kịch bản | Tài khoản / đội | API / kỳ vọng |
 |---|----------|-----------------|---------------|
 | 2.1 | Đăng ký đội mới (reg mở) | SV bất kỳ chưa có đội | `POST /api/v1/me/teams` → 201 |
-| 2.2 | Duyệt đội PENDING | Coord | `PATCH /api/v1/teams/{id}/approve` — đội `GD2-01`, `GD2-02`, `GD2-03` |
-| 2.3 | Mời thành viên | Leader `GD2-02` | `POST /api/v1/teams/{id}/invites` |
-| 2.4 | Đội ACTIVE chưa lottery | `GD2-07` (leader07) | `GET /me/teams` → chưa có `trackId` |
+| 2.2 | Duyệt đội PENDING | Coord | `PATCH /api/v1/teams/{id}/approve` — đội `E2E-T01`, `E2E-T02`, `E2E-T03` |
+| 2.3 | Mời thành viên | Leader `E2E-T02` | `POST /api/v1/teams/{id}/invites` |
+| 2.4 | Đội ACTIVE chưa lottery | `E2E-T07` (leader07) | `GET /me/teams` → chưa có `trackId` |
 | 2.5 | Bốc thăm (coord) | Coord + `prelimRoundId` | `PATCH /api/v1/hackathons/{id}/lottery` body `{ roundId }` — đội **đã locked** |
-| 2.6 | Demo đội đã khóa + đã lottery | `GD2-05` | `isLocked=true`, đã có track/group |
+| 2.6 | Demo đội đã khóa + đã lottery | `E2E-T05` | `isLocked=true`, đã có track/group |
 | 2.7 | Mentor theo track | `mentor@fpt.edu.vn` | `GET /api/v1/me/mentor/rounds` → teams theo track đã gán |
 
 **Lưu ý GĐ2:**
 
 - Sau repair, **đăng ký còn mở** ~14 ngày → đội mới tạo **không** bị auto-lock.
-- Chỉ `GD2-05 ACTIVE đã khóa + bốc thăm` giữ `isLocked=true` để demo UI “đội đã khóa”.
-- Lottery yêu cầu `isLocked=true` — dùng `GD2-05` hoặc đợi hết hạn đăng ký (sau repair tiếp theo vẫn mở).
+- Chỉ `E2E-T05 ACTIVE đã khóa + bốc thăm` giữ `isLocked=true` để demo UI “đội đã khóa”.
+- Lottery yêu cầu `isLocked=true` — dùng `E2E-T05` hoặc đợi hết hạn đăng ký (sau repair tiếp theo vẫn mở).
 - Vòng sơ loại **chưa active** — không test nộp bài SL trên slug này (dùng GĐ3 slug).
 
 Chi tiết gate GĐ1→2: [fe-gd1-gd2-gd3-workflow-mapping.md](fe-gd1-gd2-gd3-workflow-mapping.md).
@@ -1228,14 +1229,14 @@ coord login → leader04 POST submit → judge1 POST score (team06)
 |-------------|-------------|------------|
 | GĐ2: không tạo được đội / bị lock | `registrationEnd` cũ trong DB | Restart app `dev` |
 | GĐ3: team02 không LATE_PENDING | `submittedAt` trước deadline | Restart → `repairForFeTesting` |
-| Submit 422 `ROUND_NOT_ACTIVE` | Nhầm slug `seal-spring-2026` | Dùng `seal-gd3-prelim-open` |
+| Submit 422 `ROUND_NOT_ACTIVE` | Nhầm slug `seal-e2e-2026` | Dùng `seal-gd3-prelim-open` |
 | Judge 403 `JUDGE_NOT_ASSIGNED` | Chấm track chưa gán | Dùng judge1 + đúng `criterionId` track |
 
 ---
 
 ## 19. Mẫu test API — Request & Response JSON
 
-> Copy-paste vào Postman / Thunder Client. Thay `{{accessToken}}`, `{{hackathonId}}`, `{{prelimRoundId}}`, `{{teamId}}`, `{{trackId}}`, `{{submissionId}}`, `{{criterionId}}` bằng giá trị thật từ log `[Gd3DataSeeder]` hoặc response bootstrap.
+> Copy-paste vào Postman / Thunder Client. Thay `{{accessToken}}`, `{{hackathonId}}`, `{{prelimRoundId}}`, `{{teamId}}`, `{{trackId}}`, `{{submissionId}}`, `{{criterionId}}` bằng giá trị thật từ log `[Gd3PrelimOpenDataSeeder]` hoặc response bootstrap.
 
 ### 19.0 Quy ước đọc mẫu
 
@@ -1251,7 +1252,7 @@ coord login → leader04 POST submit → judge1 POST score (team06)
 
 ```text
 hackathonId     = 5        ← data.items[0].id
-prelimRoundId   = 12       ← log [Gd3DataSeeder] hoặc GET .../rounds (coord)
+prelimRoundId   = 12       ← log [Gd3PrelimOpenDataSeeder] hoặc GET .../rounds (coord)
 track1Id        = 8
 teamId (leader04)= 46
 submissionId    = 88       ← team02 LATE_PENDING
@@ -2126,7 +2127,7 @@ Sau đó GET queue lại — team 41 → `DONE`, team 43 → `PRESENTING`.
 
 ---
 
-### 19.9 GĐ2 — Teams & Lottery (`seal-spring-2026`)
+### 19.9 GĐ2 — Teams & Lottery (`seal-e2e-2026`)
 
 > Slug GĐ2 khác GĐ3. Prelim **chưa active** sau repair — chỉ test đăng ký / duyệt / lottery.
 
@@ -2145,7 +2146,7 @@ Authorization: Bearer {{coordToken}}
   "data": {
     "id": 101,
     "hackathonId": 3,
-    "teamName": "GD2-03 Sẵn duyệt ACTIVE (4 người)",
+    "teamName": "E2E-T03 Sẵn duyệt ACTIVE (4 người)",
     "leaderId": 25,
     "chapterId": 1,
     "status": "ACTIVE",
@@ -2172,7 +2173,7 @@ Content-Type: application/json
 }
 ```
 
-> `roundId` = prelim của `seal-spring-2026`. Đội phải `ACTIVE` + `isLocked=true` (dùng `GD2-05` demo hoặc đợi hết hạn đăng ký).
+> `roundId` = prelim của `seal-e2e-2026`. Đội phải `ACTIVE` + `isLocked=true` (dùng `E2E-T05` demo hoặc đợi hết hạn đăng ký).
 
 **Response `200` đúng:**
 

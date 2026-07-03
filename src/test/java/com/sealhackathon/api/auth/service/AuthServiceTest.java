@@ -16,7 +16,7 @@ import com.sealhackathon.api.users.repository.UserRepository;
 import com.sealhackathon.api.users.value_object.UserRole;
 import com.sealhackathon.api.users.value_object.UserStatus;
 import com.sealhackathon.api.users.value_object.UserType;
-import com.sealhackathon.api.user_sessions.entity.UserSession;
+import com.sealhackathon.api.users.entity.UserSession;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -194,6 +194,7 @@ class AuthServiceTest {
                 .isTempAccount(false)
                 .mustChangePassword(false)
                 .status(UserStatus.PENDING)
+                .emailVerifiedAt(LocalDateTime.now())
                 .build();
         when(userRepository.findByEmail("pending.student@gmail.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("Student@123", "hash")).thenReturn(true);
@@ -210,6 +211,31 @@ class AuthServiceTest {
 
         assertThat(response.getAccessToken()).isEqualTo("access");
         assertThat(response.getRefreshToken()).isEqualTo("refresh");
+    }
+
+    @Test
+    void login_unverifiedStudent_throwsEmailNotVerified() {
+        User user = User.builder()
+                .email("unverified.student@gmail.com")
+                .passwordHash("hash")
+                .role(UserRole.STUDENT)
+                .userType(UserType.UNSPECIFIED)
+                .isTempAccount(false)
+                .mustChangePassword(false)
+                .status(UserStatus.PENDING)
+                .emailVerifiedAt(null)
+                .build();
+        when(userRepository.findByEmail("unverified.student@gmail.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("Student@123", "hash")).thenReturn(true);
+
+        LoginRequest req = new LoginRequest();
+        req.setEmail("unverified.student@gmail.com");
+        req.setPassword("Student@123");
+
+        assertThatThrownBy(() -> authService.login(req, new MockHttpServletRequest()))
+                .isInstanceOf(AuthException.class)
+                .extracting(ex -> ((AuthException) ex).getCode())
+                .isEqualTo(ErrorCode.EMAIL_NOT_VERIFIED);
     }
 
     @Test

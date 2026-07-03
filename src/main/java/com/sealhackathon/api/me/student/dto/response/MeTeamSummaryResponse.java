@@ -14,6 +14,8 @@ public class MeTeamSummaryResponse {
     private Integer teamId;
     private String teamName;
     private Integer hackathonId;
+    private Integer leaderId;
+    private String status;
     private Integer trackId;
     private String trackName;
     private String lotteryStatus;

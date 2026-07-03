@@ -18,6 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -127,5 +128,11 @@ public class TrackController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"de-bai-track.pdf\"")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(resource);
+    }
+
+    @PatchMapping("/api/v1/tracks/{id}/release-problem")
+    @Operation(summary = "Phát đề cho một bảng đấu (Sơ loại)")
+    public ResponseEntity<ApiResponse<TrackResponse>> releaseProblem(@PathVariable Integer id) {
+        return ResponseEntity.ok(ApiResponse.ok(trackService.releaseProblem(id)));
     }
 }

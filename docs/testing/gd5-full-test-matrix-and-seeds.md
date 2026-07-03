@@ -154,6 +154,50 @@ Calibration session **OPEN** trên CK (sample = GD5-C01). Queue: GD5-C03 **PRESE
 
 ---
 
+### Profile F — CK judge not assigned
+
+| | |
+|--|--|
+| **Slug** | `seal-gd5-judge-edge` |
+| **Seeder** | `Gd5JudgeEdgeDataSeeder` |
+| **Config** | `app.seed.gd5.judge-edge.enabled=true` |
+
+CK active, submission SUBMITTED, **judge1 chưa assign track CK** → guest/internal judge `POST /scores` → **422 `JUDGE_NOT_ASSIGNED`**.
+
+Parity `seal-gd4-edge-errors` trên round FINAL.
+
+**Account:** `student.gd5j.leader01@fpt.edu.vn`
+
+---
+
+### Profile G — CK LATE_PENDING
+
+| | |
+|--|--|
+| **Slug** | `seal-gd5-late-pending` |
+| **Seeder** | `Gd5LatePendingDataSeeder` |
+| **Config** | `app.seed.gd5.late-pending.enabled=true` |
+
+CK active, deadline qua, policy SOFT — 1 submission `LATE_PENDING`. Coord duyệt/từ chối trên late-review UI.
+
+**Account:** `student.gd5lp.leader01@fpt.edu.vn` — team `GD5-LP01 LATE_PENDING CK`
+
+---
+
+### Profile H — Team not in CK round
+
+| | |
+|--|--|
+| **Slug** | `seal-gd5-not-advanced` |
+| **Seeder** | `Gd5NotAdvancedDataSeeder` |
+| **Config** | `app.seed.gd5.not-advanced.enabled=true` |
+
+CK active; team `GD5-NA02` **không** trong `team_round_participation` CK → `POST /submissions` → **422 `TEAM_NOT_IN_ROUND`**.
+
+**Account:** `student.gd5na.leader02@fpt.edu.vn`
+
+---
+
 ### Handoff GĐ6
 
 Sau `PATCH /rounds/{finalId}/lock-scoring` → `PENDING_CONFIRM`. Test đóng giải trên **`seal-gd6-pending-confirm`**.
@@ -170,8 +214,8 @@ Sau `PATCH /rounds/{finalId}/lock-scoring` → `PENDING_CONFIRM`. Test đóng gi
 | F2 | Upsert khi đã có | 201 cập nhật URL | Profile 0 (GD5-01) |
 | F3 | Gửi `trackId` | 422 `INVALID_STATE` | Tay |
 | F4 | Sau deadline CK | 201 `REJECTED` HARD_LOCK | Profile E |
-| F5 | `LATE_PENDING` CK | 422 `LATE_PENDING_NOT_ALLOWED` | Tay (duyệt trễ CK) |
-| F6 | Đội chưa ADVANCED | 422 `TEAM_NOT_IN_ROUND` | Tay |
+| F5 | `LATE_PENDING` CK | 422 `LATE_PENDING_NOT_ALLOWED` | G (duyệt trễ CK) |
+| F6 | Đội chưa ADVANCED | 422 `TEAM_NOT_IN_ROUND` | H |
 | F7 | CK chưa active | 422 `ROUND_NOT_ACTIVE` | Profile D |
 
 ### FR-21 — Đề CK
@@ -187,7 +231,7 @@ Sau `PATCH /rounds/{finalId}/lock-scoring` → `PENDING_CONFIRM`. Test đóng gi
 |---|------|---------|------|
 | C1 | Guest POST `/scores` | 201 | Profile 0 (GD5-02), B |
 | C1b | Chấm CK **không** cần timer PRESENTING | 201 (round `isFinal=true` bỏ qua `SCORING_NOT_OPEN`) | Profile 0, B |
-| C2 | Judge SL chấm CK | 403 `JUDGE_NOT_ASSIGNED` | Tay |
+| C2 | Judge SL chấm CK | 403 `JUDGE_NOT_ASSIGNED` | F |
 | C3 | Criteria CK | không qua trackId | Profile 0 |
 | C4 | Sau lock CK | 423 `SCORING_LOCKED` | `seal-gd6-pending-confirm` |
 

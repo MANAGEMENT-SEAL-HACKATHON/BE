@@ -12,6 +12,7 @@ import com.sealhackathon.api.auth.dto.response.ForgotPasswordResponse;
 import com.sealhackathon.api.auth.dto.response.OAuthLinkStatusResponse;
 import com.sealhackathon.api.auth.dto.response.RegisterResponse;
 import com.sealhackathon.api.auth.service.AuthService;
+import com.sealhackathon.api.auth.service.EmailVerificationService;
 import com.sealhackathon.api.auth.service.PasswordResetService;
 import com.sealhackathon.api.auth.service.RegistrationService;
 import com.sealhackathon.api.auth.service.SocialAuthService;
@@ -52,6 +53,9 @@ class AuthControllerTest {
 
     @MockitoBean
     private PasswordResetService passwordResetService;
+
+    @MockitoBean
+    private EmailVerificationService emailVerificationService;
 
     @MockitoBean
     private SocialAuthService socialAuthService;

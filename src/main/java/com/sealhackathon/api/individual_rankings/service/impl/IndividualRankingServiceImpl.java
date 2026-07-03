@@ -12,9 +12,9 @@ import com.sealhackathon.api.individual_rankings.dto.response.IndividualRankingI
 import com.sealhackathon.api.individual_rankings.entity.IndividualRanking;
 import com.sealhackathon.api.individual_rankings.repository.IndividualRankingRepository;
 import com.sealhackathon.api.individual_rankings.service.IndividualRankingService;
-import com.sealhackathon.api.team_members.entity.TeamMember;
-import com.sealhackathon.api.team_members.repository.TeamMemberRepository;
-import com.sealhackathon.api.team_members.value_object.TeamMemberStatus;
+import com.sealhackathon.api.teams.entity.TeamMember;
+import com.sealhackathon.api.teams.repository.TeamMemberRepository;
+import com.sealhackathon.api.teams.value_object.TeamMemberStatus;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.repository.TeamRepository;
 import com.sealhackathon.api.users.entity.User;

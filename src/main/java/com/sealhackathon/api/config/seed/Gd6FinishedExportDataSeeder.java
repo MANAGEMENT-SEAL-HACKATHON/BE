@@ -1,12 +1,10 @@
 package com.sealhackathon.api.config.seed;
 
 import com.sealhackathon.api.chapters.entity.Chapter;
-import com.sealhackathon.api.chapter_rankings.service.ChapterRankingService;
 import com.sealhackathon.api.criteria.entity.Criteria;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
-import com.sealhackathon.api.individual_rankings.service.IndividualRankingService;
 import com.sealhackathon.api.prizes.repository.PrizeRepository;
 import com.sealhackathon.api.prizes.value_object.PrizeRank;
 import com.sealhackathon.api.rounds.entity.Round;
@@ -42,8 +40,6 @@ public class Gd6FinishedExportDataSeeder {
     private final RoundRepository roundRepository;
     private final TeamRepository teamRepository;
     private final PrizeRepository prizeRepository;
-    private final ChapterRankingService chapterRankingService;
-    private final IndividualRankingService individualRankingService;
     private final DevSeedCleanup devSeedCleanup;
     private final Gd6FinishedExportDataSeeder self;
 
@@ -53,8 +49,6 @@ public class Gd6FinishedExportDataSeeder {
             RoundRepository roundRepository,
             TeamRepository teamRepository,
             PrizeRepository prizeRepository,
-            ChapterRankingService chapterRankingService,
-            IndividualRankingService individualRankingService,
             DevSeedCleanup devSeedCleanup,
             @Lazy Gd6FinishedExportDataSeeder self) {
         this.seedHelper = seedHelper;
@@ -62,8 +56,6 @@ public class Gd6FinishedExportDataSeeder {
         this.roundRepository = roundRepository;
         this.teamRepository = teamRepository;
         this.prizeRepository = prizeRepository;
-        this.chapterRankingService = chapterRankingService;
-        this.individualRankingService = individualRankingService;
         this.devSeedCleanup = devSeedCleanup;
         this.self = self;
     }
@@ -78,7 +70,6 @@ public class Gd6FinishedExportDataSeeder {
         }
 
         Integer hackathonId = self.seedFinishedExportInTransaction();
-        refreshPersistedRankings(hackathonId);
 
         log.info("""
                 [Gd6FinishedExportDataSeeder] slug={} hackathonId={} status=FINISHED
@@ -133,10 +124,8 @@ public class Gd6FinishedExportDataSeeder {
         if (!enabled) {
             return;
         }
-        Integer hackathonId = self.repairFinishedExportInTransaction();
-        if (hackathonId != null) {
-            refreshPersistedRankings(hackathonId);
-        }
+        self.repairFinishedExportInTransaction();
+        // Rankings refreshed via HackathonFinishedEventListener after FINISHED commit
     }
 
     @Transactional
@@ -157,17 +146,6 @@ public class Gd6FinishedExportDataSeeder {
                     return null;
                 })
                 .orElse(null);
-    }
-
-    /**
-     * {@code calculateAsync} dùng {@code REQUIRES_NEW} — phải gọi sau khi transaction seed đã commit.
-     */
-    private void refreshPersistedRankings(Integer hackathonId) {
-        if (hackathonId == null) {
-            return;
-        }
-        chapterRankingService.calculateAsync(hackathonId);
-        individualRankingService.calculateAsync(hackathonId);
     }
 
     private void reapplyFinishedState(Hackathon hackathon, Round prelim, Round finalRound) {

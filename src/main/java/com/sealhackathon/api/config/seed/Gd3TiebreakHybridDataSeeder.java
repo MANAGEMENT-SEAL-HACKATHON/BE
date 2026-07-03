@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Seed GĐ3 hybrid exit — sơ loại đã khóa chấm, đồng điểm Top-N, penalty tiebreak seed.
@@ -177,24 +178,41 @@ public class Gd3TiebreakHybridDataSeeder {
     private void seedTiebreakPenalties(Round prelim, Team teamPreferred, Team teamPenalized, User headJudge) {
         tiebreakEvaluationRepository.deleteByRound_IdAndJudge_IdAndIsCastingVoteTrue(
                 prelim.getId(), headJudge.getId());
+        tiebreakEvaluationRepository.findByRound_IdAndTeam_IdAndJudge_Id(
+                        prelim.getId(), teamPreferred.getId(), headJudge.getId())
+                .ifPresent(tiebreakEvaluationRepository::delete);
+        tiebreakEvaluationRepository.findByRound_IdAndTeam_IdAndJudge_Id(
+                        prelim.getId(), teamPenalized.getId(), headJudge.getId())
+                .ifPresent(tiebreakEvaluationRepository::delete);
         LocalDateTime now = LocalDateTime.now();
+        upsertTiebreakPenalty(prelim, teamPreferred, headJudge, 0f, true, 2, now, null);
+        upsertTiebreakPenalty(prelim, teamPenalized, headJudge, 1f, true, 2, now, null);
+    }
+
+    private void upsertTiebreakPenalty(
+            Round prelim, Team team, User judge, float penalty, boolean castingVote,
+            int level, LocalDateTime evaluatedAt, String notes) {
+        Optional<TiebreakEvaluation> existing = tiebreakEvaluationRepository.findByRound_IdAndTeam_IdAndJudge_Id(
+                prelim.getId(), team.getId(), judge.getId());
+        if (existing.isPresent()) {
+            TiebreakEvaluation te = existing.get();
+            te.setPenaltyScore(penalty);
+            te.setIsCastingVote(castingVote);
+            te.setTiebreakLevel(level);
+            te.setEvaluatedAt(evaluatedAt);
+            te.setNotes(notes);
+            tiebreakEvaluationRepository.save(te);
+            return;
+        }
         tiebreakEvaluationRepository.save(TiebreakEvaluation.builder()
                 .round(prelim)
-                .team(teamPreferred)
-                .judge(headJudge)
-                .penaltyScore(0f)
-                .isCastingVote(true)
-                .tiebreakLevel(2)
-                .evaluatedAt(now)
-                .build());
-        tiebreakEvaluationRepository.save(TiebreakEvaluation.builder()
-                .round(prelim)
-                .team(teamPenalized)
-                .judge(headJudge)
-                .penaltyScore(1f)
-                .isCastingVote(true)
-                .tiebreakLevel(2)
-                .evaluatedAt(now)
+                .team(team)
+                .judge(judge)
+                .penaltyScore(penalty)
+                .isCastingVote(castingVote)
+                .tiebreakLevel(level)
+                .notes(notes)
+                .evaluatedAt(evaluatedAt)
                 .build());
     }
 

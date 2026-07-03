@@ -76,12 +76,12 @@ Content-Type: application/json
 
 ## GĐ1 — Chuẩn bị sự kiện
 
-**Đường tắt (khuyến nghị):** dùng seed `seal-spring-2026` — đã có round/track/criteria/events. Chỉ **verify**, không cần tạo lại.
+**Đường tắt (khuyến nghị):** dùng seed `seal-e2e-2026` — đã có round/track/criteria/events. Chỉ **verify**, không cần tạo lại.
 
 ### GĐ1-A — Verify readiness (happy)
 
 ```http
-GET /api/v1/hackathons?q=seal-spring-2026&size=5
+GET /api/v1/hackathons?q=seal-e2e-2026&size=5
 Authorization: Bearer {{coordToken}}
 ```
 
@@ -90,8 +90,8 @@ Authorization: Bearer {{coordToken}}
 ```json
 {
   "id": 2,
-  "name": "SEAL Spring 2026",
-  "slug": "seal-spring-2026",
+  "name": "SEAL E2E 2026",
+  "slug": "seal-e2e-2026",
   "status": "ONGOING",
   "season": "Spring",
   "year": 2026,
@@ -187,7 +187,7 @@ GET /api/v1/hackathons/{{hackathonId}}/readiness?target=ONGOING
 
 ## GĐ2 — Đăng ký, đội, God Mode, bốc thăm
 
-**Hackathon:** `seal-spring-2026` (`hackathonId` từ GĐ1-A).
+**Hackathon:** `seal-e2e-2026` (`hackathonId` từ GĐ1-A).
 
 ### GĐ2-1 — Student tạo đội
 
@@ -218,7 +218,7 @@ Authorization: Bearer {{studentToken}}
 }
 ```
 
-> Alias portal của `POST /api/v1/teams` — cùng logic nghiệp vụ.
+> **Đã gỡ** `POST /api/v1/teams` — student portal dùng `POST /api/v1/me/teams` (cùng logic nghiệp vụ).
 
 ### GĐ2-2 — Student đăng ký hackathon
 
@@ -233,7 +233,7 @@ Authorization: Bearer {{studentToken}}
 [
   {
     "id": 2,
-    "name": "SEAL Spring 2026",
+    "name": "SEAL E2E 2026",
     "status": "ONGOING",
     "registered": false
   }
@@ -364,7 +364,7 @@ Authorization: Bearer {{coordToken}}
 
 ### GĐ2-5 — Bốc thăm (lottery)
 
-**Điều kiện:** đội `ACTIVE` + `isLocked: true` (seed `seal-spring-2026` thường đã khóa).
+**Điều kiện:** đội `ACTIVE` + `isLocked: true` (seed `seal-e2e-2026` thường đã khóa).
 
 ```http
 GET /api/v1/teams/{{teamId}}
@@ -408,13 +408,13 @@ Authorization: Bearer {{coordToken}}
 
 ## GĐ3 — Sơ loại
 
-**Hackathon:** `seal-spring-2026-gd3`  
+**Hackathon:** `seal-gd3-prelim-open`  
 **Student mẫu:** `student.sp23.t01.leader@fpt.edu.vn`
 
 ### GĐ3-0 — Lấy ID
 
 ```http
-GET /api/v1/hackathons?q=seal-spring-2026-gd3
+GET /api/v1/hackathons?q=seal-gd3-prelim-open
 Authorization: Bearer {{coordToken}}
 ```
 
@@ -559,7 +559,7 @@ Authorization: Bearer {{coordToken}}
 
 ## GĐ4 — Advance & kích hoạt Chung kết
 
-**Hackathon:** `seal-spring-2026-gd4`  
+**Hackathon:** `seal-gd4-advance-ready`  
 **Student mẫu:** `student.sp25.t01.leader@fpt.edu.vn`
 
 ### GĐ4-1 — Ranking preview (đã lock)
@@ -687,7 +687,7 @@ Authorization: Bearer {{coordToken}}
 
 ## GĐ5 — Chung kết
 
-**Hackathon:** `seal-spring-2026-gd5`  
+**Hackathon:** `seal-gd5-final-active`  
 **Student mẫu:** `student.sp24.t01.leader@fpt.edu.vn`
 
 ### GĐ5-1 — Nộp bài CK
@@ -762,9 +762,9 @@ Authorization: Bearer {{coordToken}}
 ```json
 {
   "id": 6,
-  "slug": "seal-spring-2026-gd5",
+  "slug": "seal-gd5-final-active",
   "status": "PENDING_CONFIRM",
-  "name": "SEAL Spring 2026 — GĐ5"
+  "name": "SEAL E2E 2026 — GĐ5"
 }
 ```
 
@@ -774,7 +774,7 @@ Authorization: Bearer {{coordToken}}
 
 ## GĐ6 — Kết thúc, RBL, trao giải
 
-**Hackathon:** `seal-spring-2026-gd6`  
+**Hackathon:** `seal-gd6-pending-confirm`  
 **Trạng thái seed:** `PENDING_CONFIRM`  
 **Student mẫu:** `student.sp30.t01.leader@fpt.edu.vn`
 

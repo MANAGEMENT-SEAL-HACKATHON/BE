@@ -15,13 +15,21 @@ import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
-import com.sealhackathon.api.mentor_assignments.entity.MentorAssignment;
-import com.sealhackathon.api.mentor_assignments.repository.MentorAssignmentRepository;
+import com.sealhackathon.api.mentors.entity.MentorAssignment;
+import com.sealhackathon.api.mentors.repository.MentorAssignmentRepository;
 import com.sealhackathon.api.notifications.service.NotificationService;
 import com.sealhackathon.api.rounds.entity.Round;
+import com.sealhackathon.api.rounds.guard.RoundAccessGuard;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
+import com.sealhackathon.api.teams.entity.TeamMember;
+import com.sealhackathon.api.teams.repository.TeamMemberRepository;
+import com.sealhackathon.api.teams.value_object.TeamMemberStatus;
 import com.sealhackathon.api.teams.repository.TeamRepository;
+import com.sealhackathon.api.teams.support.HackathonTeamSizeResolver;
 import com.sealhackathon.api.teams.value_object.TeamStatus;
+import com.sealhackathon.api.teams.entity.TeamRoundTrack;
+import com.sealhackathon.api.teams.repository.TeamRoundTrackRepository;
+import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.tracks.dto.request.CreateTrackRequest;
 import com.sealhackathon.api.tracks.dto.request.UpdateTrackRequest;
 import com.sealhackathon.api.tracks.dto.response.TrackResponse;
@@ -40,8 +48,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -71,6 +82,10 @@ public class TrackServiceImpl implements TrackService {
     private final CriteriaRepository criteriaRepository;
     private final HackathonArchiveGuard archiveGuard;
     private final TrackProblemStatementStorage trackProblemStatementStorage;
+    private final HackathonTeamSizeResolver teamSizeResolver;
+    private final RoundAccessGuard roundAccessGuard;
+    private final TeamRoundTrackRepository teamRoundTrackRepository;
+    private final TeamMemberRepository teamMemberRepository;
 
     @Override
     public TrackResponse createByRound(Integer roundId, CreateTrackRequest req) {
@@ -85,6 +100,8 @@ public class TrackServiceImpl implements TrackService {
         guardParentStatus(h);
         validateSizes(req.getMinTeamSize(), req.getMaxTeamSize(),
                 req.getMaxTeamsPerGroup(), req.getMaxTeams());
+        teamSizeResolver.assertCompatibleWithExistingTracks(h.getId(),
+                req.getMinTeamSize(), req.getMaxTeamSize(), null);
 
         int sequenceOrder = resolveSequenceOrder(roundId, req.getSequenceOrder());
         Track entity = trackMapper.toEntity(req, round, sequenceOrder);
@@ -138,6 +155,10 @@ public class TrackServiceImpl implements TrackService {
         guardParentStatus(parent);
         validateSizes(req.getMinTeamSize(), req.getMaxTeamSize(),
                 req.getMaxTeamsPerGroup(), req.getMaxTeams());
+        if (parent != null) {
+            teamSizeResolver.assertCompatibleWithExistingTracks(parent.getId(),
+                    req.getMinTeamSize(), req.getMaxTeamSize(), t.getId());
+        }
         validateTopicAfterKickoff(t, parent, req.getTopic());
 
         TrackResponse before = trackMapper.toResponse(t);
@@ -221,6 +242,10 @@ public class TrackServiceImpl implements TrackService {
                     "Upload đề bài chỉ áp dụng cho bảng đấu vòng Sơ loại");
         }
         guardParentStatus(round.getHackathon());
+        if (track.getProblemReleasedAt() != null) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Đề bài đã được phát cho bảng đấu này — không thể thay file");
+        }
         if (round.getProblemReleasedAt() != null) {
             throw new BusinessRuleException(ErrorCode.INVALID_STATE,
                     "Đề bài đã được phát — không thể thay file trên bảng đấu");
@@ -237,6 +262,61 @@ public class TrackServiceImpl implements TrackService {
                 .orElseThrow(() -> new ResourceNotFoundException("Track", id));
         String filename = TrackProblemStatementStorage.displayFilename(track);
         return StoredObjectResource.toResource(trackProblemStatementStorage.load(track), filename);
+    }
+
+    @Override
+    public TrackResponse releaseProblem(Integer trackId) {
+        Track track = trackRepository.findById(trackId)
+                .orElseThrow(() -> new ResourceNotFoundException("Track", trackId));
+        Round round = track.getRound();
+        if (round == null || Boolean.TRUE.equals(round.getIsFinal())) {
+            throw new BusinessRuleException(ErrorCode.DESIGN_VIOLATION,
+                    "Phát đề theo bảng đấu chỉ áp dụng cho vòng Sơ loại");
+        }
+        roundAccessGuard.requireActiveRound(round.getId());
+        guardParentStatus(round.getHackathon());
+        if (track.getStatus() == TrackStatus.CANCELLED) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Bảng đấu đã CANCELLED — không thể phát đề");
+        }
+        if (track.getProblemReleasedAt() != null) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Đề bài đã được phát cho bảng đấu này");
+        }
+        if (!TrackProblemStatementStorage.hasProblemFile(track)) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                    "Bảng đấu chưa có file PDF đề bài — upload trước khi phát");
+        }
+        track.setProblemReleasedAt(LocalDateTime.now());
+        Track saved = trackRepository.save(track);
+        auditService.log(AuditAction.TRACK_RELEASE_PROBLEM, "tracks", trackId, Map.of(
+                "trackName", saved.getName(),
+                "roundId", round.getId()));
+        notifyTrackProblemReleased(saved, round);
+        return trackMapper.toResponse(saved);
+    }
+
+    private void notifyTrackProblemReleased(Track track, Round round) {
+        Set<User> teamMembers = new LinkedHashSet<>();
+        for (TeamRoundTrack trt : teamRoundTrackRepository.findByTrack_Round_Id(round.getId())) {
+            if (!trt.getTrack().getId().equals(track.getId())) {
+                continue;
+            }
+            teamMemberRepository.findByTeam_Id(trt.getTeam().getId()).stream()
+                    .filter(tm -> tm.getStatus() == TeamMemberStatus.ACCEPTED)
+                    .map(TeamMember::getUser)
+                    .forEach(teamMembers::add);
+        }
+        if (!teamMembers.isEmpty()) {
+            notificationService.sendBatch(
+                    new ArrayList<>(teamMembers),
+                    "PROBLEM_RELEASED",
+                    "Đề Sơ loại — %s".formatted(track.getName()),
+                    "Đề bài cho bảng \"%s\" đã được phát. Vào trang đội để tải PDF — mỗi đội chỉ thấy đề của bảng mình."
+                            .formatted(track.getName()),
+                    "tracks",
+                    track.getId());
+        }
     }
 
     private void guardParentStatus(Hackathon h) {

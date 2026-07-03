@@ -10,6 +10,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -160,6 +161,19 @@ public class GlobalExceptionHandler {
                 .timestamp(Instant.now())
                 .build();
         return ResponseEntity.badRequest().body(body);
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> handleOptimisticLock(
+            ObjectOptimisticLockingFailureException ex, HttpServletRequest req) {
+        String traceId = traceId();
+        log.warn("[{}] {} {} -> 409 optimistic lock: {}",
+                traceId, req.getMethod(), req.getRequestURI(), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                ErrorResponse.of(
+                        ErrorCode.CONCURRENT_MODIFICATION,
+                        "Dữ liệu đã được cập nhật bởi thao tác khác — vui lòng thử lại",
+                        HttpStatus.CONFLICT.value()));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
