@@ -201,6 +201,18 @@ public class Gd1DataSeeder {
         return summary;
     }
 
+    /**
+     * Idempotent — tạo thêm judge3–4 / guest2–3 / mentor2–3 trên DB đã seed trước đó.
+     * Gọi mỗi lần start {@code dev} trước các repair phụ thuộc user pool.
+     */
+    @Transactional
+    public SeedUsers ensureSeedUsers() {
+        SeedChapters chapters = seedChapters();
+        SeedUsers users = seedUsers(chapters);
+        logDevLoginCredentials();
+        return users;
+    }
+
     private int ensureFinishedHackathonFullSeed() {
         Optional<SeedUsers> users = tryLoadSeedUsers();
         if (users.isEmpty()) {
@@ -237,19 +249,34 @@ public class Gd1DataSeeder {
         Optional<User> coordinator = userRepository.findByEmail(Gd1SeedConstants.EMAIL_COORDINATOR);
         Optional<User> judge1 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_JUDGE1);
         Optional<User> judge2 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_JUDGE2);
+        Optional<User> judge3 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_JUDGE3);
+        Optional<User> judge4 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_JUDGE4);
         Optional<User> guestJudge = userRepository.findByEmail(Gd1SeedConstants.EMAIL_GUEST_JUDGE);
+        Optional<User> guestJudge2 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_GUEST_JUDGE2);
+        Optional<User> guestJudge3 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_GUEST_JUDGE3);
         Optional<User> mentor = userRepository.findByEmail(Gd1SeedConstants.EMAIL_MENTOR);
+        Optional<User> mentor2 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_MENTOR2);
+        Optional<User> mentor3 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_MENTOR3);
         Optional<User> pendingJudge = userRepository.findByEmail(Gd1SeedConstants.EMAIL_PENDING_JUDGE);
         if (coordinator.isEmpty() || judge1.isEmpty() || judge2.isEmpty()
-                || guestJudge.isEmpty() || mentor.isEmpty() || pendingJudge.isEmpty()) {
+                || judge3.isEmpty() || judge4.isEmpty()
+                || guestJudge.isEmpty() || guestJudge2.isEmpty() || guestJudge3.isEmpty()
+                || mentor.isEmpty() || mentor2.isEmpty() || mentor3.isEmpty()
+                || pendingJudge.isEmpty()) {
             return Optional.empty();
         }
         return Optional.of(new SeedUsers(
                 coordinator.get(),
                 judge1.get(),
                 judge2.get(),
+                judge3.get(),
+                judge4.get(),
                 guestJudge.get(),
+                guestJudge2.get(),
+                guestJudge3.get(),
                 mentor.get(),
+                mentor2.get(),
+                mentor3.get(),
                 pendingJudge.get()));
     }
 
@@ -268,14 +295,10 @@ public class Gd1DataSeeder {
         LocalDate today = LocalDate.now();
         LocalDate regStart = today.minusDays(14);
         LocalDate regEnd = today.plusDays(14);
-        LocalDate eventStart = today.plusDays(15);
-        LocalDate eventEnd = eventStart;
+        LocalDate eventStart = regEnd.plusDays(RoundScheduleSeedUtil.DAYS_REG_END_TO_EVENT_START);
+        LocalDate eventEnd = eventStart.plusDays(30);
         LocalDate wsDay = regEnd.plusDays(1);
         LocalDate koDay = regEnd.plusDays(2);
-        if (!koDay.isBefore(eventStart)) {
-            koDay = eventStart.minusDays(1);
-            wsDay = koDay.minusDays(1);
-        }
         LocalDateTime workshopStart = wsDay.atTime(20, 0);
         LocalDateTime workshopEnd = wsDay.atTime(21, 30);
         LocalDateTime kickoffStart = koDay.atTime(14, 0);
@@ -285,7 +308,8 @@ public class Gd1DataSeeder {
         LocalDateTime prelimExamAt = eventStart.atTime(8, 0);
         int prelimHours = RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS;
         LocalDateTime prelimDeadline = RoundScheduleSeedUtil.submissionDeadline(prelimExamAt, prelimHours);
-        LocalDateTime finalDeadline = eventStart.atTime(16, 30);
+        LocalDateTime finalDeadline = RoundScheduleSeedUtil.finalSubmissionDeadline(
+                RoundScheduleSeedUtil.minFinalExamAt(prelimExamAt, prelimHours));
         return new SeedDates(
                 regStart,
                 regEnd,
@@ -308,7 +332,7 @@ public class Gd1DataSeeder {
         LocalDate regStart = LocalDate.of(2025, 10, 1);
         LocalDate regEnd = LocalDate.of(2025, 10, 20);
         LocalDate eventStart = LocalDate.of(2025, 10, 25);
-        LocalDate eventEnd = eventStart;
+        LocalDate eventEnd = LocalDate.of(2025, 11, 24);
         LocalDateTime workshopStart = LocalDate.of(2025, 10, 22).atTime(19, 30);
         LocalDateTime workshopEnd = LocalDate.of(2025, 10, 22).atTime(21, 0);
         LocalDateTime kickoffStart = LocalDate.of(2025, 10, 23).atTime(14, 0);
@@ -318,7 +342,8 @@ public class Gd1DataSeeder {
         LocalDateTime prelimExamAt = eventStart.atTime(8, 0);
         int prelimHours = RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS;
         LocalDateTime prelimDeadline = RoundScheduleSeedUtil.submissionDeadline(prelimExamAt, prelimHours);
-        LocalDateTime finalDeadline = eventStart.atTime(16, 30);
+        LocalDateTime finalDeadline = RoundScheduleSeedUtil.finalSubmissionDeadline(
+                RoundScheduleSeedUtil.minFinalExamAt(prelimExamAt, prelimHours));
         return new SeedDates(
                 regStart,
                 regEnd,
@@ -386,9 +411,54 @@ public class Gd1DataSeeder {
                 chapters.hcm(),
                 false,
                 false);
+        User judge2 = upsertUser(
+                Gd1SeedConstants.EMAIL_JUDGE2,
+                "Hoàng Judge Two",
+                UserRole.JUDGE,
+                UserType.INTERNAL,
+                UserStatus.APPROVED,
+                chapters.hcm(),
+                false,
+                false);
+        User judge3 = upsertUser(
+                Gd1SeedConstants.EMAIL_JUDGE3,
+                "Lý Judge Three",
+                UserRole.JUDGE,
+                UserType.INTERNAL,
+                UserStatus.APPROVED,
+                chapters.hcm(),
+                false,
+                false);
+        User judge4 = upsertUser(
+                Gd1SeedConstants.EMAIL_JUDGE4,
+                "Võ Judge Four",
+                UserRole.JUDGE,
+                UserType.INTERNAL,
+                UserStatus.APPROVED,
+                chapters.hcm(),
+                false,
+                false);
         User guestJudge = upsertUser(
                 Gd1SeedConstants.EMAIL_GUEST_JUDGE,
                 "Lê Văn Judge External",
+                UserRole.JUDGE,
+                UserType.EXTERNAL,
+                UserStatus.APPROVED,
+                chapters.ext(),
+                true,
+                false);
+        User guestJudge2 = upsertUser(
+                Gd1SeedConstants.EMAIL_GUEST_JUDGE2,
+                "Guest Judge Two",
+                UserRole.JUDGE,
+                UserType.EXTERNAL,
+                UserStatus.APPROVED,
+                chapters.ext(),
+                true,
+                false);
+        User guestJudge3 = upsertUser(
+                Gd1SeedConstants.EMAIL_GUEST_JUDGE3,
+                "Guest Judge Three",
                 UserRole.JUDGE,
                 UserType.EXTERNAL,
                 UserStatus.APPROVED,
@@ -404,10 +474,19 @@ public class Gd1DataSeeder {
                 chapters.hcm(),
                 false,
                 false);
-        User judge2 = upsertUser(
-                Gd1SeedConstants.EMAIL_JUDGE2,
-                "Hoàng Judge Two",
-                UserRole.JUDGE,
+        User mentor2 = upsertUser(
+                Gd1SeedConstants.EMAIL_MENTOR2,
+                "Mentor Two",
+                UserRole.MENTOR,
+                UserType.INTERNAL,
+                UserStatus.APPROVED,
+                chapters.hcm(),
+                false,
+                false);
+        User mentor3 = upsertUser(
+                Gd1SeedConstants.EMAIL_MENTOR3,
+                "Mentor Three",
+                UserRole.MENTOR,
                 UserType.INTERNAL,
                 UserStatus.APPROVED,
                 chapters.hcm(),
@@ -422,7 +501,10 @@ public class Gd1DataSeeder {
                 chapters.hcm(),
                 false,
                 false);
-        return new SeedUsers(coordinator, judge1, judge2, guestJudge, mentor, pendingJudge);
+        return new SeedUsers(
+                coordinator, judge1, judge2, judge3, judge4,
+                guestJudge, guestJudge2, guestJudge3,
+                mentor, mentor2, mentor3, pendingJudge);
     }
 
     /**
@@ -513,18 +595,20 @@ public class Gd1DataSeeder {
         log.info("""
                 [Gd1DataSeeder] ========== Dev login (MF-02, profile dev) ==========
                   {}  Password: {}
-                  {}  Password: {}
-                  {}  Password: {}
-                  {}  Password: {}
-                  {}  Password: {}
+                  {} / {} / {} / {}  Password: {}
+                  {} / {} / {}  Password: {}
+                  {} / {} / {}  Password: {}
                   {}  Password: {}  (status PENDING — login 401 cho đến khi duyệt)
                 ================================================================
                 """,
                 Gd1SeedConstants.EMAIL_COORDINATOR, Gd1SeedConstants.DEV_COORDINATOR_PASSWORD,
-                Gd1SeedConstants.EMAIL_JUDGE1, Gd1SeedConstants.DEV_JUDGE_PASSWORD,
-                Gd1SeedConstants.EMAIL_JUDGE2, Gd1SeedConstants.DEV_JUDGE_PASSWORD,
-                Gd1SeedConstants.EMAIL_GUEST_JUDGE, Gd1SeedConstants.DEV_GUEST_JUDGE_PASSWORD,
-                Gd1SeedConstants.EMAIL_MENTOR, Gd1SeedConstants.DEV_MENTOR_PASSWORD,
+                Gd1SeedConstants.EMAIL_JUDGE1, Gd1SeedConstants.EMAIL_JUDGE2,
+                Gd1SeedConstants.EMAIL_JUDGE3, Gd1SeedConstants.EMAIL_JUDGE4,
+                Gd1SeedConstants.DEV_JUDGE_PASSWORD,
+                Gd1SeedConstants.EMAIL_GUEST_JUDGE, Gd1SeedConstants.EMAIL_GUEST_JUDGE2,
+                Gd1SeedConstants.EMAIL_GUEST_JUDGE3, Gd1SeedConstants.DEV_GUEST_JUDGE_PASSWORD,
+                Gd1SeedConstants.EMAIL_MENTOR, Gd1SeedConstants.EMAIL_MENTOR2,
+                Gd1SeedConstants.EMAIL_MENTOR3, Gd1SeedConstants.DEV_MENTOR_PASSWORD,
                 Gd1SeedConstants.EMAIL_PENDING_JUDGE, Gd1SeedConstants.DEV_PENDING_JUDGE_PASSWORD);
     }
 
@@ -656,6 +740,7 @@ public class Gd1DataSeeder {
                 .roundType(RoundType.FINAL)
                 .submissionOpen(dates.finalSubmissionOpen())
                 .submissionDeadline(dates.finalDeadline())
+                .codingDurationHours(RoundScheduleSeedUtil.DEFAULT_FINAL_CODING_HOURS)
                 .lateSubmissionPolicy(LateSubmissionPolicy.HARD_LOCK)
                 .wildcardEnabled(false)
                 .tiebreakRule(TiebreakRule.PENALTY_SCORE)
@@ -720,34 +805,60 @@ public class Gd1DataSeeder {
         }
         if (mentorAssignmentRepository.findByTrackId(track2.getId()).isEmpty()) {
             mentorAssignmentRepository.save(MentorAssignment.builder()
-                    .mentor(users.mentor())
+                    .mentor(users.mentor2())
                     .track(track2)
                     .assignedBy(coord)
                     .assignedAt(assignedAt)
                     .build());
         }
 
+        // Prelim: INTERNAL only — HEAD + NORMAL; EXTERNAL chỉ trên CK
         if (judgeAssignmentRepository.findByTrackId(track1.getId()).isEmpty()) {
-            saveJudgeAssignment(users.judge1(), track1, coord, assignedAt);
-            saveJudgeAssignment(users.guestJudge(), track1, coord, assignedAt);
+            saveJudgeAssignment(users.judge1(), track1, coord, assignedAt, JudgeAssignmentType.HEAD);
+            saveJudgeAssignment(users.judge2(), track1, coord, assignedAt, JudgeAssignmentType.NORMAL);
         }
         if (judgeAssignmentRepository.findByTrackId(track2.getId()).isEmpty()) {
-            saveJudgeAssignment(users.judge1(), track2, coord, assignedAt);
-            saveJudgeAssignment(users.judge2(), track2, coord, assignedAt);
+            saveJudgeAssignment(users.judge2(), track2, coord, assignedAt, JudgeAssignmentType.HEAD);
+            saveJudgeAssignment(users.judge3(), track2, coord, assignedAt, JudgeAssignmentType.NORMAL);
         }
         if (track3 != null) {
             if (mentorAssignmentRepository.findByTrackId(track3.getId()).isEmpty()) {
                 mentorAssignmentRepository.save(MentorAssignment.builder()
-                        .mentor(users.mentor())
+                        .mentor(users.mentor3())
                         .track(track3)
                         .assignedBy(coord)
                         .assignedAt(assignedAt)
                         .build());
             }
             if (judgeAssignmentRepository.findByTrackId(track3.getId()).isEmpty()) {
-                saveJudgeAssignment(users.judge2(), track3, coord, assignedAt);
-                saveJudgeAssignment(users.guestJudge(), track3, coord, assignedAt);
+                saveJudgeAssignment(users.judge3(), track3, coord, assignedAt, JudgeAssignmentType.HEAD);
+                saveJudgeAssignment(users.judge4(), track3, coord, assignedAt, JudgeAssignmentType.NORMAL);
             }
+        }
+
+        // CK: EXTERNAL FINAL_EXTERNAL + INTERNAL HEAD (trưởng ban) — sẵn sàng trước kích hoạt
+        if (judgeAssignmentRepository.findByRoundId(finalRound.getId()).isEmpty()) {
+            judgeAssignmentRepository.save(JudgeAssignment.builder()
+                    .judge(users.judge1())
+                    .round(finalRound)
+                    .assignmentType(JudgeAssignmentType.HEAD)
+                    .assignedBy(coord)
+                    .assignedAt(assignedAt)
+                    .build());
+            judgeAssignmentRepository.save(JudgeAssignment.builder()
+                    .judge(users.guestJudge())
+                    .round(finalRound)
+                    .assignmentType(JudgeAssignmentType.FINAL_EXTERNAL)
+                    .assignedBy(coord)
+                    .assignedAt(assignedAt)
+                    .build());
+            judgeAssignmentRepository.save(JudgeAssignment.builder()
+                    .judge(users.guestJudge2())
+                    .round(finalRound)
+                    .assignmentType(JudgeAssignmentType.FINAL_EXTERNAL)
+                    .assignedBy(coord)
+                    .assignedAt(assignedAt)
+                    .build());
         }
 
         if (status == HackathonStatus.FINISHED) {
@@ -787,12 +898,13 @@ public class Gd1DataSeeder {
         roundRepository.save(finalRound);
     }
 
-    private void saveJudgeAssignment(User judge, Track track, User assignedBy, LocalDateTime assignedAt) {
+    private void saveJudgeAssignment(User judge, Track track, User assignedBy, LocalDateTime assignedAt,
+                                     JudgeAssignmentType assignmentType) {
         judgeAssignmentRepository.save(JudgeAssignment.builder()
                 .judge(judge)
                 .track(track)
                 .round(null)
-                .assignmentType(JudgeAssignmentType.NORMAL)
+                .assignmentType(assignmentType)
                 .assignedBy(assignedBy)
                 .assignedAt(assignedAt)
                 .build());
@@ -948,7 +1060,7 @@ public class Gd1DataSeeder {
         LocalDateTime assignedAt = LocalDateTime.now();
         if (mentorAssignmentRepository.findByTrackId(track3.getId()).isEmpty()) {
             mentorAssignmentRepository.save(MentorAssignment.builder()
-                    .mentor(users.mentor())
+                    .mentor(users.mentor3())
                     .track(track3)
                     .assignedBy(coord)
                     .assignedAt(assignedAt)
@@ -956,8 +1068,8 @@ public class Gd1DataSeeder {
             filled++;
         }
         if (judgeAssignmentRepository.findByTrackId(track3.getId()).isEmpty()) {
-            saveJudgeAssignment(users.judge2(), track3, coord, assignedAt);
-            saveJudgeAssignment(users.guestJudge(), track3, coord, assignedAt);
+            saveJudgeAssignment(users.judge3(), track3, coord, assignedAt, JudgeAssignmentType.HEAD);
+            saveJudgeAssignment(users.judge4(), track3, coord, assignedAt, JudgeAssignmentType.NORMAL);
             filled += 2;
         }
         return filled;
@@ -1096,6 +1208,11 @@ public class Gd1DataSeeder {
                     round.setExamAt(dates.finalExamAt());
                     changed = true;
                 }
+                if (round.getCodingDurationHours() == null
+                        || round.getCodingDurationHours() != RoundScheduleSeedUtil.DEFAULT_FINAL_CODING_HOURS) {
+                    round.setCodingDurationHours(RoundScheduleSeedUtil.DEFAULT_FINAL_CODING_HOURS);
+                    changed = true;
+                }
                 if (round.getSubmissionOpen() == null
                         || !round.getSubmissionOpen().equals(dates.finalSubmissionOpen())) {
                     round.setSubmissionOpen(dates.finalSubmissionOpen());
@@ -1195,7 +1312,7 @@ public class Gd1DataSeeder {
         }
 
         LocalDateTime finalSubmissionOpen() {
-            return finalExamAt();
+            return RoundScheduleSeedUtil.finalSubmissionOpen(finalExamAt());
         }
     }
 
@@ -1206,8 +1323,14 @@ public class Gd1DataSeeder {
             User coordinator,
             User judge1,
             User judge2,
+            User judge3,
+            User judge4,
             User guestJudge,
+            User guestJudge2,
+            User guestJudge3,
             User mentor,
+            User mentor2,
+            User mentor3,
             User pendingJudge) {
     }
 

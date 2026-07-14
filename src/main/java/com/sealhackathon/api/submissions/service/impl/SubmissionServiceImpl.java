@@ -168,7 +168,9 @@ public class SubmissionServiceImpl implements SubmissionService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        boolean afterDeadline = now.isAfter(round.getSubmissionDeadline());
+        // Closed-early ⇒ mọi lần nộp sau đó đều late (tránh race isAfter(deadline==now) = false)
+        boolean afterDeadline = round.getSubmissionClosedEarlyAt() != null
+                || (round.getSubmissionDeadline() != null && !now.isBefore(round.getSubmissionDeadline()));
 
         Submission submission;
         if (track != null) {
@@ -307,7 +309,7 @@ public class SubmissionServiceImpl implements SubmissionService {
 
     @Override
     public SubmissionResponse reviewLate(Integer submissionId, ReviewLateSubmissionRequest req) {
-        Submission submission = submissionRepository.findById(submissionId)
+        Submission submission = submissionRepository.findByIdForUpdate(submissionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Submission", submissionId));
 
         if (submission.getStatus() != SubmissionStatus.LATE_PENDING) {
@@ -360,7 +362,17 @@ public class SubmissionServiceImpl implements SubmissionService {
             return computed;
         }
         return switch (existing.getStatus()) {
-            case LATE_APPROVED, ACCEPTED, SUBMITTED -> existing.getStatus();
+            case LATE_APPROVED, ACCEPTED -> existing.getStatus();
+            // SUBMITTED sau close-early (clock race) → cho phép chuyển sang LATE_PENDING/REJECTED khi nộp lại
+            case SUBMITTED -> {
+                if (afterDeadline
+                        && round.getSubmissionClosedEarlyAt() != null
+                        && existing.getSubmittedAt() != null
+                        && !existing.getSubmittedAt().isBefore(round.getSubmissionClosedEarlyAt())) {
+                    yield computed;
+                }
+                yield existing.getStatus();
+            }
             case LATE_PENDING -> computed;
             default -> computed;
         };

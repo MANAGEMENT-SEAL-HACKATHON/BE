@@ -209,6 +209,7 @@ public class GlobalExceptionHandler {
         String[] known = {
                 ErrorCode.CONFLICT_SAME_TRACK,
                 ErrorCode.INTERNAL_JUDGE_NOT_ALLOWED_IN_FINAL,
+                ErrorCode.EXTERNAL_JUDGE_NOT_ALLOWED_IN_PRELIM,
                 ErrorCode.INTERNAL_MENTOR_NOT_ALLOWED_IN_FINAL,
                 ErrorCode.INVALID_ASSIGNMENT_TYPE,
                 ErrorCode.INVALID_FINAL_ROUND,
@@ -228,6 +229,8 @@ public class GlobalExceptionHandler {
         return switch (code) {
             case ErrorCode.CONFLICT_SAME_TRACK -> "Không được vừa Mentor vừa Judge cùng Track";
             case ErrorCode.INTERNAL_JUDGE_NOT_ALLOWED_IN_FINAL -> "Judge INTERNAL không được phân công Chung kết";
+            case ErrorCode.EXTERNAL_JUDGE_NOT_ALLOWED_IN_PRELIM ->
+                    "Judge EXTERNAL không được phân công Track sơ loại";
             case ErrorCode.INTERNAL_MENTOR_NOT_ALLOWED_IN_FINAL -> "Mentor không được làm Judge Chung kết";
             case ErrorCode.INVALID_ASSIGNMENT_TYPE -> "assignment_type không hợp lệ cho ngữ cảnh";
             case ErrorCode.INVALID_FINAL_ROUND -> "round_id phải trỏ Round Chung kết";

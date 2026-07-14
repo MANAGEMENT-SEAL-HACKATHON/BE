@@ -3,6 +3,7 @@ package com.sealhackathon.api.tracks.support;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.rounds.support.RoundProblemStatementStorage;
+import com.sealhackathon.api.rounds.support.SeedProblemPdf;
 import com.sealhackathon.api.storage.ObjectStorageService;
 import com.sealhackathon.api.storage.StoredObject;
 import com.sealhackathon.api.tracks.entity.Track;
@@ -19,16 +20,6 @@ import java.io.IOException;
 public class TrackProblemStatementStorage {
 
     public static final String KEY_PREFIX = "track-problems/";
-
-    /** PDF tối thiểu hợp lệ — dùng cho dev seed. */
-    private static final byte[] SEED_PDF_BYTES = (
-            "%PDF-1.4\n"
-                    + "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
-                    + "2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
-                    + "3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R>>endobj\n"
-                    + "xref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000052 00000 n \n0000000101 00000 n \n"
-                    + "trailer<</Size 4/Root 1 0 R>>\nstartxref\n178\n%%EOF")
-            .getBytes(java.nio.charset.StandardCharsets.US_ASCII);
 
     private final ObjectStorageService objectStorageService;
     private final RoundProblemStatementStorage roundProblemStatementStorage;
@@ -64,14 +55,17 @@ public class TrackProblemStatementStorage {
             return;
         }
         String key = buildKey(track);
+        byte[] pdf = SeedProblemPdf.bytes();
         objectStorageService.put(
                 key,
-                new ByteArrayInputStream(SEED_PDF_BYTES),
+                new ByteArrayInputStream(pdf),
                 "application/pdf",
-                SEED_PDF_BYTES.length);
+                pdf.length);
         track.setProblemStatementStorageKey(key);
-        track.setProblemStatementOriginalFilename(
-                StringUtils.hasText(originalFilename) ? originalFilename : "de-bai-track.pdf");
+        String filename = StringUtils.hasText(originalFilename)
+                ? originalFilename
+                : SeedProblemPdf.displayFilename();
+        track.setProblemStatementOriginalFilename(filename);
         track.setProblemStatementUrl(null);
     }
 

@@ -3,6 +3,7 @@ package com.sealhackathon.api.calibration_sessions.entity;
 import com.sealhackathon.api.calibration_sessions.value_object.CalibrationStatus;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.submissions.entity.Submission;
+import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.users.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
@@ -12,6 +13,9 @@ import java.time.LocalDateTime;
 /**
  * Phiên hiệu chuẩn điểm — Coordinator/Head Judge yêu cầu các Judge cùng chấm
  * một bài mẫu để đồng bộ thang điểm trước Round chính.
+ *
+ * <p>GĐ3 (Sơ loại): gắn {@code track} — 1 phiên OPEN / track.
+ * GĐ5 (Chung kết): {@code track} null — 1 phiên OPEN / round.
  */
 @Entity
 @Table(name = "calibration_sessions")
@@ -29,6 +33,11 @@ public class CalibrationSession {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "round_id", nullable = false)
     private Round round;
+
+    /** Nullable — null cho CK (GĐ5); set cho Sơ loại theo bảng. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "track_id")
+    private Track track;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sample_submission_id")

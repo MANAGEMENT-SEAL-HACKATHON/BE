@@ -69,7 +69,7 @@ public class Gd6PendingConfirmDataSeeder {
             }
             if (hackathon.getStatus() == HackathonStatus.FINISHED) {
                 seedHelper.repairHackathonForGd6Retest(hackathon, prelim, finalRound);
-                reseedProfile0FirstPrize(hackathon, finalRound);
+                reseedProfile0PodiumPrizes(hackathon, finalRound);
                 log.info("[Gd6PendingConfirmDataSeeder] repairForFullChainRetest — {} → PENDING_CONFIRM",
                         Gd6SeedConstants.SLUG_GD6_PENDING_CONFIRM);
             }
@@ -87,7 +87,7 @@ public class Gd6PendingConfirmDataSeeder {
                 Gd6SeedConstants.SLUG_GD6_PENDING_CONFIRM,
                 "SEAL GĐ6 — Pending confirm",
                 HackathonStatus.PENDING_CONFIRM,
-                "Seed E2E GĐ6 — PENDING_CONFIRM, CK locked, 3 đội + FIRST prize",
+                "Seed E2E GĐ6 — PENDING_CONFIRM, CK locked, 3 đội + FIRST/SECOND/THIRD",
                 new HackathonDevSeedHelper.PrelimState(false, true, true, true, 1, 2),
                 new HackathonDevSeedHelper.FinalState(true, true),
                 seedHelper.computeGd6PendingConfirmDates());
@@ -153,13 +153,15 @@ public class Gd6PendingConfirmDataSeeder {
         }
 
         seedHelper.ensureFirstPrize(hackathon, finalRound, teams.get(0), coordinator);
+        seedHelper.ensureSecondPrize(hackathon, finalRound, teams.get(1), coordinator);
+        seedHelper.ensureThirdPrize(hackathon, finalRound, teams.get(2), coordinator);
         seedHelper.ensureFinalGuestJudgeAssignment(hackathon, finalRound);
 
         log.info("""
                 [Gd6PendingConfirmDataSeeder] slug={} hackathonId={} prelimRoundId={} finalRoundId={}
                   teams: {} | {} | {}
                   students: {} … {} password={}
-                  guestJudge={} status=PENDING_CONFIRM FIRST prize on team01
+                  guestJudge={} status=PENDING_CONFIRM prizes FIRST+SECOND+THIRD — Confirm → FINISHED
                 """,
                 Gd6SeedConstants.SLUG_GD6_PENDING_CONFIRM,
                 hackathon.getId(),
@@ -174,7 +176,7 @@ public class Gd6PendingConfirmDataSeeder {
                 Gd1SeedConstants.EMAIL_GUEST_JUDGE);
     }
 
-    /** Reset Profile 0 về 3 team XH + đúng 1 giải FIRST (R1-api / P5-api Playwright). */
+    /** Reset Profile 0 về 3 team XH + đủ FIRST/SECOND/THIRD. */
     @Transactional
     public void repairForApiMatrixReadiness() {
         if (!enabled) {
@@ -192,25 +194,38 @@ public class Gd6PendingConfirmDataSeeder {
             if (finalRound == null) {
                 return;
             }
-            var prizes = prizeRepository.findByRound_Hackathon_IdOrderByAwardedAtDesc(hackathon.getId());
-            boolean baseline = prizes.size() == 1
-                    && prizeRepository.existsByHackathonIdAndPrizeRank(hackathon.getId(), PrizeRank.FIRST);
+            boolean baseline = true;
+            for (PrizeRank rank : List.of(PrizeRank.FIRST, PrizeRank.SECOND, PrizeRank.THIRD)) {
+                if (!prizeRepository.existsByHackathonIdAndPrizeRank(hackathon.getId(), rank)) {
+                    baseline = false;
+                    break;
+                }
+            }
             if (!baseline) {
-                reseedProfile0FirstPrize(hackathon, finalRound);
-                log.info("[Gd6PendingConfirmDataSeeder] repairForApiMatrixReadiness — Profile 0 prizes → FIRST only");
+                reseedProfile0PodiumPrizes(hackathon, finalRound);
+                log.info("[Gd6PendingConfirmDataSeeder] repairForApiMatrixReadiness — prizes → FIRST+SECOND+THIRD");
             }
         });
     }
 
-    private void reseedProfile0FirstPrize(Hackathon hackathon, Round finalRound) {
+    private void reseedProfile0PodiumPrizes(Hackathon hackathon, Round finalRound) {
         Team team01 = teamRepository
                 .findByHackathon_IdAndTeamNameIgnoreCase(hackathon.getId(), Gd6SeedConstants.TEAM_01)
                 .orElse(null);
-        if (team01 == null) {
+        Team team02 = teamRepository
+                .findByHackathon_IdAndTeamNameIgnoreCase(hackathon.getId(), Gd6SeedConstants.TEAM_02)
+                .orElse(null);
+        Team team03 = teamRepository
+                .findByHackathon_IdAndTeamNameIgnoreCase(hackathon.getId(), Gd6SeedConstants.TEAM_03)
+                .orElse(null);
+        if (team01 == null || team02 == null || team03 == null) {
             return;
         }
+        User coordinator = seedHelper.requireCoordinator();
         seedHelper.clearGd6Prizes(hackathon.getId());
-        seedHelper.ensureFirstPrize(hackathon, finalRound, team01, seedHelper.requireCoordinator());
+        seedHelper.ensureFirstPrize(hackathon, finalRound, team01, coordinator);
+        seedHelper.ensureSecondPrize(hackathon, finalRound, team02, coordinator);
+        seedHelper.ensureThirdPrize(hackathon, finalRound, team03, coordinator);
     }
 
     /** Đồng bộ lịch đã kết thúc + reset FINISHED → PENDING_CONFIRM khi cần. */

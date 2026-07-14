@@ -2,7 +2,9 @@ package com.sealhackathon.api.submissions.repository;
 
 import com.sealhackathon.api.submissions.entity.Submission;
 import com.sealhackathon.api.submissions.value_object.SubmissionStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -12,6 +14,10 @@ import java.util.Optional;
 
 @Repository
 public interface SubmissionRepository extends JpaRepository<Submission, Integer> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM Submission s WHERE s.id = :id")
+    Optional<Submission> findByIdForUpdate(@Param("id") Integer id);
 
     List<Submission> findByTeam_Id(Integer teamId);
 

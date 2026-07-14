@@ -1,5 +1,6 @@
 package com.sealhackathon.api.rounds.dto.request;
 
+import com.sealhackathon.api.rounds.value_object.ActivateScheduleMode;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -7,8 +8,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 /**
- * FR-06B PATCH /api/v1/rounds/{id}/activate. Body optional — note dùng cho audit.
+ * PATCH /api/v1/rounds/{id}/activate — note + optional schedule mode khi examAt còn tương lai.
  */
 @Getter
 @Setter
@@ -19,4 +22,12 @@ public class ActivateRoundRequest {
 
     @Size(max = 1000)
     private String note;
+
+    /**
+     * Mặc định {@link ActivateScheduleMode#KEEP} khi null (không surprise thí sinh).
+     */
+    private ActivateScheduleMode scheduleMode;
+
+    /** Bắt buộc khi {@link ActivateScheduleMode#RESCHEDULE}. */
+    private LocalDateTime newExamAt;
 }

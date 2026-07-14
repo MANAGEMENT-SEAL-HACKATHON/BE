@@ -372,6 +372,10 @@ class Gd2Gd3FlowIntegrationTest {
         lockTeamAndSubmit();
         String coordToken = login(coordinator.getEmail(), "Coordinator@dev1");
 
+        mockMvc.perform(post("/api/v1/rounds/{id}/close-submission-early", prelimRound.getId())
+                        .header("Authorization", "Bearer " + coordToken))
+                .andExpect(status().isOk());
+
         MvcResult shuffleResult = mockMvc.perform(post("/api/v1/presentation/queue/shuffle")
                         .header("Authorization", "Bearer " + coordToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -471,6 +475,8 @@ class Gd2Gd3FlowIntegrationTest {
                         .header("Authorization", "Bearer " + ctx.controllerToken()))
                 .andExpect(status().isOk());
 
+        advancePresentingSlotToQa(ctx.controllerToken());
+
         String nextBody = """
                 {"currentSubmissionId": %d}
                 """.formatted(ctx.firstSubmissionId());
@@ -511,6 +517,8 @@ class Gd2Gd3FlowIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(scoreBody))
                 .andExpect(status().isCreated());
+
+        advancePresentingSlotToQa(ctx.controllerToken());
 
         String nextBody = """
                 {"currentSubmissionId": %d}
@@ -607,6 +615,8 @@ class Gd2Gd3FlowIntegrationTest {
                         .content(scoreBody))
                 .andExpect(status().isCreated());
 
+        advancePresentingSlotToQa(ctx.controllerToken());
+
         String nextBody = """
                 {"currentSubmissionId": %d}
                 """.formatted(ctx.submissionId());
@@ -655,6 +665,15 @@ class Gd2Gd3FlowIntegrationTest {
                 .build());
     }
 
+    /** Next chỉ cho phép khi phase QA hoặc ENDED (Gate early-end Q&A). */
+    private void advancePresentingSlotToQa(String controllerToken) throws Exception {
+        mockMvc.perform(post("/api/v1/presentation/timer/qa")
+                        .param("roundId", prelimRound.getId().toString())
+                        .param("trackId", track.getId().toString())
+                        .header("Authorization", "Bearer " + controllerToken))
+                .andExpect(status().isOk());
+    }
+
     private record PresentationCtx(int submissionId, String controllerToken, String judgeToken) {}
 
     private record TwoTeamCtx(int firstSubmissionId, int secondSubmissionId, String controllerToken, String judgeToken) {}
@@ -669,6 +688,10 @@ class Gd2Gd3FlowIntegrationTest {
         String coordToken = login(coordinator.getEmail(), "Coordinator@dev1");
         String judgeToken = login(judge.getEmail(), "Judge@dev1");
 
+        mockMvc.perform(post("/api/v1/rounds/{id}/close-submission-early", prelimRound.getId())
+                        .header("Authorization", "Bearer " + coordToken))
+                .andExpect(status().isOk());
+
         mockMvc.perform(post("/api/v1/presentation/queue/shuffle")
                         .header("Authorization", "Bearer " + coordToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -682,6 +705,10 @@ class Gd2Gd3FlowIntegrationTest {
         int[] submissionIds = lockBothTeamsSubmitAndReturnIds();
         String coordToken = login(coordinator.getEmail(), "Coordinator@dev1");
         String judgeToken = login(judge.getEmail(), "Judge@dev1");
+
+        mockMvc.perform(post("/api/v1/rounds/{id}/close-submission-early", prelimRound.getId())
+                        .header("Authorization", "Bearer " + coordToken))
+                .andExpect(status().isOk());
 
         mockMvc.perform(post("/api/v1/presentation/queue/shuffle")
                         .header("Authorization", "Bearer " + coordToken)

@@ -6,6 +6,7 @@ import com.sealhackathon.api.rounds.dto.request.LockScoringRequest;
 import com.sealhackathon.api.rounds.dto.request.ResolveTiebreakRequest;
 import com.sealhackathon.api.rounds.dto.response.AdvanceTeamsResponse;
 import com.sealhackathon.api.rounds.dto.response.AssignFinalJudgesResult;
+import com.sealhackathon.api.rounds.dto.response.CloseSubmissionEarlyResponse;
 import com.sealhackathon.api.rounds.dto.response.FinalJudgeAssignmentResponse;
 import com.sealhackathon.api.rounds.dto.response.LockScoringResult;
 import com.sealhackathon.api.rounds.dto.response.RoundRankingItemResponse;
@@ -24,6 +25,8 @@ import org.springframework.web.multipart.MultipartFile;
 public interface RoundProgressionService {
 
     RoundSummaryResponse releaseProblem(Integer roundId, MultipartFile file);
+
+    CloseSubmissionEarlyResponse closeSubmissionEarly(Integer roundId);
 
     LockScoringResult lockScoring(Integer roundId, LockScoringRequest req);
 

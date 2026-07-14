@@ -320,7 +320,13 @@ public class StudentPortalServiceImpl implements StudentPortalService {
     @Override
     public StudentRoundDeadlineResponse getCurrentDeadline(Integer hackathonId) {
         Integer userId = currentUserAccessor.currentUserId();
-        Round activeRound = findActivePrelimRoundForUser(userId, hackathonId);
+        Round activeRound = findActivePrelimRoundForUserOrNull(userId, hackathonId);
+        if (activeRound == null) {
+            // GĐ2 / prelim chưa activate — không 404 để student portal không spam lỗi
+            return StudentRoundDeadlineResponse.builder()
+                    .problemReleased(false)
+                    .build();
+        }
         boolean problemReleased = activeRound.getProblemReleasedAt() != null;
         if (!problemReleased) {
             try {
@@ -681,6 +687,14 @@ public class StudentPortalServiceImpl implements StudentPortalService {
     }
 
     private Round findActivePrelimRoundForUser(Integer userId, Integer hackathonId) {
+        Round round = findActivePrelimRoundForUserOrNull(userId, hackathonId);
+        if (round == null) {
+            throw new ResourceNotFoundException("Round", "active prelim");
+        }
+        return round;
+    }
+
+    private Round findActivePrelimRoundForUserOrNull(Integer userId, Integer hackathonId) {
         return teamMemberRepository.findByUser_IdAndStatus(userId, TeamMemberStatus.ACCEPTED).stream()
                 .map(TeamMember::getTeam)
                 .filter(t -> t.getStatus() == TeamStatus.ACTIVE)
@@ -693,7 +707,7 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                 .filter(r -> Boolean.TRUE.equals(r.getIsActive()))
                 .filter(r -> !Boolean.TRUE.equals(r.getIsFinal()))
                 .findFirst()
-                .orElseThrow(() -> new ResourceNotFoundException("Round", "active prelim"));
+                .orElse(null);
     }
 
     private static List<Submission> merge(List<Submission> a, List<Submission> b) {

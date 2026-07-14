@@ -2,6 +2,7 @@ package com.sealhackathon.api.presentation.service.impl;
 
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
+import com.sealhackathon.api.hackathons.repository.HackathonRegistrationRepository;
 import com.sealhackathon.api.events.repository.JudgeSubmissionScoringConfirmationRepository;
 import com.sealhackathon.api.events.entity.PresentationSlot;
 import com.sealhackathon.api.events.repository.PresentationSlotRepository;
@@ -11,8 +12,12 @@ import com.sealhackathon.api.live_scoring.PresentationQueuePublisher;
 import com.sealhackathon.api.presentation.dto.request.PresentationShuffleRequest;
 import com.sealhackathon.api.presentation.dto.response.PresentationShuffleResponse;
 import com.sealhackathon.api.presentation.guard.PresentationControllerGuard;
+import com.sealhackathon.api.presentation.guard.PresentationForceAdvanceAckGuard;
 import com.sealhackathon.api.presentation.support.PresentationDurationResolver;
+import com.sealhackathon.api.presentation.support.PresentationNextScoringGuard;
+import com.sealhackathon.api.presentation.support.RoundPhaseResolver;
 import com.sealhackathon.api.presentation.value_object.PresentationQueueStatus;
+import com.sealhackathon.api.presentation.value_object.RoundPhase;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.submissions.entity.Submission;
@@ -56,8 +61,11 @@ class PresentationQueueShuffleTest {
     @Mock private AuditService auditService;
     @Mock private PresentationQueuePublisher queuePublisher;
     @Mock private CurrentUserAccessor currentUserAccessor;
-    @Mock private com.sealhackathon.api.presentation.support.PresentationNextScoringGuard nextScoringGuard;
+    @Mock private PresentationNextScoringGuard nextScoringGuard;
     @Mock private JudgeSubmissionScoringConfirmationRepository scoringConfirmationRepository;
+    @Mock private RoundPhaseResolver roundPhaseResolver;
+    @Mock private PresentationForceAdvanceAckGuard forceAdvanceAckGuard;
+    @Mock private HackathonRegistrationRepository hackathonRegistrationRepository;
 
     @InjectMocks
     private PresentationQueueServiceImpl queueService;
@@ -67,7 +75,9 @@ class PresentationQueueShuffleTest {
         Round round = Round.builder()
                 .id(5)
                 .isFinal(false)
-                .examAt(LocalDateTime.now().plusDays(1))
+                .isActive(true)
+                .examAt(LocalDateTime.now().minusHours(2))
+                .submissionDeadline(LocalDateTime.now().minusMinutes(5))
                 .hackathon(Hackathon.builder().id(1).build())
                 .build();
         Track track = Track.builder().id(10).name("AI").round(round).build();
@@ -83,6 +93,7 @@ class PresentationQueueShuffleTest {
         when(durationResolver.qaMinutes(track, round)).thenReturn(5);
         when(presentationSlotRepository.findByRound_IdAndTrack_IdOrderBySequenceOrderAsc(5, 10))
                 .thenReturn(List.of());
+        when(roundPhaseResolver.resolve(round)).thenReturn(RoundPhase.JUDGING);
         doNothing().when(controllerGuard).requireControllerForTrack(any(), any(), any());
 
         PresentationShuffleResponse response = queueService.shuffle(

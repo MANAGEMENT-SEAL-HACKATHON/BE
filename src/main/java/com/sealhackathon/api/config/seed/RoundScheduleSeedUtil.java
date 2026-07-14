@@ -15,6 +15,18 @@ public final class RoundScheduleSeedUtil {
     /** Khoảng cách tối thiểu giữa lúc chấm xong Sơ loại và giờ thi Chung kết */
     public static final int FINAL_EXAM_GAP_AFTER_GRADING_HOURS = 1;
 
+    /**
+     * Số giờ thi CK mặc định khi seed ({@code codingDurationHours}).
+     * Open/deadline suy ra theo cùng công thức Sơ loại (2/3 duration / full duration).
+     */
+    public static final int DEFAULT_FINAL_CODING_HOURS = 2;
+
+    /**
+     * Số ngày tối thiểu sau {@code registrationEnd} trước {@code eventStart}
+     * để chứa WORKSHOP (regEnd+1) và KICKOFF (regEnd+2) trong gap exclusive.
+     */
+    public static final int DAYS_REG_END_TO_EVENT_START = 3;
+
     private RoundScheduleSeedUtil() {
     }
 
@@ -38,5 +50,15 @@ public final class RoundScheduleSeedUtil {
         return prelimExamAt.plusHours(prelimCodingHours)
                 .plusHours(GRADING_BUFFER_HOURS_AFTER_PRELIM)
                 .plusHours(FINAL_EXAM_GAP_AFTER_GRADING_HOURS);
+    }
+
+    /** Hạn nộp CK seed = examAt + {@link #DEFAULT_FINAL_CODING_HOURS}. */
+    public static LocalDateTime finalSubmissionDeadline(LocalDateTime finalExamAt) {
+        return submissionDeadline(finalExamAt, DEFAULT_FINAL_CODING_HOURS);
+    }
+
+    /** Mở nộp CK seed = examAt + 2/3 {@link #DEFAULT_FINAL_CODING_HOURS}. */
+    public static LocalDateTime finalSubmissionOpen(LocalDateTime finalExamAt) {
+        return submissionOpen(finalExamAt, DEFAULT_FINAL_CODING_HOURS);
     }
 }

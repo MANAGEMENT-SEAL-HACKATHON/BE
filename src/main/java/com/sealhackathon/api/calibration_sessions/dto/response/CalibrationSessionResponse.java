@@ -14,6 +14,8 @@ public class CalibrationSessionResponse {
 
     private final Integer id;
     private final Integer roundId;
+    private final Integer trackId;
+    private final String trackName;
     private final Integer sampleSubmissionId;
     private final CalibrationStatus status;
     private final Float targetScore;

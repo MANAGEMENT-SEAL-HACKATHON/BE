@@ -22,6 +22,11 @@ public class CloseRegistrationEarlyResponse {
     /** Đội đủ thành viên nhưng leader chưa xác nhận — có 24h grace. */
     private final List<TeamInFormationGraceItem> teamsInFormationGracePeriod;
 
+    /** examAt vòng sơ loại sớm nhất (nếu có) — FE banner hint. */
+    private final LocalDateTime prelimExamAt;
+    /** Số giờ còn lại tới prelimExamAt (null nếu không có / đã qua). */
+    private final Long hoursUntilPrelimExam;
+
     @Getter
     @Builder
     @AllArgsConstructor

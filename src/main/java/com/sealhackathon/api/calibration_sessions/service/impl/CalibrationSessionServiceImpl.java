@@ -17,6 +17,8 @@ import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.submissions.entity.Submission;
 import com.sealhackathon.api.submissions.repository.SubmissionRepository;
+import com.sealhackathon.api.tracks.entity.Track;
+import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +37,7 @@ public class CalibrationSessionServiceImpl implements CalibrationSessionService 
 
     private final CalibrationSessionRepository calibrationSessionRepository;
     private final RoundRepository roundRepository;
+    private final TrackRepository trackRepository;
     private final SubmissionRepository submissionRepository;
     private final UserRepository userRepository;
     private final CurrentUserAccessor currentUserAccessor;
@@ -46,12 +49,29 @@ public class CalibrationSessionServiceImpl implements CalibrationSessionService 
                 .orElseThrow(() -> new ResourceNotFoundException("Round", req.getRoundId()));
 
         if (Boolean.TRUE.equals(round.getScoringLocked())) {
-            throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Không thể mở phiên hiệu chuẩn cho Round đã khóa chấm điểm");
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Không thể mở phiên hiệu chuẩn cho Round đã khóa chấm điểm");
         }
-        boolean hasOpen = calibrationSessionRepository.findByRound_IdOrderByStartedAtDesc(round.getId())
-                .stream()
-                .anyMatch(s -> s.getStatus() == CalibrationStatus.OPEN);
-        if (hasOpen) {
+
+        Track track = null;
+        if (req.getTrackId() != null) {
+            if (Boolean.TRUE.equals(round.getIsFinal())) {
+                throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                        "Vòng Chung kết không gắn phiên hiệu chuẩn theo bảng đấu");
+            }
+            track = trackRepository.findById(req.getTrackId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Track", req.getTrackId()));
+            if (track.getRound() == null || !track.getRound().getId().equals(round.getId())) {
+                throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                        "Bảng đấu không thuộc vòng thi này");
+            }
+            if (calibrationSessionRepository.existsByRound_IdAndTrack_IdAndStatus(
+                    round.getId(), track.getId(), CalibrationStatus.OPEN)) {
+                throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                        "Đã có phiên hiệu chuẩn OPEN cho bảng này");
+            }
+        } else if (calibrationSessionRepository.existsByRound_IdAndTrackIsNullAndStatus(
+                round.getId(), CalibrationStatus.OPEN)) {
             throw new BusinessRuleException(ErrorCode.INVALID_STATE,
                     "Đã có phiên hiệu chuẩn OPEN cho vòng này");
         }
@@ -61,9 +81,16 @@ public class CalibrationSessionServiceImpl implements CalibrationSessionService 
             sampleSubmission = submissionRepository.findById(req.getSampleSubmissionId())
                     .orElseThrow(() -> new ResourceNotFoundException("Submission", req.getSampleSubmissionId()));
 
-            // Validate bài mẫu phải thuộc Round này
             if (sampleSubmission.getRound() == null || !sampleSubmission.getRound().getId().equals(round.getId())) {
                 throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Bài mẫu không thuộc Vòng thi này");
+            }
+            if (track != null) {
+                Integer sampleTrackId = sampleSubmission.getTrack() != null
+                        ? sampleSubmission.getTrack().getId() : null;
+                if (sampleTrackId == null || !sampleTrackId.equals(track.getId())) {
+                    throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                            "Bài mẫu không thuộc bảng đấu của phiên hiệu chuẩn");
+                }
             }
         }
 
@@ -74,6 +101,7 @@ public class CalibrationSessionServiceImpl implements CalibrationSessionService 
 
         CalibrationSession session = CalibrationSession.builder()
                 .round(round)
+                .track(track)
                 .sampleSubmission(sampleSubmission)
                 .status(CalibrationStatus.OPEN)
                 .targetScore(req.getTargetScore())
@@ -84,10 +112,13 @@ public class CalibrationSessionServiceImpl implements CalibrationSessionService 
 
         CalibrationSession saved = calibrationSessionRepository.save(session);
 
-        auditService.log(AuditAction.CALIBRATION_SESSION_CREATED, "calibration_sessions", saved.getId(),
-                Map.of("roundId", round.getId(), "targetScore", req.getTargetScore()));
-
-        // TODO: (Mở rộng) notificationService.sendBatch(...) báo cho các Giám khảo vào chấm thử
+        Map<String, Object> auditMeta = new java.util.HashMap<>();
+        auditMeta.put("roundId", round.getId());
+        auditMeta.put("targetScore", req.getTargetScore());
+        if (track != null) {
+            auditMeta.put("trackId", track.getId());
+        }
+        auditService.log(AuditAction.CALIBRATION_SESSION_CREATED, "calibration_sessions", saved.getId(), auditMeta);
 
         return toResponse(saved);
     }
@@ -117,19 +148,30 @@ public class CalibrationSessionServiceImpl implements CalibrationSessionService 
     @Override
     @Transactional(readOnly = true)
     public List<CalibrationSessionResponse> listByRound(Integer roundId) {
+        return listByRound(roundId, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CalibrationSessionResponse> listByRound(Integer roundId, Integer trackId) {
         if (!roundRepository.existsById(roundId)) {
             throw new ResourceNotFoundException("Round", roundId);
         }
-        return calibrationSessionRepository.findByRound_IdOrderByStartedAtDesc(roundId)
-                .stream()
+        List<CalibrationSession> sessions = trackId != null
+                ? calibrationSessionRepository.findByRound_IdAndTrack_IdOrderByStartedAtDesc(roundId, trackId)
+                : calibrationSessionRepository.findByRound_IdOrderByStartedAtDesc(roundId);
+        return sessions.stream()
                 .map(CalibrationSessionServiceImpl::toResponse)
                 .collect(Collectors.toList());
     }
 
     private static CalibrationSessionResponse toResponse(CalibrationSession session) {
+        Track track = session.getTrack();
         return CalibrationSessionResponse.builder()
                 .id(session.getId())
                 .roundId(session.getRound().getId())
+                .trackId(track != null ? track.getId() : null)
+                .trackName(track != null ? track.getName() : null)
                 .sampleSubmissionId(session.getSampleSubmission() != null ? session.getSampleSubmission().getId() : null)
                 .status(session.getStatus())
                 .targetScore(session.getTargetScore())

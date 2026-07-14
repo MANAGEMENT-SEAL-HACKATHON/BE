@@ -217,6 +217,8 @@ public class RoundMapper {
 
                 .publishedById(e.getPublishedBy() == null ? null : e.getPublishedBy().getId())
 
+                .submissionClosedEarlyAt(e.getSubmissionClosedEarlyAt())
+
                 .createdAt(e.getCreatedAt())
 
                 .defaultPresentationMinutes(e.getDefaultPresentationMinutes())
@@ -250,6 +252,10 @@ public class RoundMapper {
                 .isActive(e.getIsActive())
 
                 .scoringLocked(e.getScoringLocked())
+
+                .isPublished(e.getIsPublished())
+
+                .submissionClosedEarlyAt(e.getSubmissionClosedEarlyAt())
 
                 .trackCount(trackCount)
 

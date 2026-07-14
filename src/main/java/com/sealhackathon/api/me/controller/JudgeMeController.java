@@ -72,10 +72,11 @@ public class JudgeMeController {
     }
 
     @GetMapping("/judge/calibration-sessions")
-    @Operation(summary = "GĐ5 — Phiên calibration OPEN cho judge đã phân công CK (read-only)")
+    @Operation(summary = "Phiên calibration OPEN cho judge đã phân công (optional trackId)")
     public ResponseEntity<ApiResponse<List<CalibrationSessionResponse>>> judgeCalibrationSessions(
-            @RequestParam Integer roundId) {
-        return ResponseEntity.ok(ApiResponse.ok(judgePortalService.listCalibrationSessions(roundId)));
+            @RequestParam Integer roundId,
+            @RequestParam(required = false) Integer trackId) {
+        return ResponseEntity.ok(ApiResponse.ok(judgePortalService.listCalibrationSessions(roundId, trackId)));
     }
 
     @PostMapping("/judge/submissions/{submissionId}/confirm-scoring")

@@ -146,6 +146,11 @@ public class JudgePortalServiceImpl implements JudgePortalService {
 
     @Override
     public List<CalibrationSessionResponse> listCalibrationSessions(Integer roundId) {
+        return listCalibrationSessions(roundId, null);
+    }
+
+    @Override
+    public List<CalibrationSessionResponse> listCalibrationSessions(Integer roundId, Integer trackId) {
         Integer judgeId = currentUserAccessor.currentUserId();
         if (roundId == null) {
             throw new AuthException(ErrorCode.VALIDATION_FAILED, "roundId bắt buộc", HttpStatus.BAD_REQUEST);
@@ -153,7 +158,10 @@ public class JudgePortalServiceImpl implements JudgePortalService {
         if (!judgeAssignmentRepository.existsByJudgeIdAndRoundScope(judgeId, roundId)) {
             throw new AuthException(ErrorCode.FORBIDDEN, "Judge chưa được phân công round này", HttpStatus.FORBIDDEN);
         }
-        return calibrationSessionService.listByRound(roundId);
+        if (trackId != null && !judgeAssignmentRepository.existsByJudgeIdAndTrackId(judgeId, trackId)) {
+            throw new AuthException(ErrorCode.FORBIDDEN, "Judge chưa được phân công bảng này", HttpStatus.FORBIDDEN);
+        }
+        return calibrationSessionService.listByRound(roundId, trackId);
     }
 
     @Override

@@ -6,18 +6,25 @@ import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.criteria.service.WeightSummaryService;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
+import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
+import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
 import com.sealhackathon.api.mentors.repository.MentorAssignmentRepository;
 import com.sealhackathon.api.notifications.service.NotificationService;
+import com.sealhackathon.api.rounds.dto.request.ActivateRoundRequest;
 import com.sealhackathon.api.rounds.dto.response.RoundResponse;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.mapper.RoundMapper;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
+import com.sealhackathon.api.rounds.support.RoundScheduleShiftService;
+import com.sealhackathon.api.rounds.value_object.ActivateScheduleMode;
 import com.sealhackathon.api.teams.repository.TeamRoundParticipationRepository;
 import com.sealhackathon.api.teams.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.tracks.value_object.TrackStatus;
+import com.sealhackathon.api.users.entity.User;
+import com.sealhackathon.api.users.value_object.UserType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -31,6 +38,10 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -49,6 +60,7 @@ class RoundActivationServiceImplTest {
     @Mock private NotificationService notificationService;
     @Mock private TeamRoundParticipationRepository teamRoundParticipationRepository;
     @Mock private TeamRoundTrackRepository teamRoundTrackRepository;
+    @Mock private RoundScheduleShiftService roundScheduleShiftService;
 
     @InjectMocks
     private RoundActivationServiceImpl activationService;
@@ -63,14 +75,46 @@ class RoundActivationServiceImplTest {
                 .build();
         RoundResponse response = RoundResponse.builder().id(5).isActive(true).build();
 
-        when(roundRepository.findById(5)).thenReturn(Optional.of(round));
+        when(roundRepository.findByIdForUpdate(5)).thenReturn(Optional.of(round));
         when(roundMapper.toResponse(round)).thenReturn(response);
 
-        RoundResponse result = activationService.activate(5, "re-activate");
+        RoundResponse result = activationService.activate(5,
+                ActivateRoundRequest.builder().note("re-activate").build());
 
         assertEquals(5, result.getId());
         assertEquals(true, result.getIsActive());
         verifyNoInteractions(notificationService);
+        verify(roundScheduleShiftService, never()).applyOnActivate(any(), any(), any());
+    }
+
+    @Test
+    void activate_keep_doesNotShiftSchedule() {
+        Round round = Round.builder()
+                .id(5)
+                .isFinal(false)
+                .isActive(false)
+                .hackathon(Hackathon.builder().id(1).build())
+                .build();
+        Track track = Track.builder().id(10).name("Track A").status(TrackStatus.OPEN).round(round).build();
+
+        when(roundRepository.findByIdForUpdate(5)).thenReturn(Optional.of(round));
+        when(teamRoundParticipationRepository.countByRound_Id(5)).thenReturn(3L);
+        when(trackRepository.findByRoundIdOrderBySequenceOrderAsc(5)).thenReturn(List.of(track));
+        when(criteriaRepository.countNormalByTrackId(10)).thenReturn(2L);
+        when(weightSummaryService.isValidForTrack(10)).thenReturn(true);
+        when(judgeAssignmentRepository.findByTrackId(10)).thenReturn(List.of(
+                JudgeAssignment.builder().judge(User.builder().id(1).build()).build()));
+        when(mentorAssignmentRepository.findByTrackId(10)).thenReturn(List.of());
+        when(roundScheduleShiftService.applyOnActivate(eq(round), eq(ActivateScheduleMode.KEEP), any()))
+                .thenReturn(false);
+        when(roundRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(roundMapper.toResponse(any())).thenReturn(RoundResponse.builder().id(5).isActive(true).build());
+
+        RoundResponse result = activationService.activate(5,
+                ActivateRoundRequest.builder().scheduleMode(ActivateScheduleMode.KEEP).build());
+
+        assertEquals(true, result.getIsActive());
+        verify(roundScheduleShiftService).applyOnActivate(eq(round), eq(ActivateScheduleMode.KEEP), any());
     }
 
     @Test
@@ -82,7 +126,7 @@ class RoundActivationServiceImplTest {
                 .build();
         Track track = Track.builder().id(10).name("Track A").status(TrackStatus.OPEN).round(round).build();
 
-        when(roundRepository.findById(5)).thenReturn(Optional.of(round));
+        when(roundRepository.findByIdForUpdate(5)).thenReturn(Optional.of(round));
         when(teamRoundParticipationRepository.countByRound_Id(5)).thenReturn(3L);
         when(trackRepository.findByRoundIdOrderBySequenceOrderAsc(5)).thenReturn(List.of(track));
         when(criteriaRepository.countNormalByTrackId(10)).thenReturn(2L);
@@ -91,7 +135,39 @@ class RoundActivationServiceImplTest {
         when(teamRoundTrackRepository.findByTrack_Round_Id(5)).thenReturn(List.of());
 
         BusinessRuleException ex = assertThrows(BusinessRuleException.class,
-                () -> activationService.activate(5, "test"));
+                () -> activationService.activate(5, ActivateRoundRequest.builder().note("test").build()));
         assertEquals(ErrorCode.JUDGE_NOT_ASSIGNED, ex.getCode());
+    }
+
+    @Test
+    void activateFinal_allowsHeadPlusFinalExternal() {
+        Round round = Round.builder()
+                .id(9)
+                .isFinal(true)
+                .isActive(false)
+                .hackathon(Hackathon.builder().id(1).build())
+                .build();
+        User head = User.builder().id(1).userType(UserType.INTERNAL).build();
+        User guest = User.builder().id(2).userType(UserType.EXTERNAL).build();
+        List<JudgeAssignment> assignments = List.of(
+                JudgeAssignment.builder().judge(head).assignmentType(JudgeAssignmentType.HEAD).build(),
+                JudgeAssignment.builder().judge(guest).assignmentType(JudgeAssignmentType.FINAL_EXTERNAL).build());
+
+        when(roundRepository.findByIdForUpdate(9)).thenReturn(Optional.of(round));
+        when(teamRoundParticipationRepository.countByRound_Id(9)).thenReturn(2L);
+        when(criteriaRepository.countNormalByFinalRoundId(9)).thenReturn(1L);
+        when(criteriaRepository.sumWeightExcludingPenaltyByFinalRoundId(9)).thenReturn(Optional.of(1.0));
+        when(judgeAssignmentRepository.findByRoundId(9)).thenReturn(assignments);
+        when(roundScheduleShiftService.applyOnActivate(any(), any(), any())).thenReturn(false);
+        when(roundMapper.toResponse(any())).thenReturn(RoundResponse.builder().id(9).isActive(true).build());
+        when(roundRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        when(roundRepository.findByHackathon_IdOrderByExamAtAsc(1)).thenReturn(List.of(
+                Round.builder().id(1).isFinal(false).isPublished(true).build(),
+                round));
+
+        RoundResponse result = activationService.activate(9,
+                ActivateRoundRequest.builder().note("test").build());
+        assertEquals(9, result.getId());
     }
 }

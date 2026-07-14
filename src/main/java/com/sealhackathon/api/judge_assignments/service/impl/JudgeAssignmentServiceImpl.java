@@ -31,6 +31,7 @@ import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
 import com.sealhackathon.api.users.support.PersonnelAssignmentRules;
 import com.sealhackathon.api.users.value_object.UserStatus;
+import com.sealhackathon.api.users.value_object.UserType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -76,6 +77,11 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
     }
 
     private CreateResult assignToTrack(User judge, Integer trackId, JudgeAssignmentType assignType) {
+        if (judge.getUserType() == UserType.EXTERNAL) {
+            throw new BusinessRuleException(ErrorCode.EXTERNAL_JUDGE_NOT_ALLOWED_IN_PRELIM,
+                    "Judge EXTERNAL chỉ được phân công Chung kết (FINAL_EXTERNAL), không gán Track sơ loại",
+                    Map.of("trackId", trackId, "judgeId", judge.getId()));
+        }
         if (assignType == JudgeAssignmentType.FINAL_EXTERNAL) {
             throw new BusinessRuleException(ErrorCode.INVALID_ASSIGNMENT_TYPE,
                     "FINAL_EXTERNAL không dùng cho Track Sơ loại",
@@ -149,6 +155,18 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
             throw new BusinessRuleException(ErrorCode.INVALID_ASSIGNMENT_TYPE,
                     "Round Chung kết chỉ gán HEAD hoặc FINAL_EXTERNAL",
                     Map.of("roundId", finalRoundId, "assignmentType", assignType.name()));
+        }
+        if (assignType == JudgeAssignmentType.FINAL_EXTERNAL && judge.getUserType() != UserType.EXTERNAL) {
+            throw new BusinessRuleException(ErrorCode.INVALID_ASSIGNMENT_TYPE,
+                    "FINAL_EXTERNAL yêu cầu Judge EXTERNAL",
+                    Map.of("roundId", finalRoundId, "judgeId", judge.getId(),
+                            "userType", judge.getUserType() == null ? "null" : judge.getUserType().name()));
+        }
+        if (assignType == JudgeAssignmentType.HEAD && judge.getUserType() != UserType.INTERNAL) {
+            throw new BusinessRuleException(ErrorCode.INVALID_ASSIGNMENT_TYPE,
+                    "HEAD Chung kết yêu cầu Judge INTERNAL (trưởng ban)",
+                    Map.of("roundId", finalRoundId, "judgeId", judge.getId(),
+                            "userType", judge.getUserType() == null ? "null" : judge.getUserType().name()));
         }
         Round round = roundRepository.findById(finalRoundId)
                 .orElseThrow(() -> new ResourceNotFoundException("Round", finalRoundId));

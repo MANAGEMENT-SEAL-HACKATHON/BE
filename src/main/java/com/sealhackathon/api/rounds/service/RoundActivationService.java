@@ -1,25 +1,10 @@
 package com.sealhackathon.api.rounds.service;
 
+import com.sealhackathon.api.rounds.dto.request.ActivateRoundRequest;
 import com.sealhackathon.api.rounds.dto.response.RoundResponse;
 
 /**
- * FR-06B — Safety net validate weight = 1.0 khi activate Round.
- *
- * <p>Pseudocode:
- * <pre>
- * total = criteriaRepo.sumWeightExcludingPenalty(roundId)
- * if total == null         → throw BusinessRuleException(ROUND_NO_CRITERIA)
- * if abs(total - 1.0) &gt; 0.001 → throw BusinessRuleException(ROUND_WEIGHT_NOT_ONE)
- * roundRepo.deactivateOtherRoundsInTrack(round.track.id, roundId)
- * round.isActive = TRUE; save
- * audit.log(ROUND_ACTIVATE, ...)
- * </pre>
- *
- * <p>Constants:
- * <ul>
- *   <li>{@link #WEIGHT_TARGET} = 1.0</li>
- *   <li>{@link #WEIGHT_TOLERANCE} = 0.001 — chấp nhận sai số float</li>
- * </ul>
+ * FR-06B — Activate Round (weight + schedule mode KEEP | START_NOW | RESCHEDULE).
  */
 public interface RoundActivationService {
 
@@ -28,7 +13,7 @@ public interface RoundActivationService {
 
     /**
      * @param roundId Round id
-     * @param note    optional, ghi vào audit detail
+     * @param request optional note + scheduleMode / newExamAt
      */
-    RoundResponse activate(Integer roundId, String note);
+    RoundResponse activate(Integer roundId, ActivateRoundRequest request);
 }

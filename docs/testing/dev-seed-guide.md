@@ -1,14 +1,15 @@
 # Dev seed — Hướng dẫn dữ liệu test
 
-> **Profile:** `dev` · **Seeder:** `Gd1DataSeeder` + `E2eWorkflowDataSeeder` + `Gd3..Gd6*DataSeeder`  
-> **Danh mục slug:** `DevSeedCatalog.ALL_DEV_HACKATHON_SLUGS` (**53** hackathon) — ma trận SSOT: [master-slug-test-matrix.md](master-slug-test-matrix.md)  
-> Sau khi start app, tìm log **`[DataInitializer] Dev seed GĐ3–GĐ6 hoàn tất`**.
+> **Profile:** `dev` · **Seeder:** `Gd1DataSeeder` + `E2eWorkflowDataSeeder` + GĐ3–GĐ6 happy seeders  
+> **Danh mục slug:** `DevSeedCatalog.ALL_DEV_HACKATHON_SLUGS` (**6** hackathon) — [dev-seed-slugs-guide.md](dev-seed-slugs-guide.md) · [master-slug-test-matrix.md](master-slug-test-matrix.md)  
+> **Negative tay:** [intentional-errors-catalog.md](intentional-errors-catalog.md)  
+> Sau khi start app, tìm log **`[DataInitializer] Dev seed sẵn sàng — 6 happy slugs`**.
 
 ---
 
 ## Schema & database (dev)
 
-Profile `dev` dùng **`spring.jpa.hibernate.ddl-auto=update`** ([`application-dev.properties`](../../src/main/resources/application-dev.properties)) — Hibernate **không** drop/recreate schema mỗi lần restart. Seed 53 hackathon chạy idempotent qua `DataInitializer` + `Gd03V41SchemaMigration`.
+Profile `dev` dùng **`spring.jpa.hibernate.ddl-auto=update`** ([`application-dev.properties`](../../src/main/resources/application-dev.properties)) — Hibernate **không** drop/recreate schema mỗi lần restart. Seed **6** hackathon chạy idempotent qua `DataInitializer` (+ purge `DEPRECATED_SLUGS`).
 
 **Nếu DB lệch** (lỗi DDL, `Table … doesn't exist`, deadlock khi drop FK):
 
@@ -57,8 +58,9 @@ CREATE DATABASE SealHackathon CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 **Đã xóa tự động khi start dev:** slug legacy (`seal-spring-2026*`, `seal-gd1-ready`, …) — xem `DevSeedCatalog.DEPRECATED_SLUGS`.
 
-### Ma trận trạng thái tài khoản (Module 5 — xác thực email + duyệt tài khoản)
+### Ma trận trạng thái tài khoản (Account gates — xác thực email + duyệt tài khoản)
 
+> **Không phải** testing Module 5 (Secondary portals — Chương S). Đây là **Account gates** (suite `account-states.spec.js`).
 > **Seeder:** `AccountStatesDataSeeder` · **Hằng số:** `AccountStatesSeedConstants` · **Mật khẩu chung:** `Account@dev1`
 > Đây là seed ở mức **tài khoản** (không phải slug hackathon trong `DevSeedCatalog`). FE mirror: `e2e/helpers/accountStates.js`.
 
@@ -170,9 +172,11 @@ Toggle: `app.seed.gd1.no-kickoff.enabled`, `app.seed.gd1.no-awards.enabled`
 | Role | Email | Password |
 |------|-------|----------|
 | Coordinator | `coord@fpt.edu.vn` | `Coordinator@dev1` |
-| Judge | `judge1@fpt.edu.vn` | `Judge@dev1` |
-| Mentor | `mentor@fpt.edu.vn` | `Mentor@dev1` |
-| Guest judge | `guestjudge@gmail.com` | `GuestJudge@dev1` |
+| Judge INTERNAL | `judge1@` … `judge4@fpt.edu.vn` | `Judge@dev1` |
+| Mentor | `mentor@` … `mentor3@fpt.edu.vn` | `Mentor@dev1` |
+| Guest judge EXTERNAL | `guestjudge@` … `guestjudge3@gmail.com` | `GuestJudge@dev1` |
+
+**Phân công:** sơ loại chỉ INTERNAL (`HEAD` + `NORMAL`); chung kết = EXTERNAL `FINAL_EXTERNAL` + INTERNAL `HEAD` (trưởng ban).
 
 ---
 
@@ -216,7 +220,7 @@ app.seed.e2e.enabled=true
 ```bash
 npm run test:e2e:parity   # FE ↔ BE slug list
 npm run probe:seeds       # API state (cần BE dev :8080)
-npm run test:e2e:matrix   # 53 slug read-only UI
+npm run test:e2e:matrix   # 6 slug read-only UI
 npm run test:pyramid      # parity + matrix + gd2 (CI subset)
 npm run test:e2e:gd2      # GĐ2 trên seal-e2e-2026 + seal-gd2-teams-edge
 ```

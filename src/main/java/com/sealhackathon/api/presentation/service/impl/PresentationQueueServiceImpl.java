@@ -20,13 +20,17 @@ import com.sealhackathon.api.presentation.dto.response.PresentationQueueResponse
 import com.sealhackathon.api.presentation.dto.response.PresentationShuffleResponse;
 import com.sealhackathon.api.presentation.dto.response.PresentationTimerBlock;
 import com.sealhackathon.api.presentation.guard.PresentationControllerGuard;
+import com.sealhackathon.api.presentation.guard.PresentationForceAdvanceAckGuard;
 import com.sealhackathon.api.presentation.service.PresentationQueueService;
 import com.sealhackathon.api.presentation.support.PresentationDurationResolver;
 import com.sealhackathon.api.presentation.support.PresentationNextScoringGuard;
+import com.sealhackathon.api.presentation.support.PresentationQaTimeoutMaterializer;
 import com.sealhackathon.api.presentation.support.PresentationSlotHelper;
 import com.sealhackathon.api.presentation.support.PresentationTimerCalculator;
+import com.sealhackathon.api.presentation.support.RoundPhaseResolver;
 import com.sealhackathon.api.presentation.value_object.PresentationQueueStatus;
 import com.sealhackathon.api.presentation.value_object.PresentationTimerPhase;
+import com.sealhackathon.api.presentation.value_object.RoundPhase;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.submissions.entity.Submission;
@@ -64,15 +68,16 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
     private final PresentationSlotRepository presentationSlotRepository;
     private final PresentationDurationResolver durationResolver;
     private final PresentationControllerGuard controllerGuard;
+    private final PresentationForceAdvanceAckGuard forceAdvanceAckGuard;
     private final AuditService auditService;
     private final PresentationQueuePublisher queuePublisher;
     private final CurrentUserAccessor currentUserAccessor;
     private final PresentationNextScoringGuard nextScoringGuard;
     private final JudgeSubmissionScoringConfirmationRepository scoringConfirmationRepository;
     private final HackathonRegistrationRepository hackathonRegistrationRepository;
+    private final RoundPhaseResolver roundPhaseResolver;
 
     @Override
-    @Transactional(readOnly = true)
     public PresentationQueueResponse getQueue(Integer roundId, Integer trackIdFilter) {
         boolean anonymous = isJudgeAnonymousView();
         Round round = resolveRound(roundId);
@@ -129,6 +134,7 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
             Integer currentTeamId,
             boolean acknowledgeIncompleteScoring) {
         Round round = resolveRound(roundId);
+        requireJudgingPhase(round);
         if (Boolean.TRUE.equals(round.getIsFinal())) {
             controllerGuard.requireControllerForRound(round.getId(), round);
             PresentationQueueNextResponse response = advanceForScope(
@@ -156,6 +162,7 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
     public PresentationShuffleResponse shuffle(PresentationShuffleRequest request) {
         Integer roundId = request.getRoundId();
         Round round = resolveRound(roundId);
+        requireJudgingPhase(round);
         if (Boolean.TRUE.equals(round.getScoringLocked())) {
             throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Round đã khóa — không thể shuffle queue");
         }
@@ -237,16 +244,20 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
 
         PresentationQueueNextResponse.ScoringSnapshot scoringSnapshot = null;
         if (presenting != null) {
+            // Lazy auto-timeout trước khi kiểm tra phase
+            Track trackForTimer = presenting.getTrack();
+            PresentationQaTimeoutMaterializer.materializeIfExpired(
+                    presenting, trackForTimer, round, durationResolver, presentationSlotRepository);
             if (presenting.getSubmission() != null) {
-                if (Boolean.TRUE.equals(round.getIsFinal())) {
-                    PresentationTimerPhase phase = presenting.getTimerPhase();
-                    if (phase != PresentationTimerPhase.QA && phase != PresentationTimerPhase.ENDED) {
-                        throw new BusinessRuleException(ErrorCode.INVALID_STATE,
-                                "Chỉ chuyển đội tiếp sau phần thuyết trình (QA hoặc hết giờ)");
-                    }
+                PresentationTimerPhase phase = presenting.getTimerPhase();
+                if (phase != PresentationTimerPhase.QA && phase != PresentationTimerPhase.ENDED) {
+                    throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                            "Chỉ chuyển đội tiếp sau phần thuyết trình (QA hoặc hết giờ)");
                 }
+                boolean ack = forceAdvanceAckGuard.resolveAcknowledge(
+                        acknowledgeIncompleteScoring, trackId, round);
                 nextScoringGuard.validateBeforeNext(
-                        presenting.getSubmission(), trackId, round, acknowledgeIncompleteScoring);
+                        presenting.getSubmission(), trackId, round, ack);
                 scoringSnapshot = nextScoringGuard.snapshot(
                         presenting.getSubmission(), trackId, round);
             }
@@ -439,6 +450,8 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
     }
 
     private PresentationTimerBlock buildTimerBlock(PresentationSlot slot, Track track, Round round) {
+        PresentationQaTimeoutMaterializer.materializeIfExpired(
+                slot, track, round, durationResolver, presentationSlotRepository);
         PresentationTimerPhase phase = slot.getTimerPhase() != null ? slot.getTimerPhase() : PresentationTimerPhase.IDLE;
         return PresentationTimerBlock.builder()
                 .phase(phase.name())
@@ -495,6 +508,16 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
     private static String defaultLocation(Integer teamId) {
         int room = teamId != null ? (teamId % 3 + 1) : 1;
         return "Online (Teams) - Phòng " + room;
+    }
+
+    private void requireJudgingPhase(Round round) {
+        if (roundPhaseResolver.resolve(round) != RoundPhase.JUDGING) {
+            throw new BusinessRuleException(ErrorCode.SCORING_NOT_OPEN,
+                    "Chưa hết giờ nộp / chưa kết thúc sớm — không mở hàng đợi thuyết trình hoặc chấm",
+                    Map.of("roundId", round.getId(),
+                            "submissionDeadline", round.getSubmissionDeadline(),
+                            "phase", roundPhaseResolver.resolve(round).name()));
+        }
     }
 
     private Round resolveRound(Integer roundId) {

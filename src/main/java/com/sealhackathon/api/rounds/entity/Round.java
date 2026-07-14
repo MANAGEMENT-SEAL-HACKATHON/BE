@@ -179,6 +179,13 @@ public class Round {
     @Column(name = "deadline_reminder_sent_at")
     private LocalDateTime deadlineReminderSentAt;
 
+    /**
+     * Set when Coordinator ends exam / closes submission early (idempotent).
+     * Clamps {@code submissionDeadline} and {@code examAt} to that moment so phase becomes JUDGING.
+     */
+    @Column(name = "submission_closed_early_at")
+    private LocalDateTime submissionClosedEarlyAt;
+
     @Builder.Default
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();

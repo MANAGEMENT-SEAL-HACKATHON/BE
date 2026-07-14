@@ -103,7 +103,7 @@ Mọi seeder GĐ3–6 có `repairForFeTesting()` sau restart.
 | API state probe | `npm run probe:seeds` | 53 slug + 5 account + 15 neg abuse probes |
 | Ma trận 53 slug | `npm run test:e2e:matrix` | Read-only UI per slug |
 | Abuse guards UI | `npx playwright test e2e/abuse-guards.spec.js` | P1 bad-path UI |
-| Account states UI | `npx playwright test e2e/account-states.spec.js` | Module 5 gates |
+| Account states UI | `npx playwright test e2e/account-states.spec.js` | Account gates (email/duyệt) |
 | Dedicated e2e | `npm run test:e2e:dedicated` | fall-track (t01 read-only + t02 mutating), portal-parity, mentor-bootstrap, mentor-history, **people-mentor-pool** (mentor dropdown gồm INTERNAL judge) |
 | Mutating e2e | `npm run test:e2e:mutating` | hackathon-progression-mutating, **event-notification-mutating** (tạo event `OTHER` public → `EVENT_REMINDER`) |
 | Notifications smoke | `npx playwright test e2e/notifications-smoke.spec.js` | Bell panel coordinator (default project) |

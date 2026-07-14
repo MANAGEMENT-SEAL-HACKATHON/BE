@@ -24,6 +24,8 @@ public interface JudgePortalService {
 
     List<CalibrationSessionResponse> listCalibrationSessions(Integer roundId);
 
+    List<CalibrationSessionResponse> listCalibrationSessions(Integer roundId, Integer trackId);
+
     JudgePresentationScoringStatusResponse getPresentationScoringStatus(Integer roundId, Integer trackId);
 
     void confirmSubmissionScoring(Integer submissionId);

@@ -18,6 +18,9 @@ public class CreateCalibrationSessionRequest {
     @NotNull
     private Integer roundId;
 
+    /** Optional — GĐ3 per-track; null for GĐ5 round-scoped. */
+    private Integer trackId;
+
     private Integer sampleSubmissionId;
 
     private Float targetScore;

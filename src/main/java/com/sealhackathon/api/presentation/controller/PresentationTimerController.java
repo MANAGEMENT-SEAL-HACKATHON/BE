@@ -3,6 +3,7 @@ package com.sealhackathon.api.presentation.controller;
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.ApprovedOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
+import com.sealhackathon.api.presentation.dto.request.PresentationTimerEndRequest;
 import com.sealhackathon.api.presentation.dto.response.PresentationTimerActionResponse;
 import com.sealhackathon.api.presentation.service.PresentationTimerService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -58,6 +60,17 @@ public class PresentationTimerController {
             @RequestParam Integer roundId,
             @RequestParam(required = false) Integer trackId) {
         return ResponseEntity.ok(ApiResponse.ok(presentationTimerService.qa(roundId, trackId)));
+    }
+
+    @PostMapping("/end")
+    @ApprovedOnly
+    @Operation(summary = "Kết thúc sớm Q&A — yêu cầu đủ judge Chốt điểm (trừ Coord/HEAD force-ack)")
+    public ResponseEntity<ApiResponse<PresentationTimerActionResponse>> end(
+            @RequestParam Integer roundId,
+            @RequestParam(required = false) Integer trackId,
+            @RequestBody(required = false) PresentationTimerEndRequest request) {
+        boolean ack = request != null && Boolean.TRUE.equals(request.getAcknowledgeIncompleteScoring());
+        return ResponseEntity.ok(ApiResponse.ok(presentationTimerService.end(roundId, trackId, ack)));
     }
 
     @PostMapping("/reset")

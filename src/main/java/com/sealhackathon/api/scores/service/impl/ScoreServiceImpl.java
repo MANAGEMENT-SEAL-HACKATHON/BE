@@ -12,6 +12,7 @@ import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.criteria.entity.Criteria;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.events.entity.PresentationSlot;
+import com.sealhackathon.api.events.repository.JudgeSubmissionScoringConfirmationRepository;
 import com.sealhackathon.api.events.repository.PresentationSlotRepository;
 import com.sealhackathon.api.live_scoring.event.LiveScoreSavedEvent;
 import com.sealhackathon.api.presentation.support.PresentationScoringGate;
@@ -63,6 +64,7 @@ public class ScoreServiceImpl implements ScoreService {
     private final CalibrationSessionRepository calibrationSessionRepository;
     private final RoundPhaseResolver roundPhaseResolver;
     private final PresentationSlotRepository presentationSlotRepository;
+    private final JudgeSubmissionScoringConfirmationRepository scoringConfirmationRepository;
 
     @Override
     public ScoreResponse submitScore(SubmitScoreRequest req) {
@@ -125,6 +127,8 @@ public class ScoreServiceImpl implements ScoreService {
         score.setUpdatedAt(LocalDateTime.now());
 
         Score saved = scoreRepository.save(score);
+        // Sửa điểm sau "Chốt" → buộc confirm lại trước advance queue
+        scoringConfirmationRepository.deleteBySubmission_IdAndJudge_Id(submission.getId(), judgeId);
         auditService.log(AuditAction.SCORE_UPSERT, "scores", saved.getId(),
                 Map.of("submissionId", submission.getId(), "criterionId", criterion.getId()));
 
@@ -138,6 +142,11 @@ public class ScoreServiceImpl implements ScoreService {
     @Override
     public ScoreResponse submitCalibrationScore(SubmitCalibrationScoreRequest req) {
         Integer judgeId = currentUserAccessor.currentUserId();
+        if (req.getCalibrationSessionId() == null) {
+            throw new BusinessRuleException(ErrorCode.CALIBRATION_SESSION_ID_REQUIRED,
+                    "Thiếu calibrationSessionId khi chấm hiệu chuẩn");
+        }
+
         Submission submission = submissionRepository.findById(req.getSubmissionId())
                 .orElseThrow(() -> new ResourceNotFoundException("Submission", req.getSubmissionId()));
         Criteria criterion = criteriaRepository.findById(req.getCriterionId())
@@ -155,8 +164,35 @@ public class ScoreServiceImpl implements ScoreService {
                 .orElseThrow(() -> new ResourceNotFoundException("CalibrationSession", req.getCalibrationSessionId()));
 
         if (session.getStatus() == CalibrationStatus.CLOSED) {
-            throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Phiên hiệu chuẩn điểm này đã bị ĐÓNG");
+            throw new BusinessRuleException(ErrorCode.CALIBRATION_SESSION_CLOSED,
+                    "Phiên hiệu chuẩn điểm này đã bị ĐÓNG");
         }
+
+        Integer sessionRoundId = session.getRound() != null ? session.getRound().getId() : null;
+        Integer submissionRoundId = submission.getRound() != null ? submission.getRound().getId() : null;
+        if (sessionRoundId == null || submissionRoundId == null || !sessionRoundId.equals(submissionRoundId)) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Bài nộp không thuộc cùng vòng với phiên hiệu chuẩn");
+        }
+
+        if (session.getTrack() != null) {
+            Integer sessionTrackId = session.getTrack().getId();
+            Integer submissionTrackId = submission.getTrack() != null ? submission.getTrack().getId() : null;
+            if (submissionTrackId == null || !submissionTrackId.equals(sessionTrackId)) {
+                throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                        "Bài nộp không thuộc cùng bảng với phiên hiệu chuẩn");
+            }
+        }
+
+        if (session.getSampleSubmission() != null
+                && !session.getSampleSubmission().getId().equals(submission.getId())) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Chỉ được chấm bài mẫu của phiên hiệu chuẩn");
+        }
+
+        // Resolve team/track from submission (payload only has submissionId) — same guards as normal score
+        judgeAssignmentGuard.requireJudgeForSubmission(judgeId, submission);
+        mentorJudgeConflictGuard.requireNoConflict(judgeId, submission);
 
         User judge = userRepository.findById(judgeId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", judgeId));

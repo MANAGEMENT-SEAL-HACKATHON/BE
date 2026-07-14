@@ -9,6 +9,7 @@ import com.sealhackathon.api.hackathons.repository.HackathonRegistrationReposito
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.notifications.service.NotificationService;
+import com.sealhackathon.api.mentors.repository.MentorAssignmentRepository;
 import com.sealhackathon.api.mentors.repository.MentorTeamAssignmentRepository;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.teams.entity.TeamMember;
@@ -57,6 +58,7 @@ public class TeamServiceImpl implements TeamService {
     private final TeamRoundTrackRepository teamRoundTrackRepository;
     private final TeamRoundParticipationRepository teamRoundParticipationRepository;
     private final MentorTeamAssignmentRepository mentorTeamAssignmentRepository;
+    private final MentorAssignmentRepository mentorAssignmentRepository;
     private final HackathonRepository hackathonRepository;
     private final RoundRepository roundRepository;
     private final UserRepository userRepository;
@@ -291,10 +293,14 @@ public class TeamServiceImpl implements TeamService {
 
     @Override
     public TeamResponse patchTeamStatus(Integer teamId, PatchTeamStatusRequest req) {
-        Team team = teamRepository.findById(teamId)
+        Team team = teamRepository.findByIdForUpdate(teamId)
                 .orElseThrow(() -> new ResourceNotFoundException("Team", teamId));
 
         if (team.getStatus() == req.getStatus()) {
+            if (req.getStatus() == TeamStatus.ACTIVE) {
+                throw new BusinessRuleException(ErrorCode.TEAM_ALREADY_ACTIVE,
+                        "Đội đã được duyệt (ACTIVE)");
+            }
             return teamMapper.toResponse(team);
         }
 
@@ -773,21 +779,43 @@ public class TeamServiceImpl implements TeamService {
     @Transactional(readOnly = true)
     public TeamMentorHistoryResponse listMentorHistory(Integer teamId) {
         teamAccessGuard.assertCanViewTeamDetails(teamId);
-        java.util.List<com.sealhackathon.api.mentors.entity.MentorTeamAssignment> assignments = mentorTeamAssignmentRepository.findByTeam_IdOrderByRound_IdAsc(teamId);
 
-        java.util.List<TeamMentorHistoryResponse.Item> items = assignments.stream()
-                .map(a -> TeamMentorHistoryResponse.Item.builder()
-                        .roundId(a.getRound().getId())
-                        .roundName(a.getRound().getName())
-                        .mentorId(a.getMentor().getId())
-                        .mentorName(a.getMentor().getFullName())
-                        .assignedAt(a.getAssignedAt())
-                        .build())
-                .toList();
+        // 1) Gán mentor theo đội (FR-13C explicit) — ưu tiên khi trùng round+mentor.
+        java.util.LinkedHashMap<String, TeamMentorHistoryResponse.Item> byKey = new java.util.LinkedHashMap<>();
+        for (var a : mentorTeamAssignmentRepository.findByTeam_IdOrderByRound_IdAsc(teamId)) {
+            String key = a.getRound().getId() + ":" + a.getMentor().getId();
+            byKey.put(key, TeamMentorHistoryResponse.Item.builder()
+                    .roundId(a.getRound().getId())
+                    .roundName(a.getRound().getName())
+                    .mentorId(a.getMentor().getId())
+                    .mentorName(a.getMentor().getFullName())
+                    .assignedAt(a.getAssignedAt())
+                    .build());
+        }
+
+        // 2) Mentor theo bảng đấu (GĐ1) — sau lottery đội có track thì hiện mentor bảng.
+        for (var trt : teamRoundTrackRepository.findByTeamIdWithTrackAndRound(teamId)) {
+            var track = trt.getTrack();
+            if (track == null || track.getRound() == null) {
+                continue;
+            }
+            Integer roundId = track.getRound().getId();
+            String roundName = track.getRound().getName();
+            for (var ma : mentorAssignmentRepository.findByTrackId(track.getId())) {
+                String key = roundId + ":" + ma.getMentor().getId();
+                byKey.putIfAbsent(key, TeamMentorHistoryResponse.Item.builder()
+                        .roundId(roundId)
+                        .roundName(roundName)
+                        .mentorId(ma.getMentor().getId())
+                        .mentorName(ma.getMentor().getFullName())
+                        .assignedAt(ma.getAssignedAt())
+                        .build());
+            }
+        }
 
         return TeamMentorHistoryResponse.builder()
                 .teamId(teamId)
-                .items(items)
+                .items(new ArrayList<>(byKey.values()))
                 .build();
     }
 

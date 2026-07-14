@@ -3,6 +3,7 @@ package com.sealhackathon.api.rounds.query;
 import com.sealhackathon.api.criteria.entity.Criteria;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.criteria.value_object.CriteriaType;
+import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.rounds.dto.response.RoundRankingItemResponse;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
@@ -41,6 +42,7 @@ public class RoundRankingQueryService {
     private final TeamRoundTrackRepository teamRoundTrackRepository;
     private final TiebreakEvaluationRepository tiebreakEvaluationRepository;
     private final RoundRepository roundRepository;
+    private final JudgeAssignmentRepository judgeAssignmentRepository;
 
     public List<RoundRankingItemResponse> rankingForRound(Integer roundId, boolean livePreview) {
         Round round = roundRepository.findById(roundId).orElse(null);
@@ -227,14 +229,25 @@ public class RoundRankingQueryService {
                         .toList();
             }
             for (Criteria criterion : criteria) {
+                long requiredJudges = countAssignedJudges(submission, isFinalSubmission, roundId);
                 long count = scoreRepository.countBySubmission_IdAndCriterion_IdAndScoreTypeAndIsFinal(
                         submission.getId(), criterion.getId(), ScoreType.NORMAL, !livePreview);
-                if (count == 0) {
+                if (count < requiredJudges) {
                     return true;
                 }
             }
         }
         return false;
+    }
+
+    private long countAssignedJudges(Submission submission, boolean isFinalSubmission, Integer roundId) {
+        if (isFinalSubmission) {
+            return Math.max(1, judgeAssignmentRepository.findByRoundId(roundId).size());
+        }
+        if (submission.getTrack() != null) {
+            return Math.max(1, judgeAssignmentRepository.findByTrackId(submission.getTrack().getId()).size());
+        }
+        return 1;
     }
 
     private double averageScore(Integer submissionId, Integer criterionId, boolean livePreview) {

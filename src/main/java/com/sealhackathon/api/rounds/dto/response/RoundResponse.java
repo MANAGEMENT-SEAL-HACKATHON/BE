@@ -46,6 +46,7 @@ public class RoundResponse {
     private final Boolean isPublished;
     private final LocalDateTime publishedAt;
     private final Integer publishedById;
+    private final LocalDateTime submissionClosedEarlyAt;
     private final LocalDateTime createdAt;
     /** Thời lượng thuyết trình mặc định (phút) — dùng cho GĐ5; fallback GĐ3 khi track không override. */
     private final Integer defaultPresentationMinutes;

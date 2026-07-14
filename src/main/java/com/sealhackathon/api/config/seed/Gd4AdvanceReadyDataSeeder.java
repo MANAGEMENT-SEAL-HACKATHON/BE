@@ -110,11 +110,17 @@ public class Gd4AdvanceReadyDataSeeder {
             teams.add(team);
         }
 
+        // CK sẵn sàng activate sau advance: criteria + guest judge pool (structure đã seed)
+        seedHelper.ensureFinalGuestJudgeAssignment(hackathon, finalRound);
+        seedHelper.seedFinalRoundProblem(finalRound);
+        int finalCriteriaCount = seedHelper.listFinalCriteria(finalRound).size();
+
         log.info("""
                 [Gd4AdvanceReadyDataSeeder] slug={} hackathonId={} prelimRoundId={} finalRoundId={}
                   teams: {} | {} | {} | {} | {} | {} | {} | {}
                   students: {} … {} password={}
                   prelim locked, unpublished — sẵn sàng ranking/wildcard/advance
+                  final criteria={} guestJudge={} (không tie topN mỗi bảng)
                 """,
                 Gd4SeedConstants.SLUG_GD4_ADVANCE_READY,
                 hackathon.getId(),
@@ -130,7 +136,9 @@ public class Gd4AdvanceReadyDataSeeder {
                 teams.get(7).getId(),
                 Gd4SeedConstants.studentEmail(1),
                 Gd4SeedConstants.studentEmail(8),
-                DevSeedCatalog.DEV_STUDENT_PASSWORD);
+                DevSeedCatalog.DEV_STUDENT_PASSWORD,
+                finalCriteriaCount,
+                Gd1SeedConstants.EMAIL_GUEST_JUDGE);
     }
 
     /** Đồng bộ lịch + trạng thái GĐ4 theo giờ máy — gọi sau repairAll mỗi lần start BE. */

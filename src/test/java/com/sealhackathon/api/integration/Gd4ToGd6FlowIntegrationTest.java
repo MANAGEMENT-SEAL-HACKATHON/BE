@@ -303,6 +303,10 @@ class Gd4ToGd6FlowIntegrationTest {
                 .andReturn();
         int finalSubmissionId = readJson(finalSubmit).path("data").path("id").asInt();
 
+        mockMvc.perform(post("/api/v1/rounds/{id}/close-submission-early", finalRound.getId())
+                        .header("Authorization", "Bearer " + coordToken))
+                .andExpect(status().isOk());
+
         String shuffleFinal = "{\"roundId\": %d}".formatted(finalRound.getId());
         mockMvc.perform(post("/api/v1/presentation/queue/shuffle")
                         .header("Authorization", "Bearer " + coordToken)
@@ -439,6 +443,10 @@ class Gd4ToGd6FlowIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         int submissionId = readJson(submit).path("data").path("id").asInt();
+
+        mockMvc.perform(post("/api/v1/rounds/{id}/close-submission-early", prelimRound.getId())
+                        .header("Authorization", "Bearer " + coordToken))
+                .andExpect(status().isOk());
 
         mockMvc.perform(post("/api/v1/presentation/queue/shuffle")
                         .header("Authorization", "Bearer " + coordToken)

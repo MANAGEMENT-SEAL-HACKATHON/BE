@@ -32,6 +32,8 @@ public final class AuditAction {
     public static final String ROUND_DEACTIVATE         = "ROUND_DEACTIVATE";
     public static final String ROUND_LOCK               = "ROUND_LOCK";
     public static final String ROUND_FORCE_LOCK         = "ROUND_FORCE_LOCK";
+    public static final String ROUND_CLOSE_SUBMISSION_EARLY = "ROUND_CLOSE_SUBMISSION_EARLY";
+    public static final String ROUND_SCHEDULE_SHIFTED = "ROUND_SCHEDULE_SHIFTED";
 
 
     // ---------- FR-04 CRITERIA ----------

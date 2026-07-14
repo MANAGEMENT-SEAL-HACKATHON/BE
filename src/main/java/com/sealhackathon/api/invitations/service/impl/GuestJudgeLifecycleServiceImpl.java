@@ -40,14 +40,19 @@ public class GuestJudgeLifecycleServiceImpl implements GuestJudgeLifecycleServic
         if (!Boolean.TRUE.equals(user.getIsTempAccount())) {
             return;
         }
-        resolveHackathon(user).ifPresent(h -> {
-            if (isHackathonEnded(h)) {
-                throw new AuthException(ErrorCode.TEMP_JUDGE_HACKATHON_ENDED,
-                        "Tài khoản judge khách đã hết hiệu lực sau khi cuộc thi kết thúc",
-                        HttpStatus.UNAUTHORIZED,
-                        Map.of("hackathonId", h.getId(), "eventEnd", String.valueOf(h.getEventEnd())));
-            }
-        });
+        List<Hackathon> linked = resolveAllHackathons(user);
+        if (linked.isEmpty()) {
+            return;
+        }
+        boolean anyActive = linked.stream().anyMatch(h -> !isHackathonEnded(h));
+        if (anyActive) {
+            return;
+        }
+        Hackathon ended = linked.get(0);
+        throw new AuthException(ErrorCode.TEMP_JUDGE_HACKATHON_ENDED,
+                "Tài khoản judge khách đã hết hiệu lực sau khi cuộc thi kết thúc",
+                HttpStatus.UNAUTHORIZED,
+                Map.of("hackathonId", ended.getId(), "eventEnd", String.valueOf(ended.getEventEnd())));
     }
 
     @Override
@@ -108,17 +113,28 @@ public class GuestJudgeLifecycleServiceImpl implements GuestJudgeLifecycleServic
     }
 
     private Optional<Hackathon> resolveHackathon(User user) {
+        return resolveAllHackathons(user).stream()
+                .filter(h -> !isHackathonEnded(h))
+                .findFirst()
+                .or(() -> resolveAllHackathons(user).stream().findFirst());
+    }
+
+    /** Tất cả hackathon gắn assignment hoặc invitation JUDGE (giữ thứ tự: assignment trước). */
+    private List<Hackathon> resolveAllHackathons(User user) {
+        java.util.LinkedHashSet<Integer> seen = new java.util.LinkedHashSet<>();
+        java.util.ArrayList<Hackathon> out = new java.util.ArrayList<>();
         for (JudgeAssignment ja : judgeAssignmentRepository.findByJudgeId(user.getId())) {
             Hackathon h = hackathonFromAssignment(ja);
-            if (h != null) {
-                return Optional.of(h);
+            if (h != null && h.getId() != null && seen.add(h.getId())) {
+                out.add(h);
             }
         }
-        return invitationRepository.findByEmail(user.getEmail()).stream()
+        invitationRepository.findByEmail(user.getEmail()).stream()
                 .filter(inv -> inv.getRole() == UserRole.JUDGE)
                 .map(Invitation::getHackathon)
-                .filter(h -> h != null)
-                .findFirst();
+                .filter(h -> h != null && h.getId() != null && seen.add(h.getId()))
+                .forEach(out::add);
+        return out;
     }
 
     private Hackathon hackathonFromAssignment(JudgeAssignment ja) {

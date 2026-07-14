@@ -113,11 +113,17 @@ public class Gd3PrelimOpenDataSeeder {
 
         ensureGd3DemoSubmissionState(hackathon, prelim, track1, track2, teams);
 
+        User mentor = seedHelper.requireMentor();
+        for (Team team : teams) {
+            seedHelper.ensureMentorTeamAssignment(hackathon, prelim, team, mentor, coordinator, now);
+        }
+
         log.info("""
                 [Gd3PrelimOpenDataSeeder] slug={} hackathonId={} prelimRoundId={} track1={} track2={}
                   teams: {} | {} | {} | {} | {} | {}
                   students: {} … {} password={}
                   submitted: GD3-01..05 | demo live: GD3-06 leader06@ (nộp → shuffle → chấm)
+                  mentors: {} on all 6 teams (portal sẵn sàng)
                 """,
                 Gd3SeedConstants.SLUG_GD3_PRELIM_OPEN,
                 hackathon.getId(),
@@ -132,7 +138,8 @@ public class Gd3PrelimOpenDataSeeder {
                 teams.get(5).getId(),
                 Gd3SeedConstants.studentEmail(1),
                 Gd3SeedConstants.studentEmail(6),
-                DevSeedCatalog.DEV_STUDENT_PASSWORD);
+                DevSeedCatalog.DEV_STUDENT_PASSWORD,
+                Gd1SeedConstants.EMAIL_MENTOR);
     }
 
     @Transactional
@@ -189,8 +196,14 @@ public class Gd3PrelimOpenDataSeeder {
         }
         if (teams.size() == 6) {
             ensureGd3DemoSubmissionState(hackathon, prelim, track1, track2, teams);
+            User coordinator = seedHelper.requireCoordinator();
+            User mentor = seedHelper.requireMentor();
+            LocalDateTime now = LocalDateTime.now();
+            for (Team team : teams) {
+                seedHelper.ensureMentorTeamAssignment(hackathon, prelim, team, mentor, coordinator, now);
+            }
             log.info(
-                    "[Gd3PrelimOpenDataSeeder] FE repair — GD3-01..05 đã nộp (chưa chấm/queue), GD3-06 chưa nộp");
+                    "[Gd3PrelimOpenDataSeeder] FE repair — GD3-01..05 đã nộp (chưa chấm/queue), GD3-06 chưa nộp + mentors");
         }
     }
 

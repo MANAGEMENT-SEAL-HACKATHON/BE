@@ -13,7 +13,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 @Component
@@ -21,16 +20,6 @@ import java.util.Locale;
 public class RoundProblemStatementStorage {
 
     public static final String KEY_PREFIX = "round-problems/";
-
-    /** PDF tối thiểu hợp lệ — dùng cho dev seed. */
-    private static final byte[] SEED_PDF_BYTES = (
-            "%PDF-1.4\n"
-                    + "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
-                    + "2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
-                    + "3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R>>endobj\n"
-                    + "xref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000052 00000 n \n0000000101 00000 n \n"
-                    + "trailer<</Size 4/Root 1 0 R>>\nstartxref\n178\n%%EOF")
-            .getBytes(StandardCharsets.US_ASCII);
 
     private final ObjectStorageService objectStorageService;
     private final StorageProperties storageProperties;
@@ -97,14 +86,17 @@ public class RoundProblemStatementStorage {
             return;
         }
         String key = buildKey(round);
+        byte[] pdf = SeedProblemPdf.bytes();
         objectStorageService.put(
                 key,
-                new ByteArrayInputStream(SEED_PDF_BYTES),
+                new ByteArrayInputStream(pdf),
                 "application/pdf",
-                SEED_PDF_BYTES.length);
+                pdf.length);
         round.setProblemStatementStorageKey(key);
-        round.setProblemStatementOriginalFilename(
-                StringUtils.hasText(originalFilename) ? originalFilename : "de-bai-chung-ket.pdf");
+        String filename = StringUtils.hasText(originalFilename)
+                ? originalFilename
+                : SeedProblemPdf.displayFilename();
+        round.setProblemStatementOriginalFilename(filename);
         round.setProblemStatementUrl(null);
     }
 

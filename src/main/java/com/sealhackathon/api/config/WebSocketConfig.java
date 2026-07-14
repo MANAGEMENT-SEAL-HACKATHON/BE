@@ -27,6 +27,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        // Raw WebSocket for Node E2E (@stomp/stompjs + ws) — no SockJS framing
+        registry.addEndpoint("/ws")
+                .setAllowedOriginPatterns(
+                        "http://localhost:5173",
+                        "https://seal-hackathon-fe.vercel.app");
+        // Browser FE continues to use SockJS at the same path
         registry.addEndpoint("/ws")
                 .setAllowedOriginPatterns(
                         "http://localhost:5173",

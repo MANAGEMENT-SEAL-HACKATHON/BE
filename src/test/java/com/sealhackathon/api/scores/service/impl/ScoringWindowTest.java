@@ -9,6 +9,7 @@ import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.criteria.entity.Criteria;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.events.entity.PresentationSlot;
+import com.sealhackathon.api.events.repository.JudgeSubmissionScoringConfirmationRepository;
 import com.sealhackathon.api.events.repository.PresentationSlotRepository;
 import com.sealhackathon.api.presentation.support.RoundPhaseResolver;
 import com.sealhackathon.api.presentation.value_object.PresentationQueueStatus;
@@ -62,6 +63,7 @@ class ScoringWindowTest {
     @Mock private AuditService auditService;
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private CalibrationSessionRepository calibrationSessionRepository;
+    @Mock private JudgeSubmissionScoringConfirmationRepository scoringConfirmationRepository;
     @Spy private RoundPhaseResolver roundPhaseResolver = new RoundPhaseResolver();
 
     @InjectMocks
@@ -166,7 +168,8 @@ class ScoringWindowTest {
         Round locked = Round.builder()
                 .id(5)
                 .isActive(true)
-                .examAt(LocalDateTime.now().minusHours(1))
+                .examAt(LocalDateTime.now().minusHours(4))
+                .submissionDeadline(LocalDateTime.now().minusMinutes(10))
                 .scoringLocked(true)
                 .build();
         when(roundRepository.findByIdForUpdate(5)).thenReturn(Optional.of(locked));
@@ -189,7 +192,8 @@ class ScoringWindowTest {
                 .id(5)
                 .isActive(true)
                 .isFinal(isFinal)
-                .examAt(LocalDateTime.now().minusHours(1))
+                .examAt(LocalDateTime.now().minusHours(4))
+                .submissionDeadline(LocalDateTime.now().minusMinutes(10))
                 .scoringLocked(false)
                 .build();
         track.setRound(round);

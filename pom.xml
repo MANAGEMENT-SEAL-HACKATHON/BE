@@ -192,6 +192,7 @@
                 <filtering>true</filtering>
                 <excludes>
                     <exclude>application-prod.properties</exclude>
+                    <exclude>seed/**</exclude>
                 </excludes>
             </resource>
             <resource>
@@ -199,6 +200,7 @@
                 <filtering>false</filtering>
                 <includes>
                     <include>application-prod.properties</include>
+                    <include>seed/**</include>
                 </includes>
             </resource>
         </resources>

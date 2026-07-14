@@ -6,7 +6,7 @@ package com.sealhackathon.api.rounds.value_object;
  * <ul>
  *   <li>{@code PRELIMINARY} — Sơ loại, có Track con</li>
  *   <li>{@code SEMIFINAL}   — Bán kết, có Track con</li>
- *   <li>{@code FINAL}       — Chung kết, KHÔNG có Track con, 100% Judge EXTERNAL</li>
+ *   <li>{@code FINAL}       — Chung kết, KHÔNG có Track con; Judge EXTERNAL (FINAL_EXTERNAL) + optional HEAD INTERNAL</li>
  * </ul>
  *
  * <p>Constraint nhất quán: {@code is_final = TRUE} ↔ {@code round_type = FINAL}.

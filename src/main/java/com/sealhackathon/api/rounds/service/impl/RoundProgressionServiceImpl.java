@@ -28,6 +28,7 @@ import com.sealhackathon.api.rounds.dto.request.LockScoringRequest;
 import com.sealhackathon.api.rounds.dto.request.ResolveTiebreakRequest;
 import com.sealhackathon.api.rounds.dto.response.AdvanceTeamsResponse;
 import com.sealhackathon.api.rounds.dto.response.AssignFinalJudgesResult;
+import com.sealhackathon.api.rounds.dto.response.CloseSubmissionEarlyResponse;
 import com.sealhackathon.api.rounds.dto.response.FinalJudgeAssignmentResponse;
 import com.sealhackathon.api.rounds.dto.response.LockScoringResult;
 import com.sealhackathon.api.rounds.dto.response.RoundRankingItemResponse;
@@ -160,9 +161,55 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
     }
 
     @Override
+    @Transactional
+    public CloseSubmissionEarlyResponse closeSubmissionEarly(Integer roundId) {
+        Round round = roundAccessGuard.requireActiveRoundForUpdate(roundId);
+        if (Boolean.TRUE.equals(round.getScoringLocked())) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Round đã khóa chấm điểm — không thể kết thúc thời gian thi sớm");
+        }
+        if (round.getSubmissionClosedEarlyAt() != null) {
+            throw new BusinessRuleException(ErrorCode.SUBMISSION_ALREADY_CLOSED,
+                    "Thời gian thi đã được kết thúc sớm trước đó");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        boolean deadlineAdjusted = round.getSubmissionDeadline() == null
+                || round.getSubmissionDeadline().isAfter(now);
+        boolean examAtAdjusted = round.getExamAt() == null || round.getExamAt().isAfter(now);
+
+        round.setSubmissionClosedEarlyAt(now);
+        if (deadlineAdjusted) {
+            // Clamp to past so submit ngay sau close luôn afterDeadline (tránh race isAfter(now)==false)
+            round.setSubmissionDeadline(now.minusSeconds(5));
+        }
+        if (examAtAdjusted) {
+            round.setExamAt(now);
+        }
+        if (deadlineAdjusted) {
+            round.setDeadlineReminderSentAt(null);
+        }
+
+        Round saved = roundRepository.save(round);
+        auditService.log(AuditAction.ROUND_CLOSE_SUBMISSION_EARLY, "rounds", roundId, Map.of(
+                "examAtAdjusted", examAtAdjusted,
+                "deadlineAdjusted", deadlineAdjusted,
+                "submissionDeadline", String.valueOf(saved.getSubmissionDeadline()),
+                "examAt", String.valueOf(saved.getExamAt())));
+
+        return CloseSubmissionEarlyResponse.builder()
+                .round(roundMapper.toSummary(saved, 0, 0, 0f))
+                .examAtAdjusted(examAtAdjusted)
+                .deadlineAdjusted(deadlineAdjusted)
+                .closedAt(now)
+                .build();
+    }
+
+    @Override
+    @Transactional
     public LockScoringResult lockScoring(Integer roundId, LockScoringRequest req) {
         LockScoringRequest body = req != null ? req : LockScoringRequest.builder().build();
-        Round round = roundAccessGuard.requireActiveRound(roundId);
+        Round round = roundAccessGuard.requireActiveRoundForUpdate(roundId);
         if (Boolean.TRUE.equals(round.getScoringLocked())) {
             throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Round đã khóa chấm điểm");
         }

@@ -3,6 +3,7 @@ package com.sealhackathon.api.rounds.query;
 import com.sealhackathon.api.criteria.entity.Criteria;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.criteria.value_object.CriteriaType;
+import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.rounds.dto.response.RoundScoringProgressResponse;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.scores.repository.ScoreRepository;
@@ -28,6 +29,7 @@ class ScoringProgressQueryServiceTest {
     @Mock private SubmissionRepository submissionRepository;
     @Mock private ScoreRepository scoreRepository;
     @Mock private CriteriaRepository criteriaRepository;
+    @Mock private JudgeAssignmentRepository judgeAssignmentRepository;
 
     @InjectMocks private ScoringProgressQueryService service;
 
@@ -45,6 +47,7 @@ class ScoringProgressQueryServiceTest {
         when(submissionRepository.findByRound_Id(99)).thenReturn(List.of(sub));
         when(submissionRepository.findByTrack_Round_Id(99)).thenReturn(List.of());
         when(criteriaRepository.findByFinalRoundIdOrderByDisplayOrderAsc(99)).thenReturn(List.of(criterion));
+        when(judgeAssignmentRepository.findByRoundId(99)).thenReturn(List.of());
         when(scoreRepository.countBySubmission_IdAndCriterion_IdAndScoreTypeAndIsFinal(
                 10, 501, ScoreType.NORMAL, false)).thenReturn(1L);
 
@@ -71,6 +74,7 @@ class ScoringProgressQueryServiceTest {
         when(submissionRepository.findByRound_Id(1)).thenReturn(List.of());
         when(submissionRepository.findByTrack_Round_Id(1)).thenReturn(List.of(sub));
         when(criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(7)).thenReturn(List.of(criterion));
+        when(judgeAssignmentRepository.findByTrackId(7)).thenReturn(List.of());
         when(scoreRepository.countBySubmission_IdAndCriterion_IdAndScoreTypeAndIsFinal(
                 eq(20), eq(101), eq(ScoreType.NORMAL), eq(false))).thenReturn(1L);
 

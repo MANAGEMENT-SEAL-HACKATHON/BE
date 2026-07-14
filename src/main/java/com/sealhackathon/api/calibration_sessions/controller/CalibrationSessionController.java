@@ -54,9 +54,10 @@ public class CalibrationSessionController {
     @GetMapping
     @CoordinatorOnly
     @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
-    @Operation(summary = "FR-29 — Danh sách phiên theo round")
+    @Operation(summary = "FR-29 — Danh sách phiên theo round (optional trackId)")
     public ResponseEntity<ApiResponse<List<CalibrationSessionResponse>>> list(
-            @RequestParam Integer roundId) {
-        return ResponseEntity.ok(ApiResponse.ok(calibrationSessionService.listByRound(roundId)));
+            @RequestParam Integer roundId,
+            @RequestParam(required = false) Integer trackId) {
+        return ResponseEntity.ok(ApiResponse.ok(calibrationSessionService.listByRound(roundId, trackId)));
     }
 }

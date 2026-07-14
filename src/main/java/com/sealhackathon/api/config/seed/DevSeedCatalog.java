@@ -3,11 +3,12 @@ package com.sealhackathon.api.config.seed;
 /**
  * Danh mục slug seed dev — một nguồn sự thật.
  *
- * <p>Doc: {@code docs/testing/dev-seed-guide.md}
+ * <p>Doc: {@code docs/testing/dev-seed-guide.md} · {@code docs/testing/dev-seed-slugs-guide.md}
  *
  * <ul>
- *   <li>{@link #SLUG_E2E_ONGOING} — GĐ1 sẵn sàng, 7 đội + 3 SV chưa có nhóm (test GĐ2→GĐ6)</li>
+ *   <li>{@link #SLUG_E2E_ONGOING} — GĐ1–GĐ2 happy + continuous</li>
  *   <li>{@link #SLUG_ARCHIVE_FINISHED} — FINISHED archive duy nhất</li>
+ *   <li>GĐ3–GĐ6: mỗi giai đoạn một happy slug</li>
  * </ul>
  */
 public final class DevSeedCatalog {
@@ -26,70 +27,88 @@ public final class DevSeedCatalog {
 
     public static final String SLUG_ARCHIVE_FINISHED = Gd1SeedConstants.SLUG_FINISHED;
 
-    /** Slug seed cũ — xóa khi start dev. */
+    public static final String SLUG_GD3_PRELIM_OPEN = Gd3SeedConstants.SLUG_GD3_PRELIM_OPEN;
+
+    public static final String SLUG_GD4_ADVANCE_READY = Gd4SeedConstants.SLUG_GD4_ADVANCE_READY;
+
+    public static final String SLUG_GD5_FINAL_ACTIVE = Gd5SeedConstants.SLUG_GD5_FINAL_ACTIVE;
+
+    public static final String SLUG_GD6_PENDING_CONFIRM = Gd6SeedConstants.SLUG_GD6_PENDING_CONFIRM;
+
+    /**
+     * Slug seed cũ / bad / mid-stage — xóa khi start profile {@code dev}.
+     */
     public static final String[] DEPRECATED_SLUGS = {
+            // legacy spring / ready
             "seal-gd1-ready",
             "seal-spring-2026",
             "seal-spring-2026-gd3",
             "seal-spring-2026-gd4",
             "seal-spring-2026-gd5",
             "seal-spring-2026-gd6",
+            // GĐ1 bad/gate
+            Gd1SeedConstants.SLUG_INCOMPLETE,
+            "seal-gd1-no-kickoff",
+            "seal-gd1-no-awards",
+            "seal-gd1-judge-final-early",
+            "seal-gd1-event-order-bad",
+            "seal-gd1-event-order-violation",
+            "seal-gd1-prelim-only",
+            // GĐ2 bad/gate + Fall ongoing
+            "seal-gd2-teams-edge",
+            "seal-gd2-registration-closed",
+            "seal-gd2-lottery-not-locked",
+            "seal-gd2-round-active",
+            "seal-fall-ongoing-2026",
+            // GĐ3 mid/bad
+            "seal-gd3-late-review",
+            "seal-gd3-scoring-live",
+            "seal-gd3-scoring-gate",
+            "seal-gd3-tiebreak-hybrid",
+            "seal-gd3-edge-errors",
+            "seal-gd3-calibration-timer",
+            "seal-gd3-judge-mentor-conflict",
+            "seal-gd3-round-config-edge",
+            "seal-gd3-no-lottery",
+            "seal-gd3-mentor-portal",
+            "seal-gd3-mentor-track-only",
+            "seal-gd3-team-mentor-history",
+            // GĐ4 mid/bad
+            "seal-gd4-ck-unpublished",
+            "seal-gd4-published",
+            "seal-gd4-tiebreak-gate",
+            "seal-gd4-ck-activate-ready",
+            "seal-gd4-edge-errors",
+            "seal-gd4-wildcard-resolved",
+            "seal-gd4-tiebreak-resolved",
+            "seal-gd4-wildcard-disabled",
+            "seal-gd4-judge-assign-warnings",
+            "seal-gd4-ck-no-criteria",
+            // GĐ5 mid/bad
+            "seal-gd5-submit-open",
+            "seal-gd5-scoring-live",
+            "seal-gd5-calibration-timer",
+            "seal-gd5-edge-errors",
+            "seal-gd5-late-hardlock",
+            "seal-gd5-judge-edge",
+            "seal-gd5-late-pending",
+            "seal-gd5-not-advanced",
+            // GĐ6 mid/bad
+            "seal-gd6-prizes-empty",
+            "seal-gd6-confirm-ready",
+            "seal-gd6-finished-export",
+            "seal-gd6-edge-errors",
+            "seal-gd6-prize-duplicate",
     };
 
+    /** 6 happy-path hackathon slug seed khi start {@code dev}. */
     public static final String[] ALL_DEV_HACKATHON_SLUGS = {
             SLUG_E2E_ONGOING,
             SLUG_ARCHIVE_FINISHED,
-            Gd1SeedConstants.SLUG_INCOMPLETE,
-            Gd1NoKickoffSeedConstants.SLUG_GD1_NO_KICKOFF,
-            Gd1NoAwardsSeedConstants.SLUG_GD1_NO_AWARDS,
-            Gd1JudgeFinalEarlySeedConstants.SLUG_GD1_JUDGE_FINAL_EARLY,
-            Gd1EventOrderBadSeedConstants.SLUG_GD1_EVENT_ORDER_BAD,
-            Gd1EventOrderViolationSeedConstants.SLUG_GD1_EVENT_ORDER_VIOLATION,
-            Gd1PrelimOnlySeedConstants.SLUG_GD1_PRELIM_ONLY,
-            Gd2TeamsEdgeSeedConstants.SLUG_GD2_TEAMS_EDGE,
-            Gd2RegistrationClosedSeedConstants.SLUG_GD2_REGISTRATION_CLOSED,
-            Gd2LotteryNotLockedSeedConstants.SLUG_GD2_LOTTERY_NOT_LOCKED,
-            Gd2RoundActiveSeedConstants.SLUG_GD2_ROUND_ACTIVE,
-            FallOngoingSeedConstants.SLUG_FALL_ONGOING,
-            Gd3SeedConstants.SLUG_GD3_PRELIM_OPEN,
-            Gd3LateReviewSeedConstants.SLUG_GD3_LATE_REVIEW,
-            Gd3ScoringLiveSeedConstants.SLUG_GD3_SCORING_LIVE,
-            Gd3ScoringGateSeedConstants.SLUG_GD3_SCORING_GATE,
-            Gd3TiebreakHybridSeedConstants.SLUG_GD3_TIEBREAK_HYBRID,
-            Gd3EdgeErrorsSeedConstants.SLUG_GD3_EDGE_ERRORS,
-            Gd3CalibrationTimerSeedConstants.SLUG_GD3_CALIBRATION_TIMER,
-            Gd3JudgeMentorConflictSeedConstants.SLUG_GD3_JUDGE_MENTOR_CONFLICT,
-            Gd3RoundConfigEdgeSeedConstants.SLUG_GD3_ROUND_CONFIG_EDGE,
-            Gd3NoLotterySeedConstants.SLUG_GD3_NO_LOTTERY,
-            Gd3MentorPortalSeedConstants.SLUG_GD3_MENTOR_PORTAL,
-            Gd3MentorTrackOnlySeedConstants.SLUG_GD3_MENTOR_TRACK_ONLY,
-            Gd3TeamMentorHistorySeedConstants.SLUG_GD3_TEAM_MENTOR_HISTORY,
-            Gd4SeedConstants.SLUG_GD4_ADVANCE_READY,
-            Gd4CkUnpublishedSeedConstants.SLUG_GD4_CK_UNPUBLISHED,
-            Gd4PublishedSeedConstants.SLUG_GD4_PUBLISHED,
-            Gd4TiebreakGateSeedConstants.SLUG_GD4_TIEBREAK_GATE,
-            Gd4CkActivateReadySeedConstants.SLUG_GD4_CK_ACTIVATE_READY,
-            Gd4EdgeErrorsSeedConstants.SLUG_GD4_EDGE_ERRORS,
-            Gd4WildcardResolvedSeedConstants.SLUG_GD4_WILDCARD_RESOLVED,
-            Gd4TiebreakResolvedSeedConstants.SLUG_GD4_TIEBREAK_RESOLVED,
-            Gd4WildcardDisabledSeedConstants.SLUG_GD4_WILDCARD_DISABLED,
-            Gd4JudgeAssignWarningsSeedConstants.SLUG_GD4_JUDGE_ASSIGN_WARNINGS,
-            Gd4CkNoCriteriaSeedConstants.SLUG_GD4_CK_NO_CRITERIA,
-            Gd5SeedConstants.SLUG_GD5_FINAL_ACTIVE,
-            Gd5SubmitOpenSeedConstants.SLUG_GD5_SUBMIT_OPEN,
-            Gd5ScoringLiveSeedConstants.SLUG_GD5_SCORING_LIVE,
-            Gd5CalibrationTimerSeedConstants.SLUG_GD5_CALIBRATION_TIMER,
-            Gd5EdgeErrorsSeedConstants.SLUG_GD5_EDGE_ERRORS,
-            Gd5LateHardlockSeedConstants.SLUG_GD5_LATE_HARDLOCK,
-            Gd5JudgeEdgeSeedConstants.SLUG_GD5_JUDGE_EDGE,
-            Gd5LatePendingSeedConstants.SLUG_GD5_LATE_PENDING,
-            Gd5NotAdvancedSeedConstants.SLUG_GD5_NOT_ADVANCED,
-            Gd6SeedConstants.SLUG_GD6_PENDING_CONFIRM,
-            Gd6PrizesEmptySeedConstants.SLUG_GD6_PRIZES_EMPTY,
-            Gd6ConfirmReadySeedConstants.SLUG_GD6_CONFIRM_READY,
-            Gd6FinishedExportSeedConstants.SLUG_GD6_FINISHED_EXPORT,
-            Gd6EdgeErrorsSeedConstants.SLUG_GD6_EDGE_ERRORS,
-            Gd6PrizeDuplicateSeedConstants.SLUG_GD6_PRIZE_DUPLICATE,
+            SLUG_GD3_PRELIM_OPEN,
+            SLUG_GD4_ADVANCE_READY,
+            SLUG_GD5_FINAL_ACTIVE,
+            SLUG_GD6_PENDING_CONFIRM,
     };
 
     public static final SnapshotProfile PROFILE_E2E = new SnapshotProfile(

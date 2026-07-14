@@ -29,6 +29,9 @@ public interface JudgeSubmissionScoringConfirmationRepository
     @Transactional
     void deleteBySubmission_Id(Integer submissionId);
 
+    @Transactional
+    void deleteBySubmission_IdAndJudge_Id(Integer submissionId, Integer judgeId);
+
     @Modifying
     @Transactional
     @Query("""

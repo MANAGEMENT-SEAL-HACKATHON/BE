@@ -33,6 +33,21 @@ public class RoundAccessGuard {
         return round;
     }
 
+    /**
+     * Active round with {@code PESSIMISTIC_WRITE} — dùng cho close-early / lock-scoring
+     * để tránh Lost Update khi 2 Coord gọi song song.
+     */
+    public Round requireActiveRoundForUpdate(Integer roundId) {
+        Round round = roundRepository.findByIdForUpdate(roundId)
+                .orElseThrow(() -> new ResourceNotFoundException("Round", roundId));
+        if (!Boolean.TRUE.equals(round.getIsActive())) {
+            throw new BusinessRuleException(ErrorCode.ROUND_NOT_ACTIVE,
+                    "Round chưa được kích hoạt",
+                    Map.of("roundId", roundId));
+        }
+        return round;
+    }
+
     public Round requireUnlockedRound(Integer roundId) {
         Round round = requireRound(roundId);
         if (Boolean.TRUE.equals(round.getScoringLocked())) {

@@ -154,6 +154,7 @@ public final class ErrorCode {
     // ---------- DB TRIGGER / XOR (422) ----------
     public static final String CONFLICT_SAME_TRACK                  = "CONFLICT_SAME_TRACK";
     public static final String INTERNAL_JUDGE_NOT_ALLOWED_IN_FINAL  = "INTERNAL_JUDGE_NOT_ALLOWED_IN_FINAL";
+    public static final String EXTERNAL_JUDGE_NOT_ALLOWED_IN_PRELIM = "EXTERNAL_JUDGE_NOT_ALLOWED_IN_PRELIM";
     public static final String INTERNAL_MENTOR_NOT_ALLOWED_IN_FINAL = "INTERNAL_MENTOR_NOT_ALLOWED_IN_FINAL";
     public static final String INVALID_ASSIGNMENT_TYPE              = "INVALID_ASSIGNMENT_TYPE";
     public static final String INVALID_FINAL_ROUND                  = "INVALID_FINAL_ROUND";
@@ -232,6 +233,7 @@ public final class ErrorCode {
     public static final String REVIEW_NOTE_REQUIRED                       = "REVIEW_NOTE_REQUIRED";
     public static final String SUBMISSION_NOT_LATE_PENDING                = "SUBMISSION_NOT_LATE_PENDING";
     public static final String LATE_PENDING_NOT_ALLOWED                   = "LATE_PENDING_NOT_ALLOWED";
+    public static final String SUBMISSION_ALREADY_CLOSED                  = "SUBMISSION_ALREADY_CLOSED";
     public static final String FORCE_LOCK_REASON_REQUIRED                 = "FORCE_LOCK_REASON_REQUIRED";
     public static final String ELIMINATION_REASON_REQUIRED                = "ELIMINATION_REASON_REQUIRED";
     public static final String DEPT_HEAD_NOT_CONFIRMED                    = "DEPT_HEAD_NOT_CONFIRMED";

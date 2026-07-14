@@ -83,4 +83,28 @@ class MentorJudgeConflictGuardTest {
         assertThatThrownBy(() -> guard.requireNoConflict(7, submission))
                 .isInstanceOf(BusinessRuleException.class);
     }
+
+    @Test
+    void resolvesTeamAndTrackFromSubmissionOnly_forCalibrationStylePayload() {
+        // Calibration API only sends submissionId; guard must resolve team/track from Submission entity
+        Track track = Track.builder().id(10).build();
+        Team team = Team.builder().id(5).build();
+        Round round = Round.builder().id(3).build();
+        Submission submission = Submission.builder()
+                .id(42)
+                .team(team)
+                .track(track)
+                .round(round)
+                .build();
+
+        when(mentorTeamAssignmentRepository.existsByMentor_IdAndTeam_Id(7, 5)).thenReturn(false);
+        when(mentorAssignmentRepository.findByTrackId(10)).thenReturn(List.of(
+                MentorAssignment.builder().mentor(User.builder().id(7).build()).build()));
+        when(judgeAssignmentRepository.existsByJudgeIdAndTrackId(7, 10)).thenReturn(true);
+
+        assertThatThrownBy(() -> guard.requireNoConflict(7, submission))
+                .isInstanceOf(BusinessRuleException.class)
+                .extracting(ex -> ((BusinessRuleException) ex).getCode())
+                .isEqualTo(ErrorCode.CONFLICT_MENTOR_JUDGE_SAME_TRACK);
+    }
 }

@@ -449,6 +449,7 @@ CREATE TABLE submissions (
 CREATE TABLE calibration_sessions (
     id                   INT         NOT NULL AUTO_INCREMENT PRIMARY KEY,
     round_id             INT         NOT NULL,
+    track_id             INT         NULL COMMENT 'GĐ3 per-track; NULL = GĐ5 round-scoped',
     sample_submission_id INT,
     status               VARCHAR(20) NOT NULL DEFAULT 'OPEN',
     target_score         FLOAT,
@@ -458,6 +459,7 @@ CREATE TABLE calibration_sessions (
     created_by           INT,
     CONSTRAINT chk_cs_status CHECK (status IN ('OPEN','CLOSED')),
     CONSTRAINT fk_cs_round         FOREIGN KEY (round_id)             REFERENCES rounds(id) ON DELETE CASCADE,
+    CONSTRAINT fk_cs_track         FOREIGN KEY (track_id)             REFERENCES tracks(id),
     CONSTRAINT fk_cs_sample        FOREIGN KEY (sample_submission_id) REFERENCES submissions(id),
     CONSTRAINT fk_cs_creator       FOREIGN KEY (created_by)           REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -15,6 +15,8 @@ import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.service.HackathonRegistrationCloseService;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.notifications.service.NotificationService;
+import com.sealhackathon.api.rounds.entity.Round;
+import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.teams.entity.TeamMember;
 import com.sealhackathon.api.teams.repository.TeamMemberRepository;
 import com.sealhackathon.api.teams.value_object.TeamMemberStatus;
@@ -33,6 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +55,7 @@ public class HackathonRegistrationCloseServiceImpl implements HackathonRegistrat
     private final AuditService auditService;
     private final NotificationService notificationService;
     private final UserRepository userRepository;
+    private final RoundRepository roundRepository;
 
     @Override
     @Transactional
@@ -159,6 +163,17 @@ public class HackathonRegistrationCloseServiceImpl implements HackathonRegistrat
                         "teamsAwaitingApproval", awaitingApproval.size(),
                         "teamsInFormationGrace", inGracePeriod.size()));
 
+        LocalDateTime prelimExamAt = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathonId).stream()
+                .filter(r -> !Boolean.TRUE.equals(r.getIsFinal()))
+                .map(Round::getExamAt)
+                .filter(at -> at != null)
+                .findFirst()
+                .orElse(null);
+        Long hoursUntilPrelimExam = null;
+        if (prelimExamAt != null && prelimExamAt.isAfter(now)) {
+            hoursUntilPrelimExam = ChronoUnit.HOURS.between(now, prelimExamAt);
+        }
+
         return CloseRegistrationEarlyResponse.builder()
                 .hackathonId(hackathonId)
                 .closedAt(now)
@@ -167,6 +182,8 @@ public class HackathonRegistrationCloseServiceImpl implements HackathonRegistrat
                 .rejectedIncompleteTeams(rejectedIncompleteTeams)
                 .teamsAwaitingCoordinatorApproval(awaitingApproval)
                 .teamsInFormationGracePeriod(inGracePeriod)
+                .prelimExamAt(prelimExamAt)
+                .hoursUntilPrelimExam(hoursUntilPrelimExam)
                 .build();
     }
 

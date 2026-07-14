@@ -4,6 +4,7 @@
 
 | Tài liệu | Mục đích |
 |----------|----------|
+| **[manual-ui-playbook-gd1-gd6.md](manual-ui-playbook-gd1-gd6.md)** | **Playbook UI GĐ1–6** — happy/bad click-by-click, end-early, full chain 7A/7B |
 | **[full-workflow-api-test-gd1-gd6.md](full-workflow-api-test-gd1-gd6.md)** | **File chính** — hướng dẫn tester, E2E GĐ0→6, catalog 166 API (request/response JSON) |
 | **[gate-regression-test-matrix-gd1-gd6.md](gate-regression-test-matrix-gd1-gd6.md)** | **Regression GĐ1–6** — testcase gate, negative, E2E full path |
 | **[fe-gd1-gd2-gd3-workflow-mapping.md](fe-gd1-gd2-gd3-workflow-mapping.md)** | **FE GĐ1–3** — gate BTC, readiness targets, timeline sync |

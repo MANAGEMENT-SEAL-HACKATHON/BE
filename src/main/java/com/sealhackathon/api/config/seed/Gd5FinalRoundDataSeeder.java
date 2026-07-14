@@ -1,13 +1,11 @@
 package com.sealhackathon.api.config.seed;
 
 import com.sealhackathon.api.chapters.entity.Chapter;
-import com.sealhackathon.api.criteria.entity.Criteria;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
-import com.sealhackathon.api.submissions.entity.Submission;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.users.entity.User;
@@ -24,6 +22,9 @@ import java.util.List;
 
 /**
  * Seed GĐ5 — hackathon {@link Gd5SeedConstants#SLUG_GD5_FINAL_ACTIVE}.
+ *
+ * <p>CK active, 4 đội ADVANCED, submit window mở, chưa nộp / chưa queue
+ * (user đi full: nộp → close-early → queue → chấm → lock).
  *
  * <p>Doc: {@code docs/testing/gd5-full-test-matrix-and-seeds.md} § Profile 0
  */
@@ -65,7 +66,8 @@ public class Gd5FinalRoundDataSeeder {
 
         seedHelper.syncHackathonCalendarFromDates(
                 Gd5SeedConstants.SLUG_GD5_FINAL_ACTIVE, seedHelper.computeGd5FinalActiveDates());
-        seedHelper.repairHackathonForGd5Retest(hackathon, prelim, finalRound);
+        // Clear CK submissions/scores/queue — full path submit-open
+        seedHelper.repairHackathonForGd5SubmitOpenRetest(hackathon, prelim, finalRound);
 
         User coordinator = seedHelper.requireCoordinator();
         User guestJudge = seedHelper.requireGuestJudge();
@@ -73,6 +75,8 @@ public class Gd5FinalRoundDataSeeder {
         LocalDateTime now = LocalDateTime.now();
 
         seedHelper.ensureGuestJudgeInvitation(hackathon, guestJudge, coordinator);
+        seedHelper.ensureFinalGuestJudgeAssignment(hackathon, finalRound);
+        seedHelper.seedFinalRoundProblem(finalRound);
 
         String[] teamNames = {
                 Gd5SeedConstants.TEAM_01,
@@ -96,21 +100,10 @@ public class Gd5FinalRoundDataSeeder {
             teams.add(team);
         }
 
-        List<Criteria> finalCriteria = seedHelper.listFinalCriteria(finalRound);
-
-        Submission sub1 = seedHelper.ensureFinalSubmission(
-                hackathon, finalRound, teams.get(0), "https://github.com/seal-warriors/gd5-team01");
-        Submission sub2 = seedHelper.ensureFinalSubmission(
-                hackathon, finalRound, teams.get(1), "https://github.com/seal-warriors/gd5-team02");
-
-        for (Criteria c : finalCriteria) {
-            seedHelper.ensureNormalScore(sub1, c, guestJudge, 8.0f, false);
-        }
-
         log.info("""
                 [Gd5FinalRoundDataSeeder] slug={} hackathonId={} prelimRoundId={} finalRoundId={}
-                  teams: {} | {} | {} | {}
-                  finalSubmissionId(t1)={} finalSubmissionId(t2)={}
+                  teams: {} | {} | {} | {} (ADVANCED only)
+                  0 CK submission / 0 queue — nộp → close-early → queue → chấm → lock
                   students: {} … {} password={}
                   guestJudge={} (FINAL_EXTERNAL on CK)
                 """,
@@ -122,10 +115,8 @@ public class Gd5FinalRoundDataSeeder {
                 teams.get(1).getId(),
                 teams.get(2).getId(),
                 teams.get(3).getId(),
-                sub1.getId(),
-                sub2.getId(),
-                Gd5SeedConstants.studentEmail(3),
                 Gd5SeedConstants.studentEmail(1),
+                Gd5SeedConstants.studentEmail(4),
                 DevSeedCatalog.DEV_STUDENT_PASSWORD,
                 Gd1SeedConstants.EMAIL_GUEST_JUDGE);
     }
@@ -152,10 +143,10 @@ public class Gd5FinalRoundDataSeeder {
         if (prelim == null || finalRound == null) {
             return;
         }
-        seedHelper.repairGd5FeTestingScheduleAndState(hackathon, prelim, finalRound);
+        seedHelper.repairHackathonForGd5SubmitOpenRetest(hackathon, prelim, finalRound);
         finalRound = roundRepository.findById(finalRound.getId()).orElse(finalRound);
         log.info(
-                "[Gd5FinalRoundDataSeeder] FE repair — final deadline={} slug={}",
+                "[Gd5FinalRoundDataSeeder] FE repair — submit-open, final deadline={} slug={}",
                 finalRound.getSubmissionDeadline(),
                 Gd5SeedConstants.SLUG_GD5_FINAL_ACTIVE);
     }

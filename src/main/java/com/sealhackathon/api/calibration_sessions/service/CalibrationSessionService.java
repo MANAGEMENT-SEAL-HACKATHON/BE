@@ -13,4 +13,6 @@ public interface CalibrationSessionService {
     CalibrationSessionResponse update(Integer sessionId, UpdateCalibrationSessionRequest req);
 
     List<CalibrationSessionResponse> listByRound(Integer roundId);
+
+    List<CalibrationSessionResponse> listByRound(Integer roundId, Integer trackId);
 }

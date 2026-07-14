@@ -9,6 +9,7 @@ import com.sealhackathon.api.rounds.dto.request.LockScoringRequest;
 import com.sealhackathon.api.rounds.dto.request.ResolveTiebreakRequest;
 import com.sealhackathon.api.rounds.dto.response.AdvanceTeamsResponse;
 import com.sealhackathon.api.rounds.dto.response.AssignFinalJudgesResult;
+import com.sealhackathon.api.rounds.dto.response.CloseSubmissionEarlyResponse;
 import com.sealhackathon.api.rounds.dto.response.FinalJudgeAssignmentResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundRankingItemResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoreboardResponse;
@@ -60,6 +61,15 @@ public class RoundProgressionController {
             @PathVariable Integer id,
             @RequestPart(value = "file", required = false) MultipartFile file) {
         return ResponseEntity.ok(ApiResponse.ok(progressionService.releaseProblem(id, file)));
+    }
+
+    @PostMapping("/{id}/close-submission-early")
+    @CoordinatorOnly
+    @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
+    @Operation(summary = "Kết thúc thời gian thi sớm — đóng hạn nộp + examAt → JUDGING (GĐ3/GĐ5)")
+    public ResponseEntity<ApiResponse<CloseSubmissionEarlyResponse>> closeSubmissionEarly(
+            @PathVariable Integer id) {
+        return ResponseEntity.ok(ApiResponse.ok(progressionService.closeSubmissionEarly(id)));
     }
 
     @PatchMapping("/{id}/lock-scoring")
