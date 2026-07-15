@@ -10,11 +10,9 @@ import com.sealhackathon.api.presentation.dto.response.PresentationQueueResponse
 import com.sealhackathon.api.presentation.dto.response.PresentationTimerActionResponse;
 import com.sealhackathon.api.presentation.dto.response.PresentationTimerBlock;
 import com.sealhackathon.api.presentation.guard.PresentationControllerGuard;
-import com.sealhackathon.api.presentation.guard.PresentationForceAdvanceAckGuard;
 import com.sealhackathon.api.presentation.service.PresentationQueueService;
 import com.sealhackathon.api.presentation.service.PresentationTimerService;
 import com.sealhackathon.api.presentation.support.PresentationDurationResolver;
-import com.sealhackathon.api.presentation.support.PresentationNextScoringGuard;
 import com.sealhackathon.api.presentation.support.PresentationQaTimeoutMaterializer;
 import com.sealhackathon.api.presentation.support.PresentationTimerCalculator;
 import com.sealhackathon.api.presentation.support.RoundPhaseResolver;
@@ -41,8 +39,6 @@ public class PresentationTimerServiceImpl implements PresentationTimerService {
     private final TrackRepository trackRepository;
     private final PresentationSlotRepository presentationSlotRepository;
     private final PresentationControllerGuard controllerGuard;
-    private final PresentationForceAdvanceAckGuard forceAdvanceAckGuard;
-    private final PresentationNextScoringGuard nextScoringGuard;
     private final PresentationDurationResolver durationResolver;
     private final PresentationQueueService presentationQueueService;
     private final PresentationQueuePublisher queuePublisher;
@@ -133,20 +129,13 @@ public class PresentationTimerServiceImpl implements PresentationTimerService {
                     "Chỉ kết thúc sớm Q&A khi đang ở pha QA (hoặc tạm dừng sau QA)");
         }
 
-        // Auto-timeout: remaining đã 0 → ENDED không scoring guard
+        // Auto-timeout hoặc early-end Q&A → ENDED không scoring guard (scoring chỉ gate queue/next)
         int remaining = PresentationTimerCalculator.remainingSeconds(
                 slot, ctx.track(), ctx.round(), durationResolver);
         if (remaining <= 0 && slot.getTimerPhase() == PresentationTimerPhase.QA) {
             slot.setTimerPhase(PresentationTimerPhase.ENDED);
             presentationSlotRepository.save(slot);
             return publishAndRespond(ctx, slot);
-        }
-
-        boolean ack = forceAdvanceAckGuard.resolveAcknowledge(
-                acknowledgeIncompleteScoring, ctx.trackId(), ctx.round());
-        if (slot.getSubmission() != null) {
-            nextScoringGuard.validateBeforeNext(
-                    slot.getSubmission(), ctx.trackId(), ctx.round(), ack);
         }
 
         slot.setTimerPhase(PresentationTimerPhase.ENDED);
@@ -174,11 +163,20 @@ public class PresentationTimerServiceImpl implements PresentationTimerService {
         PresentationQueueResponse payload = presentationQueueService.getQueue(ctx.round().getId(), ctx.trackId());
         queuePublisher.publish(ctx.round().getId(), ctx.trackId(), payload);
         Integer submissionId = slot.getSubmission() != null ? slot.getSubmission().getId() : null;
+        PresentationTimerBlock timer = buildTimerBlock(slot, ctx.track(), ctx.round());
+        if (submissionId != null && timer.getPhase() != null) {
+            queuePublisher.publishTimerPhase(
+                    ctx.round().getId(),
+                    ctx.trackId(),
+                    submissionId,
+                    timer.getPhase(),
+                    timer.getRemainingSeconds());
+        }
         return PresentationTimerActionResponse.builder()
                 .roundId(ctx.round().getId())
                 .trackId(ctx.trackId())
                 .submissionId(submissionId)
-                .timer(buildTimerBlock(slot, ctx.track(), ctx.round()))
+                .timer(timer)
                 .build();
     }
 

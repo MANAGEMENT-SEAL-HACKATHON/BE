@@ -464,6 +464,36 @@ class RoundServiceImplExamValidationTest {
         assertDoesNotThrow(() -> roundService.createByHackathon(1, req));
     }
 
+    @Test
+    void update_activeRound_rejectsScheduleChange() {
+        Hackathon h = Hackathon.builder().id(1).status(HackathonStatus.ONGOING).build();
+        LocalDateTime examAt = LocalDateTime.now().plusDays(1).withHour(8).withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime open = examAt.plusHours(3);
+        LocalDateTime deadline = examAt.plusHours(5);
+        Round active = Round.builder()
+                .id(10)
+                .hackathon(h)
+                .name("Sơ loại")
+                .isActive(true)
+                .examAt(examAt)
+                .submissionOpen(open)
+                .submissionDeadline(deadline)
+                .build();
+        when(roundRepository.findById(10)).thenReturn(Optional.of(active));
+
+        UpdateRoundRequest req = UpdateRoundRequest.builder()
+                .name("Sơ loại")
+                .examAt(examAt.plusHours(2))
+                .submissionOpen(open.plusHours(2))
+                .submissionDeadline(deadline.plusHours(2))
+                .build();
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class,
+                () -> roundService.update(10, req));
+        assertEquals(ErrorCode.INVALID_STATE, ex.getCode());
+        verify(roundRepository, never()).save(any());
+    }
+
     private void mockHackathon() {
         when(hackathonRepository.findById(1))
                 .thenReturn(Optional.of(Hackathon.builder().id(1).status(HackathonStatus.DRAFT).build()));

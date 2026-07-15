@@ -87,6 +87,20 @@ public final class ErrorCode {
     public static final String ROUND_FORCE_LOCK_REASON  = "ROUND_FORCE_LOCK_REASON";
     public static final String ROUND_HAS_SUBMISSIONS    = "ROUND_HAS_SUBMISSIONS";
     public static final String ROUND_ANOTHER_ACTIVE     = "ROUND_ANOTHER_ACTIVE";
+    /** Close-early khi chưa phát đề. */
+    public static final String INVALID_ROUND_STATE_UNRELEASED = "INVALID_ROUND_STATE_UNRELEASED";
+    /** Close-early khi chưa tới examAt (server clock). */
+    public static final String INVALID_ROUND_STATE_BEFORE_EXAM = "INVALID_ROUND_STATE_BEFORE_EXAM";
+    /** Lock scoring khi vòng còn ONGOING (chưa close-early / chưa hết deadline). */
+    public static final String INVALID_ROUND_STATE_NOT_CLOSED = "INVALID_ROUND_STATE_NOT_CLOSED";
+    /** lockScoring — chưa xáo hàng đợi thuyết trình. */
+    public static final String INVALID_ROUND_STATE_QUEUE_NOT_SHUFFLED = "INVALID_ROUND_STATE_QUEUE_NOT_SHUFFLED";
+    /** lockScoring — còn slot WAITING/PRESENTING. */
+    public static final String INVALID_ROUND_STATE_PRESENTATIONS_INCOMPLETE =
+            "INVALID_ROUND_STATE_PRESENTATIONS_INCOMPLETE";
+    /** lockScoring — còn bài chưa chấm (force có thể bypass). */
+    public static final String INVALID_ROUND_STATE_SCORING_INCOMPLETE =
+            "INVALID_ROUND_STATE_SCORING_INCOMPLETE";
 
     // ---------- FR-04 CRITERIA ----------
     public static final String CRITERIA_HAS_SCORES      = "CRITERIA_HAS_SCORES";
@@ -214,6 +228,10 @@ public final class ErrorCode {
     public static final String TEAM_NOT_READY                           = "TEAM_NOT_READY";
     public static final String NOT_TEAM_MEMBER                          = "NOT_TEAM_MEMBER";
     public static final String TEAM_NOT_IN_TRACK                          = "TEAM_NOT_IN_TRACK";
+    /** Đội ADVANCED/ELIMINATED — không được mutate Sơ loại (submit, relottery, …). */
+    public static final String PRELIM_NOT_MUTABLE                         = "PRELIM_NOT_MUTABLE";
+    /** Còn vé vớt chưa duyệt/từ chối — không cho advance (C-08). */
+    public static final String WILDCARD_PENDING                           = "WILDCARD_PENDING";
     public static final String TRACK_NOT_ALLOWED_FOR_FINAL                = "TRACK_NOT_ALLOWED_FOR_FINAL";
     public static final String SUBMISSION_NOT_GRADABLE                    = "SUBMISSION_NOT_GRADABLE";
     public static final String JUDGE_NOT_ASSIGNED_TO_TRACK                = "JUDGE_NOT_ASSIGNED_TO_TRACK";
@@ -234,6 +252,19 @@ public final class ErrorCode {
     public static final String SUBMISSION_NOT_LATE_PENDING                = "SUBMISSION_NOT_LATE_PENDING";
     public static final String LATE_PENDING_NOT_ALLOWED                   = "LATE_PENDING_NOT_ALLOWED";
     public static final String SUBMISSION_ALREADY_CLOSED                  = "SUBMISSION_ALREADY_CLOSED";
+    /** Còn trong cửa sổ nộp — không cho shuffle. */
+    public static final String SUBMISSION_NOT_CLOSED_FOR_SHUFFLE          = "SUBMISSION_NOT_CLOSED_FOR_SHUFFLE";
+    public static final String SUBMISSION_NOT_STARTED                     = "SUBMISSION_NOT_STARTED";
+    public static final String SUBMISSION_CLOSED                          = "SUBMISSION_CLOSED";
+    public static final String EVENT_FINISHED                             = "EVENT_FINISHED";
+    /** Đã bắt đầu thuyết trình — không shuffle lại. */
+    public static final String PRESENTATION_ALREADY_STARTED               = "PRESENTATION_ALREADY_STARTED";
+    /** Takeover/transfer race — controller đã đổi. */
+    public static final String CONTROLLER_CONFLICT                        = "CONTROLLER_CONFLICT";
+    /** Transfer sang judge offline / không có session. */
+    public static final String JUDGE_OFFLINE                              = "JUDGE_OFFLINE";
+    public static final String UNLOCK_REASON_REQUIRED                     = "UNLOCK_REASON_REQUIRED";
+    public static final String PRIZE_CATALOG_LOCKED                       = "PRIZE_CATALOG_LOCKED";
     public static final String FORCE_LOCK_REASON_REQUIRED                 = "FORCE_LOCK_REASON_REQUIRED";
     public static final String ELIMINATION_REASON_REQUIRED                = "ELIMINATION_REASON_REQUIRED";
     public static final String DEPT_HEAD_NOT_CONFIRMED                    = "DEPT_HEAD_NOT_CONFIRMED";

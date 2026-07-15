@@ -452,6 +452,12 @@ public class JudgePortalServiceImpl implements JudgePortalService {
             canAdvance = scoringComplete && timerReady;
         }
 
+        LocalDateTime lastJudgeScoredAt = scoreRepository.findBySubmission_Id(submission.getId()).stream()
+                .map(s -> s.getUpdatedAt() != null ? s.getUpdatedAt() : s.getScoredAt())
+                .filter(java.util.Objects::nonNull)
+                .max(LocalDateTime::compareTo)
+                .orElse(null);
+
         return JudgePresentationScoringStatusResponse.builder()
                 .roundId(roundId)
                 .trackId(trackId)
@@ -463,8 +469,10 @@ public class JudgePortalServiceImpl implements JudgePortalService {
                 .judgesConfirmed(judgesConfirmed)
                 .myConfirmed(myConfirmed)
                 .myScored(myScored)
+                .allJudgesSubmitted(scoringComplete)
                 .canAdvanceQueue(canAdvance)
                 .canControlPresentation(canControl)
+                .lastJudgeScoredAt(lastJudgeScoredAt)
                 .build();
     }
 

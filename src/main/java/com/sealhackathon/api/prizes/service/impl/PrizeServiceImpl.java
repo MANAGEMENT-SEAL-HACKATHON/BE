@@ -11,6 +11,7 @@ import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.prizes.dto.request.AwardPrizeRequest;
+import com.sealhackathon.api.prizes.dto.request.UpdateAwardedPrizeRequest;
 import com.sealhackathon.api.prizes.dto.response.PrizeResponse;
 import com.sealhackathon.api.prizes.entity.Prize;
 import com.sealhackathon.api.prizes.mapper.PrizeMapper;
@@ -113,6 +114,45 @@ public class PrizeServiceImpl implements PrizeService {
                 "teamId", team.getId(),
                 "prizeRank", req.getPrizeRank() != null ? req.getPrizeRank().name() : null));
 
+        return prizeMapper.toResponse(saved);
+    }
+
+    @Override
+    public PrizeResponse updateAwarded(Integer prizeId, UpdateAwardedPrizeRequest req) {
+        Prize prize = prizeRepository.findById(prizeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Prize", prizeId));
+        Hackathon hackathon = prize.getHackathon();
+        if (hackathon.getStatus() == HackathonStatus.FINISHED) {
+            throw new ConflictException(ErrorCode.HACKATHON_ARCHIVED,
+                    "Hackathon đã kết thúc — không thể sửa giải đã trao",
+                    Map.of("hackathonId", hackathon.getId()));
+        }
+        Integer oldTeamId = prize.getTeam().getId();
+        if (req.getPrizeName() != null && !req.getPrizeName().isBlank()) {
+            prize.setPrizeName(req.getPrizeName().trim());
+        }
+        if (req.getTeamId() != null && !req.getTeamId().equals(oldTeamId)) {
+            Team newTeam = teamRepository.findById(req.getTeamId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Team", req.getTeamId()));
+            if (!newTeam.getHackathon().getId().equals(hackathon.getId())) {
+                throw new BusinessRuleException(ErrorCode.CROSS_HACKATHON_VIOLATION,
+                        "Team không thuộc hackathon này",
+                        Map.of("hackathonId", hackathon.getId(), "teamId", req.getTeamId()));
+            }
+            // PRIZE-02: 1 đội ≤ 1 giải chính (re-validate on reassignment)
+            if (prizeRepository.existsByHackathonIdAndTeamId(hackathon.getId(), newTeam.getId())) {
+                throw new ConflictException(ErrorCode.PRIZE_DUPLICATE,
+                        "Đội mới đã có giải chính trong hackathon này",
+                        Map.of("hackathonId", hackathon.getId(), "teamId", newTeam.getId()));
+            }
+            prize.setTeam(newTeam);
+        }
+        Prize saved = prizeRepository.save(prize);
+        auditService.log(AuditAction.PRIZE_AWARD_UPDATED, "prizes", prizeId, Map.of(
+                "reason", req.getReason(),
+                "oldTeamId", oldTeamId,
+                "newTeamId", saved.getTeam().getId(),
+                "prizeName", saved.getPrizeName()));
         return prizeMapper.toResponse(saved);
     }
 

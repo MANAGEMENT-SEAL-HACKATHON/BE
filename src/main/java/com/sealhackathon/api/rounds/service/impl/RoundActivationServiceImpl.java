@@ -67,6 +67,15 @@ public class RoundActivationServiceImpl implements RoundActivationService {
         Round round = roundRepository.findByIdForUpdate(roundId)
                 .orElseThrow(() -> new ResourceNotFoundException("Round", roundId));
 
+        ActivateScheduleMode scheduleMode = body.getScheduleMode() != null
+                ? body.getScheduleMode()
+                : ActivateScheduleMode.KEEP;
+
+        // RESCHEDULE-only: shift lịch, giữ inactive — không notifyRoundStarted
+        if (scheduleMode == ActivateScheduleMode.RESCHEDULE) {
+            return rescheduleOnly(round, body);
+        }
+
         if (Boolean.TRUE.equals(round.getIsActive())) {
             return roundMapper.toResponse(round);
         }
@@ -87,14 +96,9 @@ public class RoundActivationServiceImpl implements RoundActivationService {
                     Map.of("hackathonId", hackathonId, "deactivatedCount", deactivated));
         }
 
-        ActivateScheduleMode scheduleMode = body.getScheduleMode() != null
-                ? body.getScheduleMode()
-                : ActivateScheduleMode.KEEP;
-
         boolean scheduleShifted = roundScheduleShiftService.applyOnActivate(
-                round, scheduleMode, body.getNewExamAt());
+                round, scheduleMode, body.getNewExamAt(), body.getSetupLeadMinutes());
 
-        // Re-load after shift may have mutated the managed entity
         round.setIsActive(true);
         round.setActivatedAt(LocalDateTime.now());
         Round saved = roundRepository.save(round);
@@ -106,9 +110,44 @@ public class RoundActivationServiceImpl implements RoundActivationService {
         activateAudit.put("siblingDeactivated", deactivated);
         activateAudit.put("scheduleMode", scheduleMode.name());
         activateAudit.put("scheduleShifted", scheduleShifted);
+        activateAudit.put("activated", true);
+        if (scheduleMode == ActivateScheduleMode.START_NOW) {
+            activateAudit.put("setupLeadMinutes",
+                    body.getSetupLeadMinutes() != null
+                            ? body.getSetupLeadMinutes()
+                            : RoundScheduleShiftService.DEFAULT_SETUP_LEAD_MINUTES);
+        }
         auditService.log(AuditAction.ROUND_ACTIVATE, "rounds", roundId, activateAudit);
 
         notifyRoundStarted(saved);
+        return roundMapper.toResponse(saved);
+    }
+
+    /**
+     * Chỉ dời lịch — ShiftService trước; giữ isActive / activatedAt; không notifyRoundStarted.
+     */
+    private RoundResponse rescheduleOnly(Round round, ActivateRoundRequest body) {
+        LocalDateTime activatedAtBefore = round.getActivatedAt();
+        Boolean isActiveBefore = round.getIsActive();
+
+        boolean scheduleShifted = roundScheduleShiftService.applyOnActivate(
+                round, ActivateScheduleMode.RESCHEDULE, body.getNewExamAt(), body.getSetupLeadMinutes());
+
+        if (!Boolean.TRUE.equals(isActiveBefore)) {
+            round.setIsActive(false);
+        }
+        round.setActivatedAt(activatedAtBefore);
+        Round saved = roundRepository.save(round);
+
+        Map<String, Object> audit = new LinkedHashMap<>();
+        audit.put("hackathonId", round.getHackathon() != null ? round.getHackathon().getId() : null);
+        audit.put("note", body.getNote());
+        audit.put("scheduleMode", ActivateScheduleMode.RESCHEDULE.name());
+        audit.put("scheduleShifted", scheduleShifted);
+        audit.put("activated", false);
+        audit.put("isActive", saved.getIsActive());
+        auditService.log(AuditAction.ROUND_SCHEDULE_SHIFTED, "rounds", saved.getId(), audit);
+
         return roundMapper.toResponse(saved);
     }
 

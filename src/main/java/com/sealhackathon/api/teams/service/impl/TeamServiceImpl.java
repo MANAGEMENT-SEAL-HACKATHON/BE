@@ -216,18 +216,28 @@ public class TeamServiceImpl implements TeamService {
                         .build())
                 .toList();
 
-        // Lấy thông tin Track (bảng đấu) của đội
-        java.util.List<com.sealhackathon.api.teams.entity.TeamRoundTrack> trackAssignments = teamRoundTrackRepository.findByTeam_Id(teamId);
+        // Lấy thông tin Track (bảng đấu) của đội — ưu tiên TRT Sơ loại
+        java.util.List<com.sealhackathon.api.teams.entity.TeamRoundTrack> trackAssignments =
+                teamRoundTrackRepository.findByTeamIdWithTrackAndRound(teamId);
         Integer trackId = null;
         String trackName = null;
         String assignedGroup = null;
+        String lotteryStatus = null;
 
-        // Nếu đội đã được bốc thăm, lấy Track mới nhất
-        if (!trackAssignments.isEmpty()) {
-            com.sealhackathon.api.teams.entity.TeamRoundTrack latestTrack = trackAssignments.get(trackAssignments.size() - 1);
-            trackId = latestTrack.getTrack().getId();
-            trackName = latestTrack.getTrack().getName();
-            assignedGroup = latestTrack.getAssignedGroup();
+        com.sealhackathon.api.teams.entity.TeamRoundTrack prelimTrt = trackAssignments.stream()
+                .filter(trt -> trt.getTrack() != null
+                        && trt.getTrack().getRound() != null
+                        && !Boolean.TRUE.equals(trt.getTrack().getRound().getIsFinal()))
+                .findFirst()
+                .orElse(trackAssignments.isEmpty() ? null : trackAssignments.get(trackAssignments.size() - 1));
+
+        if (prelimTrt != null) {
+            trackId = prelimTrt.getTrack().getId();
+            trackName = prelimTrt.getTrack().getName();
+            assignedGroup = prelimTrt.getAssignedGroup();
+            lotteryStatus = prelimTrt.getParticipationStatus() != null
+                    ? prelimTrt.getParticipationStatus().name()
+                    : null;
         }
 
         HackathonTeamSizeResolver.TeamSizeLimits sizeLimits = limitsFor(team);
@@ -253,6 +263,7 @@ public class TeamServiceImpl implements TeamService {
                 .trackId(trackId)
                 .trackName(trackName)
                 .assignedGroup(assignedGroup)
+                .lotteryStatus(lotteryStatus)
                 .minTeamSize(sizeLimits.minTeamSize())
                 .maxTeamSize(sizeLimits.maxTeamSize())
                 .build();

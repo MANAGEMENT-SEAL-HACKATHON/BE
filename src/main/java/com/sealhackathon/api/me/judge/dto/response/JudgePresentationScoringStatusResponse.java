@@ -21,8 +21,15 @@ public class JudgePresentationScoringStatusResponse {
     private int judgesConfirmed;
     private boolean myConfirmed;
     private boolean myScored;
-    /** true khi mọi judge phân công đã Chốt điểm — có thể bấm Đội tiếp. */
+    /**
+     * true khi mọi judge phân công đã Chốt điểm (scoring complete).
+     * FE dùng field này cho Next UX — không tự derive từ judgesConfirmed.
+     */
+    private boolean allJudgesSubmitted;
+    /** true khi scoring complete (+ timer ready phía BE nếu final). Server gate queue/next. */
     private boolean canAdvanceQueue;
     /** true khi judge hiện tại được phép điều khiển timer/hàng đợi (theo controller grant hoặc mặc định). */
     private boolean canControlPresentation;
+    /** G5-G: thời điểm chấm gần nhất trên submission đang PRESENTING (null nếu chưa ai chấm). */
+    private java.time.LocalDateTime lastJudgeScoredAt;
 }

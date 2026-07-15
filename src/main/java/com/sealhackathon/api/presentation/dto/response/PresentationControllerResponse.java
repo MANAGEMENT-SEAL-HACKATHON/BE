@@ -18,4 +18,8 @@ public class PresentationControllerResponse {
     /** OVERRIDE = coordinator chỉ định; AUTO_DEFAULT = tự chọn theo rule guard */
     private String source;
     private Boolean isDeptHead;
+    /** ISO-8601 last heartbeat */
+    private String lastSeenAt;
+    /** lastSeen within 90s */
+    private Boolean online;
 }

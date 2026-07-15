@@ -30,7 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-/** FR-20 — xếp hạng có trọng số, BUG-4 COALESCE cho criterion chưa chấm. */
+/** FR-20 â€” xáº¿p háº¡ng cÃ³ trá»ng sá»‘, BUG-4 COALESCE cho criterion chÆ°a cháº¥m. */
 @Component
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -113,12 +113,16 @@ public class RoundRankingQueryService {
             total -= penalty;
 
             rows.add(new RankRow(
+                    submission.getId(),
                     submission.getTeam().getId(),
                     submission.getTeam().getTeamName(),
                     trackId,
                     trt != null ? trt.getAssignedGroup() : null,
                     total,
-                    partStatus));
+                    partStatus,
+                    submission.getSubmittedAt(),
+                    submission.getStatus() != null ? submission.getStatus().name() : null,
+                    penalty));
         }
 
         List<RankRow> sortedRows = sortRankRows(rows, isFinalRound);
@@ -198,6 +202,10 @@ public class RoundRankingQueryService {
                 .totalScore(row.totalScore())
                 .tiebreakRequired(tiebreakRequired)
                 .participationStatus(row.participationStatus())
+                .submittedAt(row.submittedAt())
+                .submissionStatus(row.submissionStatus())
+                .penaltyScore(row.penaltyScore())
+                .submissionId(row.submissionId())
                 .build();
     }
 
@@ -273,7 +281,16 @@ public class RoundRankingQueryService {
         return new ArrayList<>(byId.values());
     }
 
-    // Cập nhật Record để chứa thêm thông tin participationStatus
 }
 
-record RankRow(Integer teamId, String teamName, Integer trackId, String assignedGroup, double totalScore, String participationStatus) {}
+record RankRow(
+        Integer submissionId,
+        Integer teamId,
+        String teamName,
+        Integer trackId,
+        String assignedGroup,
+        double totalScore,
+        String participationStatus,
+        java.time.LocalDateTime submittedAt,
+        String submissionStatus,
+        double penaltyScore) {}

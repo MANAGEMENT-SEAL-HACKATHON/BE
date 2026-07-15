@@ -70,6 +70,40 @@ class PresentationQueueShuffleTest {
     @InjectMocks
     private PresentationQueueServiceImpl queueService;
 
+    /** TC-SYNC-05 / TC-SYNC-03 — Final shuffle (0 slots) still persists presentationShuffled. */
+    @Test
+    void shuffle_finalEmptyQueue_setsPresentationShuffledTrue() {
+        Round round = Round.builder()
+                .id(20)
+                .isFinal(true)
+                .isActive(true)
+                .presentationShuffled(false)
+                .examAt(LocalDateTime.now().minusHours(2))
+                .submissionDeadline(LocalDateTime.now().minusMinutes(5))
+                .hackathon(Hackathon.builder().id(1).build())
+                .build();
+
+        when(roundRepository.findById(20)).thenReturn(Optional.of(round));
+        when(hackathonRepository.findById(1)).thenReturn(Optional.of(round.getHackathon()));
+        when(teamRoundParticipationRepository.findByRound_Id(20)).thenReturn(List.of());
+        when(presentationSlotRepository.findByRound_IdAndTrackIsNullOrderBySequenceOrderAsc(20))
+                .thenReturn(List.of());
+        when(roundPhaseResolver.resolve(round)).thenReturn(RoundPhase.JUDGING);
+        when(currentUserAccessor.currentUser()).thenReturn(null);
+        doNothing().when(controllerGuard).requireControllerForRound(any(), any());
+        when(roundRepository.save(any(Round.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        PresentationShuffleResponse response = queueService.shuffle(
+                PresentationShuffleRequest.builder().roundId(20).build());
+
+        assertThat(response.getTracks()).hasSize(1);
+        assertThat(response.getTracks().get(0).getSlotCount()).isZero();
+        assertThat(response.getTracks().get(0).isShuffled()).isTrue();
+        assertThat(round.getPresentationShuffled()).isTrue();
+        verify(roundRepository).save(round);
+        verify(scoringConfirmationRepository).deleteByFinalRoundScope(20);
+    }
+
     @Test
     void shuffle_createsSlotsFromGradableSubmissions() {
         Round round = Round.builder()

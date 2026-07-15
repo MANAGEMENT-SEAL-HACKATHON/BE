@@ -1,6 +1,8 @@
 package com.sealhackathon.api.rounds.dto.request;
 
 import com.sealhackathon.api.rounds.value_object.ActivateScheduleMode;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -30,4 +32,12 @@ public class ActivateRoundRequest {
 
     /** Bắt buộc khi {@link ActivateScheduleMode#RESCHEDULE}. */
     private LocalDateTime newExamAt;
+
+    /**
+     * Phút chuẩn bị trước giờ thi khi {@link ActivateScheduleMode#START_NOW}.
+     * Null → BE default 5. Chỉ áp dụng cho START_NOW.
+     */
+    @Min(1)
+    @Max(30)
+    private Integer setupLeadMinutes;
 }

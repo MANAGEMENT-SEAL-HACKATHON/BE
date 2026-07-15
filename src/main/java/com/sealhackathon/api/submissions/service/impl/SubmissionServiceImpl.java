@@ -12,6 +12,7 @@ import com.sealhackathon.api.notifications.service.NotificationService;
 import com.sealhackathon.api.teams.entity.TeamMember;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
+import com.sealhackathon.api.presentation.service.PresentationQueueService;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.guard.RoundAccessGuard;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
@@ -32,8 +33,8 @@ import com.sealhackathon.api.submissions.value_object.SubmissionStatus;
 import com.sealhackathon.api.teams.repository.TeamMemberRepository;
 import com.sealhackathon.api.teams.value_object.TeamMemberStatus;
 import com.sealhackathon.api.teams.repository.TeamRoundParticipationRepository;
-import com.sealhackathon.api.teams.value_object.ParticipationStatus;
 import com.sealhackathon.api.teams.repository.TeamRoundTrackRepository;
+import com.sealhackathon.api.teams.support.PrelimMutationGuard;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.repository.TeamRepository;
 import com.sealhackathon.api.teams.value_object.TeamStatus;
@@ -77,6 +78,8 @@ public class SubmissionServiceImpl implements SubmissionService {
     private final GitHubRepoValidator gitHubRepoValidator;
     private final SubmissionSlideStorage submissionSlideStorage;
     private final NotificationService notificationService;
+    private final PrelimMutationGuard prelimMutationGuard;
+    private final PresentationQueueService presentationQueueService;
 
     @Override
     public SubmissionResponse submitMultipart(
@@ -111,30 +114,25 @@ public class SubmissionServiceImpl implements SubmissionService {
         if (team.getStatus() != TeamStatus.ACTIVE) {
             throw new BusinessRuleException(ErrorCode.TEAM_NOT_ACTIVE, "Đội chưa ACTIVE");
         }
+        if (team.getHackathon().getStatus() == HackathonStatus.FINISHED) {
+            throw new BusinessRuleException(ErrorCode.EVENT_FINISHED, "Hackathon đã kết thúc — không còn nhận bài");
+        }
+        if (team.getHackathon().getStatus() == HackathonStatus.PENDING_CONFIRM) {
+            throw new BusinessRuleException(ErrorCode.SUBMISSION_CLOSED,
+                    "Hackathon đã đóng sổ chấm — không còn nhận bài");
+        }
+        if (team.getHackathon().getStatus() == HackathonStatus.DRAFT) {
+            throw new BusinessRuleException(ErrorCode.SUBMISSION_NOT_STARTED,
+                    "Sự kiện chưa mở — chưa đến thời gian nộp bài");
+        }
         if (team.getHackathon().getStatus() != HackathonStatus.ONGOING) {
             throw new BusinessRuleException(ErrorCode.HACKATHON_NOT_ONGOING, "Hackathon chưa ONGOING");
         }
 
         // LOGIC PHÂN LUỒNG SƠ LOẠI vs CHUNG KẾT
-        Round round;
-        Track track = null;
-
-        if (req.getTrackId() != null) {
-            track = trackRepository.findById(req.getTrackId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Track", req.getTrackId()));
-            round = track.getRound();
-            if (Boolean.TRUE.equals(round.getIsFinal())) {
-                throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Vòng Chung kết không sử dụng Track, vui lòng bỏ trống trackId");
-            }
-        } else if (req.getRoundId() != null) {
-            round = roundRepository.findById(req.getRoundId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Round", req.getRoundId()));
-            if (!Boolean.TRUE.equals(round.getIsFinal())) {
-                throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Vòng Sơ loại bắt buộc phải gửi kèm trackId");
-            }
-        } else {
-            throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Phải cung cấp trackId hoặc roundId");
-        }
+        var routing = validateSubmissionRouting(req.getTrackId(), req.getRoundId());
+        Round round = routing.round();
+        Track track = routing.track();
 
         if (!team.getHackathon().getId().equals(round.getHackathon().getId())) {
             throw new BusinessRuleException(ErrorCode.CROSS_HACKATHON_VIOLATION, "Round/Track không thuộc hackathon của đội");
@@ -150,9 +148,8 @@ public class SubmissionServiceImpl implements SubmissionService {
                     .orElseThrow(() -> new BusinessRuleException(ErrorCode.TEAM_NOT_IN_TRACK,
                             "Đội chưa được gán track này",
                             Map.of("teamId", team.getId(), "trackId", currentTrackId)));
-            if (teamTrack.getParticipationStatus() == ParticipationStatus.ELIMINATED) {
-                throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Đội đã bị loại khỏi vòng này");
-            }
+            // Sơ loại: chỉ PARTICIPATING được nộp / sửa bài (ADVANCED|ELIMINATED → 403)
+            prelimMutationGuard.assertPrelimMutable(teamTrack);
         } else {
             boolean isParticipating = teamRoundParticipationRepository.findByTeam_IdAndRound_Id(team.getId(), round.getId()).isPresent();
             if (!isParticipating) {
@@ -343,6 +340,13 @@ public class SubmissionServiceImpl implements SubmissionService {
         Submission saved = submissionRepository.save(submission);
         auditService.log(AuditAction.SUBMISSION_LATE_REVIEW, "submissions", saved.getId(),
                 Map.of("decision", req.getDecision().name()));
+        if (req.getDecision() == LateReviewDecision.APPROVE) {
+            try {
+                presentationQueueService.appendLateApprovedIfShuffled(saved);
+            } catch (Exception ex) {
+                // Không fail approve nếu append queue lỗi — audit vẫn đã ghi review
+            }
+        }
         return toResponse(saved, false);
     }
 
@@ -354,6 +358,31 @@ public class SubmissionServiceImpl implements SubmissionService {
             return SubmissionStatus.REJECTED;
         }
         return SubmissionStatus.LATE_PENDING;
+    }
+
+    private record SubmissionRouting(Round round, Track track) {}
+
+    private SubmissionRouting validateSubmissionRouting(Integer trackId, Integer roundId) {
+        if (trackId != null) {
+            Track track = trackRepository.findById(trackId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Track", trackId));
+            Round round = track.getRound();
+            if (Boolean.TRUE.equals(round.getIsFinal())) {
+                throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                        "Vòng Chung kết bắt buộc phải gửi roundId (không dùng trackId)");
+            }
+            return new SubmissionRouting(round, track);
+        }
+        if (roundId != null) {
+            Round round = roundRepository.findById(roundId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Round", roundId));
+            if (!Boolean.TRUE.equals(round.getIsFinal())) {
+                throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                        "Vòng Sơ loại bắt buộc phải gửi kèm trackId");
+            }
+            return new SubmissionRouting(round, null);
+        }
+        throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Phải cung cấp trackId hoặc roundId");
     }
 
     private SubmissionStatus resolveStatusOnSubmit(Submission existing, Round round, boolean afterDeadline) {

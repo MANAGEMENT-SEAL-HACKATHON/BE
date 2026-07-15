@@ -3,11 +3,15 @@ package com.sealhackathon.api.rounds.service.impl;
 import com.sealhackathon.api.common.audit.AuditAction;
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
+import com.sealhackathon.api.common.exception.ConflictException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
+import com.sealhackathon.api.common.response.PageResponse;
 import com.sealhackathon.api.common.response.Warning;
 import com.sealhackathon.api.common.response.WarningCode;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
+import com.sealhackathon.api.criteria.entity.Criteria;
+import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
@@ -26,6 +30,8 @@ import com.sealhackathon.api.rounds.dto.request.AdvanceTeamsRequest;
 import com.sealhackathon.api.rounds.dto.request.AssignFinalJudgesRequest;
 import com.sealhackathon.api.rounds.dto.request.LockScoringRequest;
 import com.sealhackathon.api.rounds.dto.request.ResolveTiebreakRequest;
+import com.sealhackathon.api.rounds.dto.request.UnlockScoringRequest;
+import com.sealhackathon.api.rounds.dto.response.AdvanceRosterItemResponse;
 import com.sealhackathon.api.rounds.dto.response.AdvanceTeamsResponse;
 import com.sealhackathon.api.rounds.dto.response.AssignFinalJudgesResult;
 import com.sealhackathon.api.rounds.dto.response.CloseSubmissionEarlyResponse;
@@ -35,6 +41,7 @@ import com.sealhackathon.api.rounds.dto.response.RoundRankingItemResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoreboardResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoringProgressResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundSummaryResponse;
+import com.sealhackathon.api.rounds.dto.response.ScoreBreakdownResponse;
 import com.sealhackathon.api.rounds.dto.response.TiebreakItemResponse;
 import com.sealhackathon.api.rounds.dto.response.WildcardCandidateResponse;
 import com.sealhackathon.api.rounds.dto.response.WildcardCandidatesResponse;
@@ -42,11 +49,17 @@ import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.mapper.RoundMapper;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.service.RoundProgressionService;
+import com.sealhackathon.api.rounds.support.RoundPresentationReadiness;
 import com.sealhackathon.api.rounds.support.RoundProblemStatementStorage;
+import com.sealhackathon.api.rounds.support.TiebreakRuleOrdering;
 import com.sealhackathon.api.rounds.support.WildcardCandidateSelection;
+import com.sealhackathon.api.rounds.value_object.TiebreakRule;
+import com.sealhackathon.api.submissions.entity.Submission;
+import com.sealhackathon.api.submissions.repository.SubmissionRepository;
 import com.sealhackathon.api.tracks.support.TrackProblemStatementStorage;
 import com.sealhackathon.api.scores.entity.Score;
 import com.sealhackathon.api.scores.repository.ScoreRepository;
+import com.sealhackathon.api.scores.value_object.ScoreType;
 import com.sealhackathon.api.teams.entity.TeamMember;
 import com.sealhackathon.api.teams.repository.TeamMemberRepository;
 import com.sealhackathon.api.teams.value_object.TeamMemberStatus;
@@ -56,6 +69,7 @@ import com.sealhackathon.api.teams.entity.TeamRoundTrack;
 import com.sealhackathon.api.teams.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.teams.value_object.ParticipationStatus;
 import com.sealhackathon.api.teams.entity.Team;
+import com.sealhackathon.api.teams.value_object.TeamStatus;
 import com.sealhackathon.api.tiebreak_evaluations.entity.TiebreakEvaluation;
 import com.sealhackathon.api.tiebreak_evaluations.repository.TiebreakEvaluationRepository;
 import com.sealhackathon.api.tracks.entity.Track;
@@ -106,6 +120,13 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
     private final HackathonRepository hackathonRepository;
     private final RoundProblemStatementStorage problemStatementStorage;
     private final TeamMemberRepository teamMemberRepository;
+    private final SubmissionRepository submissionRepository;
+    private final RoundPresentationReadiness roundPresentationReadiness;
+    private final CriteriaRepository criteriaRepository;
+    private final com.sealhackathon.api.announcements.service.AnnouncementService announcementService;
+    private final com.sealhackathon.api.live_scoring.PresentationQueuePublisher presentationQueuePublisher;
+
+    private static final int ADVANCE_ROSTER_DEFAULT_PAGE_SIZE = 50;
 
     @Override
     public RoundSummaryResponse releaseProblem(Integer roundId, MultipartFile file) {
@@ -114,14 +135,8 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
             throw new BusinessRuleException(ErrorCode.INVALID_STATE,
                     "Đề bài đã được phát — không thể thay đổi");
         }
-        if (Boolean.TRUE.equals(round.getIsFinal())) {
-            if (file != null && !file.isEmpty()) {
-                problemStatementStorage.store(round, file);
-            } else if (!RoundProblemStatementStorage.hasProblemFile(round)) {
-                throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
-                        "Vui lòng upload file PDF đề Chung kết trước khi phát");
-            }
-        } else {
+        // Phát đề: chỉ cần Active (+ PDF tracks cho prelim). examAt chỉ gate close-early.
+        if (!Boolean.TRUE.equals(round.getIsFinal())) {
             List<Track> tracks = trackRepository.findByRoundIdOrderBySequenceOrderAsc(roundId).stream()
                     .filter(t -> t.getStatus() != TrackStatus.CANCELLED)
                     .toList();
@@ -137,24 +152,38 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                 throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
                         "Các bảng đấu chưa có file đề bài: " + String.join(", ", missing));
             }
+            LocalDateTime releasedAt = LocalDateTime.now();
+            round.setProblemReleasedAt(releasedAt);
+            for (Track track : tracks) {
+                if (track.getProblemReleasedAt() == null) {
+                    track.setProblemReleasedAt(releasedAt);
+                    trackRepository.save(track);
+                }
+            }
+            Round saved = roundRepository.save(round);
+            java.util.Map<String, Object> auditMeta = new java.util.HashMap<>();
+            auditMeta.put("isFinal", false);
+            auditMeta.put("trackCount", tracks.size());
+            auditService.log(AuditAction.ROUND_RELEASE_PROBLEM, "rounds", roundId, auditMeta);
+            notifyProblemReleased(saved);
+            return roundMapper.toSummary(saved, 0, 0, 0f);
+        }
+
+        // Final: mở cửa đề CK; PDF resolve theo track sơ loại của từng đội (không upload PDF round).
+        if (file != null && !file.isEmpty()) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                    "Chung kết sử dụng lại đề sơ loại theo bảng đấu — không upload đề riêng trên vòng CK");
+        }
+        List<String> missingPrelimPdfs = listMissingPrelimPdfsForAdvancedTeams(round);
+        if (!missingPrelimPdfs.isEmpty()) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                    "Các bảng đấu sơ loại thiếu đề PDF: " + String.join(", ", missingPrelimPdfs));
         }
         round.setProblemReleasedAt(LocalDateTime.now());
         Round saved = roundRepository.save(round);
         java.util.Map<String, Object> auditMeta = new java.util.HashMap<>();
-        auditMeta.put("isFinal", Boolean.TRUE.equals(saved.getIsFinal()));
-        if (Boolean.TRUE.equals(saved.getIsFinal())) {
-            String filename = RoundProblemStatementStorage.displayFilename(saved);
-            if (filename != null) {
-                auditMeta.put("filename", filename);
-            }
-            if (StringUtils.hasText(saved.getProblemStatementStorageKey())) {
-                auditMeta.put("storageKey", saved.getProblemStatementStorageKey());
-            }
-        } else {
-            auditMeta.put("trackCount", trackRepository.findByRoundIdOrderBySequenceOrderAsc(roundId).stream()
-                    .filter(t -> t.getStatus() != TrackStatus.CANCELLED)
-                    .count());
-        }
+        auditMeta.put("isFinal", true);
+        auditMeta.put("reusedPrelimTrackPdf", true);
         auditService.log(AuditAction.ROUND_RELEASE_PROBLEM, "rounds", roundId, auditMeta);
         notifyProblemReleased(saved);
         return roundMapper.toSummary(saved, 0, 0, 0f);
@@ -174,27 +203,37 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         }
 
         LocalDateTime now = LocalDateTime.now();
+
+        // Gatekeeper — server clock only (no client now)
+        if (round.getProblemReleasedAt() == null) {
+            throw new BusinessRuleException(ErrorCode.INVALID_ROUND_STATE_UNRELEASED,
+                    "Vòng thi chưa phát đề, không thể kết thúc sớm!");
+        }
+        if (round.getExamAt() == null || round.getExamAt().isAfter(now)) {
+            throw new BusinessRuleException(ErrorCode.INVALID_ROUND_STATE_BEFORE_EXAM,
+                    "Chưa đến giờ thi, không thể kết thúc sớm!");
+        }
+
         boolean deadlineAdjusted = round.getSubmissionDeadline() == null
                 || round.getSubmissionDeadline().isAfter(now);
-        boolean examAtAdjusted = round.getExamAt() == null || round.getExamAt().isAfter(now);
+        // examAt already started — do not move start time backwards into the past artificially
+        boolean examAtAdjusted = false;
 
         round.setSubmissionClosedEarlyAt(now);
         if (deadlineAdjusted) {
             // Clamp to past so submit ngay sau close luôn afterDeadline (tránh race isAfter(now)==false)
             round.setSubmissionDeadline(now.minusSeconds(5));
-        }
-        if (examAtAdjusted) {
-            round.setExamAt(now);
-        }
-        if (deadlineAdjusted) {
             round.setDeadlineReminderSentAt(null);
         }
+
+        normalizeSubmissionOpenAfterClose(round);
 
         Round saved = roundRepository.save(round);
         auditService.log(AuditAction.ROUND_CLOSE_SUBMISSION_EARLY, "rounds", roundId, Map.of(
                 "examAtAdjusted", examAtAdjusted,
                 "deadlineAdjusted", deadlineAdjusted,
                 "submissionDeadline", String.valueOf(saved.getSubmissionDeadline()),
+                "submissionOpen", String.valueOf(saved.getSubmissionOpen()),
                 "examAt", String.valueOf(saved.getExamAt())));
 
         return CloseSubmissionEarlyResponse.builder()
@@ -203,6 +242,23 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                 .deadlineAdjusted(deadlineAdjusted)
                 .closedAt(now)
                 .build();
+    }
+
+    /** Đảm bảo submissionOpen không nằm sau submissionDeadline (TC-GATE-04). */
+    private static void normalizeSubmissionOpenAfterClose(Round round) {
+        LocalDateTime deadline = round.getSubmissionDeadline();
+        if (deadline == null) {
+            return;
+        }
+        LocalDateTime open = round.getSubmissionOpen();
+        if (open == null || open.isAfter(deadline)) {
+            LocalDateTime examAt = round.getExamAt();
+            if (examAt != null && !examAt.isAfter(deadline)) {
+                round.setSubmissionOpen(examAt);
+            } else {
+                round.setSubmissionOpen(deadline);
+            }
+        }
     }
 
     @Override
@@ -214,16 +270,36 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
             throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Round đã khóa chấm điểm");
         }
 
+        LocalDateTime now = LocalDateTime.now();
+        boolean closedEarly = round.getSubmissionClosedEarlyAt() != null;
+        boolean pastDeadline = round.getSubmissionDeadline() != null
+                && now.isAfter(round.getSubmissionDeadline());
+        if (!closedEarly && !pastDeadline) {
+            throw new BusinessRuleException(ErrorCode.INVALID_ROUND_STATE_NOT_CLOSED,
+                    "Chưa đóng vòng thi (chưa hết giờ hoặc chưa kết thúc sớm), không thể khóa chấm!");
+        }
+
+        // Gate 2–3: force MUST NOT bypass
+        roundPresentationReadiness.assertShuffled(round);
+        roundPresentationReadiness.assertPresentationsComplete(round);
+
         List<Warning> warnings = new ArrayList<>();
         RoundScoringProgressResponse progress = scoringProgressQueryService.progressForRound(round);
-        if (progress.getPendingSubmissions() != null && progress.getPendingSubmissions() > 0) {
+        int pending = progress.getPendingSubmissions() != null ? progress.getPendingSubmissions() : 0;
+        if (pending > 0) {
+            if (!Boolean.TRUE.equals(body.getForce())) {
+                throw new BusinessRuleException(ErrorCode.INVALID_ROUND_STATE_SCORING_INCOMPLETE,
+                        "Còn bài chưa được chấm điểm, không thể khóa chấm!");
+            }
+            if (!StringUtils.hasText(body.getReason())) {
+                throw new BusinessRuleException(ErrorCode.FORCE_LOCK_REASON_REQUIRED,
+                        "Bắt buộc lý do khi force lock");
+            }
             warnings.add(Warning.builder()
                     .code(WarningCode.PARTIAL_SCORING_BEFORE_LOCK)
                     .message("Còn bài chưa được chấm điểm")
                     .build());
-        }
-
-        if (Boolean.TRUE.equals(body.getForce()) && !StringUtils.hasText(body.getReason())) {
+        } else if (Boolean.TRUE.equals(body.getForce()) && !StringUtils.hasText(body.getReason())) {
             throw new BusinessRuleException(ErrorCode.FORCE_LOCK_REASON_REQUIRED,
                     "Bắt buộc lý do khi force lock");
         }
@@ -251,10 +327,36 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
             transitionHackathonToPendingConfirm(saved);
         }
 
+        autoApplyResolvableTiebreaks(roundId);
+
         return LockScoringResult.builder()
                 .round(roundMapper.toSummary(saved, 0, 0, 0f))
                 .warnings(warnings.isEmpty() ? null : warnings)
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public RoundSummaryResponse unlockScoring(Integer roundId, UnlockScoringRequest req) {
+        UnlockScoringRequest body = req != null ? req : UnlockScoringRequest.builder().build();
+        if (!StringUtils.hasText(body.getReason())) {
+            throw new BusinessRuleException(ErrorCode.UNLOCK_REASON_REQUIRED,
+                    "Bắt buộc lý do khi mở khóa chấm");
+        }
+        Round round = roundAccessGuard.requireActiveRoundForUpdate(roundId);
+        if (!Boolean.TRUE.equals(round.getScoringLocked())) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Round chưa khóa chấm");
+        }
+        round.setScoringLocked(false);
+        round.setScoringLockedAt(null);
+        round.setScoringLockedBy(null);
+        round.setForceLocked(false);
+        round.setForceLockReason(null);
+        Round saved = roundRepository.save(round);
+        auditService.log(AuditAction.ROUND_SCORING_UNLOCKED, "rounds", roundId,
+                Map.of("reason", body.getReason()));
+        presentationQueuePublisher.publishScoringUnlocked(roundId, null, body.getReason());
+        return roundMapper.toSummary(saved, 0, 0, 0f);
     }
 
     /** FR-30A — lock round Chung kết ⇒ hackathon ONGOING → PENDING_CONFIRM. */
@@ -303,6 +405,16 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         auditService.log(AuditAction.ROUND_PUBLISH, "rounds", roundId,
                 java.util.Map.of("hackathonId", round.getHackathon().getId()));
 
+        try {
+            announcementService.publishResults(
+                    round.getHackathon().getId(),
+                    roundId,
+                    "Kết quả sơ loại đã công bố",
+                    "Kết quả vòng «" + round.getName() + "» đã được công bố. Xem bảng xếp hạng.");
+        } catch (Exception ignored) {
+            // durable flag already set; announcement is best-effort
+        }
+
         return roundMapper.toSummary(saved, 0, 0, 0f);
     }
 
@@ -338,9 +450,12 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
     @Transactional(readOnly = true)
     public List<TiebreakItemResponse> tiebreak(Integer roundId) {
         Round round = roundAccessGuard.requireRound(roundId);
+        return enrichTiebreakItems(round, detectRawTiebreakItems(round, roundId));
+    }
 
+    private List<TiebreakItemResponse> detectRawTiebreakItems(Round round, Integer roundId) {
         if (Boolean.TRUE.equals(round.getIsFinal())) {
-            return tiebreakForFinalRound(roundId);
+            return detectTiebreakForFinalRound(roundId);
         }
 
         Integer topNAdvance = round.getTopNAdvance();
@@ -349,9 +464,10 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         }
 
         List<RoundRankingItemResponse> ranking = roundRankingQueryService.rankingForRound(roundId, false);
-        if (ranking.isEmpty()) return List.of();
+        if (ranking.isEmpty()) {
+            return List.of();
+        }
 
-        // Gom nhóm Ranking theo Bảng đấu (Partition Key)
         Map<String, List<RoundRankingItemResponse>> partitionedRanking = ranking.stream()
                 .collect(Collectors.groupingBy(item -> {
                     String trackPart = item.getTrackId() != null ? item.getTrackId().toString() : "0";
@@ -361,29 +477,22 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
 
         List<TiebreakItemResponse> tiebreakItems = new ArrayList<>();
 
-        // Thuật toán dò tìm Tiebreak cho từng Bảng
         for (Map.Entry<String, List<RoundRankingItemResponse>> entry : partitionedRanking.entrySet()) {
             List<RoundRankingItemResponse> groupRanking = entry.getValue();
             if (groupRanking.size() <= topNAdvance) {
-                continue; // Bảng này có số lượng đội <= chỉ tiêu, không cần tiebreak
+                continue;
             }
 
-            // Lấy điểm của đội đang đứng chính xác tại vị trí Cut-off (Chỉ tiêu)
             Double cutoffScore = groupRanking.get(topNAdvance - 1).getTotalScore();
-
-            // Đếm số lượng đội nằm TRÊN mức điểm Cut-off (chắc chắn an toàn)
             long safeCount = groupRanking.stream().filter(r -> r.getTotalScore() > cutoffScore).count();
 
-            // Lấy danh sách TẤT CẢ các đội có điểm BẰNG CHÍNH XÁC điểm Cut-off
             List<Integer> borderlineTeamIds = groupRanking.stream()
                     .filter(r -> r.getTotalScore().equals(cutoffScore))
                     .map(RoundRankingItemResponse::getTeamId)
                     .toList();
 
-            // Tính số "Ghế" còn trống cho các đội bằng điểm
             long remainingSlots = topNAdvance - safeCount;
 
-            // NẾU số đội bằng điểm LỚN HƠN số ghế còn trống => Phát sinh Tiebreak!
             if (borderlineTeamIds.size() > remainingSlots) {
                 tiebreakItems.add(TiebreakItemResponse.builder()
                         .partitionKey(entry.getKey())
@@ -395,7 +504,7 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         return tiebreakItems;
     }
 
-    private List<TiebreakItemResponse> tiebreakForFinalRound(Integer roundId) {
+    private List<TiebreakItemResponse> detectTiebreakForFinalRound(Integer roundId) {
         List<RoundRankingItemResponse> ranking = roundRankingQueryService.rankingForRound(roundId, false);
         if (ranking.isEmpty()) {
             return List.of();
@@ -422,6 +531,107 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
             i = j;
         }
         return tiebreakItems;
+    }
+
+    private List<TiebreakItemResponse> enrichTiebreakItems(Round round, List<TiebreakItemResponse> rawItems) {
+        if (rawItems.isEmpty()) {
+            return List.of();
+        }
+        TiebreakRule rule = round.getTiebreakRule() != null ? round.getTiebreakRule() : TiebreakRule.PENALTY_SCORE;
+        Map<Integer, Submission> submissionByTeam = loadSubmissionsByTeam(round.getId());
+        Map<Integer, Double> penaltyByTeam = tiebreakEvaluationRepository.findByRound_Id(round.getId()).stream()
+                .collect(Collectors.groupingBy(
+                        te -> te.getTeam().getId(),
+                        Collectors.summingDouble(TiebreakEvaluation::getPenaltyScore)));
+        Map<Integer, Double> totalScoreByTeam = roundRankingQueryService.rankingForRound(round.getId(), false).stream()
+                .collect(Collectors.toMap(
+                        RoundRankingItemResponse::getTeamId,
+                        RoundRankingItemResponse::getTotalScore,
+                        (a, b) -> a));
+
+        List<TiebreakItemResponse> enriched = new ArrayList<>();
+        for (TiebreakItemResponse item : rawItems) {
+            List<TiebreakRuleOrdering.TiebreakCandidate> candidates = item.getCandidateTeamIds().stream()
+                    .map(teamId -> toTiebreakCandidate(
+                            teamId,
+                            submissionByTeam.get(teamId),
+                            penaltyByTeam.getOrDefault(teamId, 0.0),
+                            totalScoreByTeam.get(teamId)))
+                    .toList();
+
+            Optional<List<Integer>> suggestedOrder = TiebreakRuleOrdering.orderByRule(rule, candidates);
+            boolean requiresManual = rule == TiebreakRule.COORDINATOR_DECISION || suggestedOrder.isEmpty();
+            String reason = null;
+            if (rule == TiebreakRule.COORDINATOR_DECISION) {
+                reason = "COORDINATOR_DECISION";
+            } else if (suggestedOrder.isEmpty()) {
+                reason = "DEEP_TIE";
+            }
+
+            enriched.add(TiebreakItemResponse.builder()
+                    .partitionKey(item.getPartitionKey())
+                    .cutoffRank(item.getCutoffRank())
+                    .candidateTeamIds(item.getCandidateTeamIds())
+                    .tiebreakRule(rule)
+                    .reason(reason)
+                    .requiresManualReorder(requiresManual)
+                    .suggestedOrderedTeamIds(suggestedOrder.orElse(null))
+                    .build());
+        }
+        return enriched;
+    }
+
+    private Map<Integer, Submission> loadSubmissionsByTeam(Integer roundId) {
+        Map<Integer, Submission> byTeam = new HashMap<>();
+        Map<Integer, Submission> byId = new HashMap<>();
+        for (Submission submission : submissionRepository.findByRound_Id(roundId)) {
+            byId.put(submission.getId(), submission);
+        }
+        for (Submission submission : submissionRepository.findByTrack_Round_Id(roundId)) {
+            byId.putIfAbsent(submission.getId(), submission);
+        }
+        for (Submission submission : byId.values()) {
+            byTeam.putIfAbsent(submission.getTeam().getId(), submission);
+        }
+        return byTeam;
+    }
+
+    private static TiebreakRuleOrdering.TiebreakCandidate toTiebreakCandidate(
+            Integer teamId,
+            Submission submission,
+            double penaltyScore,
+            Double totalScore) {
+        return new TiebreakRuleOrdering.TiebreakCandidate(
+                teamId,
+                submission != null ? submission.getStatus() : null,
+                submission != null ? submission.getSubmittedAt() : null,
+                penaltyScore,
+                totalScore);
+    }
+
+    private void autoApplyResolvableTiebreaks(Integer roundId) {
+        Round round = roundRepository.findById(roundId).orElse(null);
+        if (round == null || !Boolean.TRUE.equals(round.getScoringLocked())) {
+            return;
+        }
+
+        User actor = userRepository.findById(currentUserAccessor.currentUserId()).orElse(null);
+        if (actor == null) {
+            return;
+        }
+
+        List<TiebreakItemResponse> items = enrichTiebreakItems(round, detectRawTiebreakItems(round, roundId));
+        for (TiebreakItemResponse item : items) {
+            if (Boolean.TRUE.equals(item.getRequiresManualReorder())) {
+                continue;
+            }
+            List<Integer> orderedIds = item.getSuggestedOrderedTeamIds();
+            if (orderedIds == null || orderedIds.isEmpty()) {
+                continue;
+            }
+            applyTiebreakOrder(round, orderedIds, actor,
+                    "Auto-resolved by " + item.getTiebreakRule().name());
+        }
     }
 
     // =========================================================================
@@ -451,8 +661,13 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                     java.util.Map.of("orderedTeamIds", orderedIds));
         }
 
-        // Áp dụng điểm Penalty tăng dần để tách top (VD: Đội 1: 0đ, Đội 2: -0.01đ, Đội 3: -0.02đ)
-        // Đội xếp đầu tiên trong Request sẽ giữ nguyên điểm, các đội sau sẽ bị trừ dần để tụt hạng.
+        applyTiebreakOrder(round, orderedIds, coordinator, req.getNote());
+
+        return roundRankingQueryService.rankingForRound(roundId, false);
+    }
+
+    private void applyTiebreakOrder(Round round, List<Integer> orderedIds, User judge, String note) {
+        Integer roundId = round.getId();
         float penaltyIncrement = 0.01f;
         float currentPenalty = 0.0f;
 
@@ -461,19 +676,18 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         for (Integer teamId : orderedIds) {
             Team team = teamRepository.findById(teamId).orElseThrow();
 
-            // Xóa Tiebreak cũ của Coordinator cho đội này ở Vòng này (nếu đã từng làm) để ghi đè
-            tiebreakEvaluationRepository.findByRound_IdAndTeam_IdAndJudge_Id(roundId, teamId, coordinator.getId())
+            tiebreakEvaluationRepository.findByRound_IdAndTeam_IdAndJudge_Id(roundId, teamId, judge.getId())
                     .ifPresent(tiebreakEvaluationRepository::delete);
 
             if (currentPenalty > 0) {
                 evaluationsToSave.add(TiebreakEvaluation.builder()
                         .round(round)
                         .team(team)
-                        .judge(coordinator) // Ở mức Coordinator Decision, Judge chính là Coordinator
+                        .judge(judge)
                         .penaltyScore(currentPenalty)
                         .isCastingVote(true)
-                        .tiebreakLevel(2) // Level 2: Quyết định của BTC
-                        .notes(req.getNote())
+                        .tiebreakLevel(2)
+                        .notes(note)
                         .evaluatedAt(LocalDateTime.now())
                         .build());
             }
@@ -483,11 +697,8 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         if (!evaluationsToSave.isEmpty()) {
             tiebreakEvaluationRepository.saveAll(evaluationsToSave);
             auditService.log(AuditAction.ROUND_TIEBREAK_RESOLVED, "tiebreak_evaluations", roundId,
-                    java.util.Map.of("orderedTeamIds", orderedIds, "note", req.getNote()));
+                    java.util.Map.of("orderedTeamIds", orderedIds, "note", note));
         }
-
-        // Trả về Bảng Xếp Hạng mới ngay lập tức để FE render lại UI
-        return roundRankingQueryService.rankingForRound(roundId, false);
     }
 
     // =========================================================================
@@ -500,14 +711,15 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         boolean hackathonEnabled = Boolean.TRUE.equals(hackathon.getWildcardEnabled());
         boolean roundEnabled = Boolean.TRUE.equals(round.getWildcardEnabled());
 
-        if (!hackathonEnabled || !roundEnabled) {
-            return emptyWildcardResponse(hackathonEnabled, roundEnabled);
+        // Runtime gate: chỉ round.wildcardEnabled (hackathon flag không còn chặn pool).
+        if (!roundEnabled) {
+            return emptyWildcardResponse(hackathonEnabled, false);
         }
 
         Optional<WildcardPoolSnapshot> pool = resolveWildcardPool(round);
         if (pool.isEmpty()) {
             return WildcardCandidatesResponse.builder()
-                    .hackathonWildcardEnabled(true)
+                    .hackathonWildcardEnabled(hackathonEnabled)
                     .roundWildcardEnabled(true)
                     .availableSlots(0)
                     .autoAdvancedCount(0)
@@ -527,7 +739,7 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                 && responses.stream().allMatch(c -> c.getCoordinatorApproved() != null);
 
         return WildcardCandidatesResponse.builder()
-                .hackathonWildcardEnabled(true)
+                .hackathonWildcardEnabled(hackathonEnabled)
                 .roundWildcardEnabled(true)
                 .availableSlots(snapshot.availableSlots())
                 .autoAdvancedCount(snapshot.autoAdvancedCount())
@@ -557,6 +769,15 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
             return Optional.empty();
         }
 
+        // slots theory = minTeamsFinal − (topN × actual_track_count); ≤0 → no WC pool
+        long trackCount = trackRepository.findByRoundIdOrderBySequenceOrderAsc(round.getId()).stream()
+                .filter(t -> t.getStatus() != TrackStatus.CANCELLED)
+                .count();
+        int theoreticalSlots = (int) (minTeamsFinal - (topNAdvance * trackCount));
+        if (theoreticalSlots <= 0) {
+            return Optional.empty();
+        }
+
         List<RoundRankingItemResponse> ranking =
                 roundRankingQueryService.rankingForRound(round.getId(), false);
         if (ranking.isEmpty()) {
@@ -578,7 +799,8 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
             }
         }
 
-        int slots = minTeamsFinal - topNTeams.size();
+        int actualSlots = minTeamsFinal - topNTeams.size();
+        int slots = Math.min(theoreticalSlots, actualSlots);
         if (slots <= 0 || remainingTeams.isEmpty()) {
             return Optional.empty();
         }
@@ -733,7 +955,17 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         Round round = requirePreliminaryRoundForProgression(roundId);
         requireScoringLockedAndPublished(round);
 
-        // RÀO CHẮN (GATE): NẾU CÒN ĐỘI CHƯA TIEBREAK THÌ CHẶN LẠI
+        List<WildcardReview> pendingWildcards =
+                wildcardReviewRepository.findByRound_IdAndCoordinatorApprovedIsNull(roundId);
+        if (!pendingWildcards.isEmpty()) {
+            throw new ConflictException(
+                    ErrorCode.WILDCARD_PENDING,
+                    "Còn " + pendingWildcards.size() + " vé vớt chưa duyệt/từ chối. Hoàn tất Wild Card trước khi chuyển vòng.",
+                    java.util.Map.of("pendingCount", pendingWildcards.size()));
+        }
+
+        autoApplyResolvableTiebreaks(roundId);
+
         List<TiebreakItemResponse> unresolvedTiebreaks = tiebreak(roundId);
         if (!unresolvedTiebreaks.isEmpty()) {
             throw new BusinessRuleException(ErrorCode.TIEBREAK_REQUIRED,
@@ -853,6 +1085,294 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                 .roundName(round.getName())
                 .ranking(ranking)
                 .build();
+    }
+
+    // =========================================================================
+    // Bug3 — Advance roster (CK & loại) + Bug4 — Score breakdown
+    // G5-J: full scoring-audit endpoint deferred; use scoreBreakdown per submission.
+    // =========================================================================
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<AdvanceRosterItemResponse> advanceRoster(Integer roundId, Integer page, Integer size) {
+        Round round = requirePreliminaryRoundForProgression(roundId);
+        if (!Boolean.TRUE.equals(round.getIsPublished())) {
+            throw new BusinessRuleException(ErrorCode.RESULT_NOT_PUBLISHED,
+                    "Phải công bố kết quả Sơ loại trước khi xem danh sách CK / loại",
+                    Map.of("roundId", roundId));
+        }
+
+        int pageIndex = page == null || page < 0 ? 0 : page;
+        int pageSize = size == null || size <= 0 ? ADVANCE_ROSTER_DEFAULT_PAGE_SIZE : Math.min(size, 100);
+
+        List<AdvanceRosterItemResponse> all = buildAdvanceRosterItems(round);
+        long total = all.size();
+        int from = Math.min(pageIndex * pageSize, all.size());
+        int to = Math.min(from + pageSize, all.size());
+        int totalPages = pageSize == 0 ? 0 : (int) Math.ceil((double) total / pageSize);
+
+        return PageResponse.<AdvanceRosterItemResponse>builder()
+                .items(all.subList(from, to))
+                .page(pageIndex)
+                .size(pageSize)
+                .totalElements(total)
+                .totalPages(totalPages)
+                .build();
+    }
+
+    private List<AdvanceRosterItemResponse> buildAdvanceRosterItems(Round round) {
+        Integer roundId = round.getId();
+        List<TeamRoundTrack> assignments = teamRoundTrackRepository.findByTrack_Round_Id(roundId);
+        List<RoundRankingItemResponse> ranking = roundRankingQueryService.rankingForRound(roundId, false);
+        Map<Integer, RoundRankingItemResponse> rankingByTeam = ranking.stream()
+                .filter(r -> r.getTeamId() != null)
+                .collect(Collectors.toMap(RoundRankingItemResponse::getTeamId, r -> r, (a, b) -> a));
+
+        boolean rosterDecided = assignments.stream().anyMatch(trt ->
+                trt.getParticipationStatus() == ParticipationStatus.ADVANCED
+                        || trt.getParticipationStatus() == ParticipationStatus.ELIMINATED);
+
+        Set<Integer> wildcardApproved = wildcardReviewRepository.findByRound_Id(roundId).stream()
+                .filter(w -> Boolean.TRUE.equals(w.getCoordinatorApproved()))
+                .map(w -> w.getTeam().getId())
+                .collect(Collectors.toSet());
+
+        Integer topN = round.getTopNAdvance();
+        int topNVal = topN != null && topN > 0 ? topN : 0;
+
+        // Preview: Top-N per assignedGroup (same rule as FE buildAdvancePayload)
+        Set<Integer> previewTopN = new HashSet<>();
+        if (!rosterDecided && topNVal > 0) {
+            Map<String, List<RoundRankingItemResponse>> byGroup = new LinkedHashMap<>();
+            for (RoundRankingItemResponse item : ranking) {
+                String key = item.getAssignedGroup() != null ? item.getAssignedGroup()
+                        : (item.getTrackId() != null ? "T" + item.getTrackId() : "default");
+                byGroup.computeIfAbsent(key, k -> new ArrayList<>()).add(item);
+            }
+            for (List<RoundRankingItemResponse> group : byGroup.values()) {
+                group.stream()
+                        .sorted(Comparator.comparing(RoundRankingItemResponse::getRank,
+                                Comparator.nullsLast(Integer::compareTo)))
+                        .limit(topNVal)
+                        .map(RoundRankingItemResponse::getTeamId)
+                        .filter(Objects::nonNull)
+                        .forEach(previewTopN::add);
+            }
+        }
+
+        List<AdvanceRosterItemResponse> items = new ArrayList<>();
+        for (TeamRoundTrack trt : assignments) {
+            Team team = trt.getTeam();
+            Track track = trt.getTrack();
+            RoundRankingItemResponse rankItem = rankingByTeam.get(team.getId());
+            Integer rank = rankItem != null ? rankItem.getRank() : null;
+            Double totalScore = rankItem != null ? rankItem.getTotalScore() : null;
+            String group = trt.getAssignedGroup() != null ? trt.getAssignedGroup()
+                    : (rankItem != null ? rankItem.getAssignedGroup() : null);
+
+            boolean isDq = team.getStatus() == TeamStatus.ELIMINATED
+                    && StringUtils.hasText(team.getEliminationReason());
+
+            String status;
+            String reasonCode;
+            String reasonLabel;
+
+            if (rosterDecided) {
+                status = trt.getParticipationStatus() != null
+                        ? trt.getParticipationStatus().name()
+                        : ParticipationStatus.ELIMINATED.name();
+                if (status.equals(ParticipationStatus.ADVANCED.name())) {
+                    if (wildcardApproved.contains(team.getId())
+                            && (rank == null || topNVal <= 0 || rank > topNVal)) {
+                        reasonCode = "WILDCARD";
+                        reasonLabel = "Vé vớt";
+                    } else {
+                        reasonCode = "TOP_N";
+                        reasonLabel = topNVal > 0
+                                ? "Top " + topNVal + (group != null ? " — " + group : "")
+                                : "Top N";
+                    }
+                } else if (isDq) {
+                    reasonCode = "DQ";
+                    reasonLabel = "Loại kỷ luật / DQ";
+                } else {
+                    reasonCode = "OUT";
+                    reasonLabel = "Không vào Top N / không vé vớt";
+                }
+            } else {
+                // Preview after publish
+                if (isDq) {
+                    status = ParticipationStatus.ELIMINATED.name();
+                    reasonCode = "DQ";
+                    reasonLabel = "Loại kỷ luật / DQ";
+                } else if (previewTopN.contains(team.getId())) {
+                    status = ParticipationStatus.ADVANCED.name();
+                    reasonCode = "TOP_N";
+                    reasonLabel = "Top " + topNVal + (group != null ? " — " + group : "");
+                } else if (wildcardApproved.contains(team.getId())) {
+                    status = ParticipationStatus.ADVANCED.name();
+                    reasonCode = "WILDCARD";
+                    reasonLabel = "Vé vớt";
+                } else {
+                    status = ParticipationStatus.ELIMINATED.name();
+                    reasonCode = "OUT";
+                    reasonLabel = "Không vào Top N / không vé vớt";
+                }
+            }
+
+            items.add(AdvanceRosterItemResponse.builder()
+                    .teamId(team.getId())
+                    .teamName(team.getTeamName())
+                    .trackId(track != null ? track.getId() : null)
+                    .trackName(track != null ? track.getName() : null)
+                    .status(status)
+                    .reasonCode(reasonCode)
+                    .reasonLabel(reasonLabel)
+                    .rank(rank)
+                    .totalScore(totalScore)
+                    .assignedGroup(group)
+                    .build());
+        }
+
+        items.sort(Comparator
+                .comparing((AdvanceRosterItemResponse i) ->
+                        ParticipationStatus.ADVANCED.name().equals(i.getStatus()) ? 0 : 1)
+                .thenComparing(AdvanceRosterItemResponse::getTrackName, Comparator.nullsLast(String::compareTo))
+                .thenComparing(AdvanceRosterItemResponse::getRank, Comparator.nullsLast(Integer::compareTo))
+                .thenComparing(AdvanceRosterItemResponse::getTeamName, Comparator.nullsLast(String::compareTo)));
+
+        return items;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ScoreBreakdownResponse scoreBreakdown(Integer roundId, Integer submissionId) {
+        Round round = roundAccessGuard.requireRound(roundId);
+        if (submissionId == null) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED, "submissionId bắt buộc");
+        }
+        Submission submission = submissionRepository.findById(submissionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Submission", submissionId));
+
+        Integer subRoundId = submission.getRound() != null
+                ? submission.getRound().getId()
+                : (submission.getTrack() != null ? submission.getTrack().getRound().getId() : null);
+        if (!Objects.equals(subRoundId, roundId)) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Submission không thuộc round này",
+                    Map.of("submissionId", submissionId, "roundId", roundId));
+        }
+
+        List<Criteria> criteriaList;
+        List<JudgeAssignment> assignments;
+        if (Boolean.TRUE.equals(round.getIsFinal())) {
+            criteriaList = criteriaRepository.findByFinalRoundIdOrderByDisplayOrderAsc(roundId);
+            assignments = judgeAssignmentRepository.findByRoundId(roundId);
+        } else {
+            Integer trackId = submission.getTrack() != null ? submission.getTrack().getId() : null;
+            if (trackId == null) {
+                throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                        "Submission Sơ loại thiếu track");
+            }
+            criteriaList = criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(trackId);
+            assignments = judgeAssignmentRepository.findByTrackId(trackId);
+        }
+
+        List<User> judges = assignments.stream()
+                .map(JudgeAssignment::getJudge)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toMap(User::getId, u -> u, (a, b) -> a, LinkedHashMap::new))
+                .values().stream().toList();
+
+        List<Score> scores = scoreRepository.findBySubmission_IdAndScoreType(submissionId, ScoreType.NORMAL);
+        Map<String, Score> scoreMap = new HashMap<>();
+        Map<Integer, LocalDateTime> lastByJudge = new HashMap<>();
+        for (Score s : scores) {
+            if (s.getJudge() == null || s.getCriterion() == null) continue;
+            String key = s.getJudge().getId() + ":" + s.getCriterion().getId();
+            scoreMap.put(key, s);
+            LocalDateTime at = s.getUpdatedAt() != null ? s.getUpdatedAt() : s.getScoredAt();
+            lastByJudge.merge(s.getJudge().getId(), at, (a, b) -> a.isAfter(b) ? a : b);
+        }
+
+        List<ScoreBreakdownResponse.CriterionColumn> criteriaCols = criteriaList.stream()
+                .map(c -> ScoreBreakdownResponse.CriterionColumn.builder()
+                        .criterionId(c.getId())
+                        .name(c.getName())
+                        .maxScore(c.getMaxScore() != null ? c.getMaxScore().floatValue() : null)
+                        .build())
+                .toList();
+
+        List<ScoreBreakdownResponse.JudgeRow> judgeRows = judges.stream()
+                .map(j -> ScoreBreakdownResponse.JudgeRow.builder()
+                        .judgeId(j.getId())
+                        .judgeName(j.getFullName())
+                        .lastScoredAt(lastByJudge.get(j.getId()))
+                        .build())
+                .toList();
+
+        List<ScoreBreakdownResponse.Cell> cells = new ArrayList<>();
+        List<Double> allValues = new ArrayList<>();
+        List<ScoreBreakdownResponse.CriterionStats> criterionStats = new ArrayList<>();
+
+        for (Criteria criterion : criteriaList) {
+            List<Double> values = new ArrayList<>();
+            int missing = 0;
+            for (User judge : judges) {
+                Score s = scoreMap.get(judge.getId() + ":" + criterion.getId());
+                Float value = s != null ? s.getScoreValue() : null;
+                cells.add(ScoreBreakdownResponse.Cell.builder()
+                        .judgeId(judge.getId())
+                        .criterionId(criterion.getId())
+                        .scoreValue(value)
+                        .comment(s != null ? s.getComment() : null)
+                        .build());
+                if (value != null) {
+                    values.add(value.doubleValue());
+                    allValues.add(value.doubleValue());
+                } else {
+                    missing++;
+                }
+            }
+            criterionStats.add(ScoreBreakdownResponse.CriterionStats.builder()
+                    .criterionId(criterion.getId())
+                    .mean(meanOf(values))
+                    .variance(varianceOf(values))
+                    .scoredCount(values.size())
+                    .missingCount(missing)
+                    .build());
+        }
+
+        Team team = submission.getTeam();
+        return ScoreBreakdownResponse.builder()
+                .roundId(roundId)
+                .submissionId(submissionId)
+                .teamId(team != null ? team.getId() : null)
+                .teamName(team != null ? team.getTeamName() : null)
+                .criteria(criteriaCols)
+                .judges(judgeRows)
+                .cells(cells)
+                .criterionStats(criterionStats)
+                .overallMean(meanOf(allValues))
+                .overallVariance(varianceOf(allValues))
+                .build();
+    }
+
+    private static Double meanOf(List<Double> values) {
+        if (values == null || values.isEmpty()) return null;
+        double sum = 0;
+        for (Double v : values) sum += v;
+        return sum / values.size();
+    }
+
+    private static Double varianceOf(List<Double> values) {
+        if (values == null || values.size() < 2) return values == null || values.isEmpty() ? null : 0.0;
+        double mean = meanOf(values);
+        double acc = 0;
+        for (Double v : values) {
+            double d = v - mean;
+            acc += d * d;
+        }
+        return acc / values.size();
     }
 
     private Round requirePreliminaryRoundForProgression(Integer roundId) {
@@ -1009,5 +1529,42 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                     .forEach(recipients::add);
         }
         return recipients;
+    }
+
+    /**
+     * Final release readiness: mỗi track của đội ADVANCED phải còn file PDF sơ loại.
+     * Nếu chưa có đội ADVANCED (chưa advance), kiểm tra mọi track prelim còn PDF.
+     */
+    private List<String> listMissingPrelimPdfsForAdvancedTeams(Round finalRound) {
+        Integer hackathonId = finalRound.getHackathon() != null ? finalRound.getHackathon().getId() : null;
+        if (hackathonId == null) {
+            return List.of("Không xác định được hackathon");
+        }
+        Round prelim = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathonId).stream()
+                .filter(r -> !Boolean.TRUE.equals(r.getIsFinal()))
+                .findFirst()
+                .orElse(null);
+        if (prelim == null) {
+            return List.of("Chưa có vòng Sơ loại");
+        }
+        List<TeamRoundTrack> advanced = teamRoundTrackRepository.findByTrack_Round_Id(prelim.getId()).stream()
+                .filter(trt -> trt.getParticipationStatus() == ParticipationStatus.ADVANCED)
+                .toList();
+        java.util.LinkedHashSet<Track> tracksToCheck = new java.util.LinkedHashSet<>();
+        if (!advanced.isEmpty()) {
+            for (TeamRoundTrack trt : advanced) {
+                if (trt.getTrack() != null && trt.getTrack().getStatus() != TrackStatus.CANCELLED) {
+                    tracksToCheck.add(trt.getTrack());
+                }
+            }
+        } else {
+            trackRepository.findByRoundIdOrderBySequenceOrderAsc(prelim.getId()).stream()
+                    .filter(t -> t.getStatus() != TrackStatus.CANCELLED)
+                    .forEach(tracksToCheck::add);
+        }
+        return tracksToCheck.stream()
+                .filter(t -> !TrackProblemStatementStorage.hasProblemFile(t))
+                .map(Track::getName)
+                .toList();
     }
 }

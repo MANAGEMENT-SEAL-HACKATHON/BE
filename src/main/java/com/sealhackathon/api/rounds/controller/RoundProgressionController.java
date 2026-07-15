@@ -7,19 +7,23 @@ import com.sealhackathon.api.rounds.dto.request.AdvanceTeamsRequest;
 import com.sealhackathon.api.rounds.dto.request.AssignFinalJudgesRequest;
 import com.sealhackathon.api.rounds.dto.request.LockScoringRequest;
 import com.sealhackathon.api.rounds.dto.request.ResolveTiebreakRequest;
+import com.sealhackathon.api.rounds.dto.request.UnlockScoringRequest;
+import com.sealhackathon.api.rounds.dto.response.AdvanceRosterItemResponse;
 import com.sealhackathon.api.rounds.dto.response.AdvanceTeamsResponse;
 import com.sealhackathon.api.rounds.dto.response.AssignFinalJudgesResult;
 import com.sealhackathon.api.rounds.dto.response.CloseSubmissionEarlyResponse;
 import com.sealhackathon.api.rounds.dto.response.FinalJudgeAssignmentResponse;
+import com.sealhackathon.api.rounds.dto.response.LockScoringResult;
 import com.sealhackathon.api.rounds.dto.response.RoundRankingItemResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoreboardResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoringProgressResponse;
-import com.sealhackathon.api.common.response.Warning;
-import com.sealhackathon.api.common.response.WarningCode;
-import com.sealhackathon.api.rounds.dto.response.LockScoringResult;
 import com.sealhackathon.api.rounds.dto.response.RoundSummaryResponse;
+import com.sealhackathon.api.rounds.dto.response.ScoreBreakdownResponse;
 import com.sealhackathon.api.rounds.dto.response.TiebreakItemResponse;
 import com.sealhackathon.api.rounds.dto.response.WildcardCandidatesResponse;
+import com.sealhackathon.api.common.response.PageResponse;
+import com.sealhackathon.api.common.response.Warning;
+import com.sealhackathon.api.common.response.WarningCode;
 import com.sealhackathon.api.rounds.query.RoundRankingQueryService;
 import com.sealhackathon.api.rounds.service.RoundProgressionService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -35,6 +39,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -85,6 +90,16 @@ public class RoundProgressionController {
             return ResponseEntity.ok(ApiResponse.ok(result.getRound()));
         }
         return ResponseEntity.ok(ApiResponse.okWithWarnings(result.getRound(), result.getWarnings()));
+    }
+
+    @PatchMapping("/{id}/unlock-scoring")
+    @CoordinatorOnly
+    @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
+    @Operation(summary = "Mở khóa chấm điểm — broadcast SCORING_UNLOCKED")
+    public ResponseEntity<ApiResponse<RoundSummaryResponse>> unlockScoring(
+            @PathVariable Integer id,
+            @Valid @RequestBody UnlockScoringRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(progressionService.unlockScoring(id, req)));
     }
 
     @PatchMapping("/{id}/publish")
@@ -179,5 +194,26 @@ public class RoundProgressionController {
     @Operation(summary = "FR-20 — Bảng điểm công khai theo round")
     public ResponseEntity<ApiResponse<RoundScoreboardResponse>> scoreboard(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.ok(progressionService.scoreboard(id)));
+    }
+
+    @GetMapping("/{id}/advance-roster")
+    @CoordinatorOnly
+    @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
+    @Operation(summary = "Danh sách CK & loại (preview sau publish / outcome sau advance)")
+    public ResponseEntity<ApiResponse<PageResponse<AdvanceRosterItemResponse>>> advanceRoster(
+            @PathVariable Integer id,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return ResponseEntity.ok(ApiResponse.ok(progressionService.advanceRoster(id, page, size)));
+    }
+
+    @GetMapping("/{id}/score-breakdown")
+    @CoordinatorOnly
+    @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
+    @Operation(summary = "Ma trận điểm judges × criteria theo submission (null = chưa chấm)")
+    public ResponseEntity<ApiResponse<ScoreBreakdownResponse>> scoreBreakdown(
+            @PathVariable Integer id,
+            @RequestParam Integer submissionId) {
+        return ResponseEntity.ok(ApiResponse.ok(progressionService.scoreBreakdown(id, submissionId)));
     }
 }

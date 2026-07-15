@@ -77,6 +77,10 @@ public class Gd5FinalRoundDataSeeder {
         seedHelper.ensureGuestJudgeInvitation(hackathon, guestJudge, coordinator);
         seedHelper.ensureFinalGuestJudgeAssignment(hackathon, finalRound);
         seedHelper.seedFinalRoundProblem(finalRound);
+        if (finalRound.getProblemReleasedAt() == null) {
+            finalRound.setProblemReleasedAt(LocalDateTime.now());
+            roundRepository.save(finalRound);
+        }
 
         String[] teamNames = {
                 Gd5SeedConstants.TEAM_01,

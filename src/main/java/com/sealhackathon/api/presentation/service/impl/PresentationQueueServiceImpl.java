@@ -43,6 +43,7 @@ import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.users.value_object.UserRole;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -51,6 +52,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -58,6 +60,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class PresentationQueueServiceImpl implements PresentationQueueService {
 
     private final RoundRepository roundRepository;
@@ -109,7 +112,8 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
                 if (PresentationQueueStatus.DONE.name().equals(item.getStatus())) {
                     done++;
                 }
-                if (PresentationQueueStatus.ELIMINATED.name().equals(item.getStatus())) {
+                if (PresentationQueueStatus.ELIMINATED.name().equals(item.getStatus())
+                        || PresentationQueueStatus.SKIPPED.name().equals(item.getStatus())) {
                     absent++;
                 }
             }
@@ -171,8 +175,11 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
 
         if (Boolean.TRUE.equals(round.getIsFinal())) {
             controllerGuard.requireControllerForRound(round.getId(), round);
+            assertNoPresentationStarted(round.getId(), null);
             scoringConfirmationRepository.deleteByFinalRoundScope(round.getId());
             int count = shuffleFinalRound(round);
+            round.setPresentationShuffled(true);
+            roundRepository.save(round);
             results.add(PresentationShuffleResponse.TrackShuffleResult.builder()
                     .trackId(null)
                     .slotCount(count)
@@ -188,6 +195,7 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
         List<Track> tracks = resolveTracksToShuffle(round, request.getTrackIds());
         for (Track track : tracks) {
             controllerGuard.requireControllerForTrack(track.getId(), track, round);
+            assertNoPresentationStarted(roundId, track.getId());
             scoringConfirmationRepository.deleteByTrackScope(roundId, track.getId());
             int count = shuffleTrack(round, track);
             track.setPresentationShuffled(true);
@@ -204,6 +212,135 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
         }
 
         return PresentationShuffleResponse.builder().roundId(roundId).tracks(results).build();
+    }
+
+    @Override
+    public PresentationQueueResponse skipNoShow(Integer roundId, Integer trackId, Integer submissionId) {
+        Round round = resolveRound(roundId);
+        requireJudgingPhase(round);
+        if (submissionId == null) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED, "submissionId bắt buộc");
+        }
+        Integer resolvedTrackId = trackId;
+        if (Boolean.TRUE.equals(round.getIsFinal())) {
+            controllerGuard.requireControllerForRound(round.getId(), round);
+            resolvedTrackId = null;
+        } else {
+            if (resolvedTrackId == null) {
+                throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED, "trackId bắt buộc cho vòng không phải chung kết");
+            }
+            final Integer trackIdForLoad = resolvedTrackId;
+            Track track = trackRepository.findById(trackIdForLoad)
+                    .orElseThrow(() -> new ResourceNotFoundException("Track", trackIdForLoad));
+            if (!track.getRound().getId().equals(round.getId())) {
+                throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Track không thuộc round");
+            }
+            controllerGuard.requireControllerForTrack(trackIdForLoad, track, round);
+        }
+
+        List<PresentationSlot> slots = loadSlots(round.getId(), resolvedTrackId);
+        PresentationSlot slot = slots.stream()
+                .filter(s -> s.getSubmission() != null && s.getSubmission().getId().equals(submissionId))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("PresentationSlot for submission", submissionId));
+        if (slot.getQueueStatus() == PresentationQueueStatus.DONE) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Đội đã thuyết trình xong — không skip no-show");
+        }
+        slot.setQueueStatus(PresentationQueueStatus.SKIPPED);
+        slot.setTimerPhase(PresentationTimerPhase.ENDED);
+        presentationSlotRepository.save(slot);
+        Map<String, Object> skipDetail = new HashMap<>();
+        skipDetail.put("roundId", round.getId());
+        skipDetail.put("trackId", resolvedTrackId);
+        skipDetail.put("submissionId", submissionId);
+        auditService.log(AuditAction.PRESENTATION_NO_SHOW_SKIPPED, "presentation_slots", slot.getId(),
+                skipDetail);
+        PresentationQueueResponse payload = getQueue(round.getId(), resolvedTrackId);
+        queuePublisher.publish(round.getId(), resolvedTrackId, payload);
+        return payload;
+    }
+
+    @Override
+    public boolean appendLateApprovedIfShuffled(Submission submission) {
+        if (submission == null || !SubmissionGradablePolicy.isGradable(submission)) {
+            return false;
+        }
+        Round round = submission.getRound();
+        if (round == null) {
+            return false;
+        }
+        Track track = submission.getTrack();
+        Integer trackId = track != null ? track.getId() : null;
+        boolean shuffled = Boolean.TRUE.equals(round.getIsFinal())
+                ? Boolean.TRUE.equals(round.getPresentationShuffled())
+                : track != null && Boolean.TRUE.equals(track.getPresentationShuffled());
+        if (!shuffled) {
+            return false;
+        }
+        if (Boolean.TRUE.equals(round.getIsFinal())) {
+            if (presentationSlotRepository.findByRound_IdAndSubmission_Id(round.getId(), submission.getId())
+                    .isPresent()) {
+                return false;
+            }
+        } else if (trackId != null) {
+            boolean exists = presentationSlotRepository
+                    .findByRound_IdAndTrack_IdOrderBySequenceOrderAsc(round.getId(), trackId).stream()
+                    .anyMatch(s -> s.getSubmission() != null
+                            && s.getSubmission().getId().equals(submission.getId()));
+            if (exists) {
+                return false;
+            }
+        }
+
+        List<PresentationSlot> existing = trackId == null
+                ? presentationSlotRepository.findByRound_IdAndTrackIsNullOrderBySequenceOrderAsc(round.getId())
+                : presentationSlotRepository.findByRound_IdAndTrack_IdOrderBySequenceOrderAsc(round.getId(), trackId);
+        int nextOrder = existing.stream()
+                .mapToInt(s -> s.getSequenceOrder() != null ? s.getSequenceOrder() : 0)
+                .max()
+                .orElse(0) + 1;
+        int slotMinutes = durationResolver.slotMinutes(track, round);
+        LocalDateTime start = LocalDateTime.now().withSecond(0).withNano(0);
+        if (!existing.isEmpty()) {
+            PresentationSlot last = existing.get(existing.size() - 1);
+            if (last.getEndsAt() != null) {
+                start = last.getEndsAt();
+            }
+        }
+        presentationSlotRepository.save(PresentationSlot.builder()
+                .round(round)
+                .track(track)
+                .submission(submission)
+                .team(submission.getTeam())
+                .startsAt(start)
+                .endsAt(start.plusMinutes(slotMinutes))
+                .location(defaultLocation(submission.getTeam().getId()))
+                .sequenceOrder(nextOrder)
+                .queueStatus(PresentationQueueStatus.WAITING)
+                .timerPhase(PresentationTimerPhase.IDLE)
+                .pausedAccumulatedSeconds(0)
+                .build());
+        auditService.log(AuditAction.PRESENTATION_QUEUE_SHUFFLE, "presentation_slots", submission.getId(),
+                Map.of("action", "late_append", "roundId", round.getId(), "sequenceOrder", nextOrder));
+        PresentationQueueResponse payload = getQueue(round.getId(), trackId);
+        queuePublisher.publish(round.getId(), trackId, payload);
+        return true;
+    }
+
+    /** Cấm shuffle lại nếu đã có slot PRESENTING hoặc DONE. */
+    private void assertNoPresentationStarted(Integer roundId, Integer trackId) {
+        List<PresentationSlot> slots = trackId == null
+                ? presentationSlotRepository.findByRound_IdAndTrackIsNullOrderBySequenceOrderAsc(roundId)
+                : presentationSlotRepository.findByRound_IdAndTrack_IdOrderBySequenceOrderAsc(roundId, trackId);
+        boolean started = slots.stream().anyMatch(s ->
+                s.getQueueStatus() == PresentationQueueStatus.PRESENTING
+                        || s.getQueueStatus() == PresentationQueueStatus.DONE
+                        || s.getQueueStatus() == PresentationQueueStatus.SKIPPED);
+        if (started) {
+            throw new BusinessRuleException(ErrorCode.PRESENTATION_ALREADY_STARTED,
+                    "Đã bắt đầu thuyết trình — không xáo lại hàng đợi",
+                    Map.of("roundId", roundId, "trackId", trackId));
+        }
     }
 
     private PresentationQueueNextResponse advanceForScope(
@@ -250,9 +387,9 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
                     presenting, trackForTimer, round, durationResolver, presentationSlotRepository);
             if (presenting.getSubmission() != null) {
                 PresentationTimerPhase phase = presenting.getTimerPhase();
-                if (phase != PresentationTimerPhase.QA && phase != PresentationTimerPhase.ENDED) {
+                if (phase != PresentationTimerPhase.ENDED) {
                     throw new BusinessRuleException(ErrorCode.INVALID_STATE,
-                            "Chỉ chuyển đội tiếp sau phần thuyết trình (QA hoặc hết giờ)");
+                            "Chỉ chuyển đội tiếp khi phần thuyết trình/Q&A đã kết thúc (ENDED)");
                 }
                 boolean ack = forceAdvanceAckGuard.resolveAcknowledge(
                         acknowledgeIncompleteScoring, trackId, round);
@@ -420,17 +557,43 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
                         .build());
             }
             gradableTeamCount = gradable;
+            warnHardLockLateInvariant(round, eligibleTeams);
         }
 
         return PresentationQueueResponse.TrackQueueItem.builder()
                 .trackId(null)
                 .trackName("Chung kết")
-                .shuffled(!slots.isEmpty())
+                .shuffled(Boolean.TRUE.equals(round.getPresentationShuffled()))
                 .items(slots.stream().map(slot -> toQueueItem(slot, null, round, anonymous)).toList())
                 .participatingTeamCount(participatingTeamCount)
                 .gradableTeamCount(gradableTeamCount)
                 .eligibleTeams(eligibleTeams)
                 .build();
+    }
+
+    private void warnHardLockLateInvariant(
+            Round round, List<PresentationQueueResponse.EligibleTeamItem> eligibleTeams) {
+        if (round == null || eligibleTeams == null) {
+            return;
+        }
+        boolean hardLock = Boolean.TRUE.equals(round.getIsFinal())
+                || round.getLateSubmissionPolicy() == com.sealhackathon.api.rounds.value_object.LateSubmissionPolicy.HARD_LOCK;
+        if (!hardLock) {
+            return;
+        }
+        for (PresentationQueueResponse.EligibleTeamItem item : eligibleTeams) {
+            String status = item.getSubmissionStatus();
+            if (status == null) {
+                continue;
+            }
+            String n = status.toUpperCase();
+            if ("LATE_PENDING".equals(n) || "LATE_APPROVED".equals(n)) {
+                log.warn("[INVARIANT_VIOLATION] HARD_LOCK_LATE_STATUS roundId={} teamId={} status={}",
+                        round.getId(), item.getTeamId(), n);
+                auditService.log(AuditAction.INVARIANT_VIOLATION_HARD_LOCK_LATE, "rounds", round.getId(),
+                        Map.of("teamId", item.getTeamId(), "status", n));
+            }
+        }
     }
 
     private PresentationQueueResponse.QueueItem toQueueItem(
@@ -512,8 +675,8 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
 
     private void requireJudgingPhase(Round round) {
         if (roundPhaseResolver.resolve(round) != RoundPhase.JUDGING) {
-            throw new BusinessRuleException(ErrorCode.SCORING_NOT_OPEN,
-                    "Chưa hết giờ nộp / chưa kết thúc sớm — không mở hàng đợi thuyết trình hoặc chấm",
+            throw new BusinessRuleException(ErrorCode.SUBMISSION_NOT_CLOSED_FOR_SHUFFLE,
+                    "Chưa hết hạn nộp bài — không xáo hàng đợi thuyết trình",
                     Map.of("roundId", round.getId(),
                             "submissionDeadline", round.getSubmissionDeadline(),
                             "phase", roundPhaseResolver.resolve(round).name()));

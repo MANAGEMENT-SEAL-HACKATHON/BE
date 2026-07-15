@@ -39,6 +39,20 @@ class SubmissionSlideStorageTest {
     }
 
     @Test
+    void validatePdf_acceptsOctetStreamWhenPdfMagicAndExtension() {
+        byte[] pdf = "%PDF-1.4 test".getBytes();
+        MockMultipartFile file = new MockMultipartFile("slideFile", "deck.pdf", "application/octet-stream", pdf);
+        storage.validatePdf(file, true);
+    }
+
+    @Test
+    void validatePdf_acceptsNullContentTypeWhenPdfMagicAndExtension() {
+        byte[] pdf = "%PDF-1.4 test".getBytes();
+        MockMultipartFile file = new MockMultipartFile("slideFile", "deck.pdf", null, pdf);
+        storage.validatePdf(file, true);
+    }
+
+    @Test
     void storeAndLoadSlide_roundTrip() {
         byte[] pdf = "%PDF-1.4 test".getBytes();
         MockMultipartFile file = new MockMultipartFile("slideFile", "deck.pdf", "application/pdf", pdf);

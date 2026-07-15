@@ -17,4 +17,7 @@ public class StudentProblemResponse {
     private String problemDownloadPath;
     private String problemFilename;
     private Boolean released;
+    /** Prelim track name — set when final reuses track PDF. */
+    private Integer trackId;
+    private String trackName;
 }

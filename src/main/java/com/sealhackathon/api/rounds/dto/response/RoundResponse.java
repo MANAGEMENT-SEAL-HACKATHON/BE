@@ -52,4 +52,8 @@ public class RoundResponse {
     private final Integer defaultPresentationMinutes;
     /** Thời lượng Q&A mặc định (phút) — dùng cho GĐ5; fallback GĐ3 khi track không override. */
     private final Integer defaultQaMinutes;
+    /** Gate 2 — đã xáo hàng đợi thuyết trình. */
+    private final Boolean isPresentationShuffled;
+    /** Gate 3 — thuyết trình đã hoàn tất (hoặc 0 slot sau shuffle). */
+    private final Boolean isPresentationsComplete;
 }

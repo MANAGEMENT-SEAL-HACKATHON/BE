@@ -283,6 +283,10 @@ public class TrackServiceImpl implements TrackService {
             throw new BusinessRuleException(ErrorCode.INVALID_STATE,
                     "Đề bài đã được phát cho bảng đấu này");
         }
+        if (round.getProblemReleasedAt() != null) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Vòng thi đã phát đề toàn bộ — không cần phát từng bảng đấu");
+        }
         if (!TrackProblemStatementStorage.hasProblemFile(track)) {
             throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
                     "Bảng đấu chưa có file PDF đề bài — upload trước khi phát");

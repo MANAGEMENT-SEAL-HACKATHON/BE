@@ -72,4 +72,15 @@ public class PresentationQueueController {
                 presentationQueueService.advanceNext(
                         roundId, trackId, currentSubmissionId, currentTeamId, acknowledgeIncompleteScoring)));
     }
+
+    @PatchMapping("/skip")
+    @ApprovedOnly
+    @Operation(summary = "GĐ3 — Skip no-show (đánh dấu SKIPPED)")
+    public ResponseEntity<ApiResponse<PresentationQueueResponse>> skipNoShow(
+            @RequestParam Integer roundId,
+            @RequestParam(required = false) Integer trackId,
+            @RequestParam Integer submissionId) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                presentationQueueService.skipNoShow(roundId, trackId, submissionId)));
+    }
 }

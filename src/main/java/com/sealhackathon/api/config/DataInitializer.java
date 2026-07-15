@@ -8,6 +8,7 @@ import com.sealhackathon.api.config.seed.Gd1DataSeeder;
 import com.sealhackathon.api.config.seed.Gd1SeedConstants;
 import com.sealhackathon.api.config.seed.Gd3PrelimOpenDataSeeder;
 import com.sealhackathon.api.config.seed.Gd4AdvanceReadyDataSeeder;
+import com.sealhackathon.api.config.seed.Gd4TiebreakWildcardDataSeeder;
 import com.sealhackathon.api.config.seed.Gd5FinalRoundDataSeeder;
 import com.sealhackathon.api.config.seed.Gd6PendingConfirmDataSeeder;
 import com.sealhackathon.api.config.seed.HackathonDevSeedHelper;
@@ -35,6 +36,7 @@ public class DataInitializer implements CommandLineRunner {
     private final E2eWorkflowDataSeeder e2eWorkflowDataSeeder;
     private final Gd3PrelimOpenDataSeeder gd3PrelimOpenDataSeeder;
     private final Gd4AdvanceReadyDataSeeder gd4AdvanceReadyDataSeeder;
+    private final Gd4TiebreakWildcardDataSeeder gd4TiebreakWildcardDataSeeder;
     private final Gd5FinalRoundDataSeeder gd5FinalRoundDataSeeder;
     private final Gd6PendingConfirmDataSeeder gd6PendingConfirmDataSeeder;
     private final AccountStatesDataSeeder accountStatesDataSeeder;
@@ -68,6 +70,7 @@ public class DataInitializer implements CommandLineRunner {
         // 3. Happy GĐ3–GĐ6
         gd3PrelimOpenDataSeeder.ensureSeed();
         gd4AdvanceReadyDataSeeder.ensureSeed();
+        gd4TiebreakWildcardDataSeeder.ensureSeed();
         gd5FinalRoundDataSeeder.ensureSeed();
         gd6PendingConfirmDataSeeder.repairForFullChainRetest();
         gd6PendingConfirmDataSeeder.ensureSeed();
@@ -81,6 +84,7 @@ public class DataInitializer implements CommandLineRunner {
         e2eWorkflowDataSeeder.repairForGd2Testing();
         gd3PrelimOpenDataSeeder.repairForFeTesting();
         gd4AdvanceReadyDataSeeder.repairForFeTesting();
+        gd4TiebreakWildcardDataSeeder.repairForFeTesting();
         gd5FinalRoundDataSeeder.repairForFeTesting();
         gd6PendingConfirmDataSeeder.repairForFeTesting();
         gd6PendingConfirmDataSeeder.repairForApiMatrixReadiness();

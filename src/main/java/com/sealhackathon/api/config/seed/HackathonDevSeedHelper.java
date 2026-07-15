@@ -550,6 +550,14 @@ public class HackathonDevSeedHelper {
             hackathon.setYear(dates.eventStart().getYear());
             changed = true;
         }
+        // Seed sạch: nếu regEnd đã qua mà chưa có flag đóng → stamp khớp lịch (GĐ3+).
+        LocalDate today = LocalDate.now();
+        if (dates.regEnd() != null
+                && !dates.regEnd().isAfter(today)
+                && hackathon.getRegistrationClosedEarlyAt() == null) {
+            hackathon.setRegistrationClosedEarlyAt(dates.regEnd().atTime(23, 59));
+            changed = true;
+        }
         if (changed) {
             hackathonRepository.save(hackathon);
         }
@@ -922,6 +930,10 @@ public class HackathonDevSeedHelper {
                         .description(description)
                         .registrationStart(dates.regStart())
                         .registrationEnd(dates.regEnd())
+                        .registrationClosedEarlyAt(
+                                dates.regEnd() != null && !dates.regEnd().isAfter(LocalDate.now())
+                                        ? dates.regEnd().atTime(23, 59)
+                                        : null)
                         .eventStart(dates.eventStart())
                         .eventEnd(dates.eventEnd())
                         .wildcardEnabled(true)
@@ -1741,6 +1753,36 @@ public class HackathonDevSeedHelper {
                         .build()));
     }
 
+    /**
+     * Chấm đủ mọi giám khảo được gán trên round CK (HEAD + FINAL_EXTERNAL).
+     * Confirm GĐ6 gọi {@code hasIncompleteScoring} — thiếu 1 judge → {@code SCORING_INCOMPLETE_BEFORE_CONFIRM}.
+     */
+    public void ensureFinalScoresFromAllAssignedJudges(
+            Round finalRound, Submission submission, List<Criteria> criteria, float scoreValue) {
+        if (finalRound == null || submission == null || criteria == null || criteria.isEmpty()) {
+            return;
+        }
+        List<User> judges = judgeAssignmentRepository.findByRoundId(finalRound.getId()).stream()
+                .map(ja -> ja.getJudge())
+                .filter(j -> j != null && j.getId() != null)
+                .collect(java.util.stream.Collectors.toMap(
+                        User::getId, j -> j, (a, b) -> a, java.util.LinkedHashMap::new))
+                .values()
+                .stream()
+                .toList();
+        if (judges.isEmpty()) {
+            judges = List.of(requireGuestJudge());
+        }
+        for (Criteria c : criteria) {
+            if (c.getType() == CriteriaType.PENALTY) {
+                continue;
+            }
+            for (User judge : judges) {
+                ensureNormalScore(submission, c, judge, scoreValue, true);
+            }
+        }
+    }
+
     /** Xóa submission/score CK để chạy lại full chain GĐ5 trên cùng hackathon dev. */
     @Transactional
     public void clearFinalRoundArtifacts(Integer hackathonId) {
@@ -2237,6 +2279,38 @@ public class HackathonDevSeedHelper {
         prelim.setWildcardEnabled(enabled);
         hackathonRepository.save(hackathon);
         roundRepository.save(prelim);
+    }
+
+    /** Cấu hình vòng sơ loại GĐ4 variant — không gọi lock API (tránh auto-apply tiebreak). */
+    @Transactional
+    public void applyPrelimGd4VariantConfig(
+            Round prelim,
+            TiebreakRule tiebreakRule,
+            boolean wildcardEnabled,
+            Integer topNAdvance,
+            Integer minTeamsFinal,
+            boolean scoringLocked,
+            boolean published) {
+        User coordinator = requireCoordinator();
+        applyPrelimState(
+                prelim,
+                new PrelimState(false, true, scoringLocked, published, topNAdvance, minTeamsFinal),
+                coordinator);
+        prelim.setTiebreakRule(tiebreakRule);
+        prelim.setWildcardEnabled(wildcardEnabled);
+        roundRepository.save(prelim);
+    }
+
+    @Transactional
+    public void clearPrelimTiebreakEvaluations(Round prelim) {
+        tiebreakEvaluationRepository.findByRound_Id(prelim.getId())
+                .forEach(tiebreakEvaluationRepository::delete);
+    }
+
+    @Transactional
+    public void clearWildcardReviews(Round prelim) {
+        wildcardReviewRepository.findByRound_Id(prelim.getId())
+                .forEach(wildcardReviewRepository::delete);
     }
 
     /** Gán mentor theo track (FR-18) — idempotent. */
@@ -2860,6 +2934,85 @@ public class HackathonDevSeedHelper {
         applyPrelimState(prelim, new PrelimState(false, true, true, true, 2, 2), coordinator);
         applyFinalState(finalRound, new FinalState(false, false), coordinator);
         releaseFinalProblem(finalRound);
+    }
+
+    /** Reset GĐ4 SUBMISSION_TIME tiebreak — locked, unpublished, rule SUBMISSION_TIME. */
+    @Transactional
+    public void repairHackathonForGd4TiebreakSubmissionTimeRetest(
+            Hackathon hackathon, Round prelim, Round finalRound) {
+        clearFinalRoundArtifacts(hackathon.getId());
+        clearPrelimTiebreakEvaluations(prelim);
+        resetTeamsToPreAdvance(hackathon, prelim, finalRound);
+        syncHackathonCalendarFromDates(hackathon.getSlug(), computeGd4AdvanceReadyDates());
+        applyPrelimGd4VariantConfig(
+                prelim,
+                TiebreakRule.SUBMISSION_TIME,
+                false,
+                2,
+                3,
+                true,
+                false);
+        applyFinalState(finalRound, new FinalState(false, false), requireCoordinator());
+        if (hackathon.getStatus() != HackathonStatus.ONGOING) {
+            hackathon.setStatus(HackathonStatus.ONGOING);
+            hackathonRepository.save(hackathon);
+        }
+        if (Boolean.TRUE.equals(hackathon.getWildcardEnabled())) {
+            hackathon.setWildcardEnabled(false);
+            hackathonRepository.save(hackathon);
+        }
+    }
+
+    /** Reset GĐ4 COORDINATOR_DECISION tiebreak — locked, unpublished, chưa resolve. */
+    @Transactional
+    public void repairHackathonForGd4TiebreakManualRetest(
+            Hackathon hackathon, Round prelim, Round finalRound) {
+        clearFinalRoundArtifacts(hackathon.getId());
+        clearPrelimTiebreakEvaluations(prelim);
+        resetTeamsToPreAdvance(hackathon, prelim, finalRound);
+        syncHackathonCalendarFromDates(hackathon.getSlug(), computeGd4AdvanceReadyDates());
+        applyPrelimGd4VariantConfig(
+                prelim,
+                TiebreakRule.COORDINATOR_DECISION,
+                false,
+                1,
+                4,
+                true,
+                false);
+        applyFinalState(finalRound, new FinalState(false, false), requireCoordinator());
+        if (hackathon.getStatus() != HackathonStatus.ONGOING) {
+            hackathon.setStatus(HackathonStatus.ONGOING);
+            hackathonRepository.save(hackathon);
+        }
+        if (Boolean.TRUE.equals(hackathon.getWildcardEnabled())) {
+            hackathon.setWildcardEnabled(false);
+            hackathonRepository.save(hackathon);
+        }
+    }
+
+    /** Reset GĐ4 wildcard gap — locked + published, WC pool ≥2, chưa advance. */
+    @Transactional
+    public void repairHackathonForGd4WildcardGapRetest(
+            Hackathon hackathon, Round prelim, Round finalRound) {
+        clearFinalRoundArtifacts(hackathon.getId());
+        clearWildcardReviews(prelim);
+        clearPrelimTiebreakEvaluations(prelim);
+        resetTeamsToPreAdvance(hackathon, prelim, finalRound);
+        syncHackathonCalendarFromDates(hackathon.getSlug(), computeGd4AdvanceReadyDates());
+        applyPrelimGd4VariantConfig(
+                prelim,
+                TiebreakRule.PENALTY_SCORE,
+                true,
+                1,
+                4,
+                true,
+                true);
+        setWildcardEnabled(hackathon, prelim, true);
+        applyFinalState(finalRound, new FinalState(false, false), requireCoordinator());
+        if (hackathon.getStatus() != HackathonStatus.ONGOING) {
+            hackathon.setStatus(HackathonStatus.ONGOING);
+            hackathonRepository.save(hackathon);
+        }
     }
 
     /** Reset hackathon GĐ4 về trạng thái sẵn sàng publish/advance. */

@@ -52,11 +52,23 @@ public class RoundScheduleShiftService {
     private final TeamRepository teamRepository;
     private final TeamMemberRepository teamMemberRepository;
 
+    public static final int DEFAULT_SETUP_LEAD_MINUTES = 5;
+
     /**
      * @return true nếu đã đổi lịch
      */
     @Transactional(rollbackFor = Exception.class)
     public boolean applyOnActivate(Round round, ActivateScheduleMode mode, LocalDateTime newExamAt) {
+        return applyOnActivate(round, mode, newExamAt, null);
+    }
+
+    /**
+     * @param setupLeadMinutes phút chuẩn bị khi START_NOW; null → {@link #DEFAULT_SETUP_LEAD_MINUTES}
+     * @return true nếu đã đổi lịch
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public boolean applyOnActivate(Round round, ActivateScheduleMode mode, LocalDateTime newExamAt,
+                                   Integer setupLeadMinutes) {
         ActivateScheduleMode effective = mode != null ? mode : ActivateScheduleMode.KEEP;
         if (effective == ActivateScheduleMode.KEEP) {
             return false;
@@ -74,8 +86,11 @@ public class RoundScheduleShiftService {
 
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime examAt;
+        int leadApplied = DEFAULT_SETUP_LEAD_MINUTES;
         if (effective == ActivateScheduleMode.START_NOW) {
-            examAt = RoundScheduleClocks.ceilToNextMinute(now);
+            leadApplied = resolveSetupLeadMinutes(setupLeadMinutes);
+            // Tech Lead: đúng N phút từ now — không ceil (countdown ~N:00)
+            examAt = now.plusMinutes(leadApplied);
         } else if (effective == ActivateScheduleMode.RESCHEDULE) {
             scheduleValidator.requireNewExamAtNotInPast(newExamAt, now);
             examAt = RoundScheduleClocks.ceilToNextMinute(newExamAt);
@@ -101,6 +116,9 @@ public class RoundScheduleShiftService {
 
         Map<String, Object> audit = new LinkedHashMap<>();
         audit.put("scheduleMode", effective.name());
+        if (effective == ActivateScheduleMode.START_NOW) {
+            audit.put("setupLeadMinutes", leadApplied);
+        }
         audit.put("oldExamAt", String.valueOf(oldExamAt));
         audit.put("oldSubmissionOpen", String.valueOf(oldOpen));
         audit.put("oldSubmissionDeadline", String.valueOf(oldDeadline));
@@ -112,6 +130,16 @@ public class RoundScheduleShiftService {
 
         scheduleNotifyAfterCommit(saved);
         return true;
+    }
+
+    static int resolveSetupLeadMinutes(Integer setupLeadMinutes) {
+        if (setupLeadMinutes == null) {
+            return DEFAULT_SETUP_LEAD_MINUTES;
+        }
+        if (setupLeadMinutes < 1) {
+            return 1;
+        }
+        return Math.min(30, setupLeadMinutes);
     }
 
     private void scheduleNotifyAfterCommit(Round round) {

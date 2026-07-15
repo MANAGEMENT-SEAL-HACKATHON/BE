@@ -116,6 +116,8 @@ public class Gd6PendingConfirmDataSeeder {
         LocalDateTime now = LocalDateTime.now();
 
         seedHelper.ensureGuestJudgeInvitation(hackathon, guestJudge, coordinator);
+        // Gán đủ HEAD + guests TRƯỚC khi chấm — confirm cần count(score) ≥ count(assigned judges)
+        seedHelper.ensureFinalGuestJudgeAssignment(hackathon, finalRound);
 
         String[] teamNames = {
                 Gd6SeedConstants.TEAM_01,
@@ -140,28 +142,24 @@ public class Gd6PendingConfirmDataSeeder {
         }
 
         List<Criteria> finalCriteria = seedHelper.listFinalCriteria(finalRound);
-        List<Submission> submissions = new ArrayList<>();
         for (int i = 0; i < teams.size(); i++) {
             Submission sub = seedHelper.ensureFinalSubmission(
                     hackathon, finalRound, teams.get(i),
                     "https://github.com/seal-warriors/gd6-team%02d".formatted(i + 1));
-            submissions.add(sub);
-            float score = TEAM_SCORES[i];
-            for (Criteria c : finalCriteria) {
-                seedHelper.ensureNormalScore(sub, c, guestJudge, score, true);
-            }
+            seedHelper.ensureFinalScoresFromAllAssignedJudges(
+                    finalRound, sub, finalCriteria, TEAM_SCORES[i]);
         }
 
         seedHelper.ensureFirstPrize(hackathon, finalRound, teams.get(0), coordinator);
         seedHelper.ensureSecondPrize(hackathon, finalRound, teams.get(1), coordinator);
         seedHelper.ensureThirdPrize(hackathon, finalRound, teams.get(2), coordinator);
-        seedHelper.ensureFinalGuestJudgeAssignment(hackathon, finalRound);
 
         log.info("""
                 [Gd6PendingConfirmDataSeeder] slug={} hackathonId={} prelimRoundId={} finalRoundId={}
                   teams: {} | {} | {}
                   students: {} … {} password={}
                   guestJudge={} status=PENDING_CONFIRM prizes FIRST+SECOND+THIRD — Confirm → FINISHED
+                  (scores: đủ mọi judge gán trên CK — tránh SCORING_INCOMPLETE_BEFORE_CONFIRM)
                 """,
                 Gd6SeedConstants.SLUG_GD6_PENDING_CONFIRM,
                 hackathon.getId(),
@@ -236,19 +234,50 @@ public class Gd6PendingConfirmDataSeeder {
         }
         repairForFullChainRetest();
         hackathonRepository.findBySlug(Gd6SeedConstants.SLUG_GD6_PENDING_CONFIRM).ifPresent(hackathon -> {
+            Round finalRound = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathon.getId()).stream()
+                    .filter(r -> Boolean.TRUE.equals(r.getIsFinal()))
+                    .findFirst()
+                    .orElse(null);
+            if (finalRound == null) {
+                return;
+            }
             boolean synced = seedHelper.syncHackathonCalendarFromDates(
                     Gd6SeedConstants.SLUG_GD6_PENDING_CONFIRM, seedHelper.computeGd6PendingConfirmDates());
+            // Backfill: thiếu điểm từ HEAD / guest2/3 → confirm báo SCORING_INCOMPLETE_BEFORE_CONFIRM
+            repairCompleteFinalScores(hackathon, finalRound);
             if (synced) {
-                Round finalRound = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathon.getId()).stream()
-                        .filter(r -> Boolean.TRUE.equals(r.getIsFinal()))
-                        .findFirst()
-                        .orElse(null);
                 log.info(
                         "[Gd6PendingConfirmDataSeeder] FE repair — final ended slug={} deadline={}",
                         Gd6SeedConstants.SLUG_GD6_PENDING_CONFIRM,
-                        finalRound != null ? finalRound.getSubmissionDeadline() : null);
+                        finalRound.getSubmissionDeadline());
             }
         });
+    }
+
+    /** Đảm bảo mỗi bài CK có điểm từ đủ judge được gán trên round (Mode A confirm OK). */
+    private void repairCompleteFinalScores(Hackathon hackathon, Round finalRound) {
+        seedHelper.ensureFinalGuestJudgeAssignment(hackathon, finalRound);
+        List<Criteria> criteria = seedHelper.listFinalCriteria(finalRound);
+        String[] teamNames = {
+                Gd6SeedConstants.TEAM_01,
+                Gd6SeedConstants.TEAM_02,
+                Gd6SeedConstants.TEAM_03
+        };
+        for (int i = 0; i < teamNames.length; i++) {
+            Team team = teamRepository
+                    .findByHackathon_IdAndTeamNameIgnoreCase(hackathon.getId(), teamNames[i])
+                    .orElse(null);
+            if (team == null) {
+                continue;
+            }
+            Submission sub = seedHelper.ensureFinalSubmission(
+                    hackathon, finalRound, team,
+                    "https://github.com/seal-warriors/gd6-team%02d".formatted(i + 1));
+            seedHelper.ensureFinalScoresFromAllAssignedJudges(
+                    finalRound, sub, criteria, TEAM_SCORES[i]);
+        }
+        log.info("[Gd6PendingConfirmDataSeeder] repairCompleteFinalScores — đủ score mọi judge CK slug={}",
+                Gd6SeedConstants.SLUG_GD6_PENDING_CONFIRM);
     }
 
     @Transactional

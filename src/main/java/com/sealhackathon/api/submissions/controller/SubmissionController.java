@@ -43,7 +43,9 @@ public class SubmissionController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @StudentOnly
-    @Operation(summary = "FR-16/26 — Nộp bài multipart (repoUrl + demoUrl + slide PDF)")
+    @Operation(summary = "FR-16/26 — Nộp bài multipart (repoUrl + demoUrl + slide PDF)",
+            description = "Sơ loại (GĐ3): gửi `trackId`, bỏ `roundId`. Chung kết (GĐ5): gửi `roundId`, bỏ `trackId`. "
+                    + "Service từ chối nếu thiếu cả hai hoặc routing sai vòng.")
     public ResponseEntity<ApiResponse<SubmissionResponse>> submitMultipart(
             @RequestParam Integer teamId,
             @RequestParam(required = false) Integer trackId,

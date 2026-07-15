@@ -34,4 +34,8 @@ public class RoundSummaryResponse {
     private final Integer trackCount;
     private final Integer criteriaCount;
     private final Float currentWeightTotal;
+    /** Gate 2 — đã xáo hàng đợi (tất cả track / CK). */
+    private final Boolean isPresentationShuffled;
+    /** Gate 3 — không còn WAITING/PRESENTING (0 slot OK nếu đã shuffle). */
+    private final Boolean isPresentationsComplete;
 }

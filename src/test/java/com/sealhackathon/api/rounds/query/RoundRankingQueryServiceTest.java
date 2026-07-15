@@ -84,6 +84,6 @@ class RoundRankingQueryServiceTest {
 
     private static RankRow row(
             int teamId, String name, double score, ParticipationStatus status, String group) {
-        return new RankRow(teamId, name, 1, group, score, status.name());
+        return new RankRow(null, teamId, name, 1, group, score, status.name(), null, null, 0.0);
     }
 }

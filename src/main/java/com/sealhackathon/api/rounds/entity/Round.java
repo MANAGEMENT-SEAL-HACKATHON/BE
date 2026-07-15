@@ -112,7 +112,7 @@ public class Round {
     private Integer minTeamsFinal;
 
     /**
-     * Per-round override. Chỉ có hiệu lực nếu {@code hackathon.wildcardEnabled = TRUE}.
+     * Per-round flag — runtime WC pool chỉ check field này (không AND hackathon).
      */
     @Builder.Default
     @Column(name = "wildcard_enabled", nullable = false)
@@ -185,6 +185,14 @@ public class Round {
      */
     @Column(name = "submission_closed_early_at")
     private LocalDateTime submissionClosedEarlyAt;
+
+    /**
+     * Chung kết: đã gọi shuffle hàng đợi ít nhất một lần (kể cả 0 slot / 0 gradable).
+     * Sơ loại dùng {@code tracks.presentation_shuffled}.
+     */
+    @Builder.Default
+    @Column(name = "presentation_shuffled", nullable = false)
+    private Boolean presentationShuffled = false;
 
     @Builder.Default
     @Column(name = "created_at", nullable = false)

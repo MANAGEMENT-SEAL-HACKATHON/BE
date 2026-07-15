@@ -13,6 +13,7 @@ import com.sealhackathon.api.hackathons.dto.response.CloseRegistrationEarlyRespo
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.service.HackathonRegistrationCloseService;
+import com.sealhackathon.api.hackathons.support.HackathonRegistrationSupport;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.notifications.service.NotificationService;
 import com.sealhackathon.api.rounds.entity.Round;
@@ -67,9 +68,9 @@ public class HackathonRegistrationCloseServiceImpl implements HackathonRegistrat
             throw new BusinessRuleException(ErrorCode.HACKATHON_NOT_ONGOING,
                     "Chỉ kết thúc đăng ký sớm khi Hackathon đang ONGOING.");
         }
-        if (hackathon.getRegistrationClosedEarlyAt() != null) {
+        if (HackathonRegistrationSupport.isRegistrationClosed(hackathon)) {
             throw new BusinessRuleException(ErrorCode.REGISTRATION_ALREADY_CLOSED,
-                    "Hackathon này đã kết thúc đăng ký sớm trước đó.");
+                    "Đăng ký đã kết thúc (hết hạn hoặc đã đóng sớm) — không thể kết thúc sớm nữa.");
         }
 
         LocalDateTime now = LocalDateTime.now();

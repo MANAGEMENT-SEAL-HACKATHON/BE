@@ -39,6 +39,8 @@ import com.sealhackathon.api.teams.entity.TeamRoundParticipation;
 import com.sealhackathon.api.teams.repository.TeamRoundParticipationRepository;
 import com.sealhackathon.api.teams.entity.TeamRoundTrack;
 import com.sealhackathon.api.teams.repository.TeamRoundTrackRepository;
+import com.sealhackathon.api.teams.support.PrelimMutationGuard;
+import com.sealhackathon.api.teams.value_object.ParticipationStatus;
 import com.sealhackathon.api.teams.value_object.RegistrationType;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.repository.TeamRepository;
@@ -96,6 +98,7 @@ public class StudentPortalServiceImpl implements StudentPortalService {
     private final AuditService auditService;
     private final RoundProblemStatementStorage roundProblemStatementStorage;
     private final TrackProblemStatementStorage trackProblemStatementStorage;
+    private final PrelimMutationGuard prelimMutationGuard;
 
     private static String studentProblemDownloadPath(Integer roundId) {
         return "/api/v1/me/rounds/" + roundId + "/problem-statement";
@@ -179,8 +182,9 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                 throw new BusinessRuleException(ErrorCode.RESOURCE_NOT_FOUND,
                         "Đề bài vòng thi này chưa được Ban Tổ Chức công bố.");
             }
-            String filename = RoundProblemStatementStorage.displayFilename(round);
+            Track track = resolveStudentPrelimTrackForFinal(round);
             String studentDownloadPath = studentProblemDownloadPath(roundId);
+            String filename = TrackProblemStatementStorage.displayFilename(track);
             return StudentProblemResponse.builder()
                     .roundId(roundId)
                     .problemStatement(filename)
@@ -188,6 +192,8 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                     .problemDownloadPath(studentDownloadPath)
                     .problemFilename(filename)
                     .released(true)
+                    .trackId(track.getId())
+                    .trackName(track.getName())
                     .build();
         }
 
@@ -215,7 +221,8 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                 throw new BusinessRuleException(ErrorCode.RESOURCE_NOT_FOUND,
                         "Đề bài vòng thi này chưa được Ban Tổ Chức công bố.");
             }
-            return resolveRoundProblemResource(round);
+            Track track = resolveStudentPrelimTrackForFinal(round);
+            return resolveTrackProblemResource(track);
         }
         Track track = resolveStudentTrackForRound(roundId);
         assertPrelimProblemReleased(round, track);
@@ -292,6 +299,47 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                 "Đội của bạn chưa được phân bảng đấu cho vòng này.");
     }
 
+    /**
+     * CK: đội phải có TeamRoundParticipation; PDF = đề track sơ loại (TeamRoundTrack ADVANCED ưu tiên).
+     */
+    private Track resolveStudentPrelimTrackForFinal(Round finalRound) {
+        Integer userId = currentUserAccessor.currentUserId();
+        Integer hackathonId = finalRound.getHackathon().getId();
+        Round prelim = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathonId).stream()
+                .filter(r -> !Boolean.TRUE.equals(r.getIsFinal()))
+                .findFirst()
+                .orElseThrow(() -> new BusinessRuleException(ErrorCode.RESOURCE_NOT_FOUND,
+                        "Không tìm thấy vòng Sơ loại để lấy đề bài."));
+
+        List<TeamMember> memberships = teamMemberRepository.findByUser_IdAndStatus(userId, TeamMemberStatus.ACCEPTED);
+        for (TeamMember tm : memberships) {
+            Team team = tm.getTeam();
+            if (!team.getHackathon().getId().equals(hackathonId)) {
+                continue;
+            }
+            boolean inFinal = teamRoundParticipationRepository
+                    .findByTeam_IdAndRound_Id(team.getId(), finalRound.getId())
+                    .isPresent();
+            if (!inFinal) {
+                continue;
+            }
+            Optional<TeamRoundTrack> advanced = teamRoundTrackRepository
+                    .findByTeam_IdAndTrack_Round_Id(team.getId(), prelim.getId())
+                    .filter(trt -> trt.getParticipationStatus() == ParticipationStatus.ADVANCED
+                            || trt.getParticipationStatus() == ParticipationStatus.PARTICIPATING);
+            if (advanced.isPresent()) {
+                return advanced.get().getTrack();
+            }
+            Optional<TeamRoundTrack> any = teamRoundTrackRepository
+                    .findByTeam_IdAndTrack_Round_Id(team.getId(), prelim.getId());
+            if (any.isPresent()) {
+                return any.get().getTrack();
+            }
+        }
+        throw new BusinessRuleException(ErrorCode.FORBIDDEN,
+                "Đội của bạn không đủ điều kiện xem đề Chung kết.");
+    }
+
     // =================================================================================
     // API SUBMISSION MỚI (Merge từ Phát + Guard của Huy)
     // =================================================================================
@@ -309,7 +357,8 @@ public class StudentPortalServiceImpl implements StudentPortalService {
         studentAccessGuard.assertTeamMember(teamId);
         List<Submission> submissions = findSubmissions(teamId, roundId);
         if (submissions.isEmpty()) {
-            throw new ResourceNotFoundException("Submission", "teamId=" + teamId);
+            // GĐ3/GĐ5: chưa nộp → 200 + null (không 404 spam portal)
+            return null;
         }
         Submission latest = submissions.stream()
                 .max(Comparator.comparing(Submission::getSubmittedAt, Comparator.nullsLast(Comparator.naturalOrder())))
@@ -357,17 +406,13 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                 .orElseThrow(() -> new BusinessRuleException(ErrorCode.FORBIDDEN,
                         "Bạn chưa tham gia đội trong hackathon này"));
 
-        var trtOpt = teamRoundTrackRepository.findByTeam_Id(team.getId()).stream()
-                .filter(trt -> !Boolean.TRUE.equals(trt.getTrack().getRound().getIsFinal()))
-                .findFirst();
-        String participation = trtOpt.map(trt -> trt.getParticipationStatus().name()).orElse("PENDING");
-        if (!"ADVANCED".equalsIgnoreCase(participation)) {
+        Round finalRound = roundRepository.findByHackathon_IdAndIsFinalTrue(hackathonId)
+                .orElseThrow(() -> new BusinessRuleException(ErrorCode.INVALID_STATE, "Chưa có vòng Chung kết"));
+
+        if (teamRoundParticipationRepository.findByTeam_IdAndRound_Id(team.getId(), finalRound.getId()).isEmpty()) {
             throw new BusinessRuleException(ErrorCode.FORBIDDEN,
                     "Đội chưa đủ điều kiện tham gia Vòng Chung kết");
         }
-
-        Round finalRound = roundRepository.findByHackathon_IdAndIsFinalTrue(hackathonId)
-                .orElseThrow(() -> new BusinessRuleException(ErrorCode.INVALID_STATE, "Chưa có vòng Chung kết"));
 
         return StudentFinalRoundResponse.builder()
                 .roundId(finalRound.getId())
@@ -517,6 +562,7 @@ public class StudentPortalServiceImpl implements StudentPortalService {
 
         var trt = teamRoundTrackRepository.findByTeam_IdAndTrack_Round_Id(teamId, roundId)
                 .orElseThrow(() -> new BusinessRuleException(ErrorCode.TEAM_NOT_IN_ROUND, "Đội chưa được phân bảng Sơ loại."));
+        prelimMutationGuard.assertPrelimMutable(trt);
 
         com.sealhackathon.api.rounds.entity.Round round = trt.getTrack().getRound();
 
@@ -638,6 +684,7 @@ public class StudentPortalServiceImpl implements StudentPortalService {
         TeamRoundTrack trt;
         if (existing.isPresent()) {
             trt = existing.get();
+            prelimMutationGuard.assertPrelimMutable(trt);
             trt.setTrack(track);
             trt.setRegistrationType(RegistrationType.PREFERRED);
             trt.setAssignedAt(now);

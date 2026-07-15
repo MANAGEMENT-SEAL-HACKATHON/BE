@@ -33,12 +33,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -84,7 +88,7 @@ class RoundActivationServiceImplTest {
         assertEquals(5, result.getId());
         assertEquals(true, result.getIsActive());
         verifyNoInteractions(notificationService);
-        verify(roundScheduleShiftService, never()).applyOnActivate(any(), any(), any());
+        verify(roundScheduleShiftService, never()).applyOnActivate(any(), any(), any(), any());
     }
 
     @Test
@@ -105,7 +109,8 @@ class RoundActivationServiceImplTest {
         when(judgeAssignmentRepository.findByTrackId(10)).thenReturn(List.of(
                 JudgeAssignment.builder().judge(User.builder().id(1).build()).build()));
         when(mentorAssignmentRepository.findByTrackId(10)).thenReturn(List.of());
-        when(roundScheduleShiftService.applyOnActivate(eq(round), eq(ActivateScheduleMode.KEEP), any()))
+        when(roundScheduleShiftService.applyOnActivate(
+                eq(round), eq(ActivateScheduleMode.KEEP), any(), any()))
                 .thenReturn(false);
         when(roundRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(roundMapper.toResponse(any())).thenReturn(RoundResponse.builder().id(5).isActive(true).build());
@@ -114,7 +119,8 @@ class RoundActivationServiceImplTest {
                 ActivateRoundRequest.builder().scheduleMode(ActivateScheduleMode.KEEP).build());
 
         assertEquals(true, result.getIsActive());
-        verify(roundScheduleShiftService).applyOnActivate(eq(round), eq(ActivateScheduleMode.KEEP), any());
+        verify(roundScheduleShiftService).applyOnActivate(
+                eq(round), eq(ActivateScheduleMode.KEEP), any(), any());
     }
 
     @Test
@@ -158,7 +164,7 @@ class RoundActivationServiceImplTest {
         when(criteriaRepository.countNormalByFinalRoundId(9)).thenReturn(1L);
         when(criteriaRepository.sumWeightExcludingPenaltyByFinalRoundId(9)).thenReturn(Optional.of(1.0));
         when(judgeAssignmentRepository.findByRoundId(9)).thenReturn(assignments);
-        when(roundScheduleShiftService.applyOnActivate(any(), any(), any())).thenReturn(false);
+        when(roundScheduleShiftService.applyOnActivate(any(), any(), any(), any())).thenReturn(false);
         when(roundMapper.toResponse(any())).thenReturn(RoundResponse.builder().id(9).isActive(true).build());
         when(roundRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -169,5 +175,91 @@ class RoundActivationServiceImplTest {
         RoundResponse result = activationService.activate(9,
                 ActivateRoundRequest.builder().note("test").build());
         assertEquals(9, result.getId());
+    }
+
+    @Test
+    void activate_startNow_passesSetupLeadMinutesToShiftService() {
+        Round round = Round.builder()
+                .id(5)
+                .isFinal(false)
+                .isActive(false)
+                .hackathon(Hackathon.builder().id(1).build())
+                .build();
+        Track track = Track.builder().id(10).name("Track A").status(TrackStatus.OPEN).round(round).build();
+
+        when(roundRepository.findByIdForUpdate(5)).thenReturn(Optional.of(round));
+        when(teamRoundParticipationRepository.countByRound_Id(5)).thenReturn(3L);
+        when(trackRepository.findByRoundIdOrderBySequenceOrderAsc(5)).thenReturn(List.of(track));
+        when(criteriaRepository.countNormalByTrackId(10)).thenReturn(2L);
+        when(weightSummaryService.isValidForTrack(10)).thenReturn(true);
+        when(judgeAssignmentRepository.findByTrackId(10)).thenReturn(List.of(
+                JudgeAssignment.builder().judge(User.builder().id(1).build()).build()));
+        when(mentorAssignmentRepository.findByTrackId(10)).thenReturn(List.of());
+        when(roundScheduleShiftService.applyOnActivate(
+                eq(round), eq(ActivateScheduleMode.START_NOW), any(), eq(10)))
+                .thenReturn(true);
+        when(roundRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(roundMapper.toResponse(any())).thenReturn(RoundResponse.builder().id(5).isActive(true).build());
+
+        activationService.activate(5, ActivateRoundRequest.builder()
+                .scheduleMode(ActivateScheduleMode.START_NOW)
+                .setupLeadMinutes(10)
+                .build());
+
+        verify(roundScheduleShiftService).applyOnActivate(
+                eq(round), eq(ActivateScheduleMode.START_NOW), any(), eq(10));
+    }
+
+    /** TC-BE-RESCHEDULE — sống còn: inactive, activatedAt không đổi, không notifyRoundStarted */
+    @Test
+    void reschedule_keepsInactive_doesNotTouchActivatedAt_doesNotNotifyStarted() {
+        LocalDateTime newExam = LocalDateTime.now().plusDays(3).withSecond(0).withNano(0);
+        Round round = Round.builder()
+                .id(5)
+                .isFinal(false)
+                .isActive(false)
+                .activatedAt(null)
+                .codingDurationHours(7)
+                .examAt(LocalDateTime.now().plusDays(10))
+                .hackathon(Hackathon.builder().id(1).build())
+                .build();
+
+        when(roundRepository.findByIdForUpdate(5)).thenReturn(Optional.of(round));
+        when(roundScheduleShiftService.applyOnActivate(
+                eq(round), eq(ActivateScheduleMode.RESCHEDULE), eq(newExam), any()))
+                .thenAnswer(inv -> {
+                    Round r = inv.getArgument(0);
+                    r.setExamAt(newExam);
+                    return true;
+                });
+        when(roundRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(roundMapper.toResponse(any())).thenAnswer(inv -> {
+            Round r = inv.getArgument(0);
+            return RoundResponse.builder()
+                    .id(r.getId())
+                    .isActive(r.getIsActive())
+                    .examAt(r.getExamAt())
+                    .build();
+        });
+
+        LocalDateTime activatedAtBefore = round.getActivatedAt();
+
+        RoundResponse result = activationService.activate(5, ActivateRoundRequest.builder()
+                .scheduleMode(ActivateScheduleMode.RESCHEDULE)
+                .newExamAt(newExam)
+                .note("Dời lịch")
+                .build());
+
+        assertFalse(Boolean.TRUE.equals(result.getIsActive()));
+        assertFalse(Boolean.TRUE.equals(round.getIsActive()));
+        assertNull(round.getActivatedAt());
+        assertEquals(activatedAtBefore, round.getActivatedAt());
+        assertEquals(newExam, round.getExamAt());
+
+        verify(roundScheduleShiftService).applyOnActivate(
+                eq(round), eq(ActivateScheduleMode.RESCHEDULE), eq(newExam), any());
+        verifyNoInteractions(notificationService);
+        verify(teamRoundParticipationRepository, never()).countByRound_Id(anyInt());
+        verify(roundRepository, never()).deactivateOtherActiveRoundsInHackathon(anyInt(), anyInt());
     }
 }

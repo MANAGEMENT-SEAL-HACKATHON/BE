@@ -44,6 +44,7 @@ public class Gd03V41SchemaMigration implements CommandLineRunner {
         addColumnIfMissing("rounds", "default_presentation_minutes", "INT NOT NULL DEFAULT 10");
         addColumnIfMissing("rounds", "default_qa_minutes", "INT NOT NULL DEFAULT 5");
         addColumnIfMissing("rounds", "controller_judge_id", "BIGINT NULL");
+        addColumnIfMissing("rounds", "presentation_shuffled", "TINYINT(1) NOT NULL DEFAULT 0");
 
         addColumnIfMissing("tracks", "presentation_minutes", "INT NULL");
         addColumnIfMissing("tracks", "qa_minutes", "INT NULL");

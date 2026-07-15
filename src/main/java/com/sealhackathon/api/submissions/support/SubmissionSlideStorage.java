@@ -34,10 +34,6 @@ public class SubmissionSlideStorage {
             throw new BusinessRuleException(ErrorCode.INVALID_SLIDE_FILE,
                     "slideFile tối đa " + storageProperties.getSubmissionSlideMaxMb() + "MB");
         }
-        String contentType = file.getContentType();
-        if (contentType == null || !contentType.toLowerCase(Locale.ROOT).contains("pdf")) {
-            throw new BusinessRuleException(ErrorCode.INVALID_SLIDE_FILE, "slideFile phải là PDF");
-        }
         String name = file.getOriginalFilename();
         if (name != null && !name.toLowerCase(Locale.ROOT).endsWith(".pdf")) {
             throw new BusinessRuleException(ErrorCode.INVALID_SLIDE_FILE, "slideFile phải có đuôi .pdf");
@@ -49,6 +45,13 @@ public class SubmissionSlideStorage {
             }
         } catch (IOException ex) {
             throw new BusinessRuleException(ErrorCode.INVALID_SLIDE_FILE, "Không đọc được slideFile");
+        }
+        String contentType = file.getContentType();
+        boolean mimeOk = contentType == null
+                || "application/octet-stream".equalsIgnoreCase(contentType)
+                || contentType.toLowerCase(Locale.ROOT).contains("pdf");
+        if (!mimeOk) {
+            throw new BusinessRuleException(ErrorCode.INVALID_SLIDE_FILE, "slideFile phải là PDF");
         }
     }
 

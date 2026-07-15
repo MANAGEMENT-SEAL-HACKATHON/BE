@@ -1,6 +1,7 @@
 package com.sealhackathon.api.presentation.controller;
 
 import com.sealhackathon.api.common.response.ApiResponse;
+import com.sealhackathon.api.common.security.ApprovedOnly;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
 import com.sealhackathon.api.presentation.dto.request.PresentationControllerGrantRequest;
@@ -15,9 +16,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Presentation Controller (GĐ3)", description = "Ủy quyền điều khiển hàng đợi thuyết trình")
@@ -29,6 +32,16 @@ public class PresentationControllerController {
 
     private final PresentationControllerService presentationControllerService;
 
+    @PostMapping("/controller/heartbeat")
+    @ApprovedOnly
+    @Operation(summary = "Heartbeat 30s — cập nhật lastSeenAt cho judge presence")
+    public ResponseEntity<ApiResponse<Void>> heartbeat(
+            @RequestParam(required = false) Integer roundId,
+            @RequestParam(required = false) Integer trackId) {
+        presentationControllerService.heartbeat(roundId, trackId);
+        return ResponseEntity.ok(ApiResponse.ok(null));
+    }
+
     @GetMapping("/tracks/{trackId}/controller")
     @CoordinatorOnly
     @Operation(summary = "Xem presentation controller của track")
@@ -39,7 +52,7 @@ public class PresentationControllerController {
 
     @PutMapping("/tracks/{trackId}/controller")
     @CoordinatorOnly
-    @Operation(summary = "Gán presentation controller cho track")
+    @Operation(summary = "Gán / transfer / takeover presentation controller cho track")
     public ResponseEntity<ApiResponse<PresentationControllerResponse>> grantTrackController(
             @PathVariable Integer trackId,
             @Valid @RequestBody PresentationControllerGrantRequest request) {
@@ -65,7 +78,7 @@ public class PresentationControllerController {
 
     @PutMapping("/rounds/{roundId}/controller")
     @CoordinatorOnly
-    @Operation(summary = "Gán presentation controller cho vòng chung kết")
+    @Operation(summary = "Gán / transfer / takeover presentation controller cho vòng chung kết")
     public ResponseEntity<ApiResponse<PresentationControllerResponse>> grantRoundController(
             @PathVariable Integer roundId,
             @Valid @RequestBody PresentationControllerGrantRequest request) {

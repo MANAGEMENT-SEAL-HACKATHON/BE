@@ -25,6 +25,7 @@ import com.sealhackathon.api.teams.entity.TeamMemberId;
 import com.sealhackathon.api.teams.repository.TeamMemberRepository;
 import com.sealhackathon.api.teams.value_object.TeamMemberRole;
 import com.sealhackathon.api.teams.value_object.TeamMemberStatus;
+import com.sealhackathon.api.submissions.repository.SubmissionRepository;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.repository.TeamRepository;
 import com.sealhackathon.api.teams.value_object.TeamStatus;
@@ -59,6 +60,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -81,6 +83,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 class Gd4ToGd6FlowIntegrationTest {
 
+    /** Magic bytes %PDF- — bắt buộc để SubmissionSlideStorage.validatePdf chấp nhận. */
+    private static final byte[] VALID_PDF_BYTES = {0x25, 0x50, 0x44, 0x46, 0x2D, 0x01, 0x02, 0x03};
+
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private ChapterRepository chapterRepository;
@@ -93,6 +98,7 @@ class Gd4ToGd6FlowIntegrationTest {
     @Autowired private JudgeAssignmentRepository judgeAssignmentRepository;
     @Autowired private TeamRepository teamRepository;
     @Autowired private TeamMemberRepository teamMemberRepository;
+    @Autowired private SubmissionRepository submissionRepository;
 
     @MockitoBean
     private CriteriaCloneSourceUnlinkMigration criteriaCloneSourceUnlinkMigration;
@@ -291,17 +297,41 @@ class Gd4ToGd6FlowIntegrationTest {
                         .content("{\"note\":\"final-active\"}"))
                 .andExpect(status().isOk());
 
+        // GĐ5: chưa nộp → 200 + data omitted/null (ApiResponse NON_NULL → field absent)
+        mockMvc.perform(get("/api/v1/me/submission")
+                        .param("teamId", team.getId().toString())
+                        .param("roundId", finalRound.getId().toString())
+                        .header("Authorization", "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").doesNotExist());
+
         MockMultipartFile finalSlide = new MockMultipartFile(
-                "slideFile", "final.pdf", "application/pdf", "%PDF-1.4\n".getBytes(StandardCharsets.UTF_8));
+                "slideFile", "slide-chung-ket.pdf", "application/pdf", VALID_PDF_BYTES);
         MvcResult finalSubmit = mockMvc.perform(multipart("/api/v1/submissions")
                         .file(finalSlide)
                         .param("teamId", team.getId().toString())
-                        .param("roundId", finalRound.getId().toString())
+                        .param("roundId", finalRound.getId().toString()) // CK: roundId only, no trackId
                         .param("repoUrl", "https://github.com/octocat/final")
                         .header("Authorization", "Bearer " + studentToken))
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.id").exists())
+                .andExpect(jsonPath("$.data.slideFile").exists())
+                .andExpect(jsonPath("$.data.slideDownloadPath").isNotEmpty())
                 .andReturn();
         int finalSubmissionId = readJson(finalSubmit).path("data").path("id").asInt();
+        assertThat(finalSubmissionId).isNotEqualTo(prelimSubmissionId);
+        assertThat(submissionRepository.findById(prelimSubmissionId)).isPresent();
+        assertThat(submissionRepository.findById(finalSubmissionId)).isPresent();
+        assertThat(submissionRepository.findAll()).hasSizeGreaterThanOrEqualTo(2);
+
+        mockMvc.perform(get("/api/v1/me/submission")
+                        .param("teamId", team.getId().toString())
+                        .param("roundId", finalRound.getId().toString())
+                        .header("Authorization", "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.submissionId").exists())
+                .andExpect(jsonPath("$.data.hasSlide").value(true));
 
         mockMvc.perform(post("/api/v1/rounds/{id}/close-submission-early", finalRound.getId())
                         .header("Authorization", "Bearer " + coordToken))
@@ -412,6 +442,19 @@ class Gd4ToGd6FlowIntegrationTest {
         assertThat(prelimJudgeToken).isNotBlank();
     }
 
+    @Test
+    void submit_rejectsWhenNeitherTrackIdNorRoundId() throws Exception {
+        String studentToken = login(student.getEmail(), "Student@dev1");
+        MockMultipartFile slide = new MockMultipartFile(
+                "slideFile", "orphan.pdf", "application/pdf", VALID_PDF_BYTES);
+        mockMvc.perform(multipart("/api/v1/submissions")
+                        .file(slide)
+                        .param("teamId", team.getId().toString())
+                        .param("repoUrl", "https://github.com/octocat/orphan")
+                        .header("Authorization", "Bearer " + studentToken))
+                .andExpect(status().isUnprocessableEntity());
+    }
+
     private int preparePrelimWithSubmissionAndScore() throws Exception {
         team.setIsLocked(true);
         teamRepository.save(team);
@@ -433,7 +476,7 @@ class Gd4ToGd6FlowIntegrationTest {
                 .andExpect(status().isOk());
 
         MockMultipartFile slide = new MockMultipartFile(
-                "slideFile", "prelim.pdf", "application/pdf", "%PDF-1.4\n".getBytes(StandardCharsets.UTF_8));
+                "slideFile", "prelim.pdf", "application/pdf", VALID_PDF_BYTES);
         MvcResult submit = mockMvc.perform(multipart("/api/v1/submissions")
                         .file(slide)
                         .param("teamId", team.getId().toString())
@@ -441,6 +484,7 @@ class Gd4ToGd6FlowIntegrationTest {
                         .param("repoUrl", "https://github.com/octocat/prelim")
                         .header("Authorization", "Bearer " + studentToken))
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.slideFile").exists())
                 .andReturn();
         int submissionId = readJson(submit).path("data").path("id").asInt();
 

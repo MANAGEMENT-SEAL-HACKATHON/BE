@@ -18,6 +18,9 @@ Chạy tay UI: [manual-ui-playbook-gd1-gd6.md](manual-ui-playbook-gd1-gd6.md).
 | 2 | `seal-fall-2025-finished` | Archive | Kỳ **FINISHED** (complete) — portal xem kết quả / export |
 | 3 | `seal-gd3-prelim-open` | GĐ3 | Coding mở, 5/6 đã nộp, mentors gán, **chưa** queue — full: nộp → close-early → shuffle → chấm → lock |
 | 4 | `seal-gd4-advance-ready` | GĐ4 | SL locked, unpublished, CK có criteria/judge — Publish → WC → Advance → Activate CK |
+| 4a | `seal-gd4-tiebreak-submission-time` | GĐ4 | Tiebreak `SUBMISSION_TIME` — Team2 nộp sớm hơn Team3 tại biên Top-2 |
+| 4b | `seal-gd4-tiebreak-manual` | GĐ4 | Tiebreak `COORDINATOR_DECISION` — Advance → `TIEBREAK_REQUIRED` |
+| 4c | `seal-gd4-wildcard-gap` | GĐ4 | 2 bảng, topN=1, minFinal=4 → `availableSlots=2` |
 | 5 | `seal-gd5-final-active` | GĐ5 | CK active, 4 ADVANCED, submit mở, **0** queue — Submit → close → queue → chấm → lock |
 | 6 | `seal-gd6-pending-confirm` | GĐ6 | PENDING_CONFIRM + FIRST/SECOND/THIRD — Confirm → FINISHED |
 

@@ -52,6 +52,7 @@ import java.time.LocalDateTime;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -140,6 +141,10 @@ public class RoundServiceImpl implements RoundService {
         if (r.getHackathon() != null) {
             guardHackathonMutable(r.getHackathon());
         }
+        if (Boolean.TRUE.equals(r.getIsActive()) && isScheduleChanged(r, req)) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Vòng thi đang Active — deactivate trước khi sửa lịch (examAt / mở nộp / hạn nộp)");
+        }
         applySubmissionWindowFromExam(req);
         validateDeadline(req.getSubmissionOpen(), req.getSubmissionDeadline());
         validateSubmissionWindowByCodingDuration(req.getExamAt(), req.getCodingDurationHours(),
@@ -161,6 +166,8 @@ public class RoundServiceImpl implements RoundService {
 
         boolean prevScoringLocked = Boolean.TRUE.equals(r.getScoringLocked());
         boolean prevForceLocked = Boolean.TRUE.equals(r.getForceLocked());
+
+        validateFinalRoundUpdateRules(r, req);
 
         RoundResponse before = roundMapper.toResponse(r);
         roundMapper.applyUpdate(r, req);
@@ -274,6 +281,13 @@ public class RoundServiceImpl implements RoundService {
                             .formatted(h.getStatus()),
                     Map.of("hackathonId", h.getId(), "status", h.getStatus()));
         }
+    }
+
+    /** Active round: cấm đổi examAt / submissionOpen / submissionDeadline (Deactivate → Edit → Activate). */
+    private static boolean isScheduleChanged(Round current, UpdateRoundRequest req) {
+        return !Objects.equals(current.getExamAt(), req.getExamAt())
+                || !Objects.equals(current.getSubmissionOpen(), req.getSubmissionOpen())
+                || !Objects.equals(current.getSubmissionDeadline(), req.getSubmissionDeadline());
     }
 
     /**
@@ -447,6 +461,11 @@ public class RoundServiceImpl implements RoundService {
                         "Round Chung kết: topNAdvance và minTeamsFinal phải null",
                         Map.of());
             }
+            if (Boolean.TRUE.equals(req.getWildcardEnabled())) {
+                throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                        "Round Chung kết: wildcardEnabled không được true",
+                        Map.of());
+            }
             if (req.getRoundType() != null && req.getRoundType() != RoundType.FINAL) {
                 throw new BusinessRuleException(ErrorCode.INVALID_STATE,
                         "is_final=TRUE yêu cầu round_type=FINAL", Map.of());
@@ -462,6 +481,22 @@ public class RoundServiceImpl implements RoundService {
                         "Round Sơ loại/Bán kết: round_type không được FINAL khi is_final=FALSE",
                         Map.of());
             }
+        }
+    }
+
+    private void validateFinalRoundUpdateRules(Round entity, UpdateRoundRequest req) {
+        if (!Boolean.TRUE.equals(entity.getIsFinal())) {
+            return;
+        }
+        if (req.getTopNAdvance() != null || req.getMinTeamsFinal() != null) {
+            throw new BusinessRuleException(ErrorCode.ROUND_DEADLINE_INVALID,
+                    "Round Chung kết: topNAdvance và minTeamsFinal phải null",
+                    Map.of("roundId", entity.getId()));
+        }
+        if (Boolean.TRUE.equals(req.getWildcardEnabled())) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Round Chung kết: wildcardEnabled không được true",
+                    Map.of("roundId", entity.getId()));
         }
     }
 
@@ -585,13 +620,8 @@ public class RoundServiceImpl implements RoundService {
             throw new BusinessRuleException(ErrorCode.DESIGN_VIOLATION,
                     "Vòng Sơ loại: upload đề bài tại từng bảng đấu, không phải tại round");
         }
-        if (round.getProblemReleasedAt() != null) {
-            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
-                    "Đề bài đã được phát — không thể thay file");
-        }
-        problemStatementStorage.store(round, file);
-        Round saved = roundRepository.save(round);
-        return roundMapper.toResponse(saved);
+        throw new BusinessRuleException(ErrorCode.DESIGN_VIOLATION,
+                "Chung kết sử dụng lại đề sơ loại theo bảng đấu — không upload đề riêng trên vòng CK");
     }
 
     @Override

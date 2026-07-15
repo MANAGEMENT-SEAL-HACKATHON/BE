@@ -96,26 +96,41 @@ public class ExportCsvBuilder {
 
                 finalRankingQueryService.teamRankingsForHackathon(hackathon.getId());
 
+        String bom = "\uFEFF";
+
         if (!rankings.isEmpty()) {
 
-            StringBuilder ranked = new StringBuilder(
+            StringBuilder ranked = new StringBuilder(bom);
 
-                    "rank,team_id,team_name,chapter_name,weighted_avg_score,judge_count\n");
+            ranked.append("section,rank,team_id,team_name,chapter_name,weighted_avg_score,judge_count,status,note\n");
 
             for (FinalTeamRankingItemResponse item : rankings) {
-
-                ranked.append(item.getRank()).append(',')
-
+                ranked.append("TEAM_RANKING,").append(item.getRank()).append(',')
                         .append(item.getTeamId()).append(',')
-
                         .append(csv(item.getTeamName())).append(',')
-
                         .append(csv(item.getChapterName())).append(',')
-
                         .append(item.getWeightedAvgScore() != null ? item.getWeightedAvgScore() : "").append(',')
+                        .append(item.getJudgeCount() != null ? item.getJudgeCount() : "").append(',')
+                        .append(',')
+                        .append('\n');
+            }
 
-                        .append(item.getJudgeCount() != null ? item.getJudgeCount() : "").append('\n');
-
+            // DQ / other teams not in ranking still listed
+            for (Team team : teamRepository.findByHackathon_Id(hackathon.getId())) {
+                boolean inRanking = rankings.stream().anyMatch(r -> Objects.equals(r.getTeamId(), team.getId()));
+                if (inRanking) {
+                    continue;
+                }
+                String chapter = team.getChapter() != null ? team.getChapter().getCode() : "";
+                String status = team.getStatus() != null ? team.getStatus().name() : "";
+                String note = status.contains("DISQUAL") ? "DQ" : status;
+                ranked.append("TEAM_OTHER,").append(',')
+                        .append(team.getId()).append(',')
+                        .append(csv(team.getTeamName())).append(',')
+                        .append(csv(chapter)).append(',')
+                        .append(',').append(',')
+                        .append(csv(status)).append(',')
+                        .append(csv(note)).append('\n');
             }
 
             return ranked.toString().getBytes(StandardCharsets.UTF_8);
@@ -124,19 +139,22 @@ public class ExportCsvBuilder {
 
 
 
-        StringBuilder sb = new StringBuilder("team_id,team_name,status,chapter\n");
+        StringBuilder sb = new StringBuilder(bom + "section,team_id,team_name,status,chapter,note\n");
 
         for (Team team : teamRepository.findByHackathon_Id(hackathon.getId())) {
 
             String chapter = team.getChapter() != null ? team.getChapter().getCode() : "";
+            String status = team.getStatus() != null ? team.getStatus().name() : "";
+            String note = status.contains("DISQUAL") ? "DQ" : "";
 
-            sb.append(team.getId()).append(',')
+            sb.append("TEAM,").append(team.getId()).append(',')
 
                     .append(csv(team.getTeamName())).append(',')
 
-                    .append(team.getStatus()).append(',')
+                    .append(status).append(',')
 
-                    .append(csv(chapter)).append('\n');
+                    .append(csv(chapter)).append(',')
+                    .append(csv(note)).append('\n');
 
         }
 

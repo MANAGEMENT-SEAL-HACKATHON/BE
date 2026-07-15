@@ -36,6 +36,8 @@ public class TeamDetailResponse {
     private Integer trackId;
     private String trackName;
     private String assignedGroup;
+    /** TRT participationStatus (PARTICIPATING | ADVANCED | ELIMINATED) — alias lotteryStatus for FE. */
+    private String lotteryStatus;
     private Integer minTeamSize;
     private Integer maxTeamSize;
 }
