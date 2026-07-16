@@ -17,6 +17,11 @@ public class StudentProblemResponse {
     private String problemDownloadPath;
     private String problemFilename;
     private Boolean released;
+    /**
+     * False when finalist cannot resolve prelim-track PDF (empty-state, not HTTP 500).
+     * Null/true for normal available problems.
+     */
+    private Boolean available;
     /** Prelim track name — set when final reuses track PDF. */
     private Integer trackId;
     private String trackName;

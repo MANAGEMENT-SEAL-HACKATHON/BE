@@ -45,6 +45,7 @@ import com.sealhackathon.api.users.repository.UserRepository;
 import com.sealhackathon.api.users.value_object.UserRole;
 import com.sealhackathon.api.users.value_object.UserStatus;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,6 +58,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -168,6 +170,13 @@ public class SubmissionServiceImpl implements SubmissionService {
         // Closed-early ⇒ mọi lần nộp sau đó đều late (tránh race isAfter(deadline==now) = false)
         boolean afterDeadline = round.getSubmissionClosedEarlyAt() != null
                 || (round.getSubmissionDeadline() != null && !now.isBefore(round.getSubmissionDeadline()));
+
+        if (afterDeadline
+                && round.getLateSubmissionPolicy() != LateSubmissionPolicy.HARD_LOCK
+                && !StringUtils.hasText(req.getLateReason())) {
+            throw new BusinessRuleException(ErrorCode.LATE_REASON_REQUIRED,
+                    "Bắt buộc nhập lý do khi nộp/sửa bài sau hạn chót");
+        }
 
         Submission submission;
         if (track != null) {
@@ -340,14 +349,54 @@ public class SubmissionServiceImpl implements SubmissionService {
         Submission saved = submissionRepository.save(submission);
         auditService.log(AuditAction.SUBMISSION_LATE_REVIEW, "submissions", saved.getId(),
                 Map.of("decision", req.getDecision().name()));
+        boolean queueAppendFailed = false;
         if (req.getDecision() == LateReviewDecision.APPROVE) {
             try {
                 presentationQueueService.appendLateApprovedIfShuffled(saved);
             } catch (Exception ex) {
-                // Không fail approve nếu append queue lỗi — audit vẫn đã ghi review
+                queueAppendFailed = true;
+                log.error("[reviewLate] queue append failed after approve submissionId={} roundId={}: {}",
+                        saved.getId(),
+                        saved.getRound() != null ? saved.getRound().getId() : null,
+                        ex.getMessage(),
+                        ex);
+                auditService.log(AuditAction.SUBMISSION_LATE_QUEUE_APPEND_FAILED, "submissions", saved.getId(),
+                        Map.of(
+                                "roundId", saved.getRound() != null ? saved.getRound().getId() : null,
+                                "error", ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName()));
+                notifyCoordinatorsQueueAppendFailed(saved, ex);
             }
         }
-        return toResponse(saved, false);
+        SubmissionResponse response = toResponse(saved, false);
+        if (queueAppendFailed) {
+            return response.toBuilder().queueAppendFailed(true).build();
+        }
+        return response;
+    }
+
+    private void notifyCoordinatorsQueueAppendFailed(Submission saved, Exception ex) {
+        try {
+            List<User> coordinators = userRepository.findByRoleAndStatus(
+                    UserRole.COORDINATOR, UserStatus.APPROVED, org.springframework.data.domain.Pageable.unpaged())
+                    .getContent();
+            if (coordinators.isEmpty()) {
+                return;
+            }
+            String teamName = saved.getTeam() != null ? saved.getTeam().getTeamName() : "?";
+            notificationService.sendBatch(
+                    coordinators,
+                    "LATE_QUEUE_APPEND_FAILED",
+                    "Bài duyệt trễ chưa vào hàng đợi thuyết trình",
+                    "Đội " + teamName + " (submission #" + saved.getId()
+                            + ") đã được duyệt trễ nhưng chưa append vào queue sau shuffle. Lỗi: "
+                            + (ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName())
+                            + ". Vui lòng kiểm tra / thử shuffle lại hoặc thêm slot thủ công.",
+                    "submissions",
+                    saved.getId());
+        } catch (Exception notifyEx) {
+            log.error("[reviewLate] failed to notify coordinators about queue append failure: {}",
+                    notifyEx.getMessage(), notifyEx);
+        }
     }
 
     private SubmissionStatus resolveSubmitStatus(Round round, boolean afterDeadline) {
@@ -392,16 +441,8 @@ public class SubmissionServiceImpl implements SubmissionService {
         }
         return switch (existing.getStatus()) {
             case LATE_APPROVED, ACCEPTED -> existing.getStatus();
-            // SUBMITTED sau close-early (clock race) → cho phép chuyển sang LATE_PENDING/REJECTED khi nộp lại
-            case SUBMITTED -> {
-                if (afterDeadline
-                        && round.getSubmissionClosedEarlyAt() != null
-                        && existing.getSubmittedAt() != null
-                        && !existing.getSubmittedAt().isBefore(round.getSubmissionClosedEarlyAt())) {
-                    yield computed;
-                }
-                yield existing.getStatus();
-            }
+            // Mọi chỉnh sau deadline/close-early → LATE_PENDING/REJECTED (không giữ SUBMITTED)
+            case SUBMITTED -> afterDeadline ? computed : existing.getStatus();
             case LATE_PENDING -> computed;
             default -> computed;
         };

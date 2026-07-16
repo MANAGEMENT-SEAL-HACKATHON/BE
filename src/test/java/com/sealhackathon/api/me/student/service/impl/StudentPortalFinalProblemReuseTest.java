@@ -84,6 +84,7 @@ class StudentPortalFinalProblemReuseTest {
 
         try (MockedStatic<TrackProblemStatementStorage> trackStatic = mockStatic(TrackProblemStatementStorage.class)) {
             trackStatic.when(() -> TrackProblemStatementStorage.displayFilename(trackA)).thenReturn("rag-ai.pdf");
+            trackStatic.when(() -> TrackProblemStatementStorage.hasProblemFile(trackA)).thenReturn(true);
 
             StudentProblemResponse response = service.getRoundProblem(20);
 
@@ -91,6 +92,46 @@ class StudentPortalFinalProblemReuseTest {
             assertThat(response.getTrackId()).isEqualTo(5);
             assertThat(response.getTrackName()).isEqualTo("RAG AI");
             assertThat(response.getReleased()).isTrue();
+            assertThat(response.getAvailable()).isTrue();
+        }
+    }
+
+    @Test
+    void getRoundProblem_final_missingTrackPdf_returnsUnavailableNotThrow() {
+        Hackathon hackathon = Hackathon.builder().id(1).build();
+        Round finalRound = Round.builder()
+                .id(20)
+                .isFinal(true)
+                .hackathon(hackathon)
+                .problemReleasedAt(LocalDateTime.now())
+                .build();
+        Round prelim = Round.builder().id(10).isFinal(false).hackathon(hackathon).build();
+        Track trackA = Track.builder().id(5).name("RAG AI").build();
+        Team team = Team.builder().id(100).hackathon(hackathon).teamName("Beta").build();
+        TeamMember tm = TeamMember.builder().team(team).status(TeamMemberStatus.ACCEPTED).build();
+        TeamRoundTrack trt = TeamRoundTrack.builder()
+                .team(team)
+                .track(trackA)
+                .participationStatus(ParticipationStatus.ADVANCED)
+                .build();
+
+        when(roundRepository.findById(20)).thenReturn(Optional.of(finalRound));
+        when(roundRepository.findByHackathon_IdOrderByExamAtAsc(1)).thenReturn(List.of(prelim, finalRound));
+        when(currentUserAccessor.currentUserId()).thenReturn(9);
+        when(teamMemberRepository.findByUser_IdAndStatus(9, TeamMemberStatus.ACCEPTED)).thenReturn(List.of(tm));
+        when(teamRoundParticipationRepository.findByTeam_IdAndRound_Id(100, 20))
+                .thenReturn(Optional.of(TeamRoundParticipation.builder().team(team).round(finalRound).build()));
+        when(teamRoundTrackRepository.findByTeam_IdAndTrack_Round_Id(100, 10)).thenReturn(Optional.of(trt));
+
+        try (MockedStatic<TrackProblemStatementStorage> trackStatic = mockStatic(TrackProblemStatementStorage.class)) {
+            trackStatic.when(() -> TrackProblemStatementStorage.hasProblemFile(trackA)).thenReturn(false);
+
+            StudentProblemResponse response = service.getRoundProblem(20);
+
+            assertThat(response.getAvailable()).isFalse();
+            assertThat(response.getReleased()).isTrue();
+            assertThat(response.getTrackId()).isEqualTo(5);
+            assertThat(response.getProblemFilename()).isNull();
         }
     }
 
@@ -130,6 +171,7 @@ class StudentPortalFinalProblemReuseTest {
 
         try (MockedStatic<TrackProblemStatementStorage> trackStatic = mockStatic(TrackProblemStatementStorage.class)) {
             trackStatic.when(() -> TrackProblemStatementStorage.hasStoredFile(trackA)).thenReturn(true);
+            trackStatic.when(() -> TrackProblemStatementStorage.hasProblemFile(trackA)).thenReturn(true);
             trackStatic.when(() -> TrackProblemStatementStorage.displayFilename(trackA)).thenReturn("rag-ai.pdf");
 
             var resource = service.downloadRoundProblemStatement(20);

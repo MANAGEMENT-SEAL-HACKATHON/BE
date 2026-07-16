@@ -18,11 +18,14 @@ import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.hackathons.value_object.Season;
 import com.sealhackathon.api.individual_rankings.entity.IndividualRanking;
 import com.sealhackathon.api.individual_rankings.repository.IndividualRankingRepository;
+import com.sealhackathon.api.events.entity.PresentationSlot;
+import com.sealhackathon.api.events.repository.PresentationSlotRepository;
 import com.sealhackathon.api.me.student.dto.request.CreateAppealRequest;
 import com.sealhackathon.api.me.student.dto.request.RelotteryTrackRequest;
 import com.sealhackathon.api.me.student.dto.response.*;
 import com.sealhackathon.api.me.student.service.StudentPortalService;
 import com.sealhackathon.api.me.support.StudentAccessGuard;
+import com.sealhackathon.api.presentation.value_object.PresentationQueueStatus;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.query.RoundRankingQueryService;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
@@ -90,6 +93,7 @@ public class StudentPortalServiceImpl implements StudentPortalService {
     private final IndividualRankingRepository individualRankingRepository;
     private final RoundRepository roundRepository;
     private final SubmissionRepository submissionRepository;
+    private final PresentationSlotRepository presentationSlotRepository;
     private final RoundRankingQueryService roundRankingQueryService;
     private final PrizeRepository prizeRepository;
     private final CertificateRepository certificateRepository;
@@ -148,8 +152,8 @@ public class StudentPortalServiceImpl implements StudentPortalService {
     public List<MeTeamSummaryResponse> listMyTeams() {
         Integer userId = currentUserAccessor.currentUserId();
 
-        // Lấy các đội mà sinh viên ĐÃ CHẤP NHẬN tham gia (ACCEPTED)
-        List<TeamMember> myMemberships = teamMemberRepository.findByUser_IdAndStatus(userId, TeamMemberStatus.ACCEPTED);
+        // Chỉ trả đội đang hoạt động (PENDING/ACTIVE) — loại REJECTED/ELIMINATED khỏi active view
+        List<TeamMember> myMemberships = teamMemberRepository.findActiveMembershipsByUserId(userId);
 
         return myMemberships.stream().map(tm -> {
             com.sealhackathon.api.teams.entity.Team team = tm.getTeam();
@@ -182,7 +186,21 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                 throw new BusinessRuleException(ErrorCode.RESOURCE_NOT_FOUND,
                         "Đề bài vòng thi này chưa được Ban Tổ Chức công bố.");
             }
-            Track track = resolveStudentPrelimTrackForFinal(round);
+            FinalPrelimTrackResolve resolved = resolveStudentPrelimTrackForFinal(round);
+            if (!resolved.eligible()) {
+                throw new BusinessRuleException(ErrorCode.FORBIDDEN,
+                        "Đội của bạn không đủ điều kiện xem đề Chung kết.");
+            }
+            Track track = resolved.track();
+            if (track == null || !TrackProblemStatementStorage.hasProblemFile(track)) {
+                return StudentProblemResponse.builder()
+                        .roundId(roundId)
+                        .released(true)
+                        .available(false)
+                        .trackId(track != null ? track.getId() : null)
+                        .trackName(track != null ? track.getName() : null)
+                        .build();
+            }
             String studentDownloadPath = studentProblemDownloadPath(roundId);
             String filename = TrackProblemStatementStorage.displayFilename(track);
             return StudentProblemResponse.builder()
@@ -192,6 +210,7 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                     .problemDownloadPath(studentDownloadPath)
                     .problemFilename(filename)
                     .released(true)
+                    .available(true)
                     .trackId(track.getId())
                     .trackName(track.getName())
                     .build();
@@ -209,6 +228,7 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                 .problemDownloadPath(studentDownloadPath)
                 .problemFilename(filename)
                 .released(true)
+                .available(true)
                 .build();
     }
 
@@ -221,7 +241,16 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                 throw new BusinessRuleException(ErrorCode.RESOURCE_NOT_FOUND,
                         "Đề bài vòng thi này chưa được Ban Tổ Chức công bố.");
             }
-            Track track = resolveStudentPrelimTrackForFinal(round);
+            FinalPrelimTrackResolve resolved = resolveStudentPrelimTrackForFinal(round);
+            if (!resolved.eligible()) {
+                throw new BusinessRuleException(ErrorCode.FORBIDDEN,
+                        "Đội của bạn không đủ điều kiện xem đề Chung kết.");
+            }
+            Track track = resolved.track();
+            if (track == null || !TrackProblemStatementStorage.hasProblemFile(track)) {
+                throw new BusinessRuleException(ErrorCode.RESOURCE_NOT_FOUND,
+                        "Không tìm thấy đề — liên hệ Coordinator.");
+            }
             return resolveTrackProblemResource(track);
         }
         Track track = resolveStudentTrackForRound(roundId);
@@ -302,14 +331,12 @@ public class StudentPortalServiceImpl implements StudentPortalService {
     /**
      * CK: đội phải có TeamRoundParticipation; PDF = đề track sơ loại (TeamRoundTrack ADVANCED ưu tiên).
      */
-    private Track resolveStudentPrelimTrackForFinal(Round finalRound) {
+    private FinalPrelimTrackResolve resolveStudentPrelimTrackForFinal(Round finalRound) {
         Integer userId = currentUserAccessor.currentUserId();
         Integer hackathonId = finalRound.getHackathon().getId();
-        Round prelim = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathonId).stream()
+        Optional<Round> prelimOpt = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathonId).stream()
                 .filter(r -> !Boolean.TRUE.equals(r.getIsFinal()))
-                .findFirst()
-                .orElseThrow(() -> new BusinessRuleException(ErrorCode.RESOURCE_NOT_FOUND,
-                        "Không tìm thấy vòng Sơ loại để lấy đề bài."));
+                .findFirst();
 
         List<TeamMember> memberships = teamMemberRepository.findByUser_IdAndStatus(userId, TeamMemberStatus.ACCEPTED);
         for (TeamMember tm : memberships) {
@@ -323,21 +350,39 @@ public class StudentPortalServiceImpl implements StudentPortalService {
             if (!inFinal) {
                 continue;
             }
+            if (prelimOpt.isEmpty()) {
+                return FinalPrelimTrackResolve.eligibleMissingTrack();
+            }
+            Round prelim = prelimOpt.get();
             Optional<TeamRoundTrack> advanced = teamRoundTrackRepository
                     .findByTeam_IdAndTrack_Round_Id(team.getId(), prelim.getId())
                     .filter(trt -> trt.getParticipationStatus() == ParticipationStatus.ADVANCED
                             || trt.getParticipationStatus() == ParticipationStatus.PARTICIPATING);
             if (advanced.isPresent()) {
-                return advanced.get().getTrack();
+                return FinalPrelimTrackResolve.ok(advanced.get().getTrack());
             }
             Optional<TeamRoundTrack> any = teamRoundTrackRepository
                     .findByTeam_IdAndTrack_Round_Id(team.getId(), prelim.getId());
             if (any.isPresent()) {
-                return any.get().getTrack();
+                return FinalPrelimTrackResolve.ok(any.get().getTrack());
             }
+            return FinalPrelimTrackResolve.eligibleMissingTrack();
         }
-        throw new BusinessRuleException(ErrorCode.FORBIDDEN,
-                "Đội của bạn không đủ điều kiện xem đề Chung kết.");
+        return FinalPrelimTrackResolve.notEligible();
+    }
+
+    private record FinalPrelimTrackResolve(boolean eligible, Track track) {
+        static FinalPrelimTrackResolve notEligible() {
+            return new FinalPrelimTrackResolve(false, null);
+        }
+
+        static FinalPrelimTrackResolve eligibleMissingTrack() {
+            return new FinalPrelimTrackResolve(true, null);
+        }
+
+        static FinalPrelimTrackResolve ok(Track track) {
+            return new FinalPrelimTrackResolve(true, track);
+        }
     }
 
     // =================================================================================
@@ -446,6 +491,102 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                 .teamName(r.getTeamName())
                 .totalScore(BigDecimal.valueOf(r.getTotalScore()))
                 .build()).toList();
+    }
+
+    @Override
+    public StudentPresentationSlotResponse getPresentationSlot(Integer roundId) {
+        Round round = roundRepository.findById(roundId)
+                .orElseThrow(() -> new ResourceNotFoundException("Round", roundId));
+
+        Team team = resolveStudentTeamForRound(round);
+        studentAccessGuard.assertTeamMember(team.getId());
+
+        Optional<PresentationSlot> mySlotOpt =
+                presentationSlotRepository.findByRound_IdAndTeam_Id(roundId, team.getId());
+        if (mySlotOpt.isEmpty()) {
+            // Trước quay số — 200 + available=false (tránh FE spam 404)
+            return StudentPresentationSlotResponse.builder()
+                    .available(false)
+                    .message("Chưa quay số")
+                    .roundIsFinal(Boolean.TRUE.equals(round.getIsFinal()))
+                    .build();
+        }
+
+        PresentationSlot mySlot = mySlotOpt.get();
+        Integer myOrder = mySlot.getSequenceOrder();
+        Integer trackId = mySlot.getTrack() != null ? mySlot.getTrack().getId() : null;
+
+        List<PresentationSlot> peerSlots = trackId != null
+                ? presentationSlotRepository.findByRound_IdAndTrack_IdOrderBySequenceOrderAsc(roundId, trackId)
+                : presentationSlotRepository.findByRound_IdAndTrackIsNullOrderBySequenceOrderAsc(roundId);
+
+        Optional<PresentationSlot> presenting = peerSlots.stream()
+                .filter(s -> s.getQueueStatus() == PresentationQueueStatus.PRESENTING)
+                .findFirst();
+
+        // STT-06: chỉ đếm WAITING phía trước — SKIPPED/DONE/ELIMINATED/PRESENTING không tính
+        int teamsAhead = 0;
+        if (myOrder != null) {
+            teamsAhead = (int) peerSlots.stream()
+                    .filter(s -> s.getQueueStatus() == PresentationQueueStatus.WAITING)
+                    .filter(s -> s.getSequenceOrder() != null && s.getSequenceOrder() < myOrder)
+                    .count();
+        }
+
+        return StudentPresentationSlotResponse.builder()
+                .available(true)
+                .order(myOrder)
+                .displayCode(toDisplayCode(mySlot))
+                .status(mySlot.getQueueStatus() != null
+                        ? mySlot.getQueueStatus().name()
+                        : PresentationQueueStatus.WAITING.name())
+                .trackId(trackId)
+                .roundIsFinal(Boolean.TRUE.equals(round.getIsFinal()))
+                .currentPresentingOrder(presenting.map(PresentationSlot::getSequenceOrder).orElse(null))
+                .currentPresentingDisplayCode(presenting.map(StudentPortalServiceImpl::toDisplayCode).orElse(null))
+                .teamsAhead(teamsAhead)
+                .build();
+    }
+
+    /**
+     * Resolve the student's team that participates in this round (prelim track or final participation).
+     */
+    private Team resolveStudentTeamForRound(Round round) {
+        Integer userId = currentUserAccessor.currentUserId();
+        Integer hackathonId = round.getHackathon().getId();
+        boolean isFinal = Boolean.TRUE.equals(round.getIsFinal());
+
+        List<TeamMember> memberships =
+                teamMemberRepository.findByUser_IdAndStatus(userId, TeamMemberStatus.ACCEPTED);
+        for (TeamMember tm : memberships) {
+            Team team = tm.getTeam();
+            if (!Objects.equals(team.getHackathon().getId(), hackathonId)) {
+                continue;
+            }
+            if (isFinal) {
+                if (teamRoundParticipationRepository
+                        .findByTeam_IdAndRound_Id(team.getId(), round.getId())
+                        .isPresent()) {
+                    return team;
+                }
+            } else if (teamRoundTrackRepository
+                    .findByTeam_IdAndTrack_Round_Id(team.getId(), round.getId())
+                    .isPresent()) {
+                return team;
+            }
+        }
+        throw new BusinessRuleException(ErrorCode.FORBIDDEN,
+                "Đội của bạn không tham gia vòng thi này.");
+    }
+
+    private static String toDisplayCode(PresentationSlot slot) {
+        if (slot.getSubmission() != null && slot.getSubmission().getId() != null) {
+            return "#" + slot.getSubmission().getId();
+        }
+        if (slot.getSequenceOrder() != null) {
+            return "#" + slot.getSequenceOrder();
+        }
+        return null;
     }
 
     @Override

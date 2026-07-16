@@ -59,9 +59,25 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, TeamMemb
     // Lấy danh sách các đội mà User đang tham gia (trạng thái ACCEPTED)
     List<TeamMember> findByUser_IdAndStatus(Integer userId, TeamMemberStatus status);
 
-    // Hàm phục vụ Guard Hủy đăng ký
-    @Query("SELECT COUNT(tm) > 0 FROM TeamMember tm WHERE tm.user.id = :userId AND tm.team.hackathon.id = :hackathonId AND tm.status = 'ACCEPTED'")
+    /** User đang trong đội hợp lệ: member ACCEPTED + team PENDING hoặc ACTIVE. */
+    @Query("""
+            SELECT COUNT(tm) > 0 FROM TeamMember tm
+            JOIN tm.team t
+            WHERE tm.user.id = :userId AND t.hackathon.id = :hackathonId
+              AND tm.status = 'ACCEPTED'
+              AND t.status IN ('PENDING', 'ACTIVE')
+            """)
     boolean isUserInAnyActiveTeamForHackathon(
             @Param("userId") Integer userId,
             @Param("hackathonId") Integer hackathonId);
+
+    @Query("""
+            SELECT tm FROM TeamMember tm
+            JOIN FETCH tm.team t
+            JOIN FETCH t.hackathon
+            WHERE tm.user.id = :userId
+              AND tm.status = 'ACCEPTED'
+              AND t.status IN ('PENDING', 'ACTIVE')
+            """)
+    List<TeamMember> findActiveMembershipsByUserId(@Param("userId") Integer userId);
 }

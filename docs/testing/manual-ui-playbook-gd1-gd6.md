@@ -1,16 +1,29 @@
-# Playbook UI thủ công — GĐ1 → GĐ6 (ManageSealHackathon)
+# Playbook Kiểm Thử Giao Diện GĐ1 - GĐ6 (Manual UI Test)
 
 > **Mục đích:** hướng dẫn tester click-by-click trên FE thật, kèm expect UI / ErrorCode / seed đúng code.  
-> **Cập nhật lần cuối:** **2026-07-15** — GĐ1 Mode B tạo vòng qua UI **Thêm vòng thi**; GĐ5 BE submit parity (`roundId` / portal null / magic PDF); pyramid verify **306 / 26 / 26 / 3 / 6 / ModeB 6**.  
-> **Không phải tóm tắt:** mỗi happy path ghi đủ nhãn nút/tab/form như trên FE.  
+> **Cập nhật lần cuối:** **2026-07-16 (Session Evening)** — Highlight: tối ưu Wildcard Plan C; Chung kết kế thừa đề Sơ loại; chuẩn hóa Timer Sequence GĐ3/GĐ5; sửa F5 GĐ2; sửa Data Seed E2E; lifecycle sync (v9+polish) vẫn áp dụng.  
+> **Changelog phiên:** [session-changelog-2026-07-15-16.md](session-changelog-2026-07-15-16.md).  
+> **Không phải tóm tắt:** mỗi happy path (đặc biệt **§3.3 / §5.3 / §6.3 / §7A**) ghi đủ nhãn nút/tab/toast/ErrorCode như trên FE.  
 > **API catalog / Postman:** [full-workflow-api-test-gd1-gd6.md](full-workflow-api-test-gd1-gd6.md).  
-> **Slug SSOT (6 happy):** [dev-seed-slugs-guide.md](dev-seed-slugs-guide.md), [master-slug-test-matrix.md](master-slug-test-matrix.md).  
+> **Slug SSOT (9 happy):** [dev-seed-slugs-guide.md](dev-seed-slugs-guide.md), [master-slug-test-matrix.md](master-slug-test-matrix.md).  
 > **Negative / gate (tái tạo tay):** [intentional-errors-catalog.md](intentional-errors-catalog.md).  
-> **Gate matrix:** [gate-regression-test-matrix-gd1-gd6.md](gate-regression-test-matrix-gd1-gd6.md).
+> **Gate matrix:** [gate-regression-test-matrix-gd1-gd6.md](gate-regression-test-matrix-gd1-gd6.md).  
+> **Checklist lifecycle mới:** xem **Chương L** (cuối phần chính trước §7) + phiếu **Phiếu Lifecycle sync** ở Phụ lục B.
 
 ---
 
 ## 0. Chuẩn bị
+
+### 0.0 Hướng dẫn đọc Playbook (Tester / Non-IT)
+
+Để test đúng, đọc từng bước theo cấu trúc:
+
+* **Người thực hiện:** Ai đang đăng nhập (Coordinator, Student, Judge).
+* **Đường dẫn:** URL / tab cần mở (vd `/hackathons`).
+* **Thao tác:** Nhấn nút nào, chữ gì trên màn hình.
+* **Kết quả kỳ vọng (Thấy gì):** Hệ thống phản hồi thế nào là đúng.
+
+> **Lưu ý:** Nếu "Kết quả kỳ vọng" khác thực tế, chụp màn hình kèm mã lỗi (ErrorCode) gửi group bug. Không cần hiểu logic code.
 
 ### 0.1 Start BE
 
@@ -21,7 +34,7 @@
    .\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=dev"
    ```
 4. Đợi log seed xong, ví dụ:
-   - `[DataInitializer] Dev seed sẵn sàng — 6 happy slugs: …`
+   - `[DataInitializer] Dev seed sẵn sàng — 9 happy slugs: …`
 5. Xác nhận BE lắng nghe: `http://localhost:8080` (API base thường là `http://localhost:8080/api/v1`).
 
 ### 0.2 Start FE
@@ -40,7 +53,7 @@
 $env:PLAYWRIGHT_BROWSERS_PATH = "C:\Users\ASUS\AppData\Local\ms-playwright"
 ```
 
-Đợi log seed BE xong (`Dev seed sẵn sàng — 6 happy slugs`) trước `npm run probe:seeds`.
+Đợi log seed BE xong (`Dev seed sẵn sàng — 9 happy slugs`) trước `npm run probe:seeds`.
 
 ### 0.3 Tài khoản dev (mật khẩu theo role)
 
@@ -72,11 +85,18 @@ $env:PLAYWRIGHT_BROWSERS_PATH = "C:\Users\ASUS\AppData\Local\ms-playwright"
 | Quản lý đội | `/teams` hoặc **`/teams?hackathonId={id}`** — tab/nhãn **Duyệt đội**, nút **Duyệt** |
 | Final config (dual entry) | `/coordinator/final-config?hackathonId={id}` **hoặc** `setup?tab=final-config` (**Cấu hình Chung kết**) |
 | Nộp bài SV | `/student/submit` — tiêu đề **Đề thi & Nộp bài dự thi**; tab **Sơ loại** \| **Chung kết** |
-| Hàng đợi thuyết trình | `/presentation/queue?roundId={id}` — **Điều phối lịch trình thuyết trình**, **Khởi Động Máy Quay Số** |
-| Kết quả Sơ loại (GĐ4) | `/hackathons/{id}/rounds/{roundId}/results` — **Công bố kết quả**, **Chốt chuyển vòng**, Wild Card **Duyệt** / **Từ chối** / **Duyệt vé vớt** |
-| Kết quả / giải GĐ6 | `/hackathons/{id}/results` — **Trao giải mới**, **Chốt sổ & Công bố kết quả**, **Khóa điểm & Công bố**, **Xuất CSV xếp hạng** |
-| SV xem kết quả | `/student/results` |
-| Judge | `/judge/dashboard` — **Vào phòng chấm thi** → **HOÀN TẤT & CHỐT SỔ ĐIỂM**; panel **Phiên Calibration** (prelim + CK) → **Chấm calibration** |
+| Hàng đợi thuyết trình | `/presentation/queue?roundId={id}` — **Điều phối lịch trình thuyết trình**, **Khởi Động Máy Quay Số** (chỉ bật sau hết hạn / end-early), panel readiness labels, **Người Điều Phối Timer** (Transfer / **Takeover tạm**), skip no-show |
+| Kết quả Sơ loại (GĐ4) | `/hackathons/{id}/rounds/{roundId}/results` — **Công bố kết quả**, **Chốt chuyển vòng** (disabled khi `!canAdvance` / còn vé vớt), Wild Card **Duyệt** / **Từ chối** |
+| Kết quả / giải GĐ6 | `/hackathons/{id}/results` — **Trao giải mới**, **Chốt sổ & Công bố kết quả**, **Khóa điểm & Công bố**, **Xuất CSV xếp hạng** (UTF-8 BOM + cột DQ) |
+| SV xem kết quả | `/student/results` — banner lifecycle + CTA |
+| SV không gian đội / STT | Tab đội / queue — **STT thuyết trình**, **Mã số đội** (chuẩn bị trước giờ thuyết trình) |
+| Coord đội vào CK | GĐ5 — danh sách **Các đội vào Chung kết** |
+| Coord điểm thành phần | GĐ5 — xem **Điểm thành phần** từng giám khảo |
+| Vé vớt / bình chọn | GĐ4 results — cột **Thời gian nộp**; vote judge (mentor đội ứng viên bị vô hiệu hóa) |
+| Announcements (SV feed) | API `GET /api/v1/hackathons/{id}/announcements` + WS `/topic/hackathons/{id}/announcements` (sau **Công bố kết quả**) |
+| Unlock chấm | Rounds management — nút danger **Mở khóa chấm** (prompt lý do) → WS `SCORING_UNLOCKED` |
+| Audit RO (Coord) | `GET /api/v1/audit-logs?hackathonId=` — chỉ Coord của hackathon mình |
+| Judge | `/judge/dashboard` — **Vào phòng chấm thi** → **HOÀN TẤT & CHỐT SỔ ĐIỂM**; banner *Chấm tuyệt đối theo rubric*; heartbeat 30s; mất nút điều khiển ngay khi nhận `CONTROLLER_CHANGED` |
 | Mentor rounds | `/mentor/rounds` — **Vòng thi đang phụ trách**, **Chi tiết vòng thi →** |
 | Mentor support | `/mentor/support?roundId=` — **Nhóm đội hỗ trợ**, **Xem bài nộp →**, tabs **Bài nộp** / **Điểm** |
 | Mentor history | `/mentor/history` — **Lịch sử mentor** |
@@ -101,13 +121,14 @@ $env:PLAYWRIGHT_BROWSERS_PATH = "C:\Users\ASUS\AppData\Local\ms-playwright"
 |----------|------|----------------|
 | Setup & **GĐ1** (ĐK mở) | `seal-e2e-2026` | Verify setup / readiness — **không** lottery/activate nếu chỉ test GĐ1 |
 | **GĐ2** (đóng ĐK / chia bảng) | `seal-e2e-2026` | **Cùng slug** nhưng suite khác: `/teams?hackathonId=` → close-reg → lottery → activate SL |
-| Sơ loại GĐ3 | `seal-gd3-prelim-open` | Nộp nốt → đóng cổng → shuffle/queue → timer QA → chấm → khóa điểm |
-| Chuyển tiếp GĐ4 | `seal-gd4-advance-ready` | Publish → WC (optional) → Advance → Activate CK |
-| Chung kết GĐ5 | `seal-gd5-final-active` | Submit CK → đóng → queue → chấm → khóa |
-| Trao giải GĐ6 | `seal-gd6-pending-confirm` | Xem giải → Confirm → FINISHED |
+| Sơ loại GĐ3 | `seal-gd3-prelim-open` | Nộp nốt → đóng cổng → readiness labels → shuffle (sau close) → controller + chấm → khóa (+ optional unlock) |
+| Chuyển tiếp GĐ4 | `seal-gd4-advance-ready` | Publish (+ announcement WS) → WC → Advance (`canAdvance`) → Activate CK |
+| Chung kết GĐ5 | `seal-gd5-final-active` | Submit CK → đóng → HARD_LOCK queue → guest chấm + failover → khóa |
+| Trao giải GĐ6 | `seal-gd6-pending-confirm` | ≥1 giải → Confirm → FINISHED → CSV BOM+DQ + BXH cơ sở |
 | Archive complete | `seal-fall-2025-finished` | Xem kết quả / export (read-only) |
+| GĐ4 Tiebreak / WC demo | `seal-gd4-tiebreak-submission-time`, `seal-gd4-tiebreak-manual`, `seal-gd4-wildcard-gap` | QC Tiebreak ≠ Wildcard (cùng seed set **9 happy**) |
 
-**Negative / gate:** không còn seed riêng (~47 slug deprecated) — tái tạo tay theo [intentional-errors-catalog.md](intentional-errors-catalog.md) trên **6 happy slug** ở bảng trên.
+**Negative / gate:** không còn seed riêng (~47 slug deprecated) — tái tạo tay theo [intentional-errors-catalog.md](intentional-errors-catalog.md) trên **9 happy slug** (`DevSeedCatalog.ALL_DEV_HACKATHON_SLUGS`).
 
 #### Timeline / create-drop (Quan trọng)
 
@@ -346,7 +367,24 @@ Tạo slug sự kiện mới hoàn toàn như các step hiện tại của GĐ1.
 
 ### 1.3 Happy path (Mode B — tạo từ đầu; Mode A trên `seal-e2e-2026` chỉ verify tab)
 
-> **Mode A shortcut:** nếu dùng `seal-e2e-2026`, bỏ bước 1–6 (create); từ bước 7 chỉ **mở Thiết lập** và verify từng tab + readiness đã xanh / ONGOING.
+> **Mode A shortcut:** nếu dùng `seal-e2e-2026`, bỏ bước tạo; chỉ **mở Thiết lập** và verify từng tab + readiness đã xanh / ONGOING.
+
+#### Newbie click-by-click (Non-IT)
+
+* **Bước 1**
+  * **Người thực hiện:** Coordinator
+  * **Đường dẫn:** `/hackathons/create` (hoặc **Tạo sự kiện** từ `/hackathons`)
+  * **Thao tác:** Điền thông tin sự kiện. Không cần nhập Ngày bắt đầu/Kết thúc sự kiện (hệ thống tự tính). Không có công tắc BXH cá nhân. Nhấn **Tạo**.
+  * **Kết quả kỳ vọng:** Chuyển sang màn hình Chi tiết / danh sách sự kiện vừa tạo.
+* **Bước 2**
+  * **Đường dẫn:** Tab **Vòng thi**
+  * **Thao tác:** Tạo vòng **Sơ loại**, rồi tạo vòng **Chung kết**.
+  * **Kết quả kỳ vọng:** Form CK **không** có nút Upload PDF đề mới. Trường Ngày Mở/Hạn nộp bị mờ (disabled) và có icon `(i)` giải thích. Có thể chỉnh **Thời lượng thi**.
+* **Bước 3**
+  * **Thao tác:** Nhấn **Kích hoạt sự kiện** / **Xác nhận Kích hoạt** → chọn **Bắt đầu sớm** (`START_NOW`, lead time vd 2 phút) **hoặc** hoàn tất checklist tab **Đánh giá & Kiểm tra** → **Kích hoạt ngay**.
+  * **Kết quả kỳ vọng:** Sự kiện chuyển **ONGOING**. (RESCHEDULE trên vòng: đổi lịch khi còn Bản nháp — **không** bắt đầu ngay.)
+
+#### Chi tiết đầy đủ (QA / regression)
 
 #### A. Login & mở danh sách
 
@@ -374,7 +412,7 @@ Tạo slug sự kiện mới hoàn toàn như các step hiện tại của GĐ1.
 | 6.10 | **Kết thúc Đăng ký** | sau Bắt đầu Đăng ký | Bắt buộc |
 | 6.11 | **Bắt đầu Sự kiện** / **Kết thúc Sự kiện** | để hệ thống tự tính (disabled) | Không nhập |
 | 6.12 | *(Đã bỏ)* Cho phép Wild Card trên Tạo sự kiện | — | Cấu hình WC trên **Vòng Sơ loại** |
-| 6.13 | **Bật Bảng xếp hạng cá nhân** | thường để bật (default) | Switch |
+| 6.13 | *(Đã bỏ)* Bảng xếp hạng cá nhân | — | Không còn công tắc trên form tạo |
 
 7. Submit form bằng nút tạo sự kiện trên trang (**Tạo sự kiện** / lưu tạo — theo UI trang Create).
 8. Expect: toast thành công; quay về `/hackathons` hoặc vào chi tiết kỳ mới.
@@ -395,12 +433,12 @@ Tạo slug sự kiện mới hoàn toàn như các step hiện tại của GĐ1.
 | Loại | **Loại vòng thi** | `Sơ loại (Preliminary)` — chọn cái này **tự tắt** **Là vòng chung kết** + set policy `ALLOW_LATE_PENDING` |
 | Chung kết? | **Là vòng chung kết** | Tắt (đồng bộ với Loại = Sơ loại) |
 | Lịch | **Ngày giờ thi** | hợp lệ theo rule form (sau `regEnd` + gap) |
-| Thời lượng | **Thời gian thi (Giờ)** | vd `1` (E2E Mode B) hoặc `6` (test tay dài) |
+| Thời lượng | **Thời lượng thi** / **Thời gian thi (Giờ)** | vd `1` (E2E Mode B) hoặc `6` (test tay dài) |
 | Advance | **Vào chung kết mỗi bảng** | vd `5` (chỉ hiện khi Sơ loại) |
 | Cap | **Tối đa vào chung kết** | vd `2` |
 | Policy | late (hidden / auto) | **ALLOW_LATE_PENDING** |
 
-14. Các field phụ nếu hiện: **Mở nộp bài**, **Hạn nộp** (thường auto theo `exam_at` + duration) — để hệ thống tính hoặc chỉnh hợp lệ.
+14. Các field **Mở nộp bài**, **Hạn nộp**: thường **disabled** + icon `(i)` — hệ thống tự tính theo `exam_at` + duration.
 15. Click **Lưu** trên modal → dialog đóng. Expect dòng **Vòng Sơ loại** trên bảng.
 16. Click **Thêm vòng thi** lần 2 — vòng Chung kết:
 
@@ -410,8 +448,8 @@ Tạo slug sự kiện mới hoàn toàn như các step hiện tại của GĐ1.
 | Loại | **Loại vòng thi** | `Chung kết (Final)` — chọn cái này **tự bật** **Là vòng chung kết** + set policy **HARD_LOCK** |
 | Chung kết? | **Là vòng chung kết** | Bật |
 | Lịch | **Ngày giờ thi** | **cùng ngày** Sơ loại, sau buffer chấm SL (form validate đỏ nếu sớm) |
-| Thời lượng | **Thời gian thi (Giờ)** | cùng coding hours |
-| Đề CK | Upload PDF đề (optional lúc tạo) | Có thể upload sau ở checklist phát đề |
+| Thời lượng | **Thời lượng thi** | cùng coding hours — đổi duration không được crash form |
+| Đề CK | **Không** upload PDF đề mới lúc tạo | CK **tái sử dụng đề Track Sơ loại** (session 15–16/07) |
 | Policy | late (hidden / auto) | **HARD_LOCK** |
 
 17. Click **Lưu**. Expect: danh sách có 2 vòng; tag vàng **Chung kết** trên vòng final.
@@ -422,7 +460,7 @@ Tạo slug sự kiện mới hoàn toàn như các step hiện tại của GĐ1.
 
 19. Click tab **Bảng đấu** (`?tab=tracks`).
 20. Thêm ít nhất 1 bảng đấu cho vòng Sơ loại (theo UI: chọn round Sơ loại → thêm track).
-21. Upload **PDF đề bài** cho từng bảng (bắt buộc trước **Phát đề** ở GĐ3).
+21. Upload **PDF đề bài** cho từng bảng Sơ loại (bắt buộc trước **Phát đề** ở GĐ3). **Không** yêu cầu upload đề riêng cho CK.
 22. Expect: Alert/mô tả tab nhắc: *Chỉ thêm trong vòng Sơ loại… Bấm "Phát đề"…* (Phát đề thường ở GĐ3 sau activate).
 
 #### E. Tab **Tiêu chí đánh giá** — tổng trọng số 1.0
@@ -437,7 +475,7 @@ Tạo slug sự kiện mới hoàn toàn như các step hiện tại của GĐ1.
 #### F. Tab **Nhân sự**
 
 28. Click tab **Nhân sự** (`?tab=people`).
-29. Phân công mentor / giám khảo Sơ loại (tab con kiểu **Giám khảo Sơ loại** nếu có).
+29. Phân công mentor / giám khảo Sơ loại (tab con kiểu **Giám khảo Sơ loại** nếu có) — UI hiện **avatar** khi chọn nhân sự.
 30. **Chưa** gán guest judge Chung kết quá sớm nếu seed/gate `JUDGE_FINAL_AT_PHASE1` — chỉ gán CK khi đến GĐ4/GĐ5 theo quy trình.
 31. Expect: có ít nhất judge nội bộ cho Sơ loại khi sẵn sàng activate round sau này.
 
@@ -464,7 +502,7 @@ Tạo slug sự kiện mới hoàn toàn như các step hiện tại của GĐ1.
 38. Click tab **Đánh giá & Kiểm tra** (`?tab=review`).
 39. Kiểm checklist readiness (Vòng Sơ loại & Bảng đấu, Vòng Chung kết, Tiêu chí, sự kiện, …) — các mục xanh / ready.
 40. Click **Xác nhận Kích hoạt**.
-41. Modal/Popconfirm → click **Kích hoạt ngay**.
+41. Modal/Popconfirm → click **Kích hoạt ngay** (hoặc chế độ bắt đầu sớm với lead time nếu UI ActivateSchedule trên vòng).
 42. Expect toast kiểu: *Đã mở đăng ký — kỳ thi đang ở trạng thái ONGOING.*
 43. Status hackathon = **ONGOING**.
 
@@ -537,10 +575,30 @@ Duyệt đội PENDING → khóa đăng ký (tự nhiên hoặc sớm) → bốc
 
 > **Lưu ý Timeline:** Sau restart `create-drop`, logic `repairForGd2Testing` giữ đăng ký **MỞ** và vòng prelim **INACTIVE** — trạng thái ĐÚNG để test GĐ2. Nếu prelim đã active → Mode B Continuous hoặc snapshot GĐ3.
 
+#### Newbie click-by-click (Non-IT)
+
+* **Bước 1**
+  * **Người thực hiện:** Student A
+  * **Đường dẫn:** `/teams/create` hoặc **Tạo đội** trên không gian đội
+  * **Thao tác:** Điền tên đội → **Tạo đội**.
+  * **Kết quả kỳ vọng:** Trình duyệt **tự chuyển** vào Không gian Đội — **không** cần F5.
+* **Bước 2**
+  * **Người thực hiện:** Student B
+  * **Thao tác:** **Chấp nhận lời mời** từ email/thông báo.
+  * **Kết quả kỳ vọng:** Tự chuyển vào không gian đội.
+* **Bước 3**
+  * **Người thực hiện:** Coordinator
+  * **Đường dẫn:** Tab **Quản lý đội** / `/teams?hackathonId=`
+  * **Thao tác:** **Duyệt hàng loạt** (batch approve).
+  * **Kết quả kỳ vọng:** Hệ thống chỉ chọn đội **đủ số thành viên** (bỏ qua đội thiếu người).
+* **Bước 4**
+  * **Thao tác:** **Đóng đăng ký** / **Kết thúc đăng ký sớm** → **Bốc thăm chia bảng**.
+  * **Kết quả kỳ vọng:** Bốc thăm xong trong **vài giây** (không quay vòng ~5 phút). Nút kết thúc ĐK sớm **ẩn/disabled** khi đã đóng / đã sang GĐ3.
+
 #### Lộ trình A — Dùng seed sẵn (Khuyến nghị lần đầu — có sẵn 7 đội để chia bảng)
 
 1. **Coord** → `/hackathons` → mở **`seal-e2e-2026`** → **`/teams?hackathonId={id}`**: phải thấy **`E2E-T01`…`E2E-T07`** (ACTIVE). Đây là pool đội để test **Bốc thăm / phân bảng** (3 track đã seed).
-2. (Tuỳ chọn) **Leader T01** → `/student/team` → **Mời thành viên** → `orphan1`/`orphan2`/`orphan3`; orphan chấp nhận lời mời.
+2. (Tuỳ chọn) **Leader T01** → `/student/team` → **Mời thành viên** → `orphan1`/`orphan2`/`orphan3`; orphan chấp nhận lời mời → **auto navigate** vào trang đội.
 3. **Coord** → Kết thúc đăng ký sớm → **Bốc thăm Tự động (Cho đội chưa có)** → kiểm từng đội đã có **bảng/track** → Kích hoạt Vòng Sơ loại (chi tiết FE: **Chi tiết nút Coord (B→D)**).
 
 #### Lộ trình B — Tự tạo đội từ đầu (Đủ chuỗi sinh viên)
@@ -548,11 +606,12 @@ Duyệt đội PENDING → khóa đăng ký (tự nhiên hoặc sớm) → bốc
 1. **Tạo TK student** (nếu cần account mới ngoài seed): đăng ký FE `/register` (hoặc dùng orphan chưa vào đội).
 2. **Cập nhật hồ sơ:** `/profile` — điền đủ field bắt buộc trước khi tạo đội (theo label FE).
 3. **Đăng ký tham gia:** đăng ký `seal-e2e-2026` (nút đăng ký trên card hackathon).
-4. **Tạo đội:** `/student/team` → **Tạo đội mới**.
+4. **Tạo đội:** `/student/team` → **Tạo đội mới** → expect **tự vào** trang đội (không F5).
 5. **Mời thành viên:** invite email `orphan1` / `orphan2` / `orphan3`.
-6. **Orphan** đăng nhập và chấp nhận lời mời.
-7. **Coord duyệt đội:** `/teams` duyệt các đội `PENDING`.
-8. Tiếp bước kết thúc ĐK sớm → Lottery → Kích hoạt Vòng Sơ loại (cùng **Chi tiết nút Coord (B→D)**).
+6. **Orphan** đăng nhập và chấp nhận lời mời → auto navigate.
+7. **Coord duyệt đội:** `/teams` duyệt các đội `PENDING` — batch chỉ tick đội đủ điều kiện.
+8. *(Giải tán)* Thành viên sau giải tán đội **tạo đội mới được** (không kẹt Accepted cũ).
+9. Tiếp bước kết thúc ĐK sớm → Lottery → Kích hoạt Vòng Sơ loại (cùng **Chi tiết nút Coord (B→D)**).
 
 #### Chi tiết nút Coord (B→D)
 
@@ -560,7 +619,7 @@ Duyệt đội PENDING → khóa đăng ký (tự nhiên hoặc sớm) → bốc
 
 1. Mở `/hackathons/{id}/setup?tab=general` (tab **Cấu hình chung**).
 2. Tìm Alert **Kết thúc đăng ký sớm (trường hợp khẩn cấp)**.
-3. Click nút danger **Kết thúc đăng ký sớm**.
+3. Click nút danger **Kết thúc đăng ký sớm** (nút **ẩn/disabled** nếu ĐK đã đóng hoặc sự kiện đã sang GĐ3).
 4. Modal **Kết thúc đăng ký sớm?** → xác nhận theo UI.
 5. Expect Alert đổi thành **Đã kết thúc đăng ký sớm**; đội ACTIVE bị khóa; có thể hiện nút **Bốc thăm & Khai mạc**.
 6. **Chỉ clamp đăng ký** — **không** đổi `Hackathon.eventStart`. Banner GĐ2 có thể hiện countdown tới `prelimExamAt` / giờ thi dự kiến (vd ~104h sau close-reg nếu timeline seed dài).
@@ -569,7 +628,7 @@ Duyệt đội PENDING → khóa đăng ký (tự nhiên hoặc sớm) → bốc
 
 6. Click tab **Bốc thăm & khai mạc** (`?tab=lottery`) — hoặc nút **Bốc thăm & Khai mạc** từ Alert.
 7. Click **Bốc thăm Tự động (Cho đội chưa có)** — trên `seal-e2e-2026` thường có **7 đội** `E2E-T01`…`T07` được gán vào **3 bảng** Sơ loại.
-8. Expect: mỗi đội ACTIVE có track; `/teams` (hoặc UI lottery) không còn đội đủ điều kiện thiếu bảng; phân bố rải các track (không chỉ 1 bảng nếu seed đủ đội).
+8. Expect: hoàn tất trong **vài giây**; mỗi đội ACTIVE có track; `/teams` (hoặc UI lottery) không còn đội đủ điều kiện thiếu bảng; phân bố rải các track (không chỉ 1 bảng nếu seed đủ đội).
 
 ##### D. Kích hoạt vòng Sơ loại (Activate schedule)
 
@@ -577,8 +636,8 @@ Duyệt đội PENDING → khóa đăng ký (tự nhiên hoặc sớm) → bốc
 10. Trên hàng vòng Sơ loại (chưa active): click icon/tooltip **Kích hoạt Vòng thi** (`data-testid=round-activate-btn`).
 11. Modal **Kích hoạt {tên vòng}?** — **Activate ≠ bắt đầu thi ngay**:
     - **Chỉ kích hoạt vòng thi — giữ nguyên lịch dự kiến** (`KEEP`) — mặc định an toàn.
-    - **Kích hoạt và bắt đầu thi ngay** (`START_NOW`) — nén lịch round (coding/QA/deadline); Mode B E2E thường chọn mục này.
-    - **Kích hoạt và dời giờ thi sang mốc mới** (`RESCHEDULE`) — chọn `newExamAt` ≥ now.
+    - **Kích hoạt và bắt đầu thi ngay** (`START_NOW`) — nén lịch round (coding/QA/deadline); có thể set **lead time** vài phút; Mode B E2E thường chọn mục này.
+    - **Kích hoạt và dời giờ thi sang mốc mới** (`RESCHEDULE`) — chọn `newExamAt` ≥ now; **không** bắt đầu ngay — chờ đến mốc đã đổi.
 12. Click **Kích hoạt** (okText modal — **không** nhầm với popconfirm hackathon **Kích hoạt ngay** ở tab **Đánh giá & Kiểm tra**).
 13. Expect: vòng Sơ loại `isActive`; có **Phát đề bài**, sau này **Kết thúc thời gian thi sớm**.
 
@@ -638,85 +697,122 @@ Chạy đủ pipeline vòng Sơ loại. **Không có nút «Mở chấm»** — 
 | **A** | Happy primary: `seal-gd3-prelim-open` (nộp + LATE_PENDING + full flow sau end-early). Gate chấm sớm: catalog trên cùng slug khi còn CODING. |
 | **B** | Sau GĐ2: Sơ loại đã **Kích hoạt Vòng thi**; track có PDF; SV thuộc đội ACTIVE đã lottery. |
 
-### 3.3 Happy path (click-by-click)
+### 3.3 Happy path (click-by-click) — chi tiết lifecycle sync
+
+> **Slug Mode A:** `seal-gd3-prelim-open`.  
+> **Ghi phiếu:** `hackathonId`, `prelimRoundId`, `trackId` (bảng đang test), `controllerJudgeId`.  
+> **Đồng hồ:** FE dùng `GET /api/v1/system/time` (serverNow) — **không** tin đồng hồ máy tester khi kiểm gate hết hạn / shuffle.
+
+#### Newbie click-by-click (Non-IT)
+
+* **Bước 1**
+  * **Người thực hiện:** Student
+  * **Đường dẫn:** Tab **Không gian Đội** / thông tin bảng đấu
+  * **Thao tác:** Xem thông tin bảng đấu.
+  * **Kết quả kỳ vọng:** Thấy rõ **STT Thuyết trình** và **Mã số Đội** để chuẩn bị.
+* **Bước 2**
+  * **Người thực hiện:** Coordinator
+  * **Thao tác:** **Phát đề** ở Vòng Sơ loại.
+  * **Kết quả kỳ vọng:** Đề đồng bộ thẳng vào **Bảng đấu** của các đội. Cột **Trạng thái nộp bài** hiển thị `Chưa nộp` (hoặc tương đương) trước khi SV nộp.
+* **Bước 3**
+  * **Người thực hiện:** Judge
+  * **Đường dẫn:** `/judges/scoring` hoặc `/judge/assignments` → phòng chấm
+  * **Thao tác:** Tuần tự: **Bắt đầu thuyết trình** → Hết giờ / Kết thúc sớm → Chấm điểm → **Gọi đội kế tiếp** (sau hết Q&A).
+  * **Kết quả kỳ vọng:** Nút **Reset Timer** biến mất sau chốt/đi tiếp. Form điểm đội mới **trắng** (không dính điểm đội cũ).
 
 #### A. Coord — Phát đề
 
-1. Login Coord → `/hackathons/{id}/setup?tab=rounds` (**Vòng thi**).
-2. Trên vòng Sơ loại active: click tooltip **Phát đề bài** (hoặc mở checklist phát đề).
-3. Trong modal **Phát đề bài**:
-   - Có thể **Phát Đề** từng bảng, hoặc
-   - **Phát tất cả** (okText) khi mọi bảng có PDF.
-4. Confirm **Phát đề** nếu có modal phụ.
-5. Expect toast: đề Sơ loại đã phát theo bảng đấu.
+1. Login Coord `coord@fpt.edu.vn` / `Coordinator@dev1`.
+2. `/hackathons` → mở card **`seal-gd3-prelim-open`** → **Thiết lập** → tab **Vòng thi** (`setup?tab=rounds`).
+3. Trên vòng Sơ loại **Active**: tooltip / nút **Phát đề bài**.
+4. Modal **Phát đề bài**:
+   - **Phát Đề** từng bảng (nếu PDF còn thiếu từng track), **hoặc**
+   - **Phát tất cả** khi mọi bảng đã có PDF.
+5. Confirm **Phát đề** (nếu có modal phụ).
+6. Expect toast thành công; đề **sync vào Track**; Coord thấy cột **Trạng thái nộp bài**; SV mới thấy đề trên `/student/submit`.
 
-#### B. Student — nhận đề & nộp
+#### B. Student — nhận đề & nộp đúng hạn
 
-6. Logout Coord (hoặc cửa sổ ẩn danh).
-7. Login Student seed (vd `student.gd3.leader01@fpt.edu.vn` / `Student@dev1`).
-8. Mở **`/student/submit`**.
-9. Thấy tiêu đề **Đề thi & Nộp bài dự thi**.
-10. Chọn tab **Sơ loại** (không chọn **Chung kết**).
-11. Kiểm khối đề: **Đề thi chính thức — Vòng Sơ loại** / tải PDF theo bảng.
-12. Khu vực nộp: **Cổng nộp bài Vòng Sơ loại**.
-13. Điền repo / upload slide PDF theo form.
-14. Click **Nộp bài Sơ loại** (hoặc **Nộp bài Vòng Sơ loại** / **Cập nhật bài Sơ loại** nếu đã nộp).
-15. Expect toast thành công; status ON_TIME (trước hạn).
+7. Cửa sổ ẩn danh (hoặc logout Coord).
+8. Login `student.gd3.leader01@fpt.edu.vn` / `Student@dev1` (đổi leader theo đội còn chưa nộp nếu seed đã partial).
+9. Mở **`/student/submit`** — tiêu đề **Đề thi & Nộp bài dự thi**. Kiểm không gian đội: **STT thuyết trình** + **Mã số đội**.
+10. Tab **Sơ loại** (không chọn **Chung kết**).
+11. Kiểm: **Đề thi chính thức — Vòng Sơ loại** + có thể tải PDF.
+12. Khối **Cổng nộp bài Vòng Sơ loại**: điền repo + upload slide PDF (`%PDF` magic).
+13. Click **Nộp bài Sơ loại** (hoặc **Cập nhật bài Sơ loại** nếu đã có draft/row).
+14. Expect toast thành công; status UI **Nộp đúng hạn** / BE `SUBMITTED` (trước hạn).  
+    *(Nếu cổng đã đóng do seed/end-early trước đó → bỏ qua B, làm C/D.)*
 
-#### C. Coord — Kết thúc thời gian thi sớm
+#### C. Coord — kết thúc sớm + gate shuffle
 
-16. Login lại Coord → `setup?tab=rounds`.
-17. Trên vòng Sơ loại: click nút danger / tooltip **Kết thúc thời gian thi sớm** (`data-testid=round-close-submission-early-btn` nếu inspect).
-18. Modal title: **Kết thúc thời gian thi sớm?**
-19. Đọc bullet: đóng cổng nộp, kết thúc giờ thi, tiếp theo queue → chấm → khóa.
-20. **Bắt buộc thấy chữ đỏ:** **Hành động này KHÔNG THỂ HOÀN TÁC.**
-21. Click **Xác nhận kết thúc**.
-22. Expect: cổng nộp đóng; phase **JUDGING**; `submissionDeadline` ≈ now. **`examAt` round không bị kéo về now** chỉ vì close-reg GĐ2 — end-early submission mới clamp deadline/exam round.
+15. Login lại Coord → `setup?tab=rounds`.
+16. **Trước** end-early (nếu cổng còn mở): mở `/presentation/queue?roundId={prelimId}`.
+    - Nút **Khởi Động Máy Quay Số** **disabled**.
+    - Tooltip: **Chờ hết hạn nộp bài** (ErrorCode nếu force API: `SUBMISSION_NOT_CLOSED_FOR_SHUFFLE`).
+17. Quay lại rounds → nút **Kết thúc thời gian thi sớm** (`data-testid=round-close-submission-early-btn`).
+18. Modal **Kết thúc thời gian thi sớm?**
+    - Bullet: đóng cổng nộp / chuyển JUDGING / tiếp queue→chấm→khóa.
+    - Chữ đỏ bắt buộc: **Hành động này KHÔNG THỂ HOÀN TÁC.**
+19. Click **Xác nhận kết thúc**.
+20. Expect: phase **JUDGING**; cổng nộp đóng; `submissionDeadline` ≈ now. SV cố nộp → thông báo **sự kiện đã kết thúc** (không «chưa diễn ra»).
 
-#### D. Constraint LATE_PENDING (không đổi BE)
+#### D. Constraint LATE_PENDING + readiness labels (GĐ3 = `ALLOW_LATE_PENDING`)
 
-23. (Cùng hoặc SV khác chưa nộp) Sau end-early, SV vẫn mở `/student/submit` → tab **Sơ loại** → nộp tiếp.
-24. Expect toast: **Đã ghi nhận bài nộp muộn (LATE_PENDING) — chờ Ban tổ chức duyệt.**
-25. Coord có thể mở `/coordinator/late-submissions?roundId={prelimId}` để duyệt (slug `seal-gd3-late-review`).
+21. SV chưa nộp (hoặc SV khác) → `/student/submit` tab **Sơ loại** → nộp sau end-early.
+22. Expect toast: **Đã ghi nhận bài nộp muộn (LATE_PENDING) — chờ Ban tổ chức duyệt.**  
+    *(Lỗi typing sai «chưa diễn ra» / `HACKATHON_NOT_ONGOING` = bug mapping — ghi ticket.)*
+23. Coord mở `/presentation/queue?roundId={prelimId}` — panel sẵn sàng (readiness):
+    | Status BE | Nhãn FE bắt buộc |
+    |-----------|------------------|
+    | (null) + đã hết hạn | **Hết hạn — không nộp** |
+    | `LATE_PENDING` | **Nộp trễ — chờ duyệt** |
+    | `LATE_APPROVED` | **Nộp trễ — đã duyệt** |
+    | `REJECTED` | **Bị từ chối** |
+    | `SUBMITTED` | **Nộp đúng hạn** → ✓ Queue |
+24. **Không** gộp mọi non-gradable thành «Chưa nộp».
+25. Duyệt trễ: panel readiness **Duyệt** / **Từ chối**, hoặc `/coordinator/late-submissions?roundId={prelimId}`.
+26. **Sau khi đã shuffle** mà duyệt LATE_APPROVED: đội được **append WAITING cuối** hàng đợi — **không** reshuffle toàn bộ.  
+    Expect audit `late_append`; UI judge có thể hiện banner fairness (bước H).
 
-#### E. Queue — xáo trộn thuyết trình
+#### E. Queue — readiness → xáo trộn → controller
 
-26. Coord: từ rounds click tooltip **Mở hàng đợi thuyết trình** → `/presentation/queue?roundId={prelimId}`.
-27. Thấy tiêu đề **Điều phối lịch trình thuyết trình**.
-28. Click **Khởi Động Máy Quay Số** (sau **Kết thúc thời gian thi sớm** — shuffle/queue trước close-submission → API `422 SCORING_NOT_OPEN`).
-29. Expect thứ tự đội được shuffle / gán slot.
+27. Coord: rounds → **Mở hàng đợi thuyết trình** → `/presentation/queue?roundId={prelimId}&trackId=…`.
+28. Tiêu đề **Điều phối lịch trình thuyết trình**.
+29. Chọn **bảng đấu** (Segmented) đúng track.
+30. Confirm **Khởi Động Máy Quay Số** **enabled** (sau close-submission).
+31. Click **Khởi Động Máy Quay Số** → expect thứ tự slot WAITING; `presentationShuffled=true`.
+32. **Cấm reshuffle sau Start:** khi đã có slot `PRESENTING` / `DONE` / `SKIPPED`, bấm shuffle lại → `422 PRESENTATION_ALREADY_STARTED` (*Đã bắt đầu thuyết trình — không xáo lại hàng đợi*).
+33. Card **Người Điều Phối Timer**:
+    - Chọn judge trong dropdown → gọi grant mode **TRANSFER** (chỉ khi judge đã heartbeat / online < 60s; offline → `JUDGE_OFFLINE`).
+    - Nút **Takeover tạm** → mode **TAKEOVER** (Coord escalate; audit `PRESENTATION_CONTROLLER_TAKEOVER`).
+    - Race 2 Coord cùng takeover với `expectedControllerJudgeId` → 1 OK + 1 **409** `CONTROLLER_CONFLICT`.
 
-#### F. Timer thuyết trình & Q&A (Coord trên queue hoặc phòng live)
+#### F. Timer / Q&A / no-show / Next
 
-30. Trên slot **PRESENTING**: Coord/Head judge **Bắt đầu timer** → phase **PRESENTING**.
-31. Chuyển **Q&A** (nút/timer action tương ứng trên UI queue hoặc phòng chấm).
-32. **Kết thúc sớm Hỏi Đáp** (early-end Q&A):
-    - Chỉ bật khi phase **QA** (gate giống **Đội tiếp**).
-    - Yêu cầu đủ judge **Chốt điểm** trước khi kết thúc — trừ Coord/HEAD **force-ack** (`acknowledgeIncompleteScoring`).
-    - QA **hết giờ tự nhiên** → **ENDED** **không** qua scoring guard.
-33. Judge chấm trong cửa sổ **PRESENTING / QA** (không **IDLE/SETUP**).
+34. Controller (UI Start hiện): **Bắt đầu** timer → phase **PRESENTING**.
+35. Non-controller gọi API timer/next → **403** `NOT_TRACK_CONTROLLER` (CTRL-01).
+36. Chuyển **Q&A**; **Kết thúc sớm Hỏi Đáp** chỉ khi phase **QA** + đủ chốt (hoặc Coord force-ack).
+37. **No-show:** khi đội không lên sân / vắng → Skip no-show (API `PATCH /presentation/queue/skip?roundId=&trackId=&submissionId=`) → status queue **`SKIPPED`**; roomStats.absent tăng; **không** tính như DONE đã thuyết trình.
+38. **Đội tiếp** chỉ khi phase **QA** hoặc **ENDED** (trình tự: hết thuyết trình → hết Q&A → next). Còn PRESENTING → `INVALID_STATE`. Thiếu chấm → `SCORING_INCOMPLETE_BEFORE_NEXT`.
+39. Sau chốt điểm / chuyển đội: nút **Reset Timer** **ẩn**. Form chấm đội mới **reset trắng**.
 
-#### G. Chuyển đội tiếp (`queue/next`)
+#### G. Judge — chấm (absolute rubric) + heartbeat + CONTROLLER_CHANGED
 
-34. **Đội tiếp** chỉ khi slot hiện tại ở phase **QA** hoặc **ENDED** (kể cả auto-timeout QA).
-35. Nếu judge chưa chấm đủ: `422 SCORING_INCOMPLETE_BEFORE_NEXT` — Coord có thể tick ack incomplete (multi-judge).
-36. Nếu gọi Next khi còn **PRESENTING** (chưa QA): `422 INVALID_STATE` — *Chỉ chuyển đội tiếp sau phần thuyết trình (QA hoặc hết giờ)*.
+40. Login `judge1@fpt.edu.vn` / `Judge@dev1` (đúng track).
+41. `/judge/assignments` → đúng **tên hackathon** → **Vào phòng chấm thi**.
+42. Network: mỗi ~**30s** có `POST /api/v1/presentation/controller/heartbeat` (presence).
+43. Banner workspace: **Chấm tuyệt đối theo rubric** (*không so sánh tương đối với đội trước* — late-append).
+44. Chấm đủ tiêu chí → **HOÀN TẤT & CHỐT SỔ ĐIỂM**.
+45. **FAIL-03:** Coord **Transfer** / Takeover sang judge khác khi tab judge cũ vẫn mở:
+    - STOMP nhận `{ "type": "CONTROLLER_CHANGED", "roundId", "trackId", "controllerJudgeId", "previousControllerJudgeId", … }`.
+    - Cụm Start / End / QA / Next / Skip **ẩn ≤1s** — **không** cần F5. Bấm Next sau mất quyền → 403 (không phải lỗi «khó hiểu» im lặng).
 
-#### H. Judge — chấm & chốt
+#### H. Coord — Khóa chấm (+ optional unlock)
 
-37. Login Judge (`Judge@dev1`).
-38. Mở **`/judge/assignments`** → tìm hackathon theo **tên hiển thị** (không chỉ slug URL) → **Vào phòng chấm thi**.
-39. Chấm theo tiêu chí; khi xong đội hiện tại click **HOÀN TẤT & CHỐT SỔ ĐIỂM**.
-40. Lặp theo hàng đợi (kết hợp bước G).
-
-#### I. Coord — Khóa chấm điểm
-
-41. Coord → `setup?tab=rounds`.
-42. Tooltip **Khóa chấm điểm** trên vòng Sơ loại.
-43. Modal **Khóa chấm điểm Vòng thi**.
-44. Nhập lý do nếu force lock (còn bài chưa chấm).
-45. Click **Xác nhận Khóa**.
-46. Expect: scoring locked; sẵn sàng GĐ4 results.
+46. Coord → `setup?tab=rounds` → **Khóa chấm điểm**.
+47. Modal **Khóa chấm điểm Vòng thi** — luôn confirm; nếu còn pending → force + **lý do** bắt buộc.
+48. **Xác nhận Khóa** → `scoringLocked=true`; sẵn GĐ4.
+49. *(Optional LOCK-03)* Nút **Mở khóa chấm** (danger) trên row đã lock → prompt lý do → `PATCH …/unlock-scoring` → WS **`SCORING_UNLOCKED`** (`trackId: null` = cả round) → judge refetch được chấm lại.
 
 ### 3.4 Bad / edge + BC nút end-early
 
@@ -724,7 +820,11 @@ Chạy đủ pipeline vòng Sơ loại. **Không có nút «Mở chấm»** — 
 
 | # / kịch bản | Bước | Expect |
 |----------|------|--------|
-| Late review (catalog) | `/coordinator/late-submissions` | Duyệt hàng `LATE_PENDING` |
+| Late review (catalog) | `/coordinator/late-submissions` / readiness **Duyệt** | Duyệt hàng `LATE_PENDING` → có thể late-append |
+| Shuffle còn trong window | Bấm **Khởi Động Máy Quay Số** trước end-early | Disabled + tooltip **Chờ hết hạn nộp bài** / `SUBMISSION_NOT_CLOSED_FOR_SHUFFLE` |
+| Reshuffle sau Start | Shuffle khi đã PRESENTING/DONE/SKIPPED | `PRESENTATION_ALREADY_STARTED` |
+| Transfer offline | Grant mode TRANSFER judge không heartbeat | `JUDGE_OFFLINE` |
+| Takeover race | 2 Coord cùng `expectedControllerJudgeId` | 1×2xx + 1×409 `CONTROLLER_CONFLICT` |
 | Scoring live (catalog) | Judge chấm sau JUDGING trên prelim-open sau end-early | Happy scoring |
 | Scoring gate (catalog) | Judge POST/UI chấm khi còn CODING | `SCORING_NOT_OPEN` (**BC4**) |
 | Tiebreak hybrid (catalog) | UI tiebreak trên GĐ4 slug | Hybrid resolve |
@@ -738,18 +838,26 @@ Chạy đủ pipeline vòng Sơ loại. **Không có nút «Mở chấm»** — 
 | **BC5** | **Đội tiếp** khi còn PRESENTING (chưa QA) | `INVALID_STATE` |
 | **BC6** | **Đội tiếp** / early-end Q&A khi judge chưa chấm đủ | `SCORING_INCOMPLETE_BEFORE_NEXT` (+ ack Coord) |
 | SV tab cũ sau end-early | Focus lại tab nộp | Toast `LATE_PENDING` / refetch — **không** poll interval |
+| Typed ended errors | Nộp khi H `FINISHED` / round inactive | Toast `EVENT_FINISHED` / `SUBMISSION_CLOSED` / `SUBMISSION_NOT_STARTED` — **không** map «chưa diễn ra» |
 
 ### 3.5 API then chốt
 
 ```http
+GET  /api/v1/system/time
 POST /api/v1/rounds/{prelimId}/close-submission-early
-POST /api/v1/presentation/timer/qa          # advance slot → QA (trước queue/next)
-POST /api/v1/presentation/queue/next        # chỉ khi phase QA hoặc ENDED
+POST /api/v1/presentation/queue/shuffle
+PATCH /api/v1/presentation/queue/skip?roundId=&trackId=&submissionId=
+POST /api/v1/presentation/controller/heartbeat?roundId=&trackId=
+PUT  /api/v1/presentation/tracks/{trackId}/controller   # body: judgeId, expectedControllerJudgeId, mode=TRANSFER|TAKEOVER
+POST /api/v1/presentation/timer/qa
+PATCH /api/v1/presentation/queue/next
+PATCH /api/v1/rounds/{prelimId}/lock-scoring
+PATCH /api/v1/rounds/{prelimId}/unlock-scoring           # body: { "reason": "..." }
 ```
 
 - Expect flags: `deadlineAdjusted`, `examAtAdjusted` (hoặc tương đương).
 - Nộp sau hạn Sơ loại: status **`LATE_PENDING`** (policy `ALLOW_LATE_PENDING`).
-- `PATCH /api/v1/rounds/{prelimId}/lock-scoring` (kèm reason/force nếu cần).
+- WS topics: `/topic/rounds/{id}/presentation-queue` (+ track) — events `TIMER_PHASE`, `CONTROLLER_CHANGED`, `SCORING_UNLOCKED`.
 
 ### 3.6 Đường tắt timeline
 
@@ -757,9 +865,10 @@ POST /api/v1/presentation/queue/next        # chỉ khi phase QA hoặc ENDED
 |-----|-----------------|
 | End exam + đóng nộp | **Kết thúc thời gian thi sớm** → **Xác nhận kết thúc** + chữ **Hành động này KHÔNG THỂ HOÀN TÁC.** |
 | Mở queue | **Mở hàng đợi thuyết trình** → **Khởi Động Máy Quay Số** (sau close-submission-early) |
+| Controller | **Người Điều Phối Timer** → dropdown Transfer / **Takeover tạm** |
 | Timer QA | **Q&A** / **Kết thúc sớm Hỏi Đáp** (gate chấm giống Next) |
 | Đội tiếp | Nút **Đội tiếp** trên queue — chỉ sau QA hoặc ENDED |
-| Lock | **Khóa chấm điểm** → **Xác nhận Khóa** |
+| Lock / Unlock | **Khóa chấm điểm** → **Xác nhận Khóa**; optional **Mở khóa chấm** + lý do |
 
 ---
 
@@ -801,42 +910,61 @@ Công bố kết quả Sơ loại, giải quyết Tiebreak nếu có, duyệt v�
 
 ### 4.3 Happy path (click-by-click)
 
+#### Newbie click-by-click (Non-IT)
+
+* **Bước 1**
+  * **Người thực hiện:** Coordinator
+  * **Thao tác:** Xem xét vé vớt (Wildcard) trên trang kết quả Sơ loại.
+  * **Kết quả kỳ vọng:** Thấy danh sách đội Wildcard kèm **Thời gian nộp bài**. Có luồng Giám khảo **bình chọn** (Mentor của đội ứng viên **bị vô hiệu hóa** nút vote). Tiebreak ≠ Wildcard (xem §4.0).
+* **Bước 2**
+  * **Thao tác:** Nhấn **Công bố điểm** / **Công bố kết quả**.
+  * **Kết quả kỳ vọng:** Sync ngay sang Student. SV F5 / mở tab Quản lý đội thấy **Điểm**, **Thứ hạng** và trạng thái **ĐƯỢC ĐI TIẾP** (nếu advance).
+
 #### A. Trang kết quả Sơ loại
 
 1. Login Coord.
 2. Mở `/hackathons/{id}/rounds/{prelimRoundId}/results`.
-3. Nếu banner **đỏ** Tiebreak → tab Tiebreak (Reorder) trước; nút **Chốt chuyển vòng** bị khóa.
+3. Nếu banner **đỏ** Tiebreak → tab Tiebreak (Reorder) trước; nút **Chốt chuyển vòng** bị khóa + tooltip lý do.
 4. Nếu còn ghế vé vớt (`availableSlots > 0`): mở tab **Vé vớt** — không hiện tab khi slots=0 dù DB `wildcardEnabled=true`.
+5. Confirm nút **Chốt chuyển vòng** **disabled** khi `!canAdvance` **hoặc** `pendingWildcardCount > 0` (tooltip: còn vé vớt / `advanceDisabledReason`) — **không** chỉ dựa modal.
 
-#### B. Vé vớt — Duyệt / Từ chối
+#### B. Vé vớt — Plan C (auto-rank + Xác nhận đề xuất + Override + vote judge)
 
-5. Với từng đề xuất:
-   - **Duyệt** → trạng thái review **WILDCARD_APPROVED** (tag *Sẽ vào CK (Vé vớt)* — **chưa** ADVANCED).
-   - hoặc **Từ chối**.
-6. Expect: đã duyệt đủ slots trước khi chốt; ADVANCED chỉ sau **Chốt chuyển vòng**.
+6. Tab **Vé vớt** hiển thị bảng đề xuất: hạng, điểm TB, **thời gian nộp**, tên đội — sort `avgScore ↓` → `submittedAt ↑` → `teamId`.
+7. Bấm **Xác nhận đề xuất** → hệ thống duyệt đúng `availableSlots` đội đầu bảng; reject phần còn lại; `proposalConfirmedAt` set → UI: *Đã xác nhận lúc HH:mm — sửa qua Override*.
+8. Confirm lần 2 → chặn (`WILDCARD_PROPOSAL_ALREADY_CONFIRMED` / WC-06).
+9. Sau lock: **không** auto re-sort khi judge sửa điểm — chỉ **Override** với category (`PROPOSED_TEAM_VIOLATION` | `TRACK_QUOTA_ADJUST` | `SCORE_CORRECTED` | `OTHER`+note).
+10. Luồng **bình chọn giám khảo** (nếu UI Plan C hiện): mentor của đội ứng viên **không** vote được.
+11. Bảng **Lịch sử override vé vớt** công khai (coord khác đọc được).
+12. Expect: đã xác nhận đủ slots trước khi chốt; ADVANCED chỉ sau **Chốt chuyển vòng**.
 
-#### C. Công bố & Chốt chuyển vòng
+#### C. Công bố & Chốt chuyển vòng (+ announcement)
 
-7. Click **Công bố kết quả** (khi chưa publish).
-8. Expect trạng thái đã công bố; UI có thể khóa một phần.
-9. Click **Chốt chuyển vòng**.
-10. Modal **Chốt chuyển vòng Chung kết** — okText **Chốt chuyển vòng**.
-11. Expect danh sách đội vào CK được xác nhận.
+13. Click **Công bố kết quả** (khi chưa publish).
+14. Expect:
+   - Round `isPublished=true`.
+   - BE tạo announcement kind `RESULTS_PUBLISHED` + WS `/topic/hackathons/{id}/announcements`.
+   - SV (đăng ký cùng H) sau poll/WS: thấy feed/badge «Kết quả sơ loại đã công bố»; tab đội thấy **điểm / hạng / đi tiếp**.
+   - Coord có thể **soft-hide** announcement (không xóa cứng).
+15. Click **Chốt chuyển vòng** (chỉ khi enabled theo bước 5).
+16. Modal **Chốt chuyển vòng Chung kết** — okText **Chốt chuyển vòng**.
+17. Expect danh sách đội vào CK được xác nhận.
 
 #### D. Cấu hình Chung kết
 
-12. Vào một trong hai entry:
+18. Vào một trong hai entry:
     - `/coordinator/final-config?hackathonId={id}`, **hoặc**
     - `setup?tab=final-config` — tab **Cấu hình Chung kết**.
-13. Kiểm / chỉnh tham số CK theo UI (quota, lịch, …).
-14. Tab **Nhân sự** → **Giám khảo Chung kết**: gán guest / EXTERNAL / trưởng ban (`guestjudge@gmail.com` nếu seed).
+19. Kiểm / chỉnh tham số CK theo UI (quota, lịch, …).
+20. Tab **Nhân sự** → **Giám khảo Chung kết**: gán guest / EXTERNAL / trưởng ban (`guestjudge@gmail.com` nếu seed).
 
 #### E. Activate Chung kết
 
-15. `setup?tab=rounds` (**Vòng thi**).
-16. Trên vòng tag **Chung kết**: **Kích hoạt Vòng thi**.
-17. Xử lý modal thiếu criteria / weight ≠ 1.0 nếu hiện.
-18. Expect: vòng CK active; SV đủ điều kiện thấy cổng CK.
+21. `setup?tab=rounds` (**Vòng thi**).
+22. Trên vòng tag **Chung kết**: **Kích hoạt Vòng thi**.
+23. Modal lịch: chọn **Kích hoạt và bắt đầu thi ngay** (hoặc schedule) → confirm.
+24. Xử lý modal thiếu criteria / weight ≠ 1.0 nếu hiện.
+25. Expect: CK `isActive=true`; SV đủ điều kiện thấy cổng CK trên `/student/submit`. **Không** có nút Phát đề / upload PDF mới cho CK.
 
 ### 4.4 Bad / edge
 
@@ -879,7 +1007,7 @@ Vòng CK active → SV nộp trên `/student/submit` → kết thúc giờ thi �
 >
 > | Trạng thái | Thông tin sử dụng |
 > |------------|-------------------|
-> | **Snapshot happy** | Mở `seal-gd5-final-active` — 4 đội ADVANCED, cổng CK mở, **0** submission / queue |
+> | **Snapshot happy** | Mở `seal-gd5-final-active` — 4 đội ADVANCED, prelim **published+scored+STT**, CK mở, **0** submission CK |
 > | **Account nộp** | `student.gd5.leader01@fpt.edu.vn` … `leader04` / `Student@dev1` |
 > | **Guest chấm** | `guestjudge@gmail.com` / `GuestJudge@dev1` (FINAL_EXTERNAL trên CK) |
 > | **Continuous** | Mode B sau activate CK trên slug ephemeral `seal-m2-*` |
@@ -909,50 +1037,74 @@ Vòng CK active → SV nộp trên `/student/submit` → kết thúc giờ thi �
 **Tham chiếu IT:** `Gd4ToGd6FlowIntegrationTest` (magic PDF + GET null + POST `roundId` + dual-row).  
 **Smoke FE non-mutating:** `e2e/gd5-final-submit-smoke.spec.js` — tab CK mở, Dragger không disabled, submit thiếu repo/PDF chặn FE, **không** POST `/submissions`, **không** gọi `…/hackathons/1/final-round`.
 
-### 5.3 Happy path (click-by-click)
+### 5.3 Happy path (click-by-click) — HARD_LOCK + controller failover
 
-#### A. Student — nộp Chung kết
+> **Slug Mode A:** `seal-gd5-final-active`.  
+> **Accounts:** `student.gd5.leader01…04@fpt.edu.vn` / `Student@dev1`; guest `guestjudge@gmail.com` / `GuestJudge@dev1`.  
+> **Policy CK:** `lateSubmissionPolicy=HARD_LOCK` — **không** có path LATE_PENDING / duyệt trễ.
 
-1. Login Student đủ điều kiện (Mode A: `student.gd5.leader01@fpt.edu.vn` trên `seal-gd5-final-active`).
+#### Newbie click-by-click (Non-IT)
+
+* **Bước 1**
+  * **Người thực hiện:** Coordinator
+  * **Thao tác:** Vào Quản lý Vòng Chung kết.
+  * **Kết quả kỳ vọng:** **KHÔNG** có nút phát đề mới (đề tái sử dụng từ sơ loại). Có danh sách **Các đội vào Chung kết**. Có màn xem **Điểm thành phần của Giám khảo**.
+* **Bước 2**
+  * **Người thực hiện:** Student (đội bị loại ở GĐ4)
+  * **Thao tác:** Vào sự kiện / cổng Chung kết.
+  * **Kết quả kỳ vọng:** Màn hình **Read-only** — không nút sửa / xóa / nộp bài.
+* **Bước 3**
+  * **Người thực hiện:** Student (đội vào Chung kết)
+  * **Thao tác:** Thử nộp bài sau khi hết hạn (HARD_LOCK).
+  * **Kết quả kỳ vọng:** Thông báo kiểu **Sự kiện đã kết thúc** / REJECTED HARD_LOCK (không «chưa diễn ra»). Nút nộp bị khóa.
+
+#### A. Student — nộp Chung kết (đúng hạn)
+
+1. Login Student đủ điều kiện (Mode A: `student.gd5.leader01@fpt.edu.vn`).
 2. Mở **`/student/submit`** — **không** dùng dashboard để nộp CK.
 3. Tiêu đề **Đề thi & Nộp bài dự thi**.
 4. Segmented / tab **Chung kết** (mặc định FINAL khi đội ADVANCED).
-5. Kiểm đề: **Đề thi chính thức — Vòng Chung kết** (lấy round qua `…/me/hackathons/{id}/final-round`).
+5. Kiểm đề: **Đề thi chính thức** — nội dung **tái sử dụng từ Track Sơ loại** (Coord không upload PDF CK mới).
 6. Cổng: **Cổng nộp bài Vòng Chung kết**.
-7. Form:
-   - **Link Source Code (Github)** — bắt buộc (vd `https://github.com/octocat/Hello-World`).
-   - Dragger slide **PDF** — bắt buộc; Dragger **không** `.ant-upload-disabled` khi cổng mở (chưa HARD_LOCK).
-8. Click **Gửi Bài Dự Thi Chung Kết** (đã nộp rồi: **Cập nhật Bài Dự Thi Chung Kết**).
-9. Expect toast thành công ON_TIME; Network: `POST /api/v1/submissions` **201** với `roundId` (+ `teamId`, `repoUrl`, `slideFile`) — **không** có `trackId`.
-10. (Optional) Trước lần nộp đầu: Network `GET /me/submission?…&roundId=` → `200`, body không có `data` hoặc `data: null` omitted — UI form trống sạch, **không** toast 404.
+7. Form: **Link Source Code (Github)** + Dragger PDF (magic `%PDF`) — Dragger **không** disabled khi cổng mở.
+8. Click **Gửi Bài Dự Thi Chung Kết**.
+9. Expect toast thành công; Network `POST /submissions` **201** với **`roundId`** (không `trackId`).
+10. Lặp đủ leader 01–04 (hoặc đủ đội ADVANCED trên Continuous) trước khi đóng cổng.
+11. *(Đội eliminated)* UI read-only — không form nộp.
 
-#### B. Coord — Kết thúc thời gian thi sớm (CK)
+#### B. Coord — Kết thúc sớm + readiness HARD_LOCK
 
-11. Coord → `setup?tab=rounds`.
-12. Trên vòng **Chung kết** active: **Kết thúc thời gian thi sớm**.
-13. Modal giống GĐ3: chữ đỏ **Hành động này KHÔNG THỂ HOÀN TÁC.**
-14. **Xác nhận kết thúc**.
+12. Coord → `setup?tab=rounds` → trên vòng **Chung kết**: **Kết thúc thời gian thi sớm**. Confirm danh sách **Các đội vào Chung kết** + (optional) màn **điểm thành phần** judge.
+13. Modal: chữ đỏ **Hành động này KHÔNG THỂ HOÀN TÁC.** → **Xác nhận kết thúc**.
+14. Mở `/presentation/queue?roundId={finalId}` — panel **Đội tham gia Chung kết**:
+    | Status | Nhãn FE |
+    |--------|---------|
+    | null (hết hạn) | **Không nộp** |
+    | `REJECTED` | **Nộp trễ — từ chối** |
+    | `SUBMITTED` | **Nộp đúng hạn** → ✓ Queue |
+    | `LATE_PENDING` / `LATE_APPROVED` trên CK | **Trạng thái không hợp lệ (ck)** + DevTools `console.warn [INVARIANT_VIOLATION]` + BE `log.warn` / audit `INVARIANT_VIOLATION_HARD_LOCK_LATE` |
+15. **Không** hiện nút **Duyệt** trễ trên CK (`canReviewLate=false`).
 
 #### C. Constraint HARD_LOCK → REJECTED
 
-15. SV (sau end-early) thử nộp / cập nhật lại trên tab **Chung kết**.
-16. Expect toast lỗi thân thiện kiểu: **Bài nộp đã bị từ chối (REJECTED) — đã quá hạn nộp Chung kết.**  
-    (API có thể 2xx với `status: REJECTED` — không crash UI.)
-17. Alert UI: *Bài nộp Chung kết đã bị hệ thống từ chối do quá hạn (HARD_LOCK). Không thể nộp lại.* — Dragger/lock theo `HARD_LOCK`.
+16. SV sau end-early thử nộp / cập nhật tab **Chung kết**.
+17. Expect toast: **Bài nộp đã bị từ chối (REJECTED) — đã quá hạn nộp Chung kết.** / message **đã kết thúc** (+ Alert HARD_LOCK khóa Dragger).
 
-#### D. Queue + Guest judge chấm
+#### D. Queue + Guest chấm + controller
 
-18. Coord: **Mở hàng đợi thuyết trình** cho `finalRoundId` (không `trackId`).
-19. **Điều phối lịch trình thuyết trình** → **Khởi Động Máy Quay Số**.
-20. Login `guestjudge@gmail.com` / `GuestJudge@dev1` (hoặc judge CK seed).
-21. `/judge/dashboard` → **Vào phòng chấm thi** (match đúng hackathon).
-22. Chấm xong → **HOÀN TẤT & CHỐT SỔ ĐIỂM**.
+18. Coord: **Mở hàng đợi thuyết trình** (final — **không** `trackId`).
+19. **Khởi Động Máy Quay Số** chỉ sau close — expect chỉ đội ON_TIME vào queue. Shuffle đồng bộ trạng thái nộp.
+20. Gán controller round: PUT `/presentation/rounds/{finalId}/controller` (Transfer online / Takeover) — UI card **Người Điều Phối Timer**.
+21. Login `guestjudge@gmail.com` → `/judge/dashboard` → **Vào phòng chấm thi** (đúng hackathon).
+22. Heartbeat 30s; banner **Chấm tuyệt đối theo rubric**.
+23. Chấm **đủ đội** trong queue → mỗi đội **HOÀN TẤT & CHỐT SỔ ĐIỂM** + controller Next theo FSM (QA/ENDED) — cùng timer sequence GĐ3.
+24. FAIL-03: Transfer controller khi guest tab còn mở → guest mất nút điều khiển ≤1s (`CONTROLLER_CHANGED`).
 
 #### E. Khóa điểm CK → PENDING_CONFIRM
 
-23. Coord: **Khóa chấm điểm** trên vòng Chung kết.
-24. Modal → **Xác nhận Khóa**.
-25. Expect hackathon status **`PENDING_CONFIRM`** (sẵn GĐ6).
+25. Coord: **Khóa chấm điểm** trên CK → **Xác nhận Khóa**.
+26. Expect hackathon **`PENDING_CONFIRM`** — sẵn GĐ6.  
+    *(Thiếu chấm đủ judge → có thể `SCORING_INCOMPLETE_BEFORE_CONFIRM` khi confirm GĐ6 — chấm đủ trước.)*
 
 ### 5.4 Bad / edge
 
@@ -963,6 +1115,7 @@ Vòng CK active → SV nộp trên `/student/submit` → kết thúc giờ thi �
 | Submit open + end-early | Mutating trên `seal-gd5-final-active` → SV nộp sau hạn → **REJECTED** (`HARD_LOCK`) |
 | Scoring live | Chấm sau end-early + queue trên final-active |
 | Late hardlock | Nộp muộn CK → `REJECTED` |
+| INVARIANT-01/02 | Data lỗi LATE_* trên HARD_LOCK → label «không hợp lệ (ck)» + warn |
 | Calibration timer | Timer CK (Chương C) |
 | Not advanced | SV chưa advance — không đủ điều kiện nộp CK |
 | BC1–3 end-early CK | Giống GĐ3 trên round final |
@@ -970,6 +1123,7 @@ Vòng CK active → SV nộp trên `/student/submit` → kết thúc giờ thi �
 | Hardcode `hackathonId=1` | Không được xuất hiện trong Network khi SV đang slug GĐ5 |
 | Mock PDF không magic `%PDF` | IT/API → `INVALID_SLIDE_FILE` (4xx) |
 | POST CK kèm `trackId` | `INVALID_STATE` — phải `roundId` only |
+| Non-controller Next | `403 NOT_TRACK_CONTROLLER` |
 
 ### 5.5 API then chốt
 
@@ -1029,32 +1183,55 @@ Trao giải → **Chốt sổ & Công bố kết quả** / **Khóa điểm & Cô
 | **A** | Happy: `seal-gd6-pending-confirm` hoặc `seal-gd6-confirm-ready`. Empty prizes: `seal-gd6-prizes-empty`. Export: `seal-gd6-finished-export`. |
 | **B** | Hackathon vừa khóa CK → **`PENDING_CONFIRM`**. |
 
-### 6.3 Happy path (click-by-click)
+### 6.3 Happy path (click-by-click) — ≥1 giải + CSV BOM/DQ + chapter
 
-1. Login Coord.
-2. Mở `/hackathons/{id}/results`.
-3. Alert có thể nhắc: *PENDING_CONFIRM… trao giải (tab Giải thưởng) rồi bấm Chốt sổ.*
-4. Chọn tab **Giải thưởng**.
+#### Newbie click-by-click (Non-IT)
+
+* **Bước 1**
+  * **Người thực hiện:** Coordinator trên seed `seal-gd6-pending-confirm`
+  * **Thao tác:** Trao ≥1 giải → nhấn **Chốt sổ (Confirm)** / **Chốt sổ & Công bố kết quả**.
+  * **Kết quả kỳ vọng:** Chốt sổ thành công (**không** báo thiếu điểm CK — seed đã đủ). BXH Cơ sở tính đúng.
+* **Bước 2**
+  * **Thao tác:** Nhấn **Xuất CSV**.
+  * **Kết quả kỳ vọng:** File đủ cột (Tên đội, SV, Điểm, Hạng, Giải thưởng, DQ/status…).
+
+#### Chi tiết đầy đủ
+
+1. Login Coord `coord@fpt.edu.vn` / `Coordinator@dev1`.
+2. Mở `/hackathons/{id}/results` trên slug `seal-gd6-pending-confirm` (hoặc Continuous vừa lock CK).
+3. Alert nhắc: *PENDING_CONFIRM… trao giải (tab Giải thưởng) rồi bấm Chốt sổ.*
+4. Tab **Giải thưởng**.
 5. Click **Trao giải mới**.
-6. Modal chọn loại giải (vd **Giải Nhất (First Prize)**, Nhì, Ba, Khuyến khích, Khác) + gắn đội/cá nhân theo form.
-7. Lưu giải — lặp đến khi ≥ 1 giải (đủ rule confirm).
-8. Click **Chốt sổ & Công bố kết quả**.
-9. Modal cảnh báo irreversible — thấy **KHÔNG THỂ HOÀN TÁC!**
-10. Confirm bằng **Khóa điểm & Công bố**.
-11. Expect status hackathon **`FINISHED`**.
-12. Click **Xuất CSV xếp hạng** → file tải về.
-13. (Tuỳ chọn) xem các tab **Bảng XH Team** / Chapter / Cá nhân.
-14. Login Student → **`/student/results`** → mở kỳ thi → bảng vàng / ranking đã công bố.
+6. Modal: chọn loại (**Giải Nhất / Nhì / Ba / Khuyến khích / Đặc biệt**) + gắn **đội finalist** + lý do nếu form yêu cầu → Lưu.
+7. Lặp đến khi **≥ 1 giải** (rule confirm: `NO_PRIZES_RECORDED` nếu 0 giải).
+8. *(Optional PRIZE-02)* Sửa giải đã trao: `PATCH /api/v1/prizes/{awardId}` `{ prizeName?, teamId?, reason }`
+    - Đổi `teamId` sang đội **đã có giải** → **409** `PRIZE_DUPLICATE`.
+    - Typo tên + reason → 2xx + audit `PRIZE_AWARD_UPDATED`.
+    - **Không** dùng endpoint này để đổi quota catalog sau giải đầu (PRIZE-01 catalog LOCKED).
+9. Click **Chốt sổ & Công bố kết quả**.
+10. Modal irreversible — thấy **KHÔNG THỂ HOÀN TÁC!**
+11. Confirm **Khóa điểm & Công bố**.
+12. Expect hackathon **`FINISHED`** (seed GĐ6 đã đủ điểm CK — không `SCORING_INCOMPLETE_BEFORE_CONFIRM` trên snapshot sạch).
+13. Click **Xuất CSV xếp hạng**:
+    - File bắt đầu UTF-8 **BOM** (`EF BB BF` / Excel mở tiếng Việt đúng).
+    - Có cột `status` / `note` — đội **DQ / DISQUALIFIED** **vẫn có dòng** (`note=DQ`), không «biến mất».
+    - Đủ cột tên đội, SV, điểm, hạng, giải thưởng.
+14. Tab **Bảng XH Team** / **Cơ sở (Chapter)** / Cá nhân:
+    - Chapter cột khớp BE: **Điểm đội cao nhất**, **Tổng điểm cơ sở**, **Số giải** — **không** còn `prize_bonus = prizesWon * 10` giả.
+15. Login Student → **`/student/results`**:
+    - Banner lifecycle (CTA xem kết quả).
+    - Mở kỳ thi → bảng vàng / ranking đã công bố.
 
 ### 6.4 Bad / edge
 
-| Slug | Bước | Expect |
+| Slug / kịch bản | Bước | Expect |
 |------|------|--------|
-| `seal-gd6-prizes-empty` | **Chốt sổ & Công bố kết quả** khi 0 giải | Gate / disable / error — stepper *Cần ≥1 giải* |
+| `seal-gd6-prizes-empty` / 0 giải | **Chốt sổ & Công bố kết quả** | Gate / `NO_PRIZES_RECORDED` — stepper *Cần ≥1 giải* |
 | `seal-gd6-confirm-ready` | Confirm đủ điều kiện | Happy confirm |
-| `seal-gd6-finished-export` | **Xuất CSV xếp hạng** | File OK trên `FINISHED` |
-| `seal-gd6-prize-duplicate` | Trao trùng giải | Error duplicate |
+| `seal-gd6-finished-export` | **Xuất CSV xếp hạng** | File BOM + OK trên `FINISHED` |
+| `seal-gd6-prize-duplicate` / đổi teamId trùng | Trao / PATCH award | `PRIZE_DUPLICATE` 409 |
 | `seal-gd6-edge-errors` | Edge | ErrorCode catalog |
+| Thiếu điểm CK đủ judge | Confirm | `SCORING_INCOMPLETE_BEFORE_CONFIRM` |
 
 ### 6.5 API then chốt
 
@@ -1069,6 +1246,49 @@ Không có end-early. Sau **FINISHED** chỉ đọc + export.
 
 ---
 
+## L. Lifecycle sync regression (v9+polish — bổ sung 2026-07-16)
+
+> Chạy **sau** happy GĐ3/GĐ5 Mode A, hoặc gắn vào Continuous khi verify hội đồng. Mỗi case ghi **pass/fail + Evidence** (screenshot DevTools / Network / audit id).
+
+### L.1 Ma trận nhanh
+
+| ID | Việc | Steps ngắn | Expect |
+|----|------|------------|--------|
+| **SH-01** | Shuffle trước hết hạn | Queue trước end-early | Nút disabled + tooltip **Chờ hết hạn nộp bài** |
+| **SH-02** | Reshuffle sau Start | Shuffle khi đã PRESENTING | `PRESENTATION_ALREADY_STARTED` |
+| **LATE-01** | Late approve sau shuffle | Duyệt LATE_PENDING sau quay số | Append WAITING cuối — không reshuffle |
+| **INVARIANT-01** | LATE_PENDING trên HARD_LOCK | (Seed lỗi / DB) hoặc assert CK không tạo LATE_* | Label «Trạng thái không hợp lệ (ck)» + warn |
+| **INVARIANT-02** | LATE_APPROVED trên HARD_LOCK | Như trên | Cùng invariant + audit |
+| **PUB-01** | Publish → SV | GĐ4 **Công bố kết quả** | WS announcements + feed/unread |
+| **PUB-02** | Soft-hide | Coord soft-hide | SV feed hết thấy; record còn |
+| **LOCK-03** | Unlock | **Mở khóa chấm** + reason | WS `SCORING_UNLOCKED`; judge chấm lại được |
+| **CTRL-01** | Non-controller | Judge không controller bấm Next | UI ẩn + API 403 |
+| **FAIL-01** | Takeover/Transfer | Coord Takeover tạm / Transfer | Judge mới điều khiển được |
+| **FAIL-02** | Race takeover | 2 trình duyệt Coord | 1 OK + 1 409 `CONTROLLER_CONFLICT` |
+| **FAIL-03** | Old controller mất nút | Transfer khi tab cũ mở | ≤1s mất Start/Next (WS) — không F5 |
+| **HEART-01** | Heartbeat | DevTools Network 30s | `POST …/controller/heartbeat` |
+| **XFER-01** | Offline transfer | Transfer judge không ping | `JUDGE_OFFLINE` |
+| **PRIZE-02** | Sửa award team trùng | PATCH prize teamId đã có giải | 409 `PRIZE_DUPLICATE` |
+| **CSV-01** | Export sau FINISHED | **Xuất CSV xếp hạng** | BOM + dòng DQ |
+| **AUDIT-RO-01** | Audit RO | Coord `GET /audit-logs?hackathonId=` | 2xx; Mentor/Student 403 |
+| **WS-DB-01** | Debounce | Nhiều shuffle/append liên tiếp | FE refetch gộp ~400ms — không storm |
+
+### L.2 Label matrix (copy cho phiếu)
+
+**Policy `ALLOW_LATE_PENDING` (GĐ3):**
+
+| Trong window, chưa nộp | Hết hạn, không sub | LATE_PENDING | LATE_APPROVED | REJECTED | DISQUALIFIED |
+|------------------------|--------------------|--------------|---------------|----------|--------------|
+| Chưa nộp | Hết hạn — không nộp | Nộp trễ — chờ duyệt | Nộp trễ — đã duyệt | Bị từ chối | Loại (vi phạm) |
+
+**Policy `HARD_LOCK` (GĐ5):**
+
+| Trong window | Hết hạn | LATE_* | REJECTED | DISQUALIFIED |
+|--------------|---------|--------|----------|--------------|
+| Chưa nộp | Không nộp | **Không được tồn tại** → «Trạng thái không hợp lệ (ck)» | Nộp trễ — từ chối | Loại (vi phạm) |
+
+---
+
 ## 7. Luồng full 6 giai đoạn
 
 ### 7A. Happy continuous (fast path)
@@ -1076,6 +1296,17 @@ Không có end-early. Sau **FINISHED** chỉ đọc + export.
 **Mục tiêu:** trên một chuỗi (Mode B tạo mới **hoặc** `seal-e2e-2026` + nhảy snapshot khi seed không tiến tiếp) đi hết GĐ1→GĐ6.
 
 > **Hai lớp tài liệu:** mục **1.3–6.3** = happy **tay / click-by-click thuần UI**. Mục **7A E2E** bên dưới = hành vi **Playwright Mode B Continuous** (harden **2026-07-15**: GĐ1 rounds qua UI) — **không** đồng nhất 1:1 với chuỗi tay vì Ant Select / modal / PRESENTING flaky trên Windows → track/criteria/people/events & GĐ4–GĐ6 vẫn dùng API trong `modeBContinuousHelpers.js` (không qua `progressionApiHelpers.js`).
+
+#### Full-chain API script + probe sau Confirm (Session Evening)
+
+Ngoài Playwright Mode B, có thể chạy nguyên chuỗi GĐ3→GĐ6 (API):
+
+```powershell
+cd d:\FPT\SU26\SWP\ManageSealHackathon
+node scripts/gd3-gd4-gd5-full-chain-api.mjs
+```
+
+> **Bắt buộc sau Confirm GĐ6** trên `seal-e2e-2026` (hoặc seed bị mutate thành `FINISHED`): **restart BE** (`dev` create-drop + `repairForGd5FullChainRetest` rồi `repairForGd2Testing`) **trước** `npm run probe:seeds`. Nếu không, probe có thể lệch kỳ vọng `PENDING_CONFIRM` / FINISHED.
 
 #### E2E thuần UI (Mode B Continuous) — trạng thái sau verify **2026-07-15**
 
@@ -1143,18 +1374,18 @@ npx playwright test e2e/mode-b-continuous-ui.spec.js --project=mutating-e2e --wo
 1. **GĐ1:** `/hackathons` → **Tạo sự kiện** → điền form (`buildTimelineDates` nếu muốn khớp E2E) → **Tạo sự kiện** → **Thiết lập** → **Vòng thi** (**Thêm vòng thi** ×2) → **Bảng đấu** (+ PDF đề) → **Tiêu chí đánh giá** (weight **1.0**) → **Nhân sự** (judge1 SL; **chưa** guest CK) → **Lịch trình & Sự kiện** (KICKOFF rồi WORKSHOP rồi AWARDS) → **Đánh giá & Kiểm tra** → **Xác nhận Kích hoạt** → **Kích hoạt ngay** → ONGOING.  
    *Hoặc Mode A:* mở `seal-e2e-2026` → chỉ verify tabs.
 2. **GĐ2:** SV orphan đăng ký + tạo đội (min size 1) → khóa đội / confirm-formation → Coord **`/teams?hackathonId={id}`** **Duyệt** → `setup?tab=general` → **Kết thúc đăng ký sớm** → **Bốc thăm & khai mạc** → **Bốc thăm Tự động (Cho đội chưa có)** → **Vòng thi** → **Kích hoạt Vòng thi** → modal chọn **Kích hoạt và bắt đầu thi ngay** (Sơ loại).
-3. **GĐ3:** **Phát đề bài** / **Phát tất cả** / **Phát Đề** → đợi UI nộp sẵn sàng → SV `/student/submit` tab **Sơ loại** → **Nộp bài Sơ loại** (đủ đội) → Coord **Kết thúc thời gian thi sớm** (chữ **Hành động này KHÔNG THỂ HOÀN TÁC.**) → **Xác nhận kết thúc** → **Mở hàng đợi thuyết trình** → **Khởi Động Máy Quay Số** (sau close-submission) → timer **Q&A** / early-end Q&A nếu cần → Judge **Vào phòng chấm thi** (từ `/judge/assignments`, đúng hackathon) → **HOÀN TẤT & CHỐT SỔ ĐIỂM** (**đủ đội**) → **Đội tiếp** chỉ sau QA/ENDED → **Khóa chấm điểm** → **Xác nhận Khóa**.
-4. **GĐ4:** `/hackathons/{id}/rounds/{prelimId}/results` → Wild Card nếu có → **Công bố kết quả** → **Chốt chuyển vòng** → **Cấu hình Chung kết** / **Nhân sự** gán `guestjudge@` FINAL_EXTERNAL → PDF đề CK nếu thiếu → **Kích hoạt Vòng thi** (CK).
-5. **GĐ5:** SV advanced `/student/submit` tab **Chung kết** → **Gửi Bài Dự Thi Chung Kết** (multipart `roundId` + PDF magic `%PDF`) → end-early CK → queue + guest chấm **đủ đội** → **Khóa chấm điểm** → `PENDING_CONFIRM`.
-6. **GĐ6:** `/results` → tab **Giải thưởng** → **Trao giải mới** (≥1 giải) → **Chốt sổ & Công bố kết quả** → **KHÔNG THỂ HOÀN TÁC!** → **Khóa điểm & Công bố** → **Xuất CSV xếp hạng** → SV `/student/results`.
+3. **GĐ3 (lifecycle):** **Phát đề bài** → SV `/student/submit` tab **Sơ loại** → **Nộp bài Sơ loại** (đủ đội) → Coord **Kết thúc thời gian thi sớm** (chữ **Hành động này KHÔNG THỂ HOÀN TÁC.**) → queue: confirm shuffle **disabled trước** close / **enabled sau** → **Khởi Động Máy Quay Số** → gán **Người Điều Phối Timer** (Transfer/Takeover) → timer **Q&A** → Judge **HOÀN TẤT & CHỐT SỔ ĐIỂM** (**đủ đội**) + heartbeat 30s → **Đội tiếp** chỉ sau QA/ENDED → optional late-append / FAIL-03 → **Khóa chấm điểm** → **Xác nhận Khóa** (optional **Mở khóa chấm**).
+4. **GĐ4:** `/rounds/{prelimId}/results` → WC nếu có → **Công bố kết quả** (WS announcement / SV badge) → **Chốt chuyển vòng** chỉ khi `canAdvance` & hết vé vớt pending → **Cấu hình Chung kết** / gán `guestjudge@` → **Kích hoạt Vòng thi** (CK).
+5. **GĐ5:** SV advanced `/student/submit` tab **Chung kết** → **Gửi Bài Dự Thi Chung Kết** → end-early → readiness HARD_LOCK labels → queue + guest chấm **đủ đội** + controller failover → **Khóa chấm điểm** → `PENDING_CONFIRM`.
+6. **GĐ6:** `/results` → **Trao giải mới** (≥1) → optional PATCH award → **Chốt sổ & Công bố kết quả** → **KHÔNG THỂ HOÀN TÁC!** → **Khóa điểm & Công bố** → **Xuất CSV xếp hạng** (BOM+DQ) → tab Chapter khớp BE → SV `/student/results` + lifecycle banner.
 
 ```mermaid
 flowchart TD
   g1[GĐ1 setup readiness ONGOING] --> g2[GĐ2 close-reg-early + lottery + activate SL]
-  g2 --> g3[GĐ3 phát đề nộp end-early shuffle chấm lock]
-  g3 --> g4[GĐ4 wildcard publish advance final-config activate CK]
-  g4 --> g5[GĐ5 nộp CK end-early chấm đủ đội lock PENDING_CONFIRM]
-  g5 --> g6[GĐ6 prizes confirm FINISHED export]
+  g2 --> g3[GĐ3 phát đề nộp end-early shuffle controller chấm lock]
+  g3 --> g4[GĐ4 publish announcement advance final-config activate CK]
+  g4 --> g5[GĐ5 nộp HARD_LOCK queue failover lock PENDING_CONFIRM]
+  g5 --> g6[GĐ6 prizes confirm FINISHED CSV BOM]
 ```
 
 **Đường tắt quan trọng**
@@ -1163,7 +1394,9 @@ flowchart TD
 |-----------|--------------|-----|
 | GĐ2 | **Kết thúc đăng ký sớm** — `setup?tab=general` | `POST .../close-registration-early` |
 | GĐ3 / GĐ5 | **Kết thúc thời gian thi sớm** — `setup?tab=rounds` | `POST .../close-submission-early` |
-| GĐ3 / GĐ5 | **Khóa chấm điểm** — rounds | `PATCH .../lock-scoring` |
+| GĐ3 / GĐ5 | **Khóa chấm điểm** / **Mở khóa chấm** — rounds | `PATCH .../lock-scoring` / `PATCH .../unlock-scoring` |
+| GĐ3 / GĐ5 | Controller Transfer/Takeover | `PUT .../presentation/.../controller` |
+| GĐ4 | **Công bố kết quả** | `PATCH .../publish` + announcements WS |
 | GĐ6 | **Chốt sổ** — `#hackathon-confirm-trigger` | `PATCH .../confirm` `{ confirm: true }` |
 
 **Nhảy snapshot khi continuous kẹt (Mode A tay / seed):** nếu `seal-e2e-2026` không còn state để tiến, chuyển Mode A sang slug primary của GĐ tiếp theo (bảng mục 0 / master matrix). **E2E Mode B Continuous không được nhảy snapshot.**
@@ -1181,7 +1414,12 @@ flowchart TD
 | End-early round inactive / đã lock | BC1 / BC2 | `ROUND_NOT_ACTIVE` / `INVALID_STATE` |
 | SV nộp sau end-early GĐ3 | `/student/submit` **Sơ loại** | Toast **LATE_PENDING** |
 | SV nộp sau end-early GĐ5 | `/student/submit` **Chung kết** | Toast **REJECTED** |
-| Confirm GĐ6 khi chưa có giải | `seal-gd6-pending-confirm` xóa giải tay → **Chốt sổ & Công bố kết quả** | Gate / error UI |
+| Shuffle trước hết hạn | Queue trước end-early | Disabled / `SUBMISSION_NOT_CLOSED_FOR_SHUFFLE` |
+| Reshuffle sau PRESENTING | **Khởi Động Máy Quay Số** lần 2 | `PRESENTATION_ALREADY_STARTED` |
+| Takeover race 2 Coord | PUT controller cùng `expectedControllerJudgeId` | 409 `CONTROLLER_CONFLICT` |
+| Transfer judge offline | mode=TRANSFER không heartbeat | `JUDGE_OFFLINE` |
+| Unlock không lý do | `PATCH …/unlock-scoring` body `{}` | `UNLOCK_REASON_REQUIRED` |
+| Confirm GĐ6 khi chưa có giải | `seal-gd6-pending-confirm` xóa giải tay → **Chốt sổ & Công bố kết quả** | Gate / `NO_PRIZES_RECORDED` |
 | Confirm GĐ6 thiếu điểm judge CK | Seed cũ chỉ 1 guest chấm trong khi CK có HEAD+3 guest → `SCORING_INCOMPLETE_BEFORE_CONFIRM` — restart BE (seed 2026-07-15 chấm đủ mọi judge) | Toast *Chưa chấm đủ điểm Chung kết* |
 | AWARDS trước KICKOFF | **Lịch trình & Sự kiện** trên e2e-2026 | `EVENT_*` order errors |
 | Activate CK chưa publish SL | Catalog trên `seal-gd4-advance-ready` | Gate G4-N01 |
@@ -1205,7 +1443,7 @@ flowchart TD
 | | |
 |--|--|
 | Mutate | REST only (`/presentation/timer/*`, `/presentation/queue/*`, progression) |
-| Push | `PresentationQueuePublisher` → `/topic/rounds/{id}/presentation-queue` (+ track topic) |
+| Push | `PresentationQueuePublisher` → `/topic/rounds/{id}/presentation-queue` (+ track) — queue payload, `TIMER_PHASE`, **`CONTROLLER_CHANGED`**, **`SCORING_UNLOCKED`**; announcements → `/topic/hackathons/{id}/announcements` |
 | FE browser | SockJS + `usePresentationQueueSocket` |
 | E2E Node | `@stomp/stompjs` + package **`ws`** (raw `/ws`) — **không** `sockjs-client` |
 | BE endpoint | Raw WS + SockJS cùng path `/ws` ([`WebSocketConfig`](../../src/main/java/com/sealhackathon/api/config/WebSocketConfig.java)) |
@@ -1354,7 +1592,7 @@ npx playwright test e2e/5-secondary-portals-mutating.spec.js --project=mutating-
 | **0 — Harden IT/PW/Mode B helpers** | Magic PDF IT; `gd5-final-submit-smoke`; Mode B `createPrelimAndFinalRoundsViaUi` | Trước full pyramid khi sửa GĐ5/GĐ1 |
 | **1 — BE unit** | `.\mvnw.cmd test -B "-Dtest=!*IntegrationTest"` | **Dừng** `spring-boot:run` trước — cùng MySQL + `create-drop` sẽ drop schema app |
 | **2 — BE IT** | `.\mvnw.cmd test -B "-Dtest=*IntegrationTest"` | Một lần sau unit pass — gồm GĐ5 magic PDF + portal null |
-| **3 — BE up + probe/parity/matrix** | Start BE dev → đợi **6 happy slugs** → `npm run probe:seeds` → `npm run test:e2e:parity` → `npm run test:e2e:matrix` | Probe target **26/26** |
+| **3 — BE up + probe/parity/matrix** | Start BE dev → đợi **9 happy slugs** → `npm run probe:seeds` → `npm run test:e2e:parity` → `npm run test:e2e:matrix` | Probe target **26/26** |
 | **4 — Playwright theo GĐ** | `gd5-final-submit-smoke`, GĐ6 closure, `npm run test:e2e:gd2` | Non-mutating trước; `gd2` mutating → **làm bẩn DB** |
 | **4b — Restart BE** | Stop + `spring-boot:run -Dspring-boot.run.profiles=dev` | **CRITICAL** trước Mode B |
 | **5 — Mode B continuous** | `$env:E2E_MUTATING=1` + `mode-b-continuous-ui.spec.js` `--workers=1` | Sau 4b; rồi restart + probe lại |
@@ -1385,16 +1623,16 @@ cd d:\FPT\SU26\SWP\ManageSealHackathon\BE
 
 Ghi nhận pyramid 2026-07-15: **Tests run: 26, Failures: 0** (gồm `Gd4ToGd6FlowIntegrationTest` — CK: magic `%PDF`, `GET /me/submission` data omitted khi trống, `POST` `roundId` → 201 + `slideFile`).
 
-### 8.3 Probe seeds (target **26** — 6 happy slug)
+### 8.3 Probe seeds (target **26** — 9 happy slug)
+
+> Slug catalog còn **9 happy** — xem [dev-seed-slugs-guide.md](dev-seed-slugs-guide.md) + [session-changelog-2026-07-15-16.md](session-changelog-2026-07-15-16.md). Slug bad/gate cũ (~47) đã purge; negative probe dùng happy slug + [intentional-errors-catalog.md](intentional-errors-catalog.md).
 
 ```powershell
 cd d:\FPT\SU26\SWP\ManageSealHackathon\seal-hackathon-fe
 npm run probe:seeds
 ```
 
-Expect: **6** slug + **5** account + **15** neg = **26** probes. Lần pyramid 2026-07-15: **26/26**.
-
-> Slug catalog còn **6 happy** — xem [dev-seed-slugs-guide.md](dev-seed-slugs-guide.md). Slug bad/gate cũ (~47) đã purge; negative probe dùng happy slug + [intentional-errors-catalog.md](intentional-errors-catalog.md).
+Expect: **9** slug + accounts + neg probes = **26** probes (chi tiết trong `seedApiProbe.js`). Lần pyramid 2026-07-15: **26/26**.
 
 ### 8.3b Parity + seed matrix (Phase 3)
 
@@ -1590,13 +1828,15 @@ Lần này: **25/25** (chạy **trước** mutating hoặc **sau** restart BE).
 
 - [ ] Login Coord
 - [ ] **Tạo sự kiện** + đủ field (hoặc skip nếu Mode A `seal-e2e-2026`)
+- [ ] Form: **không** nhập Bắt đầu/Kết thúc sự kiện; **không** công tắc BXH cá nhân
 - [ ] **Thiết lập** → đủ tabs cấu hình
 - [ ] Sơ loại + Chung kết qua **Thêm vòng thi** ×2 (`Loại vòng thi` → tự sync `Là vòng chung kết` + policy)
-- [ ] Tracks + PDF
+- [ ] CK: **không** upload PDF đề mới; Mở/Hạn nộp disabled + `(i)`
+- [ ] Tracks + PDF (Sơ loại)
 - [ ] Criteria tổng **1.0**
-- [ ] People (chưa guest CK sớm)
+- [ ] People (chưa guest CK sớm) + avatar khi chọn
 - [ ] KICKOFF → WORKSHOP → AWARDS
-- [ ] **Xác nhận Kích hoạt** → **Kích hoạt ngay** → ONGOING
+- [ ] **Xác nhận Kích hoạt** → **Kích hoạt ngay** / START_NOW lead phút → ONGOING
 - [ ] API readiness `ready: true`
 
 ### Phiếu GĐ2
@@ -1605,20 +1845,25 @@ Lần này: **25/25** (chạy **trước** mutating hoặc **sau** restart BE).
 - [ ] Coord **`/teams?hackathonId={id}`**: thấy **7 đội** `E2E-T01`…`E2E-T07` + Sơ loại có **3 track** trước khi bốc thăm.
 - [ ] Biết lấy 3 email orphan (`student.e2e.orphan1@fpt.edu.vn` … orphan3) để mời vào đội.
 - [ ] Đã làm (hoặc bỏ qua có ghi chú): Tạo TK / Cập nhật hồ sơ / Tạo đội / Mời thành viên / Duyệt đội.
+- [ ] **Tạo đội / Accept** → auto navigate (không F5)
+- [ ] **Membership release:** sau giải tán tạo đội mới được
+- [ ] Batch approve chỉ tick đội đủ điều kiện
 - [ ] Sau khi restart: Kiểm tra thời gian đăng ký (còn mở) trên **Cấu hình chung** — close-reg **không** đổi `eventStart`.
 - [ ] `/teams` **Duyệt đội** → **Duyệt**
 - [ ] **Kết thúc đăng ký sớm**
-- [ ] **Bốc thăm Tự động (Cho đội chưa có)**
-- [ ] **Kích hoạt Vòng thi** Sơ loại → modal **Kích hoạt và bắt đầu thi ngay** (hoặc KEEP nếu test lịch dài)
+- [ ] **Bốc thăm Tự động (Cho đội chưa có)** — xong trong vài giây
+- [ ] **Kích hoạt Vòng thi** Sơ loại → modal **Kích hoạt và bắt đầu thi ngay** (hoặc KEEP / RESCHEDULE nếu test lịch dài)
 
 ### Phiếu GĐ3
 
-- [ ] **Phát đề bài** / **Phát tất cả** / **Phát Đề**
+- [ ] **Phát đề bài** / **Phát tất cả** / **Phát Đề** → sync track + cột trạng thái nộp
+- [ ] SV thấy **STT thuyết trình** + **Mã số đội**
 - [ ] SV `/student/submit` **Sơ loại** → **Nộp bài Sơ loại**
 - [ ] **Kết thúc thời gian thi sớm** + chữ đỏ irreversible + **Xác nhận kết thúc**
-- [ ] (Optional) LATE_PENDING toast
+- [ ] (Optional) LATE_PENDING toast / message «đã kết thúc» (không «chưa diễn ra»)
 - [ ] **Mở hàng đợi thuyết trình** → **Khởi Động Máy Quay Số** (sau close-submission)
-- [ ] Timer **Q&A** / **Kết thúc sớm Hỏi Đáp** (gate chấm giống **Đội tiếp**)
+- [ ] Timer sequence: thuyết trình → Q&A → **Đội tiếp**; **Reset Timer** ẩn sau chốt
+- [ ] Form điểm trắng khi chuyển đội
 - [ ] Judge **`/judge/assignments`** → **Vào phòng chấm thi** (đúng hackathon) → **HOÀN TẤT & CHỐT SỔ ĐIỂM**
 - [ ] **Đội tiếp** chỉ sau QA hoặc ENDED
 - [ ] **Khóa chấm điểm** → **Xác nhận Khóa**
@@ -1627,9 +1872,11 @@ Lần này: **25/25** (chạy **trước** mutating hoặc **sau** restart BE).
 
 - [ ] Results URL đúng
 - [ ] Banner đỏ + khóa Advance khi còn Tiebreak (`seal-gd4-tiebreak-manual`)
-- [ ] Vé vớt **Duyệt** / **Từ chối** — tag *Sẽ vào CK* ≠ ADVANCED (`seal-gd4-wildcard-gap`)
+- [ ] Vé vớt Plan C: cột **thời gian nộp** + vote judge (mentor đội bị vô hiệu hóa)
+- [ ] Vé vớt **Xác nhận đề xuất** + lock (`seal-gd4-wildcard-gap`) — không duyệt tay từng dòng
+- [ ] Override category + lịch sử công khai (WC-03..WC-05)
 - [ ] Tab Vé vớt **ẩn** khi `availableSlots=0`
-- [ ] **Công bố kết quả**
+- [ ] **Công bố kết quả** → SV thấy điểm / hạng / đi tiếp
 - [ ] **Chốt chuyển vòng**
 - [ ] **Cấu hình Chung kết**
 - [ ] Activate CK
@@ -1641,28 +1888,32 @@ Lần này: **25/25** (chạy **trước** mutating hoặc **sau** restart BE).
 - [ ] TC3 PENALTY — ít phạt hơn thắng
 - [ ] TC4 COORDINATOR — Advance → `TIEBREAK_REQUIRED` + reorder
 - [ ] TC5 Auto pool slots đúng
-- [ ] TC6 Approve = WILDCARD_APPROVED; ADVANCED chỉ sau advance
+- [ ] TC6 Confirm proposal = WILDCARD_APPROVED top-N; ADVANCED chỉ sau advance
 - [ ] TC6b Track thêm → slots≤0 ẩn tab
 - [ ] TC6c Deep Tie → manual, không random
 - [ ] TC7 minFinal đã đầy → không tab WC
 
 ### Phiếu GĐ5
 
-- [ ] `/student/submit` **Chung kết** → **Gửi Bài Dự Thi Chung Kết** (repo + PDF)
+- [ ] Coord: **không** nút Phát đề / upload PDF CK; danh sách **đội vào CK**; **điểm thành phần** judge
+- [ ] Đội eliminated: UI **read-only**
+- [ ] `/student/submit` **Chung kết** → **Gửi Bài Dự Thi Chung Kết** (repo + PDF) — đề reuse SL
 - [ ] Network: `POST /submissions` có **`roundId`**, không `trackId`; **không** gọi `hackathons/1/final-round`
 - [ ] (Optional) trước nộp: `GET /me/submission` → 200, không 404
 - [ ] End-early CK
-- [ ] (Optional) REJECTED toast / HARD_LOCK alert
-- [ ] Queue + guest chấm
+- [ ] (Optional) REJECTED toast / HARD_LOCK / «đã kết thúc»
+- [ ] Queue + guest chấm + timer sequence như GĐ3
 - [ ] Lock → `PENDING_CONFIRM`
 - [ ] Smoke: `gd5-final-submit-smoke.spec.js`
 
 ### Phiếu GĐ6
 
+- [ ] Seed `seal-gd6-pending-confirm` Confirm **không** thiếu điểm
 - [ ] **Trao giải mới**
 - [ ] **Chốt sổ & Công bố kết quả**
 - [ ] **KHÔNG THỂ HOÀN TÁC!** → **Khóa điểm & Công bố**
-- [ ] **Xuất CSV xếp hạng**
+- [ ] **Xuất CSV xếp hạng** đủ cột + BOM/DQ
+- [ ] BXH Cơ sở đúng
 - [ ] SV `/student/results`
 
 ### Phiếu Mentor (Chương M)
@@ -1695,12 +1946,34 @@ Lần này: **25/25** (chạy **trước** mutating hoặc **sau** restart BE).
 - [ ] Lottery gate reason — không `ONGOING` / `is_locked` / `PATCH`
 - [ ] `PENDING_CONFIRM` → **Đang chờ chốt sổ điểm**
 
+### Phiếu Lifecycle sync (Chương L — 2026-07-16)
+
+- [ ] SH-01 Shuffle trước hết hạn — disabled + tooltip
+- [ ] SH-02 Reshuffle sau Start — `PRESENTATION_ALREADY_STARTED`
+- [ ] LATE-01 Late approve sau shuffle — append WAITING cuối
+- [ ] Readiness labels GĐ3 tách Chưa nộp / Hết hạn / LATE_* / REJECTED
+- [ ] HARD_LOCK GĐ5 — Không nộp / Nộp trễ — từ chối; không nút Duyệt trễ
+- [ ] INVARIANT-01/02 — LATE_* trên CK → «Trạng thái không hợp lệ (ck)» + warn
+- [ ] PUB-01/02 Announcement WS + soft-hide + lastViewedAt
+- [ ] Advance disabled khi `!canAdvance` / chưa **Xác nhận đề xuất** vé vớt
+- [ ] WC-01..WC-06 Wildcard Plan C (sort, confirm, override, lock, history)
+- [ ] LOCK-03 Unlock + `SCORING_UNLOCKED` WS
+- [ ] CTRL-01 Non-controller 403 + UI ẩn
+- [ ] FAIL-01/02/03 Takeover / 409 race / mất nút ≤1s
+- [ ] HEART-01 / XFER-01 Heartbeat 30s / offline transfer
+- [ ] PRIZE-02 PATCH award re-validate team
+- [ ] CSV-01 BOM + dòng DQ; Chapter cột = BE
+- [ ] AUDIT-RO-01 Coord đọc audit; role khác 403
+- [ ] Typed submit errors — không «chưa diễn ra» khi FINISHED/CLOSED
+
 ### Phiếu Mode B Continuous (§7A E2E)
 
 - [x] Helpers T1–T4 + H5–H6 (`modeBContinuousHelpers.js`)
 - [x] **Tạo sự kiện** slug ephemeral + `buildTimelineDates`
 - [x] **Vòng thi** UI **Thêm vòng thi** ×2 (`createPrelimAndFinalRoundsViaUi`) — log `[ModeB] GĐ1 rounds via UI`
 - [x] Setup track/criteria/people/events (API) → **Kích hoạt ngay** → ONGOING
+- [ ] Full-chain API: `node scripts/gd3-gd4-gd5-full-chain-api.mjs`
+- [ ] Sau Confirm trên e2e → **restart BE** rồi `probe:seeds` **26/26**
 - [x] SV đăng ký / tạo đội (account free) → **Duyệt**
 - [x] **Kết thúc đăng ký sớm** → lottery → **ActivateScheduleModal START_NOW**
 - [x] **Phát đề** → `waitForStudentSubmitReady` → nộp
@@ -1741,9 +2014,9 @@ Lần này: **25/25** (chạy **trước** mutating hoặc **sau** restart BE).
 - [x] Login GitHub + callback error UI; invalid OAuth token
 - [x] Restart BE trước/sau suite
 
-### Phiếu Smoke (pyramid 2026-07-15)
+### Phiếu Smoke (pyramid 2026-07-16)
 
-- [x] BE unit Phase 1 (số: **306**)
+- [x] BE unit Phase 1 (baseline pyramid; + RaceGuard / HardLockInvariant tests lifecycle)
 - [x] BE IT Phase 2 (số: **26**)
 - [x] Probe (số: **26/26**)
 - [x] parity **3/3** + matrix **6/6**
@@ -1753,17 +2026,19 @@ Lần này: **25/25** (chạy **trước** mutating hoặc **sau** restart BE).
 - [ ] Cross-browser (tuỳ chọn — chạy trước mutating hoặc sau restart BE)
 - [x] Mutating **sau** non-mutating
 - [x] Restart BE Phase 4b trước Mode B + sau mutating → probe **26/26**
----
+- [ ] Lifecycle Chương L (manual) — phiếu trên
 
 ## Phụ lục C — Tài liệu liên quan
 
-- [dev-seed-slugs-guide.md](dev-seed-slugs-guide.md) — **6 happy slug SSOT**
+- [session-changelog-2026-07-15-16.md](session-changelog-2026-07-15-16.md) — changelog phiên 15–16/07 (DONE map + KNOWN_GAP + verify)
+- [dev-seed-slugs-guide.md](dev-seed-slugs-guide.md) — **9 happy slug SSOT**
 - [dev-seed-guide.md](dev-seed-guide.md)
 - [master-slug-test-matrix.md](master-slug-test-matrix.md)
 - [gate-regression-test-matrix-gd1-gd6.md](gate-regression-test-matrix-gd1-gd6.md)
 - [full-workflow-api-test-gd1-gd6.md](full-workflow-api-test-gd1-gd6.md)
 - FE e2e: `gd5-final-submit-smoke.spec.js`, `close-submission-early.spec.js`, `mentor-portal-mutating.spec.js`, `calibration-gd5-mutating.spec.js`, `mode-b-continuous-ui.spec.js`, `websocket-queue-timer.spec.js`, `coord-concurrent-race.spec.js`, `5-secondary-portals-mutating.spec.js`, `permission-idor-mutating.spec.js`
 - FE setup tabs: `seal-hackathon-fe/src/features/hackathons/pages/HackathonSetupPage.jsx`
+- Full-chain API: `scripts/gd3-gd4-gd5-full-chain-api.mjs`
 
 ---
 

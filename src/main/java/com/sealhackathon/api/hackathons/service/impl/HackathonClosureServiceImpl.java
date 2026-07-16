@@ -18,8 +18,10 @@ import com.sealhackathon.api.hackathons.service.HackathonClosureService;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.prizes.repository.PrizeRepository;
 import com.sealhackathon.api.rounds.entity.Round;
+import com.sealhackathon.api.rounds.dto.response.TiebreakItemResponse;
 import com.sealhackathon.api.rounds.query.RoundRankingQueryService;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
+import com.sealhackathon.api.rounds.service.RoundProgressionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -37,6 +39,7 @@ public class HackathonClosureServiceImpl implements HackathonClosureService {
     private final HackathonRepository hackathonRepository;
     private final RoundRepository roundRepository;
     private final RoundRankingQueryService roundRankingQueryService;
+    private final RoundProgressionService roundProgressionService;
     private final PrizeRepository prizeRepository;
     private final HackathonMapper hackathonMapper;
     private final FinalRankingQueryService finalRankingQueryService;
@@ -76,6 +79,14 @@ public class HackathonClosureServiceImpl implements HackathonClosureService {
                     Map.of("finalRoundId", finalRound.getId()));
         }
 
+        // Gate Confirm theo round Chung kết còn DEEP_TIE (không khóa cả hackathon vì prelim khác)
+        List<TiebreakItemResponse> unresolvedFinalTiebreaks = roundProgressionService.tiebreak(finalRound.getId());
+        if (!unresolvedFinalTiebreaks.isEmpty()) {
+            throw new BusinessRuleException(ErrorCode.TIEBREAK_UNRESOLVED,
+                    "Vòng Chung kết còn đồng điểm chưa resolve — không thể Confirm FINISHED",
+                    Map.of("finalRoundId", finalRound.getId(), "unresolvedCount", unresolvedFinalTiebreaks.size()));
+        }
+
         if (prizeRepository.findByRound_Hackathon_IdOrderByAwardedAtDesc(hackathonId).isEmpty()) {
             throw new BusinessRuleException(ErrorCode.NO_PRIZES_RECORDED,
                     "Chưa ghi nhận giải thưởng — cần ít nhất 1 prize trước khi confirm",
@@ -86,13 +97,14 @@ public class HackathonClosureServiceImpl implements HackathonClosureService {
         hackathon.setStatus(HackathonStatus.FINISHED);
         Hackathon saved = hackathonRepository.save(hackathon);
 
-        auditService.log(AuditAction.HACKATHON_STATUS_CHANGE, "hackathons", saved.getId(), Map.of(
-                "from", from.name(),
-                "to", HackathonStatus.FINISHED.name(),
-                "note", req.getNote(),
-                "validatedBy", currentUserAccessor.currentUserId(),
-                "validatedAt", LocalDateTime.now().toString(),
-                "via", "confirm"));
+        java.util.HashMap<String, Object> auditMeta = new java.util.HashMap<>();
+        auditMeta.put("from", from.name());
+        auditMeta.put("to", HackathonStatus.FINISHED.name());
+        auditMeta.put("note", req.getNote() != null ? req.getNote() : "");
+        auditMeta.put("validatedBy", currentUserAccessor.currentUserId());
+        auditMeta.put("validatedAt", LocalDateTime.now().toString());
+        auditMeta.put("via", "confirm");
+        auditService.log(AuditAction.HACKATHON_STATUS_CHANGE, "hackathons", saved.getId(), auditMeta);
 
         eventPublisher.publishEvent(new HackathonFinishedEvent(this, hackathonId));
 

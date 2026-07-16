@@ -53,12 +53,12 @@ public class Gd4AdvanceReadyDataSeeder {
         }
 
         HackathonDevSeedHelper.PrelimState prelimState =
-                new HackathonDevSeedHelper.PrelimState(false, true, true, false, 1, 6);
+                new HackathonDevSeedHelper.PrelimState(false, true, true, true, 1, 6);
         HackathonDevSeedHelper.HackathonStructure structure = seedHelper.ensureHackathonStructure(
                 Gd4SeedConstants.SLUG_GD4_ADVANCE_READY,
                 "SEAL GĐ4 — Advance ready",
                 HackathonStatus.ONGOING,
-                "Seed FE GĐ4 — prelim locked, 8 đội scored, chưa publish/advance",
+                "Seed FE GĐ4 — prelim locked+published, 8 đội scored + STT queue",
                 prelimState,
                 new HackathonDevSeedHelper.FinalState(false, false),
                 seedHelper.computeGd4AdvanceReadyDates());
@@ -88,6 +88,8 @@ public class Gd4AdvanceReadyDataSeeder {
         LocalDateTime submittedAt = now.minusHours(72);
 
         List<Team> teams = new ArrayList<>();
+        List<Submission> track1Subs = new ArrayList<>();
+        List<Submission> track2Subs = new ArrayList<>();
         for (int i = 0; i < Gd4SeedConstants.TEAM_NAMES.length; i++) {
             int idx = i + 1;
             User leader = seedHelper.upsertStudent(
@@ -105,12 +107,20 @@ public class Gd4AdvanceReadyDataSeeder {
             Submission sub = seedHelper.ensurePrelimSubmission(
                     hackathon, prelim, track, team,
                     com.sealhackathon.api.submissions.value_object.SubmissionStatus.SUBMITTED,
-                    false, submittedAt);
+                    false, submittedAt.minusMinutes(i));
             seedHelper.scoreAllTrackCriteria(sub, track, judge, Gd4SeedConstants.TEAM_SCORES[i], true);
             teams.add(team);
+            if (idx <= 4) {
+                track1Subs.add(sub);
+            } else {
+                track2Subs.add(sub);
+            }
         }
 
-        // CK sẵn sàng activate sau advance: criteria + guest judge pool (structure đã seed)
+        seedHelper.seedPresentationQueue(prelim, track1, track1Subs, -1);
+        seedHelper.seedPresentationQueue(prelim, track2, track2Subs, -1);
+
+        // CK: stamp released only (reuse track PDF) — không PDF round-level
         seedHelper.ensureFinalGuestJudgeAssignment(hackathon, finalRound);
         seedHelper.seedFinalRoundProblem(finalRound);
         int finalCriteriaCount = seedHelper.listFinalCriteria(finalRound).size();
@@ -119,7 +129,7 @@ public class Gd4AdvanceReadyDataSeeder {
                 [Gd4AdvanceReadyDataSeeder] slug={} hackathonId={} prelimRoundId={} finalRoundId={}
                   teams: {} | {} | {} | {} | {} | {} | {} | {}
                   students: {} … {} password={}
-                  prelim locked, unpublished — sẵn sàng ranking/wildcard/advance
+                  prelim locked+published + STT queues — sẵn sàng ranking/wildcard/advance
                   final criteria={} guestJudge={} (không tie topN mỗi bảng)
                 """,
                 Gd4SeedConstants.SLUG_GD4_ADVANCE_READY,
@@ -178,7 +188,7 @@ public class Gd4AdvanceReadyDataSeeder {
         if (hackathon.getStatus() != HackathonStatus.ONGOING) {
             return true;
         }
-        if (Boolean.TRUE.equals(prelim.getIsPublished()) || Boolean.TRUE.equals(finalRound.getIsActive())) {
+        if (Boolean.TRUE.equals(finalRound.getIsActive())) {
             return true;
         }
         return teamRepository.findByHackathon_Id(hackathon.getId()).stream()

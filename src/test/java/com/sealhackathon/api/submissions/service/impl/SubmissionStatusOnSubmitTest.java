@@ -20,11 +20,29 @@ class SubmissionStatusOnSubmitTest {
     private SubmissionServiceImpl submissionService;
 
     @Test
-    void submittedOnTimeStaysSubmittedAfterLateReedit() throws Exception {
+    void submittedAfterDeadline_becomesRejected_onHardLock() throws Exception {
         Submission existing = Submission.builder().status(SubmissionStatus.SUBMITTED).build();
         Round round = Round.builder().lateSubmissionPolicy(LateSubmissionPolicy.HARD_LOCK).build();
 
         assertThat(invokeResolveStatusOnSubmit(existing, round, true))
+                .isEqualTo(SubmissionStatus.REJECTED);
+    }
+
+    @Test
+    void submittedAfterDeadline_becomesLatePending_onAllow() throws Exception {
+        Submission existing = Submission.builder().status(SubmissionStatus.SUBMITTED).build();
+        Round round = Round.builder().lateSubmissionPolicy(LateSubmissionPolicy.ALLOW_LATE_PENDING).build();
+
+        assertThat(invokeResolveStatusOnSubmit(existing, round, true))
+                .isEqualTo(SubmissionStatus.LATE_PENDING);
+    }
+
+    @Test
+    void submittedOnTime_staysSubmitted() throws Exception {
+        Submission existing = Submission.builder().status(SubmissionStatus.SUBMITTED).build();
+        Round round = Round.builder().lateSubmissionPolicy(LateSubmissionPolicy.ALLOW_LATE_PENDING).build();
+
+        assertThat(invokeResolveStatusOnSubmit(existing, round, false))
                 .isEqualTo(SubmissionStatus.SUBMITTED);
     }
 

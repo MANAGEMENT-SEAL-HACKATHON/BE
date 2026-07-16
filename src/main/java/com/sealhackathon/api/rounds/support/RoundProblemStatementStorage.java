@@ -109,6 +109,19 @@ public class RoundProblemStatementStorage {
                 || (round != null && StringUtils.hasText(round.getProblemStatementUrl()));
     }
 
+    /** Xóa PDF round-level (CK không dùng đề riêng). */
+    public void clearStoredFile(Round round) {
+        if (round == null) {
+            return;
+        }
+        if (StringUtils.hasText(round.getProblemStatementStorageKey())) {
+            deleteQuietly(round.getProblemStatementStorageKey());
+        }
+        round.setProblemStatementStorageKey(null);
+        round.setProblemStatementOriginalFilename(null);
+        round.setProblemStatementUrl(null);
+    }
+
     public static String buildKey(Round round) {
         Integer hackathonId = round.getHackathon().getId();
         Integer roundId = round.getId() != null ? round.getId() : 0;

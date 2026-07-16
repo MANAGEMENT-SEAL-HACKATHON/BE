@@ -142,13 +142,42 @@ public class Gd6PendingConfirmDataSeeder {
         }
 
         List<Criteria> finalCriteria = seedHelper.listFinalCriteria(finalRound);
+        List<Submission> finalSubs = new ArrayList<>();
+        List<Submission> prelimTrack1 = new ArrayList<>();
+        List<Submission> prelimTrack2 = new ArrayList<>();
+        User judge1 = seedHelper.requireJudge1();
+        User judge2 = seedHelper.requireJudge2();
+        LocalDateTime prelimSubmittedAt = now.minusDays(5);
+        float[] prelimScores = {9.1f, 8.7f, 8.4f};
+
         for (int i = 0; i < teams.size(); i++) {
+            Track track = (i % 2 == 0) ? track1 : track2;
+            User judge = (i % 2 == 0) ? judge1 : judge2;
+            Submission prelimSub = seedHelper.ensurePrelimSubmission(
+                    hackathon, prelim, track, teams.get(i),
+                    com.sealhackathon.api.submissions.value_object.SubmissionStatus.SUBMITTED,
+                    false,
+                    prelimSubmittedAt.minusMinutes(i));
+            seedHelper.scoreAllTrackCriteria(prelimSub, track, judge, prelimScores[i], true);
+            if (i % 2 == 0) {
+                prelimTrack1.add(prelimSub);
+            } else {
+                prelimTrack2.add(prelimSub);
+            }
+
             Submission sub = seedHelper.ensureFinalSubmission(
                     hackathon, finalRound, teams.get(i),
                     "https://github.com/seal-warriors/gd6-team%02d".formatted(i + 1));
             seedHelper.ensureFinalScoresFromAllAssignedJudges(
                     finalRound, sub, finalCriteria, TEAM_SCORES[i]);
+            finalSubs.add(sub);
         }
+
+        seedHelper.seedPresentationQueue(prelim, track1, prelimTrack1, -1);
+        seedHelper.seedPresentationQueue(prelim, track2, prelimTrack2, -1);
+        seedHelper.seedFinalPresentationQueue(finalRound, finalSubs, -1);
+        seedHelper.seedPrelimTrackProblems(prelim);
+        seedHelper.seedFinalRoundProblem(finalRound);
 
         seedHelper.ensureFirstPrize(hackathon, finalRound, teams.get(0), coordinator);
         seedHelper.ensureSecondPrize(hackathon, finalRound, teams.get(1), coordinator);
@@ -158,8 +187,8 @@ public class Gd6PendingConfirmDataSeeder {
                 [Gd6PendingConfirmDataSeeder] slug={} hackathonId={} prelimRoundId={} finalRoundId={}
                   teams: {} | {} | {}
                   students: {} … {} password={}
-                  guestJudge={} status=PENDING_CONFIRM prizes FIRST+SECOND+THIRD — Confirm → FINISHED
-                  (scores: đủ mọi judge gán trên CK — tránh SCORING_INCOMPLETE_BEFORE_CONFIRM)
+                  guestJudge={} status=PENDING_CONFIRM prizes FIRST+SECOND+THIRD
+                  prelim published+scored+STT | final scored+STT DONE — Confirm → FINISHED
                 """,
                 Gd6SeedConstants.SLUG_GD6_PENDING_CONFIRM,
                 hackathon.getId(),

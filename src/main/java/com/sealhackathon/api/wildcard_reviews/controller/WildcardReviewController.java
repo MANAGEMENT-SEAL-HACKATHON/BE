@@ -4,6 +4,7 @@ import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
 import com.sealhackathon.api.rounds.service.RoundProgressionService;
+import com.sealhackathon.api.wildcard_reviews.dto.request.WildcardOverrideRequest;
 import com.sealhackathon.api.wildcard_reviews.dto.request.WildcardReviewDecisionRequest;
 import com.sealhackathon.api.wildcard_reviews.dto.response.WildcardReviewResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,11 +15,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "Wildcard Reviews (GĐ4)", description = "FR-22A — Duyệt Wild Card")
+@Tag(name = "Wildcard Reviews (GĐ4)", description = "FR-22A — Duyệt Wild Card / Plan C Override")
 @RestController
 @RequestMapping("/api/v1/wildcard-reviews")
 @RequiredArgsConstructor
@@ -29,10 +31,20 @@ public class WildcardReviewController {
     @PatchMapping("/{id}")
     @CoordinatorOnly
     @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
-    @Operation(summary = "FR-22A — Approve/reject wildcard candidate")
+    @Operation(summary = "FR-22A — Approve/reject wildcard candidate (blocked after proposal lock)")
     public ResponseEntity<ApiResponse<WildcardReviewResponse>> decide(
             @PathVariable Integer id,
             @Valid @RequestBody WildcardReviewDecisionRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(progressionService.decideWildcardReview(id, req)));
+    }
+
+    @PostMapping("/{id}/override")
+    @CoordinatorOnly
+    @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
+    @Operation(summary = "Plan C — Override quyết định vé vớt sau khi LOCKED")
+    public ResponseEntity<ApiResponse<WildcardReviewResponse>> override(
+            @PathVariable Integer id,
+            @Valid @RequestBody WildcardOverrideRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(progressionService.overrideWildcardReview(id, req)));
     }
 }

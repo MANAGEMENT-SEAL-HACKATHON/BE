@@ -80,6 +80,7 @@ public final class AuditAction {
     public static final String TEAM_APPROVE             = "TEAM_APPROVE";
     public static final String TEAM_REJECT              = "TEAM_REJECT";
     public static final String TEAM_DISBAND             = "TEAM_DISBAND";
+    public static final String TEAM_MEMBERS_RELEASED    = "TEAM_MEMBERS_RELEASED";
     public static final String TEAM_LOCKED              = "TEAM_LOCKED";
     public static final String LEADER_TRANSFERRED       = "LEADER_TRANSFERRED";
     public static final String MEMBER_INVITED           = "MEMBER_INVITED";
@@ -96,6 +97,7 @@ public final class AuditAction {
     public static final String SUBMISSION_CREATE            = "SUBMISSION_CREATE";
     public static final String SUBMISSION_UPDATE            = "SUBMISSION_UPDATE";
     public static final String SUBMISSION_LATE_REVIEW       = "SUBMISSION_LATE_REVIEW";
+    public static final String SUBMISSION_LATE_QUEUE_APPEND_FAILED = "SUBMISSION_LATE_QUEUE_APPEND_FAILED";
     public static final String PRESENTATION_QUEUE_SHUFFLE = "PRESENTATION_QUEUE_SHUFFLE";
     public static final String PRESENTATION_CONTROLLER_GRANTED = "PRESENTATION_CONTROLLER_GRANTED";
     public static final String PRESENTATION_CONTROLLER_REVOKED = "PRESENTATION_CONTROLLER_REVOKED";
@@ -110,9 +112,15 @@ public final class AuditAction {
     public static final String SCORE_UPSERT                 = "SCORE_UPSERT";
     public static final String TRACK_RELEASE_PROBLEM       = "TRACK_RELEASE_PROBLEM";
     public static final String ROUND_RELEASE_PROBLEM        = "ROUND_RELEASE_PROBLEM";
+    /** CK migration: backup + clear legacy round-level problem PDF. */
+    public static final String ROUND_FINAL_PROBLEM_PDF_CLEARED = "ROUND_FINAL_PROBLEM_PDF_CLEARED";
+    public static final String ROUND_FINAL_PROBLEM_MIGRATION_BANNER_DISMISSED =
+            "ROUND_FINAL_PROBLEM_MIGRATION_BANNER_DISMISSED";
     public static final String ROUND_PUBLISH                = "ROUND_PUBLISH";
     public static final String ROUND_ADVANCE_TEAMS          = "ROUND_ADVANCE_TEAMS";
     public static final String ROUND_TIEBREAK_RESOLVED      = "ROUND_TIEBREAK_RESOLVED";
+    public static final String WILDCARD_PROPOSAL_CONFIRMED  = "WILDCARD_PROPOSAL_CONFIRMED";
+    public static final String WILDCARD_OVERRIDE            = "WILDCARD_OVERRIDE";
     public static final String TEAM_ELIMINATE_MANUAL        = "TEAM_ELIMINATE_MANUAL";
 
     // ---------- MF-03 GĐ6 PRIZES ----------

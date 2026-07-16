@@ -6,6 +6,8 @@ import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
+import com.sealhackathon.api.submissions.entity.Submission;
+import com.sealhackathon.api.submissions.value_object.SubmissionStatus;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.users.entity.User;
@@ -23,8 +25,8 @@ import java.util.List;
 /**
  * Seed GĐ5 — hackathon {@link Gd5SeedConstants#SLUG_GD5_FINAL_ACTIVE}.
  *
- * <p>CK active, 4 đội ADVANCED, submit window mở, chưa nộp / chưa queue
- * (user đi full: nộp → close-early → queue → chấm → lock).
+ * <p>CK active, 4 đội ADVANCED, submit window mở, chưa nộp CK.
+ * Prelim: published scores + STT queues (để student test điểm GD3 + đề track).
  *
  * <p>Doc: {@code docs/testing/gd5-full-test-matrix-and-seeds.md} § Profile 0
  */
@@ -33,6 +35,8 @@ import java.util.List;
 @Profile("dev")
 @RequiredArgsConstructor
 public class Gd5FinalRoundDataSeeder {
+
+    private static final float[] PRELIM_SCORES = {9.0f, 8.5f, 8.8f, 8.2f};
 
     private final HackathonDevSeedHelper seedHelper;
     private final HackathonRepository hackathonRepository;
@@ -53,7 +57,7 @@ public class Gd5FinalRoundDataSeeder {
                 Gd5SeedConstants.SLUG_GD5_FINAL_ACTIVE,
                 "SEAL GĐ5 — Chung kết active",
                 HackathonStatus.ONGOING,
-                "Seed E2E GĐ5 — CK active, 4 đội ADVANCED, guest judge CK",
+                "Seed E2E GĐ5 — CK active, prelim published+queue, 4 đội ADVANCED",
                 new HackathonDevSeedHelper.PrelimState(false, true, true, true, 1, 2),
                 new HackathonDevSeedHelper.FinalState(true, false),
                 seedHelper.computeGd5FinalActiveDates());
@@ -66,21 +70,24 @@ public class Gd5FinalRoundDataSeeder {
 
         seedHelper.syncHackathonCalendarFromDates(
                 Gd5SeedConstants.SLUG_GD5_FINAL_ACTIVE, seedHelper.computeGd5FinalActiveDates());
-        // Clear CK submissions/scores/queue — full path submit-open
-        seedHelper.repairHackathonForGd5SubmitOpenRetest(hackathon, prelim, finalRound);
+        // Clear CK only — giữ prelim scores/queue
+        seedHelper.clearFinalRoundArtifacts(hackathon.getId());
+        seedHelper.repairGd5FeTestingScheduleAndState(hackathon, prelim, finalRound);
+        prelim = roundRepository.findById(prelim.getId()).orElse(prelim);
+        finalRound = roundRepository.findById(finalRound.getId()).orElse(finalRound);
 
         User coordinator = seedHelper.requireCoordinator();
+        User judge1 = seedHelper.requireJudge1();
+        User judge2 = seedHelper.requireJudge2();
         User guestJudge = seedHelper.requireGuestJudge();
         Chapter chapter = seedHelper.requireChapter(Gd1SeedConstants.CHAPTER_FPT_HCM);
         LocalDateTime now = LocalDateTime.now();
+        LocalDateTime submittedAt = now.minusHours(96);
 
         seedHelper.ensureGuestJudgeInvitation(hackathon, guestJudge, coordinator);
         seedHelper.ensureFinalGuestJudgeAssignment(hackathon, finalRound);
         seedHelper.seedFinalRoundProblem(finalRound);
-        if (finalRound.getProblemReleasedAt() == null) {
-            finalRound.setProblemReleasedAt(LocalDateTime.now());
-            roundRepository.save(finalRound);
-        }
+        seedHelper.seedPrelimTrackProblems(prelim);
 
         String[] teamNames = {
                 Gd5SeedConstants.TEAM_01,
@@ -89,6 +96,8 @@ public class Gd5FinalRoundDataSeeder {
                 Gd5SeedConstants.TEAM_04
         };
         List<Team> teams = new ArrayList<>();
+        List<Submission> track1Subs = new ArrayList<>();
+        List<Submission> track2Subs = new ArrayList<>();
         for (int i = 0; i < teamNames.length; i++) {
             int idx = i + 1;
             User leader = seedHelper.upsertStudent(
@@ -98,16 +107,31 @@ public class Gd5FinalRoundDataSeeder {
             seedHelper.registerStudent(hackathon, leader);
             Team team = seedHelper.ensureActiveTeam(hackathon, teamNames[i], leader, chapter, now);
             Track track = (idx % 2 == 1) ? track1 : track2;
+            User judge = (idx % 2 == 1) ? judge1 : judge2;
             String group = "BANG-" + ((idx % 2) + 1);
             seedHelper.ensureLottery(hackathon, prelim, track, group, team, coordinator, now);
+            Submission prelimSub = seedHelper.ensurePrelimSubmission(
+                    hackathon, prelim, track, team,
+                    SubmissionStatus.SUBMITTED,
+                    false,
+                    submittedAt.minusMinutes(i));
+            seedHelper.scoreAllTrackCriteria(prelimSub, track, judge, PRELIM_SCORES[i], true);
             seedHelper.markAdvanced(team, prelim, finalRound, hackathon);
             teams.add(team);
+            if (idx % 2 == 1) {
+                track1Subs.add(prelimSub);
+            } else {
+                track2Subs.add(prelimSub);
+            }
         }
+
+        seedHelper.seedPresentationQueue(prelim, track1, track1Subs, -1);
+        seedHelper.seedPresentationQueue(prelim, track2, track2Subs, -1);
 
         log.info("""
                 [Gd5FinalRoundDataSeeder] slug={} hackathonId={} prelimRoundId={} finalRoundId={}
-                  teams: {} | {} | {} | {} (ADVANCED only)
-                  0 CK submission / 0 queue — nộp → close-early → queue → chấm → lock
+                  teams: {} | {} | {} | {} (ADVANCED + prelim scored/published + STT)
+                  0 CK submission — nộp → close-early → queue → chấm → lock
                   students: {} … {} password={}
                   guestJudge={} (FINAL_EXTERNAL on CK)
                 """,
@@ -125,7 +149,7 @@ public class Gd5FinalRoundDataSeeder {
                 Gd1SeedConstants.EMAIL_GUEST_JUDGE);
     }
 
-    /** Đồng bộ lịch CK đang mở theo giờ máy — gọi sau repairAll mỗi lần start BE. */
+    /** Đồng bộ lịch CK đang mở theo giờ máy — không xóa prelim artifacts. */
     @Transactional
     public void repairForFeTesting() {
         if (!enabled) {
@@ -147,10 +171,11 @@ public class Gd5FinalRoundDataSeeder {
         if (prelim == null || finalRound == null) {
             return;
         }
-        seedHelper.repairHackathonForGd5SubmitOpenRetest(hackathon, prelim, finalRound);
+        seedHelper.clearFinalRoundArtifacts(hackathon.getId());
+        seedHelper.repairGd5FeTestingScheduleAndState(hackathon, prelim, finalRound);
         finalRound = roundRepository.findById(finalRound.getId()).orElse(finalRound);
         log.info(
-                "[Gd5FinalRoundDataSeeder] FE repair — submit-open, final deadline={} slug={}",
+                "[Gd5FinalRoundDataSeeder] FE repair — submit-open (prelim kept), final deadline={} slug={}",
                 finalRound.getSubmissionDeadline(),
                 Gd5SeedConstants.SLUG_GD5_FINAL_ACTIVE);
     }

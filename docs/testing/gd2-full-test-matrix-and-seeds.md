@@ -361,4 +361,19 @@ app.seed.e2e.enabled=true trong application-dev.properties
 
 ---
 
+## Phụ lục B — Ma trận fix GĐ2 membership / radar / duyệt (51 TC)
+
+| Nhóm | IDs | Smoke sau deploy |
+|------|-----|------------------|
+| Membership | GD2-MEM-01..12 | Reject/disband → tạo đội lại; banner TEAM_RELEASED |
+| Radar | RADAR-01..08 | Orphan sau reject; admin-create |
+| Duyệt | APPROVE-01..10 | Bulk partial failure toast |
+| Nhân sự | PERSONNEL-01..10 | Avatar CK; GĐ1→GĐ4 judge |
+| Copy GĐ1 | GD1COPY-01..08 | Không API path trên UI |
+| Regression | REG-GD2-01..03 | E2E reject→rescue→approve |
+
+*Cập nhật: 2026-07-16 — membership release, active query, bulk approve errors.*
+
+---
+
 *Cập nhật: 2026-06-24 — ma trận GĐ2 + profile `seal-e2e-2026` (7 đội + 3 orphan).*

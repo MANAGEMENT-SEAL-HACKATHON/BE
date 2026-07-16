@@ -39,6 +39,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -175,6 +176,49 @@ class RoundActivationServiceImplTest {
         RoundResponse result = activationService.activate(9,
                 ActivateRoundRequest.builder().note("test").build());
         assertEquals(9, result.getId());
+        assertEquals(true, Boolean.TRUE.equals(round.getIsActive()));
+        assertNotNull(round.getProblemReleasedAt());
+    }
+
+    @Test
+    void activateFinal_stampsProblemReleasedAtWhenNull() {
+        Round round = Round.builder()
+                .id(9)
+                .isFinal(true)
+                .isActive(false)
+                .problemReleasedAt(null)
+                .hackathon(Hackathon.builder().id(1).build())
+                .build();
+        User head = User.builder().id(1).userType(UserType.INTERNAL).build();
+        User guest = User.builder().id(2).userType(UserType.EXTERNAL).build();
+        List<JudgeAssignment> assignments = List.of(
+                JudgeAssignment.builder().judge(head).assignmentType(JudgeAssignmentType.HEAD).build(),
+                JudgeAssignment.builder().judge(guest).assignmentType(JudgeAssignmentType.FINAL_EXTERNAL).build());
+
+        when(roundRepository.findByIdForUpdate(9)).thenReturn(Optional.of(round));
+        when(criteriaRepository.countNormalByFinalRoundId(9)).thenReturn(1L);
+        when(criteriaRepository.sumWeightExcludingPenaltyByFinalRoundId(9)).thenReturn(Optional.of(1.0));
+        when(judgeAssignmentRepository.findByRoundId(9)).thenReturn(assignments);
+        when(roundScheduleShiftService.applyOnActivate(any(), any(), any(), any())).thenReturn(false);
+        when(roundMapper.toResponse(any())).thenAnswer(inv -> {
+            Round r = inv.getArgument(0);
+            return RoundResponse.builder()
+                    .id(r.getId())
+                    .isActive(r.getIsActive())
+                    .problemReleasedAt(r.getProblemReleasedAt())
+                    .build();
+        });
+        when(roundRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(roundRepository.findByHackathon_IdOrderByExamAtAsc(1)).thenReturn(List.of(
+                Round.builder().id(1).isFinal(false).isPublished(true).build(),
+                round));
+
+        RoundResponse result = activationService.activate(9,
+                ActivateRoundRequest.builder().note("ck").build());
+
+        assertNotNull(result.getProblemReleasedAt());
+        assertNotNull(round.getProblemReleasedAt());
+        assertEquals(round.getActivatedAt(), round.getProblemReleasedAt());
     }
 
     @Test

@@ -550,12 +550,16 @@ public class HackathonDevSeedHelper {
             hackathon.setYear(dates.eventStart().getYear());
             changed = true;
         }
-        // Seed sạch: nếu regEnd đã qua mà chưa có flag đóng → stamp khớp lịch (GĐ3+).
+        // Seed sạch: đồng bộ cờ đóng đăng ký theo lịch hiện tại của seed.
         LocalDate today = LocalDate.now();
-        if (dates.regEnd() != null
-                && !dates.regEnd().isAfter(today)
-                && hackathon.getRegistrationClosedEarlyAt() == null) {
-            hackathon.setRegistrationClosedEarlyAt(dates.regEnd().atTime(23, 59));
+        if (dates.regEnd() != null && !dates.regEnd().isAfter(today)) {
+            LocalDateTime expectedClosedAt = dates.regEnd().atTime(23, 59);
+            if (!expectedClosedAt.equals(hackathon.getRegistrationClosedEarlyAt())) {
+                hackathon.setRegistrationClosedEarlyAt(expectedClosedAt);
+                changed = true;
+            }
+        } else if (hackathon.getRegistrationClosedEarlyAt() != null) {
+            hackathon.setRegistrationClosedEarlyAt(null);
             changed = true;
         }
         if (changed) {
@@ -1610,28 +1614,34 @@ public class HackathonDevSeedHelper {
                 });
     }
 
-    /** Gắn PDF đề CK nếu chưa có (không phát đề). */
+    /**
+     * CK không có PDF riêng — chỉ stamp {@code problemReleasedAt} để student resolve đề theo track sơ loại.
+     * Legacy: nếu còn file PDF trên round final thì xóa (migration design).
+     */
     public void seedFinalRoundProblem(Round finalRound) {
-        if (finalRound == null || RoundProblemStatementStorage.hasStoredFile(finalRound)) {
+        if (finalRound == null) {
             return;
         }
-        roundProblemStatementStorage.storeSeedPdf(finalRound, SeedProblemPdf.displayFilename());
+        if (RoundProblemStatementStorage.hasStoredFile(finalRound)) {
+            roundProblemStatementStorage.clearStoredFile(finalRound);
+        }
+        if (finalRound.getProblemReleasedAt() == null) {
+            finalRound.setProblemReleasedAt(LocalDateTime.now());
+        }
         roundRepository.save(finalRound);
     }
 
     /**
-     * Dev setup: PDF đề trên mọi track Sơ loại + vòng CK (seal-e2e và snapshot khác),
-     * không cần đã phát đề — Coord thấy file trên form Sửa vòng/bảng.
+     * Dev setup: PDF đề trên mọi track Sơ loại (không gắn PDF lên vòng CK).
      */
     @Transactional
     public void backfillSetupProblemPdfs() {
         int tracks = 0;
-        int finals = 0;
         for (Round round : roundRepository.findAll()) {
             if (Boolean.TRUE.equals(round.getIsFinal())) {
-                if (!RoundProblemStatementStorage.hasStoredFile(round)) {
+                // CK: chỉ stamp released, không store PDF
+                if (finalRoundNeedsReleaseOnly(round)) {
                     seedFinalRoundProblem(round);
-                    finals++;
                 }
             } else {
                 int before = trackRepository.findByRoundIdOrderBySequenceOrderAsc(round.getId()).stream()
@@ -1644,9 +1654,13 @@ public class HackathonDevSeedHelper {
                 }
             }
         }
-        if (tracks > 0 || finals > 0) {
-            log.info("[HackathonDevSeedHelper] Backfill PDF setup — tracks≈{}, finalRounds={}", tracks, finals);
+        if (tracks > 0) {
+            log.info("[HackathonDevSeedHelper] Backfill PDF setup — tracks≈{}", tracks);
         }
+    }
+
+    private boolean finalRoundNeedsReleaseOnly(Round round) {
+        return round.getProblemReleasedAt() == null || RoundProblemStatementStorage.hasStoredFile(round);
     }
 
     /** Dev: bổ sung PDF seed cho mọi vòng Sơ loại đã phát đề nhưng bảng đấu chưa có file storage. */
@@ -1658,12 +1672,14 @@ public class HackathonDevSeedHelper {
                 .forEach(this::seedPrelimTrackProblems);
     }
 
+    /** CK: stamp problemReleasedAt only — không upload PDF round-level. */
     public void releaseFinalProblem(Round finalRound) {
         if (finalRound.getProblemReleasedAt() == null) {
-            if (!RoundProblemStatementStorage.hasStoredFile(finalRound)) {
-                roundProblemStatementStorage.storeSeedPdf(finalRound, SeedProblemPdf.displayFilename());
-            }
             finalRound.setProblemReleasedAt(LocalDateTime.now());
+            roundRepository.save(finalRound);
+        }
+        if (RoundProblemStatementStorage.hasStoredFile(finalRound)) {
+            roundProblemStatementStorage.clearStoredFile(finalRound);
             roundRepository.save(finalRound);
         }
     }
@@ -2311,6 +2327,10 @@ public class HackathonDevSeedHelper {
     public void clearWildcardReviews(Round prelim) {
         wildcardReviewRepository.findByRound_Id(prelim.getId())
                 .forEach(wildcardReviewRepository::delete);
+        if (prelim.getWildcardProposalConfirmedAt() != null) {
+            prelim.setWildcardProposalConfirmedAt(null);
+            roundRepository.save(prelim);
+        }
     }
 
     /** Gán mentor theo track (FR-18) — idempotent. */
@@ -2533,6 +2553,8 @@ public class HackathonDevSeedHelper {
                     .build());
             order++;
         }
+        track.setPresentationShuffled(true);
+        trackRepository.save(track);
     }
 
     public void clearFinalRoundJudgeAssignments(Round finalRound) {
@@ -2624,6 +2646,8 @@ public class HackathonDevSeedHelper {
                     .build());
             order++;
         }
+        finalRound.setPresentationShuffled(true);
+        roundRepository.save(finalRound);
     }
 
     @Transactional
@@ -2837,7 +2861,15 @@ public class HackathonDevSeedHelper {
         review.setCoordinatorNote(note);
         review.setReviewedBy(coordinator);
         review.setReviewedAt(now);
+        review.setSystemProposed(approved);
+        review.setIsOverride(false);
         wildcardReviewRepository.save(review);
+
+        // Plan C: seed decisions imply proposal already confirmed so advance gate passes.
+        if (round.getWildcardProposalConfirmedAt() == null) {
+            round.setWildcardProposalConfirmedAt(now);
+            roundRepository.save(round);
+        }
     }
 
     /**
@@ -3023,7 +3055,7 @@ public class HackathonDevSeedHelper {
         resetTeamsToPreAdvance(hackathon, prelim, finalRound);
         SeedDates gd4Dates = computeGd4AdvanceReadyDates();
         syncHackathonCalendarFromDates(hackathon.getSlug(), gd4Dates);
-        applyPrelimState(prelim, new PrelimState(false, true, true, false, 1, 6), coordinator);
+        applyPrelimState(prelim, new PrelimState(false, true, true, true, 1, 6), coordinator);
         prelim.setWildcardEnabled(true);
         roundRepository.save(prelim);
         if (!Boolean.TRUE.equals(hackathon.getWildcardEnabled())) {

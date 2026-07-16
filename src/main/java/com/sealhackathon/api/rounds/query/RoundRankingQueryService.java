@@ -110,7 +110,12 @@ public class RoundRankingQueryService {
             }
 
             double penalty = penaltyByTeam.getOrDefault(submission.getTeam().getId(), 0.0);
-            total -= penalty;
+            // Điểm công khai: không trừ micro-penalty tiebreak (chỉ dùng sắp xếp nội bộ).
+            // FINISHED: giữ trừ để khớp điểm đã công bố.
+            boolean preservePublishedPenaltyInDisplay = round != null
+                    && round.getHackathon() != null
+                    && round.getHackathon().getStatus() == com.sealhackathon.api.hackathons.value_object.HackathonStatus.FINISHED;
+            double displayTotal = preservePublishedPenaltyInDisplay ? (total - penalty) : total;
 
             rows.add(new RankRow(
                     submission.getId(),
@@ -118,7 +123,7 @@ public class RoundRankingQueryService {
                     submission.getTeam().getTeamName(),
                     trackId,
                     trt != null ? trt.getAssignedGroup() : null,
-                    total,
+                    displayTotal,
                     partStatus,
                     submission.getSubmittedAt(),
                     submission.getStatus() != null ? submission.getStatus().name() : null,
@@ -175,8 +180,10 @@ public class RoundRankingQueryService {
     }
 
     private static Comparator<RankRow> rankComparator(boolean isFinalRound) {
+        // totalScore (display) DESC → micro-penalty ASC (nội bộ) → teamId
         Comparator<RankRow> byScore = Comparator
                 .comparing(RankRow::totalScore, Comparator.reverseOrder())
+                .thenComparing(RankRow::penaltyScore, Comparator.nullsFirst(Double::compareTo))
                 .thenComparing(RankRow::teamId);
         Comparator<RankRow> eliminatedLast = Comparator.comparing(RoundRankingQueryService::isEliminated);
         if (isFinalRound) {

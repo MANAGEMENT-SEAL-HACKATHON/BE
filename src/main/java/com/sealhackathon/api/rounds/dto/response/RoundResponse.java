@@ -32,6 +32,10 @@ public class RoundResponse {
     private final String problemStatementUrl;
     private final String problemStatementFilename;
     private final LocalDateTime problemReleasedAt;
+    /** Non-null khi migration đã xóa PDF đề CK legacy trên round. */
+    private final LocalDateTime finalProblemMigrationClearedAt;
+    /** Non-null khi coordinator đã dismiss banner migration. */
+    private final LocalDateTime finalProblemMigrationBannerDismissedAt;
     private final Integer topNAdvance;
     private final Boolean wildcardEnabled;
     private final Integer minTeamsFinal;

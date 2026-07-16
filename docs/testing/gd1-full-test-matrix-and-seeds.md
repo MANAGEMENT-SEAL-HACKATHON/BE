@@ -406,7 +406,42 @@ PATCH /hackathons/{finishedId} body bất kỳ → 409 HACKATHON_ARCHIVED
 
 ---
 
-## Phụ lục — Map tài liệu
+## Phụ lục B — Copy coordinator (GD1COPY-01..08)
+
+- Tab Nhân sự: không hiển thị đường dẫn API; vai trò tiếng Việt; avatar judge/mentor.
+- Đánh giá & Kiểm tra: ẩn mã lỗi kỹ thuật; toast "Đang diễn ra" thay ONGOING.
+- Vòng thi: label "Vòng Chung kết", bỏ (Manual)/(Final).
+
+*Cập nhật: 2026-07-16.*
+
+---
+
+## GD1UX — Smoke UI/UX (`Ở MÀN HÌNH.docx`)
+
+Tối thiểu **7/10** trước khi coi pass Phase 4. Chạy trên coordinator dev (`localhost:5173`).
+
+| ID | Case | Kỳ vọng | Phase |
+|----|------|---------|-------|
+| **GD1UX-01** | `/hackathons/create` | Không field Bắt đầu/Kết thúc sự kiện; không toggle BXH cá nhân | 1 |
+| **GD1UX-02** | List `/hackathons` — `PENDING_CONFIRM` | Badge/filter **"Chờ chốt sổ"**, không raw enum | 1 |
+| **GD1UX-03** | Round popup `setup?tab=rounds` → Thêm vòng | Không SEMIFINAL; không toggle "Là vòng Chung kết" | 2 |
+| **GD1UX-04** | Tạo round mới | `is_active` ẩn trong popup; bảng hiện **"Bản nháp"** | 2 |
+| **GD1UX-05** | Bật Activate round chưa track/criteria | Block + message rõ | 2 |
+| **GD1UX-06** | Track popup `setup?tab=tracks` | Không min/max thành viên, thuyết trình/Q&A per track | 2 |
+| **GD1UX-07** | Tab Tiêu chí | Cột Mô tả; sau save weight tổng **không lệch** UI | 3 |
+| **GD1UX-08** | Phân quyền: bật Trưởng ban user B khi A là Head | A tự tắt; chỉ B là Trưởng ban | 3 |
+| **GD1UX-09** | Gán Head → tab Giám khảo Sơ loại | Cột Vai trò **Trưởng ban** ngay, không F5 | 3 |
+| **REG-GD1UX-01** | `/hackathons/{id}/results` khi tắt BXH cá nhân | Tab **BXH đội** luôn có; tab cá nhân ẩn | 1+4 |
+
+### Ghi chú nghiệp vụ chưa chốt (không blocking Phase 1–4)
+
+| Gap | Mặc định implement | Chờ PM |
+|-----|-------------------|--------|
+| **Gap B — Cân bằng** | Giữ reset trọng số bằng nhau; fix bug hiển thị + validate 100% trước save | Đổi sang chuẩn hóa tỷ lệ (scale về 1.0) |
+| **Wildcard (item 9)** | Không đổi UI/logic trong sprint UX | Trả lời: track có thể &lt; topN đội advance? → Phương án D hoặc B |
+
+---
+
 
 | Tài liệu | Nội dung |
 |----------|----------|

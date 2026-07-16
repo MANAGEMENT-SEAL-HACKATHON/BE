@@ -81,6 +81,9 @@ public class DataInitializer implements CommandLineRunner {
 
         // 5. Repair / sync lịch theo giờ máy
         hackathonDevSeedHelper.repairAllDevHackathonRoundSchedules();
+        // If a prior full-chain left seal-e2e-2026 in PENDING_CONFIRM, restore ONGOING first
+        // so repairForGd2Testing can reset to registration-open / prelim inactive.
+        e2eWorkflowDataSeeder.repairForGd5FullChainRetest();
         e2eWorkflowDataSeeder.repairForGd2Testing();
         gd3PrelimOpenDataSeeder.repairForFeTesting();
         gd4AdvanceReadyDataSeeder.repairForFeTesting();

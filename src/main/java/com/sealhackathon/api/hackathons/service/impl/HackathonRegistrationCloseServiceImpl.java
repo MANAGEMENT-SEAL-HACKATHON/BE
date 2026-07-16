@@ -118,6 +118,17 @@ public class HackathonRegistrationCloseServiceImpl implements HackathonRegistrat
             }
 
             if (team.getFormationSubmittedAt() != null) {
+                long pendingInvites = teamMemberRepository.countByTeam_IdAndStatus(
+                        team.getId(), TeamMemberStatus.PENDING);
+                if (pendingInvites > 0) {
+                    continue;
+                }
+                boolean hasUnapprovedMember = teamMemberRepository.findByTeam_Id(team.getId()).stream()
+                        .filter(m -> m.getStatus() == TeamMemberStatus.ACCEPTED)
+                        .anyMatch(m -> m.getUser().getStatus() != UserStatus.APPROVED);
+                if (hasUnapprovedMember) {
+                    continue;
+                }
                 awaitingApproval.add(CloseRegistrationEarlyResponse.TeamAwaitingCoordinatorApprovalItem.builder()
                         .teamId(team.getId())
                         .teamName(team.getTeamName())

@@ -99,8 +99,15 @@ public class RoundActivationServiceImpl implements RoundActivationService {
         boolean scheduleShifted = roundScheduleShiftService.applyOnActivate(
                 round, scheduleMode, body.getNewExamAt(), body.getSetupLeadMinutes());
 
+        LocalDateTime activatedAt = LocalDateTime.now();
         round.setIsActive(true);
-        round.setActivatedAt(LocalDateTime.now());
+        round.setActivatedAt(activatedAt);
+        // CK: mỗi đội tiếp tục đề track sơ loại — stamp problemReleasedAt khi activate (không bước Phát đề).
+        boolean stampedFinalProblemRelease = false;
+        if (Boolean.TRUE.equals(round.getIsFinal()) && round.getProblemReleasedAt() == null) {
+            round.setProblemReleasedAt(activatedAt);
+            stampedFinalProblemRelease = true;
+        }
         Round saved = roundRepository.save(round);
 
         Map<String, Object> activateAudit = new LinkedHashMap<>();
@@ -111,6 +118,9 @@ public class RoundActivationServiceImpl implements RoundActivationService {
         activateAudit.put("scheduleMode", scheduleMode.name());
         activateAudit.put("scheduleShifted", scheduleShifted);
         activateAudit.put("activated", true);
+        if (stampedFinalProblemRelease) {
+            activateAudit.put("problemReleasedAtStamped", true);
+        }
         if (scheduleMode == ActivateScheduleMode.START_NOW) {
             activateAudit.put("setupLeadMinutes",
                     body.getSetupLeadMinutes() != null

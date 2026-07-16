@@ -4,6 +4,7 @@ import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.StudentOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
 import com.sealhackathon.api.me.student.dto.response.StudentLeaderboardItemResponse;
+import com.sealhackathon.api.me.student.dto.response.StudentPresentationSlotResponse;
 import com.sealhackathon.api.me.student.dto.response.StudentProblemResponse;
 import com.sealhackathon.api.me.student.dto.response.StudentRoundDeadlineResponse;
 import com.sealhackathon.api.me.student.service.StudentPortalService;
@@ -57,5 +58,12 @@ public class StudentRoundController {
     public ResponseEntity<ApiResponse<List<StudentLeaderboardItemResponse>>> getLeaderboard(
             @PathVariable Integer roundId) {
         return ResponseEntity.ok(ApiResponse.ok(studentPortalService.getRoundLeaderboard(roundId)));
+    }
+
+    @GetMapping("/{roundId}/presentation-slot")
+    @Operation(summary = "STT — Slot thuyết trình của đội (ẩn danh, poll-friendly)")
+    public ResponseEntity<ApiResponse<StudentPresentationSlotResponse>> getPresentationSlot(
+            @PathVariable Integer roundId) {
+        return ResponseEntity.ok(ApiResponse.ok(studentPortalService.getPresentationSlot(roundId)));
     }
 }

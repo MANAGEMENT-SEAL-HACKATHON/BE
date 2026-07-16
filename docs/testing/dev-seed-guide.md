@@ -225,6 +225,8 @@ npm run test:pyramid      # parity + matrix + gd2 (CI subset)
 npm run test:e2e:gd2      # GĐ2 trên seal-e2e-2026 + seal-gd2-teams-edge
 ```
 
+> **Probe + GĐ6:** `seal-gd6-pending-confirm` phải `PENDING_CONFIRM`. Nếu ai đó đã Confirm → `FINISHED`, `probe:seeds` fail có message hướng dẫn — **restart BE** để `Gd6PendingConfirmDataSeeder.repairForFullChainRetest` reset. **Không** đổi expectation probe sang `FINISHED`.
+
 ---
 
 ## Reset thủ công (nếu cleanup tự động lỗi FK)

@@ -28,4 +28,7 @@ public interface RoundService {
     RoundResponse uploadProblemStatement(Integer id, MultipartFile file);
 
     Resource downloadProblemStatement(Integer id);
+
+    /** CK-05 — coordinator dismiss one-time migration banner (round-level). */
+    RoundResponse dismissFinalProblemMigrationBanner(Integer id);
 }

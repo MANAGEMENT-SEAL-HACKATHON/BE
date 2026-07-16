@@ -96,6 +96,13 @@ public class RoundController {
         return ResponseEntity.ok(ApiResponse.ok(roundService.uploadProblemStatement(id, file)));
     }
 
+    @PostMapping("/api/v1/rounds/{id}/dismiss-final-problem-migration-banner")
+    @Operation(summary = "Dismiss banner migration đề CK (một lần theo round)")
+    public ResponseEntity<ApiResponse<RoundResponse>> dismissFinalProblemMigrationBanner(
+            @PathVariable Integer id) {
+        return ResponseEntity.ok(ApiResponse.ok(roundService.dismissFinalProblemMigrationBanner(id)));
+    }
+
     @GetMapping("/api/v1/rounds/{id}/problem-statement")
     @Operation(summary = "Tải file PDF đề bài")
     public ResponseEntity<Resource> downloadProblemStatement(@PathVariable Integer id) {

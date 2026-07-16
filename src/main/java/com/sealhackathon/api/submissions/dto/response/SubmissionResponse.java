@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@Builder(toBuilder = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class SubmissionResponse {
 
@@ -38,4 +38,9 @@ public class SubmissionResponse {
     private LocalDateTime reviewedAt;
     private String reviewNote;
     private LocalDateTime submittedAt;
+    /**
+     * True when late-approve succeeded but presentation-queue append failed after shuffle.
+     * Coordinator should retry append / investigate — not a silent success.
+     */
+    private Boolean queueAppendFailed;
 }

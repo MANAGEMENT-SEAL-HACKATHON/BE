@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Getter
@@ -21,5 +22,7 @@ public class WildcardCandidatesResponse {
     private int approvedCount;
     /** true khi mọi ứng viên trong pool đã có quyết định (duyệt/từ chối). */
     private boolean decisionsFinalized;
+    /** Plan C — null nếu chưa xác nhận đề xuất. */
+    private LocalDateTime proposalConfirmedAt;
     private List<WildcardCandidateResponse> candidates;
 }

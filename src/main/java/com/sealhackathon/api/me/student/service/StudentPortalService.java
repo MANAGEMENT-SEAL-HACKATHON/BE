@@ -33,6 +33,12 @@ public interface StudentPortalService {
 
     List<StudentLeaderboardItemResponse> getRoundLeaderboard(Integer roundId);
 
+    /**
+     * FR student STT — live presentation slot for the student's team in this round.
+     * Before shuffle: {@code available=false}, message "Chưa quay số" (HTTP 200).
+     */
+    StudentPresentationSlotResponse getPresentationSlot(Integer roundId);
+
     StudentRankingResponse getHackathonRankings(Integer hackathonId);
 
     List<StudentPrizeResponse> listMyPrizes();

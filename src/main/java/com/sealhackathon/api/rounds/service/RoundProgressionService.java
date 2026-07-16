@@ -50,6 +50,13 @@ public interface RoundProgressionService {
 
     WildcardCandidatesResponse wildcardCandidates(Integer roundId);
 
+    /** Plan C — xác nhận đề xuất hệ thống → LOCK. */
+    WildcardCandidatesResponse confirmWildcardProposal(Integer roundId);
+
+    /** Plan C — lịch sử override công khai. */
+    List<com.sealhackathon.api.wildcard_reviews.dto.response.WildcardOverrideHistoryResponse> listWildcardOverrides(
+            Integer roundId);
+
     AdvanceTeamsResponse advanceTeams(Integer roundId, AdvanceTeamsRequest req);
 
     /** v4.1 alias — {@link #advanceTeams}. */
@@ -58,6 +65,11 @@ public interface RoundProgressionService {
     }
 
     WildcardReviewResponse decideWildcardReview(Integer reviewId, WildcardReviewDecisionRequest req);
+
+    /** Plan C — override sau khi proposal LOCKED. */
+    WildcardReviewResponse overrideWildcardReview(
+            Integer reviewId,
+            com.sealhackathon.api.wildcard_reviews.dto.request.WildcardOverrideRequest req);
 
     AssignFinalJudgesResult assignFinalJudges(Integer roundId, AssignFinalJudgesRequest req);
 

@@ -5,6 +5,7 @@ import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.common.exception.AuthException;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
+import com.sealhackathon.api.common.exception.ConflictException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
 import com.sealhackathon.api.hackathons.repository.HackathonRegistrationRepository;
@@ -175,6 +176,15 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
 
         if (Boolean.TRUE.equals(round.getIsFinal())) {
             controllerGuard.requireControllerForRound(round.getId(), round);
+            if (Boolean.TRUE.equals(round.getPresentationShuffled())) {
+                List<PresentationSlot> existing = presentationSlotRepository
+                        .findByRound_IdAndTrackIsNullOrderBySequenceOrderAsc(round.getId());
+                if (!existing.isEmpty()) {
+                    throw new ConflictException(ErrorCode.PRESENTATION_ALREADY_SHUFFLED,
+                            "Hàng đợi chung kết đã được quay số",
+                            Map.of("roundId", roundId, "slotCount", existing.size()));
+                }
+            }
             assertNoPresentationStarted(round.getId(), null);
             scoringConfirmationRepository.deleteByFinalRoundScope(round.getId());
             int count = shuffleFinalRound(round);
@@ -195,6 +205,15 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
         List<Track> tracks = resolveTracksToShuffle(round, request.getTrackIds());
         for (Track track : tracks) {
             controllerGuard.requireControllerForTrack(track.getId(), track, round);
+            if (Boolean.TRUE.equals(track.getPresentationShuffled())) {
+                List<PresentationSlot> existing = presentationSlotRepository
+                        .findByRound_IdAndTrack_IdOrderBySequenceOrderAsc(roundId, track.getId());
+                if (!existing.isEmpty()) {
+                    throw new ConflictException(ErrorCode.PRESENTATION_ALREADY_SHUFFLED,
+                            "Hàng đợi bảng đấu đã được quay số",
+                            Map.of("roundId", roundId, "trackId", track.getId(), "slotCount", existing.size()));
+                }
+            }
             assertNoPresentationStarted(roundId, track.getId());
             scoringConfirmationRepository.deleteByTrackScope(roundId, track.getId());
             int count = shuffleTrack(round, track);

@@ -77,10 +77,15 @@ import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.tracks.value_object.TrackStatus;
 import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
+import com.sealhackathon.api.wildcard_reviews.dto.request.WildcardOverrideRequest;
 import com.sealhackathon.api.wildcard_reviews.dto.request.WildcardReviewDecisionRequest;
+import com.sealhackathon.api.wildcard_reviews.dto.response.WildcardOverrideHistoryResponse;
 import com.sealhackathon.api.wildcard_reviews.dto.response.WildcardReviewResponse;
+import com.sealhackathon.api.wildcard_reviews.entity.WildcardOverrideHistory;
 import com.sealhackathon.api.wildcard_reviews.entity.WildcardReview;
+import com.sealhackathon.api.wildcard_reviews.repository.WildcardOverrideHistoryRepository;
 import com.sealhackathon.api.wildcard_reviews.repository.WildcardReviewRepository;
+import com.sealhackathon.api.wildcard_reviews.support.WildcardOverrideCategory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -117,6 +122,7 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
     private final TiebreakEvaluationRepository tiebreakEvaluationRepository;
     private final com.sealhackathon.api.teams.repository.TeamRepository teamRepository; // Để lấy Entity Team
     private final WildcardReviewRepository wildcardReviewRepository;
+    private final WildcardOverrideHistoryRepository wildcardOverrideHistoryRepository;
     private final HackathonRepository hackathonRepository;
     private final RoundProblemStatementStorage problemStatementStorage;
     private final TeamMemberRepository teamMemberRepository;
@@ -537,7 +543,7 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         if (rawItems.isEmpty()) {
             return List.of();
         }
-        TiebreakRule rule = round.getTiebreakRule() != null ? round.getTiebreakRule() : TiebreakRule.PENALTY_SCORE;
+        TiebreakRule rule = round.getTiebreakRule() != null ? round.getTiebreakRule() : TiebreakRule.COORDINATOR_DECISION;
         Map<Integer, Submission> submissionByTeam = loadSubmissionsByTeam(round.getId());
         Map<Integer, Double> penaltyByTeam = tiebreakEvaluationRepository.findByRound_Id(round.getId()).stream()
                 .collect(Collectors.groupingBy(
@@ -639,7 +645,9 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
     // =========================================================================
     @Override
     public List<RoundRankingItemResponse> resolveTiebreak(Integer roundId, ResolveTiebreakRequest req) {
-        Round round = roundAccessGuard.requireRound(roundId);
+        roundAccessGuard.requireRound(roundId);
+        Round round = roundRepository.findByIdForUpdate(roundId)
+                .orElseThrow(() -> new ResourceNotFoundException("Round", roundId));
         if (!Boolean.TRUE.equals(round.getScoringLocked())) {
             throw new BusinessRuleException(ErrorCode.ROUND_NOT_SCORING_LOCKED, "Phải khóa chấm điểm trước khi giải quyết Tiebreak");
         }
@@ -656,9 +664,28 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         boolean matchesTiedGroup = tiebreak(roundId).stream()
                 .anyMatch(item -> orderedSet.equals(new java.util.HashSet<>(item.getCandidateTeamIds())));
         if (!matchesTiedGroup) {
+            // Có thể race: coordinator khác vừa resolve nhóm này
+            boolean alreadyResolved = orderedIds.stream().anyMatch(teamId ->
+                    tiebreakEvaluationRepository.findByRound_IdAndTeam_Id(roundId, teamId).stream()
+                            .anyMatch(te -> Boolean.TRUE.equals(te.getIsCastingVote())));
+            if (alreadyResolved) {
+                throw new ConflictException(ErrorCode.TIEBREAK_ALREADY_RESOLVED,
+                        "Nhóm đồng điểm này đã được resolve bởi coordinator khác",
+                        java.util.Map.of("orderedTeamIds", orderedIds, "roundId", roundId));
+            }
             throw new BusinessRuleException(ErrorCode.INVALID_STATE,
                     "orderedTeamIds phải khớp nhóm đội đang hòa điểm cần tiebreak",
                     java.util.Map.of("orderedTeamIds", orderedIds));
+        }
+
+        // Race guard: nếu nhóm đã có casting-vote từ resolve trước → 409
+        boolean alreadyHasCastingVote = orderedIds.stream().anyMatch(teamId ->
+                tiebreakEvaluationRepository.findByRound_IdAndTeam_Id(roundId, teamId).stream()
+                        .anyMatch(te -> Boolean.TRUE.equals(te.getIsCastingVote())));
+        if (alreadyHasCastingVote) {
+            throw new ConflictException(ErrorCode.TIEBREAK_ALREADY_RESOLVED,
+                    "Nhóm đồng điểm này đã được resolve — vui lòng tải lại bảng xếp hạng",
+                    java.util.Map.of("orderedTeamIds", orderedIds, "roundId", roundId));
         }
 
         applyTiebreakOrder(round, orderedIds, coordinator, req.getNote());
@@ -696,13 +723,17 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
 
         if (!evaluationsToSave.isEmpty()) {
             tiebreakEvaluationRepository.saveAll(evaluationsToSave);
-            auditService.log(AuditAction.ROUND_TIEBREAK_RESOLVED, "tiebreak_evaluations", roundId,
-                    java.util.Map.of("orderedTeamIds", orderedIds, "note", note));
         }
+        // Audit mọi resolve (kể cả khi chỉ 1 đội đứng đầu không cần penalty row)
+        auditService.log(AuditAction.ROUND_TIEBREAK_RESOLVED, "tiebreak_evaluations", roundId,
+                java.util.Map.of(
+                        "orderedTeamIds", orderedIds,
+                        "note", note != null ? note : "",
+                        "actorId", judge.getId()));
     }
 
     // =========================================================================
-    // NHIỆM VỤ 2.1: TỰ ĐỘNG QUÉT VÀ ĐỀ XUẤT VÉ VỚT (WILDCARD CANDIDATES)
+    // NHIỆM VỤ 2.1: TỰ ĐỘNG QUÉT VÀ ĐỀ XUẤT VÉ VỚT (WILDCARD CANDIDATES) — Plan C
     // =========================================================================
     @Override
     public WildcardCandidatesResponse wildcardCandidates(Integer roundId) {
@@ -711,9 +742,13 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         boolean hackathonEnabled = Boolean.TRUE.equals(hackathon.getWildcardEnabled());
         boolean roundEnabled = Boolean.TRUE.equals(round.getWildcardEnabled());
 
-        // Runtime gate: chỉ round.wildcardEnabled (hackathon flag không còn chặn pool).
         if (!roundEnabled) {
             return emptyWildcardResponse(hackathonEnabled, false);
+        }
+
+        // After LOCKED: do NOT re-sort from live scores — serve persisted proposal snapshot.
+        if (round.getWildcardProposalConfirmedAt() != null) {
+            return lockedWildcardResponse(round, hackathonEnabled);
         }
 
         Optional<WildcardPoolSnapshot> pool = resolveWildcardPool(round);
@@ -725,6 +760,7 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                     .autoAdvancedCount(0)
                     .approvedCount(0)
                     .decisionsFinalized(false)
+                    .proposalConfirmedAt(null)
                     .candidates(List.of())
                     .build();
         }
@@ -745,6 +781,41 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                 .autoAdvancedCount(snapshot.autoAdvancedCount())
                 .approvedCount(approvedCount)
                 .decisionsFinalized(decisionsFinalized)
+                .proposalConfirmedAt(null)
+                .candidates(responses)
+                .build();
+    }
+
+    private WildcardCandidatesResponse lockedWildcardResponse(Round round, boolean hackathonEnabled) {
+        List<WildcardReview> reviews = wildcardReviewRepository.findByRound_Id(round.getId());
+        reviews.sort(Comparator
+                .comparing(WildcardReview::getProposalRank, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(WildcardReview::getAvgScore, Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(WildcardReview::getSubmittedAt, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(r -> r.getTeam().getId(), Comparator.nullsLast(Comparator.naturalOrder())));
+
+        int slots = (int) reviews.stream().filter(r -> Boolean.TRUE.equals(r.getSystemProposed())).count();
+        if (slots <= 0) {
+            slots = (int) reviews.stream().filter(r -> Boolean.TRUE.equals(r.getCoordinatorApproved())).count();
+        }
+
+        List<WildcardCandidateResponse> responses = new ArrayList<>();
+        for (WildcardReview review : reviews) {
+            responses.add(toCandidateResponse(review));
+        }
+
+        int approvedCount = (int) reviews.stream()
+                .filter(r -> Boolean.TRUE.equals(r.getCoordinatorApproved()))
+                .count();
+
+        return WildcardCandidatesResponse.builder()
+                .hackathonWildcardEnabled(hackathonEnabled)
+                .roundWildcardEnabled(true)
+                .availableSlots(slots)
+                .autoAdvancedCount(0)
+                .approvedCount(approvedCount)
+                .decisionsFinalized(true)
+                .proposalConfirmedAt(round.getWildcardProposalConfirmedAt())
                 .candidates(responses)
                 .build();
     }
@@ -758,6 +829,7 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                 .autoAdvancedCount(0)
                 .approvedCount(0)
                 .decisionsFinalized(false)
+                .proposalConfirmedAt(null)
                 .candidates(List.of())
                 .build();
     }
@@ -805,8 +877,9 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
             return Optional.empty();
         }
 
+        // Plan C: propose exactly `slots` (avgScore DESC, submittedAt ASC, teamId ASC)
         List<RoundRankingItemResponse> selected =
-                WildcardCandidateSelection.selectWithTiesAtCutoff(remainingTeams, slots);
+                WildcardCandidateSelection.selectExactSlots(remainingTeams, slots);
         return Optional.of(new WildcardPoolSnapshot(slots, topNTeams.size(), selected));
     }
 
@@ -815,7 +888,6 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         List<WildcardCandidateResponse> responses = new ArrayList<>();
         int candidateRank = 1;
         int slots = snapshot.availableSlots();
-        int poolSize = snapshot.selectedCandidates().size();
 
         for (RoundRankingItemResponse candidate : snapshot.selectedCandidates()) {
             Team team = teamRepository.findById(candidate.getTeamId()).orElseThrow();
@@ -829,12 +901,20 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                             .round(round)
                             .team(team)
                             .track(track)
-                            .avgScore(candidate.getTotalScore() != null
-                                    ? candidate.getTotalScore().floatValue()
-                                    : 0f)
                             .build());
 
+            review.setTrack(track);
+            review.setAvgScore(candidate.getTotalScore() != null
+                    ? candidate.getTotalScore().floatValue()
+                    : 0f);
+            review.setSubmittedAt(candidate.getSubmittedAt());
+            review.setProposalRank(candidateRank);
+            review.setSystemProposed(true);
+
             if (review.getId() == null) {
+                review = wildcardReviewRepository.save(review);
+            } else if (round.getWildcardProposalConfirmedAt() == null
+                    && review.getCoordinatorApproved() == null) {
                 review = wildcardReviewRepository.save(review);
             }
 
@@ -845,25 +925,231 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                     .assignedGroup(candidate.getAssignedGroup())
                     .candidateRank(candidateRank++)
                     .totalScore(candidate.getTotalScore())
-                    .reason(slots < poolSize
-                            ? "Đồng điểm tại ngưỡng vé vớt — cần Coordinator chọn "
-                                    + slots + " / " + poolSize + " đội"
-                            : "Hệ thống đề xuất: Top " + slots + " điểm cao nhất ngoài Top "
-                                    + round.getTopNAdvance() + " mỗi bảng")
+                    .submittedAt(review.getSubmittedAt())
+                    .systemProposed(true)
+                    .reason("Hệ thống đề xuất: Top " + slots + " điểm cao nhất ngoài Top "
+                            + round.getTopNAdvance() + " mỗi bảng (điểm ↓, nộp sớm ↑, teamId)")
                     .coordinatorApproved(review.getCoordinatorApproved())
                     .coordinatorNote(review.getCoordinatorNote())
+                    .isOverride(Boolean.TRUE.equals(review.getIsOverride()))
+                    .overrideReasonCategory(review.getOverrideReasonCategory())
                     .build());
         }
         return responses;
     }
 
+    private WildcardCandidateResponse toCandidateResponse(WildcardReview review) {
+        return WildcardCandidateResponse.builder()
+                .reviewId(review.getId())
+                .teamId(review.getTeam().getId())
+                .teamName(review.getTeam().getTeamName())
+                .assignedGroup(null)
+                .candidateRank(review.getProposalRank())
+                .totalScore(review.getAvgScore() != null ? review.getAvgScore().doubleValue() : null)
+                .submittedAt(review.getSubmittedAt())
+                .systemProposed(Boolean.TRUE.equals(review.getSystemProposed()))
+                .reason(Boolean.TRUE.equals(review.getIsOverride())
+                        ? "Đã Override (" + review.getOverrideReasonCategory() + ")"
+                        : "Đề xuất đã xác nhận")
+                .coordinatorApproved(review.getCoordinatorApproved())
+                .coordinatorNote(review.getCoordinatorNote())
+                .isOverride(Boolean.TRUE.equals(review.getIsOverride()))
+                .overrideReasonCategory(review.getOverrideReasonCategory())
+                .build();
+    }
+
     // =========================================================================
-    // NHIỆM VỤ 2.2: LƯU QUYẾT ĐỊNH CỦA BAN TỔ CHỨC (DUYỆT VÉ VỚT)
+    // Plan C: XÁC NHẬN ĐỀ XUẤT → LOCK
+    // =========================================================================
+    @Override
+    public WildcardCandidatesResponse confirmWildcardProposal(Integer roundId) {
+        Round round = roundAccessGuard.requireRound(roundId);
+
+        if (!Boolean.TRUE.equals(round.getScoringLocked())) {
+            throw new BusinessRuleException(ErrorCode.ROUND_NOT_SCORING_LOCKED,
+                    "Phải khóa chấm điểm trước khi xác nhận đề xuất vé vớt");
+        }
+
+        if (round.getWildcardProposalConfirmedAt() != null) {
+            throw new BusinessRuleException(ErrorCode.WILDCARD_PROPOSAL_ALREADY_CONFIRMED,
+                    "Đề xuất vé vớt đã được xác nhận — không thể xác nhận lại. Sửa qua Override.");
+        }
+
+        if (!Boolean.TRUE.equals(round.getWildcardEnabled())) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Vé vớt chưa được bật trên vòng này");
+        }
+
+        WildcardPoolSnapshot pool = resolveWildcardPool(round)
+                .orElseThrow(() -> new BusinessRuleException(ErrorCode.INVALID_STATE,
+                        "Không có pool vé vớt đang mở cho vòng này"));
+
+        User coordinator = userRepository.findById(currentUserAccessor.currentUserId()).orElseThrow();
+        LocalDateTime now = LocalDateTime.now();
+        Set<Integer> proposedTeamIds = pool.selectedCandidates().stream()
+                .map(RoundRankingItemResponse::getTeamId)
+                .collect(Collectors.toSet());
+
+        // Ensure review rows + mark proposed / approve top slots
+        int rank = 1;
+        for (RoundRankingItemResponse candidate : pool.selectedCandidates()) {
+            Team team = teamRepository.findById(candidate.getTeamId()).orElseThrow();
+            Track track = candidate.getTrackId() != null
+                    ? trackRepository.findById(candidate.getTrackId()).orElse(null)
+                    : null;
+
+            WildcardReview review = wildcardReviewRepository
+                    .findByRound_IdAndTeam_Id(round.getId(), team.getId())
+                    .orElseGet(() -> WildcardReview.builder()
+                            .round(round)
+                            .team(team)
+                            .build());
+
+            review.setTrack(track);
+            review.setAvgScore(candidate.getTotalScore() != null
+                    ? candidate.getTotalScore().floatValue()
+                    : 0f);
+            review.setSubmittedAt(candidate.getSubmittedAt());
+            review.setProposalRank(rank++);
+            review.setSystemProposed(true);
+            review.setCoordinatorApproved(true);
+            review.setCoordinatorNote("Xác nhận đề xuất hệ thống");
+            review.setReviewedBy(coordinator);
+            review.setReviewedAt(now);
+            review.setIsOverride(false);
+            review.setOverrideReasonCategory(null);
+            review.setOverrideNote(null);
+            wildcardReviewRepository.save(review);
+        }
+
+        // Reject any other pending reviews for this round not in the proposal
+        for (WildcardReview existing : wildcardReviewRepository.findByRound_Id(round.getId())) {
+            if (!proposedTeamIds.contains(existing.getTeam().getId())) {
+                existing.setSystemProposed(false);
+                existing.setCoordinatorApproved(false);
+                existing.setCoordinatorNote("Tự động từ chối — ngoài đề xuất Top " + pool.availableSlots());
+                existing.setReviewedBy(coordinator);
+                existing.setReviewedAt(now);
+                wildcardReviewRepository.save(existing);
+            }
+        }
+
+        round.setWildcardProposalConfirmedAt(now);
+        roundRepository.save(round);
+
+        auditService.log(AuditAction.WILDCARD_PROPOSAL_CONFIRMED, "rounds", roundId,
+                java.util.Map.of(
+                        "slots", pool.availableSlots(),
+                        "proposedTeamIds", proposedTeamIds,
+                        "confirmedAt", now.toString()));
+
+        return lockedWildcardResponse(round, Boolean.TRUE.equals(round.getHackathon().getWildcardEnabled()));
+    }
+
+    // =========================================================================
+    // Plan C: OVERRIDE sau khi LOCKED
+    // =========================================================================
+    @Override
+    public WildcardReviewResponse overrideWildcardReview(Integer reviewId, WildcardOverrideRequest req) {
+        WildcardReview review = wildcardReviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("WildcardReview", reviewId));
+        Round round = review.getRound();
+
+        if (round.getWildcardProposalConfirmedAt() == null) {
+            throw new BusinessRuleException(ErrorCode.WILDCARD_PROPOSAL_NOT_LOCKED,
+                    "Chỉ Override sau khi đã xác nhận đề xuất vé vớt");
+        }
+
+        String category = WildcardOverrideCategory.normalize(req.getCategory());
+        if (!WildcardOverrideCategory.isValid(category)) {
+            throw new BusinessRuleException(ErrorCode.WILDCARD_OVERRIDE_CATEGORY_INVALID,
+                    "Category override không hợp lệ. Dùng: PROPOSED_TEAM_VIOLATION, TRACK_QUOTA_ADJUST, SCORE_CORRECTED, OTHER");
+        }
+
+        String note = req.getNote() != null ? req.getNote().trim() : "";
+        if (WildcardOverrideCategory.requiresNote(category) && !StringUtils.hasText(note)) {
+            throw new BusinessRuleException(ErrorCode.WILDCARD_OVERRIDE_NOTE_REQUIRED,
+                    "Category OTHER bắt buộc nhập ghi chú (WC-05)");
+        }
+
+        Boolean before = review.getCoordinatorApproved();
+        Boolean after = req.getApproved();
+        User coordinator = userRepository.findById(currentUserAccessor.currentUserId()).orElseThrow();
+        LocalDateTime now = LocalDateTime.now();
+
+        review.setCoordinatorApproved(after);
+        review.setCoordinatorNote(StringUtils.hasText(note) ? note : review.getCoordinatorNote());
+        review.setOverrideReasonCategory(category);
+        review.setOverrideNote(StringUtils.hasText(note) ? note : null);
+        review.setIsOverride(true);
+        review.setReviewedBy(coordinator);
+        review.setReviewedAt(now);
+        WildcardReview saved = wildcardReviewRepository.save(review);
+
+        WildcardOverrideHistory history = WildcardOverrideHistory.builder()
+                .round(round)
+                .review(saved)
+                .team(saved.getTeam())
+                .category(category)
+                .note(StringUtils.hasText(note) ? note : null)
+                .beforeApproved(before)
+                .afterApproved(after)
+                .byUser(coordinator)
+                .overriddenAt(now)
+                .build();
+        wildcardOverrideHistoryRepository.save(history);
+
+        auditService.log(AuditAction.WILDCARD_OVERRIDE, "wildcard_reviews", saved.getId(),
+                java.util.Map.of(
+                        "category", category,
+                        "beforeApproved", before,
+                        "afterApproved", after,
+                        "teamId", saved.getTeam().getId()));
+
+        return WildcardReviewResponse.builder()
+                .id(saved.getId())
+                .roundId(saved.getRound().getId())
+                .teamId(saved.getTeam().getId())
+                .avgScore(saved.getAvgScore())
+                .coordinatorApproved(saved.getCoordinatorApproved())
+                .coordinatorNote(saved.getCoordinatorNote())
+                .reviewedAt(saved.getReviewedAt())
+                .build();
+    }
+
+    @Override
+    public List<WildcardOverrideHistoryResponse> listWildcardOverrides(Integer roundId) {
+        roundAccessGuard.requireRound(roundId);
+        return wildcardOverrideHistoryRepository.findByRound_IdOrderByOverriddenAtDesc(roundId).stream()
+                .map(h -> WildcardOverrideHistoryResponse.builder()
+                        .id(h.getId())
+                        .roundId(h.getRound().getId())
+                        .reviewId(h.getReview().getId())
+                        .teamId(h.getTeam().getId())
+                        .teamName(h.getTeam().getTeamName())
+                        .category(h.getCategory())
+                        .note(h.getNote())
+                        .beforeApproved(h.getBeforeApproved())
+                        .afterApproved(h.getAfterApproved())
+                        .byUserId(h.getByUser() != null ? h.getByUser().getId() : null)
+                        .byUserName(h.getByUser() != null ? h.getByUser().getFullName() : null)
+                        .overriddenAt(h.getOverriddenAt())
+                        .build())
+                .toList();
+    }
+
+    // =========================================================================
+    // NHIỆM VỤ 2.2: LƯU QUYẾT ĐỊNH CỦA BAN TỔ CHỨC (DUYỆT VÉ VỚT) — legacy soft-disabled after lock
     // =========================================================================
     @Override
     public WildcardReviewResponse decideWildcardReview(Integer reviewId, WildcardReviewDecisionRequest req) {
         WildcardReview review = wildcardReviewRepository.findById(reviewId)
                 .orElseThrow(() -> new ResourceNotFoundException("WildcardReview", reviewId));
+
+        if (review.getRound().getWildcardProposalConfirmedAt() != null) {
+            throw new BusinessRuleException(ErrorCode.WILDCARD_PROPOSAL_ALREADY_CONFIRMED,
+                    "Đề xuất đã khóa — dùng Override để sửa quyết định");
+        }
 
         if (!Boolean.TRUE.equals(review.getRound().getScoringLocked())) {
             throw new BusinessRuleException(ErrorCode.ROUND_NOT_SCORING_LOCKED,
@@ -955,14 +1241,8 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         Round round = requirePreliminaryRoundForProgression(roundId);
         requireScoringLockedAndPublished(round);
 
-        List<WildcardReview> pendingWildcards =
-                wildcardReviewRepository.findByRound_IdAndCoordinatorApprovedIsNull(roundId);
-        if (!pendingWildcards.isEmpty()) {
-            throw new ConflictException(
-                    ErrorCode.WILDCARD_PENDING,
-                    "Còn " + pendingWildcards.size() + " vé vớt chưa duyệt/từ chối. Hoàn tất Wild Card trước khi chuyển vòng.",
-                    java.util.Map.of("pendingCount", pendingWildcards.size()));
-        }
+        // Plan C: proposal must be confirmed when WC has slots; else pending decisions block.
+        requireWildcardReadyForAdvance(round);
 
         autoApplyResolvableTiebreaks(roundId);
 
@@ -1012,6 +1292,38 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                 .advancedTeamIds(advanced)
                 .eliminatedTeamIds(eliminated)
                 .build();
+    }
+
+    /** Plan C advance gate: confirmed proposal (or no WC slots / WC disabled). */
+    private void requireWildcardReadyForAdvance(Round round) {
+        Integer roundId = round.getId();
+        if (!Boolean.TRUE.equals(round.getWildcardEnabled())) {
+            return;
+        }
+
+        Optional<WildcardPoolSnapshot> pool = resolveWildcardPool(round);
+        // After lock, live pool may look different if scores changed — use confirmedAt.
+        if (round.getWildcardProposalConfirmedAt() != null) {
+            List<WildcardReview> pending =
+                    wildcardReviewRepository.findByRound_IdAndCoordinatorApprovedIsNull(roundId);
+            if (!pending.isEmpty()) {
+                throw new ConflictException(
+                        ErrorCode.WILDCARD_PENDING,
+                        "Còn " + pending.size() + " vé vớt chưa có quyết định sau Override.",
+                        java.util.Map.of("pendingCount", pending.size()));
+            }
+            return;
+        }
+
+        if (pool.isEmpty()) {
+            // No slots / empty pool — WC không chặn advance
+            return;
+        }
+
+        throw new ConflictException(
+                ErrorCode.WILDCARD_PROPOSAL_NOT_CONFIRMED,
+                "Cần xác nhận đề xuất vé vớt trước khi chuyển vòng.",
+                java.util.Map.of("availableSlots", pool.get().availableSlots()));
     }
 
     @Override

@@ -625,6 +625,28 @@ public class RoundServiceImpl implements RoundService {
     }
 
     @Override
+    public RoundResponse dismissFinalProblemMigrationBanner(Integer id) {
+        Round round = roundRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Round", id));
+        if (!Boolean.TRUE.equals(round.getIsFinal())) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                    "Banner migration chỉ áp dụng cho vòng Chung kết");
+        }
+        if (round.getFinalProblemMigrationClearedAt() == null) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                    "Vòng này không có banner migration đề CK");
+        }
+        if (round.getFinalProblemMigrationBannerDismissedAt() != null) {
+            return roundMapper.toResponse(round);
+        }
+        round.setFinalProblemMigrationBannerDismissedAt(LocalDateTime.now());
+        Round saved = roundRepository.save(round);
+        auditService.log(AuditAction.ROUND_FINAL_PROBLEM_MIGRATION_BANNER_DISMISSED, "rounds", id,
+                Map.of("dismissedAt", saved.getFinalProblemMigrationBannerDismissedAt().toString()));
+        return roundMapper.toResponse(saved);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public Resource downloadProblemStatement(Integer id) {
         Round round = roundRepository.findById(id)

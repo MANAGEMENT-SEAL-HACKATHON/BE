@@ -166,6 +166,24 @@ public class RoundProgressionController {
         return ResponseEntity.ok(ApiResponse.ok(progressionService.wildcardCandidates(id)));
     }
 
+    @PostMapping("/{id}/wildcard-proposal/confirm")
+    @CoordinatorOnly
+    @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
+    @Operation(summary = "Plan C — Xác nhận đề xuất vé vớt (LOCK)")
+    public ResponseEntity<ApiResponse<WildcardCandidatesResponse>> confirmWildcardProposal(
+            @PathVariable Integer id) {
+        return ResponseEntity.ok(ApiResponse.ok(progressionService.confirmWildcardProposal(id)));
+    }
+
+    @GetMapping("/{id}/wildcard-overrides")
+    @CoordinatorOnly
+    @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
+    @Operation(summary = "Plan C — Lịch sử override vé vớt")
+    public ResponseEntity<ApiResponse<List<com.sealhackathon.api.wildcard_reviews.dto.response.WildcardOverrideHistoryResponse>>>
+            wildcardOverrides(@PathVariable Integer id) {
+        return ResponseEntity.ok(ApiResponse.ok(progressionService.listWildcardOverrides(id)));
+    }
+
     @PostMapping("/{id}/advance")
     @CoordinatorOnly
     @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)

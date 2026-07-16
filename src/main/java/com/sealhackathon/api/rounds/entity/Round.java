@@ -99,6 +99,19 @@ public class Round {
     private LocalDateTime problemReleasedAt;
 
     /**
+     * CK-05: thời điểm migration xóa PDF đề riêng trên vòng Chung kết (null = chưa clear / không áp dụng).
+     * Banner coord hiện khi field này khác null và {@link #finalProblemMigrationBannerDismissedAt} null.
+     */
+    @Column(name = "final_problem_migration_cleared_at")
+    private LocalDateTime finalProblemMigrationClearedAt;
+
+    /**
+     * CK-05: coordinator đã dismiss banner migration đề CK (một lần theo round, không per-user).
+     */
+    @Column(name = "final_problem_migration_banner_dismissed_at")
+    private LocalDateTime finalProblemMigrationBannerDismissedAt;
+
+    /**
      * Số đội Top N MỖI BẢNG (assigned_group) vào Round tiếp.
      * NULL khi {@code isFinal = TRUE}.
      */
@@ -118,10 +131,17 @@ public class Round {
     @Column(name = "wildcard_enabled", nullable = false)
     private Boolean wildcardEnabled = false;
 
+    /**
+     * Plan C — thời điểm Coordinator xác nhận đề xuất vé vớt (LOCKED).
+     * NULL = chưa xác nhận; sau lock chỉ sửa qua Override.
+     */
+    @Column(name = "wildcard_proposal_confirmed_at")
+    private LocalDateTime wildcardProposalConfirmedAt;
+
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "tiebreak_rule", length = 50)
-    private TiebreakRule tiebreakRule = TiebreakRule.PENALTY_SCORE;
+    private TiebreakRule tiebreakRule = TiebreakRule.COORDINATOR_DECISION;
 
     /**
      * Thời điểm kích hoạt Round lần cuối (FR-15/25). NULL khi chưa từng activate.

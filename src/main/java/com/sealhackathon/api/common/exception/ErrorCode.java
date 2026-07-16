@@ -194,6 +194,7 @@ public final class ErrorCode {
     public static final String TEAM_FORMATION_NOT_SUBMITTED             = "TEAM_FORMATION_NOT_SUBMITTED";
     public static final String TEAM_FORMATION_PENDING_INVITES           = "TEAM_FORMATION_PENDING_INVITES";
     public static final String TEAM_HAS_PENDING_MEMBERS                 = "TEAM_HAS_PENDING_MEMBERS";
+    public static final String TEAM_HAS_UNAPPROVED_MEMBERS              = "TEAM_HAS_UNAPPROVED_MEMBERS";
     public static final String NEW_LEADER_NOT_MEMBER                    = "NEW_LEADER_NOT_MEMBER";
     public static final String NEW_LEADER_NOT_APPROVED                  = "NEW_LEADER_NOT_APPROVED";
     public static final String TEAM_ALREADY_ACTIVE                      = "TEAM_ALREADY_ACTIVE";
@@ -232,6 +233,16 @@ public final class ErrorCode {
     public static final String PRELIM_NOT_MUTABLE                         = "PRELIM_NOT_MUTABLE";
     /** Còn vé vớt chưa duyệt/từ chối — không cho advance (C-08). */
     public static final String WILDCARD_PENDING                           = "WILDCARD_PENDING";
+    /** Plan C WC-06 — đề xuất đã LOCKED, không confirm lại. */
+    public static final String WILDCARD_PROPOSAL_ALREADY_CONFIRMED         = "WILDCARD_PROPOSAL_ALREADY_CONFIRMED";
+    /** Plan C — advance khi còn slots nhưng chưa xác nhận đề xuất. */
+    public static final String WILDCARD_PROPOSAL_NOT_CONFIRMED             = "WILDCARD_PROPOSAL_NOT_CONFIRMED";
+    /** Plan C — override trước khi proposal locked. */
+    public static final String WILDCARD_PROPOSAL_NOT_LOCKED                = "WILDCARD_PROPOSAL_NOT_LOCKED";
+    /** Plan C — category override thiếu/không hợp lệ. */
+    public static final String WILDCARD_OVERRIDE_CATEGORY_INVALID          = "WILDCARD_OVERRIDE_CATEGORY_INVALID";
+    /** Plan C WC-05 — OTHER bắt buộc có note. */
+    public static final String WILDCARD_OVERRIDE_NOTE_REQUIRED             = "WILDCARD_OVERRIDE_NOTE_REQUIRED";
     public static final String TRACK_NOT_ALLOWED_FOR_FINAL                = "TRACK_NOT_ALLOWED_FOR_FINAL";
     public static final String SUBMISSION_NOT_GRADABLE                    = "SUBMISSION_NOT_GRADABLE";
     public static final String JUDGE_NOT_ASSIGNED_TO_TRACK                = "JUDGE_NOT_ASSIGNED_TO_TRACK";
@@ -249,7 +260,11 @@ public final class ErrorCode {
     public static final String SCORING_INCOMPLETE_BEFORE_CONFIRM          = "SCORING_INCOMPLETE_BEFORE_CONFIRM";
     public static final String NOT_TRACK_CONTROLLER                       = "NOT_TRACK_CONTROLLER";
     public static final String REVIEW_NOTE_REQUIRED                       = "REVIEW_NOTE_REQUIRED";
+    public static final String LATE_REASON_REQUIRED                       = "LATE_REASON_REQUIRED";
     public static final String SUBMISSION_NOT_LATE_PENDING                = "SUBMISSION_NOT_LATE_PENDING";
+    public static final String TIEBREAK_ALREADY_RESOLVED                  = "TIEBREAK_ALREADY_RESOLVED";
+    public static final String TIEBREAK_UNRESOLVED                         = "TIEBREAK_UNRESOLVED";
+    public static final String TEAM_NOT_ACCEPTING_INVITES                 = "TEAM_NOT_ACCEPTING_INVITES";
     public static final String LATE_PENDING_NOT_ALLOWED                   = "LATE_PENDING_NOT_ALLOWED";
     public static final String SUBMISSION_ALREADY_CLOSED                  = "SUBMISSION_ALREADY_CLOSED";
     /** Còn trong cửa sổ nộp — không cho shuffle. */
@@ -259,6 +274,8 @@ public final class ErrorCode {
     public static final String EVENT_FINISHED                             = "EVENT_FINISHED";
     /** Đã bắt đầu thuyết trình — không shuffle lại. */
     public static final String PRESENTATION_ALREADY_STARTED               = "PRESENTATION_ALREADY_STARTED";
+    /** Queue đã shuffle — retry idempotent (409). */
+    public static final String PRESENTATION_ALREADY_SHUFFLED              = "PRESENTATION_ALREADY_SHUFFLED";
     /** Takeover/transfer race — controller đã đổi. */
     public static final String CONTROLLER_CONFLICT                        = "CONTROLLER_CONFLICT";
     /** Transfer sang judge offline / không có session. */

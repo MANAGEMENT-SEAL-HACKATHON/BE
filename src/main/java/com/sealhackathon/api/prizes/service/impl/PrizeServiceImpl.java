@@ -18,8 +18,10 @@ import com.sealhackathon.api.prizes.mapper.PrizeMapper;
 import com.sealhackathon.api.prizes.repository.PrizeRepository;
 import com.sealhackathon.api.prizes.service.PrizeService;
 import com.sealhackathon.api.prizes.value_object.PrizeRank;
+import com.sealhackathon.api.rounds.dto.response.TiebreakItemResponse;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
+import com.sealhackathon.api.rounds.service.RoundProgressionService;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.repository.TeamRepository;
 import com.sealhackathon.api.tracks.entity.Track;
@@ -40,6 +42,7 @@ public class PrizeServiceImpl implements PrizeService {
 
     private final HackathonRepository hackathonRepository;
     private final RoundRepository roundRepository;
+    private final RoundProgressionService roundProgressionService;
     private final TeamRepository teamRepository;
     private final TrackRepository trackRepository;
     private final PrizeRepository prizeRepository;
@@ -89,6 +92,14 @@ public class PrizeServiceImpl implements PrizeService {
                         "Track không thuộc round đã chọn",
                         Map.of("roundId", round.getId(), "trackId", req.getTrackId()));
             }
+        }
+
+        // Gate awards theo round đang trao giải còn DEEP_TIE
+        List<TiebreakItemResponse> unresolved = roundProgressionService.tiebreak(round.getId());
+        if (!unresolved.isEmpty()) {
+            throw new BusinessRuleException(ErrorCode.TIEBREAK_UNRESOLVED,
+                    "Round còn đồng điểm chưa resolve — không thể trao giải cho round này",
+                    Map.of("roundId", round.getId(), "unresolvedCount", unresolved.size()));
         }
 
         assertNoDuplicate(hackathonId, req.getRoundId(), req.getTeamId(), req.getPrizeRank());
@@ -148,11 +159,12 @@ public class PrizeServiceImpl implements PrizeService {
             prize.setTeam(newTeam);
         }
         Prize saved = prizeRepository.save(prize);
-        auditService.log(AuditAction.PRIZE_AWARD_UPDATED, "prizes", prizeId, Map.of(
-                "reason", req.getReason(),
-                "oldTeamId", oldTeamId,
-                "newTeamId", saved.getTeam().getId(),
-                "prizeName", saved.getPrizeName()));
+        java.util.HashMap<String, Object> auditMeta = new java.util.HashMap<>();
+        auditMeta.put("reason", req.getReason() != null ? req.getReason() : "");
+        auditMeta.put("oldTeamId", oldTeamId);
+        auditMeta.put("newTeamId", saved.getTeam().getId());
+        auditMeta.put("prizeName", saved.getPrizeName());
+        auditService.log(AuditAction.PRIZE_AWARD_UPDATED, "prizes", prizeId, auditMeta);
         return prizeMapper.toResponse(saved);
     }
 

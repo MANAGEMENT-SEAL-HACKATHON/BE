@@ -184,6 +184,8 @@ class Gd4ToGd6FlowIntegrationTest {
                 .status(TrackStatus.OPEN)
                 .sequenceOrder(1)
                 .maxTeamsPerGroup(8)
+                .problemStatementStorageKey("tracks/test-problem-" + suffix + ".pdf")
+                .problemStatementOriginalFilename("test-problem.pdf")
                 .build());
 
         prelimCriterion = criteriaRepository.save(Criteria.builder()
@@ -333,6 +335,7 @@ class Gd4ToGd6FlowIntegrationTest {
                 .andExpect(jsonPath("$.data.submissionId").exists())
                 .andExpect(jsonPath("$.data.hasSlide").value(true));
 
+        // CK activate đã stamp problemReleasedAt — chỉ cần close-early
         mockMvc.perform(post("/api/v1/rounds/{id}/close-submission-early", finalRound.getId())
                         .header("Authorization", "Bearer " + coordToken))
                 .andExpect(status().isOk());
@@ -357,6 +360,24 @@ class Gd4ToGd6FlowIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(finalScoreBody))
                 .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/presentation/timer/qa")
+                        .param("roundId", finalRound.getId().toString())
+                        .header("Authorization", "Bearer " + coordToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/presentation/timer/end")
+                        .param("roundId", finalRound.getId().toString())
+                        .header("Authorization", "Bearer " + coordToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"acknowledgeIncompleteScoring\":true}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(patch("/api/v1/presentation/queue/next")
+                        .param("roundId", finalRound.getId().toString())
+                        .header("Authorization", "Bearer " + coordToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentSubmissionId\": %d, \"acknowledgeIncompleteScoring\": true}"
+                                .formatted(finalSubmissionId)))
+                .andExpect(status().isOk());
 
         mockMvc.perform(patch("/api/v1/rounds/{id}/lock-scoring", finalRound.getId())
                         .header("Authorization", "Bearer " + coordToken)
@@ -488,6 +509,10 @@ class Gd4ToGd6FlowIntegrationTest {
                 .andReturn();
         int submissionId = readJson(submit).path("data").path("id").asInt();
 
+        mockMvc.perform(patch("/api/v1/rounds/{id}/release-problem", prelimRound.getId())
+                        .header("Authorization", "Bearer " + coordToken)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
         mockMvc.perform(post("/api/v1/rounds/{id}/close-submission-early", prelimRound.getId())
                         .header("Authorization", "Bearer " + coordToken))
                 .andExpect(status().isOk());
@@ -511,6 +536,28 @@ class Gd4ToGd6FlowIntegrationTest {
                                 {"submissionId": %d, "criterionId": %d, "scoreValue": 8}
                                 """.formatted(submissionId, prelimCriterion.getId())))
                 .andExpect(status().isCreated());
+
+        // Gate 3 lock-scoring: slot must leave PRESENTING/WAITING → DONE
+        mockMvc.perform(post("/api/v1/presentation/timer/qa")
+                        .param("roundId", prelimRound.getId().toString())
+                        .param("trackId", track.getId().toString())
+                        .header("Authorization", "Bearer " + coordToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/presentation/timer/end")
+                        .param("roundId", prelimRound.getId().toString())
+                        .param("trackId", track.getId().toString())
+                        .header("Authorization", "Bearer " + coordToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"acknowledgeIncompleteScoring\":true}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(patch("/api/v1/presentation/queue/next")
+                        .param("roundId", prelimRound.getId().toString())
+                        .param("trackId", track.getId().toString())
+                        .header("Authorization", "Bearer " + coordToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentSubmissionId\": %d, \"acknowledgeIncompleteScoring\": true}"
+                                .formatted(submissionId)))
+                .andExpect(status().isOk());
 
         return submissionId;
     }

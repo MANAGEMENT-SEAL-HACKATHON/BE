@@ -14,6 +14,9 @@ import java.time.LocalDateTime;
  *
  * <p>Thêm {@code track_id} để theo dõi Wild Card xuất phát từ Track nào (đối với
  * Sơ loại nhiều Track). UNIQUE ({@code round_id}, {@code team_id}).
+ *
+ * <p>Plan C: snapshot {@code submittedAt}/{@code proposalRank}/{@code systemProposed};
+ * sau lock chỉ đổi qua Override (+ category/note).
  */
 @Entity
 @Table(
@@ -55,6 +58,18 @@ public class WildcardReview {
     @Column(name = "avg_score")
     private Float avgScore;
 
+    /** Snapshot thời điểm nộp bài sơ loại lúc đề xuất (Plan C sort tiebreak). */
+    @Column(name = "submitted_at")
+    private LocalDateTime submittedAt;
+
+    /** Thứ hạng trong đề xuất hệ thống (1..slots) lúc build/confirm. */
+    @Column(name = "proposal_rank")
+    private Integer proposalRank;
+
+    /** true nếu đội nằm trong top {@code slots} đề xuất hệ thống. */
+    @Column(name = "system_proposed")
+    private Boolean systemProposed;
+
     @Column(name = "coordinator_approved")
     private Boolean coordinatorApproved;
 
@@ -67,4 +82,15 @@ public class WildcardReview {
 
     @Column(name = "reviewed_at")
     private LocalDateTime reviewedAt;
+
+    /** Category lần override gần nhất (Plan C). */
+    @Column(name = "override_reason_category", length = 40)
+    private String overrideReasonCategory;
+
+    @Column(name = "override_note", columnDefinition = "TEXT")
+    private String overrideNote;
+
+    @Builder.Default
+    @Column(name = "is_override", nullable = false)
+    private Boolean isOverride = false;
 }

@@ -40,4 +40,6 @@ public class TeamDetailResponse {
     private String lotteryStatus;
     private Integer minTeamSize;
     private Integer maxTeamSize;
+    /** True when team has an active mentor assignment — FE gates disband on this. */
+    private Boolean hasMentor;
 }

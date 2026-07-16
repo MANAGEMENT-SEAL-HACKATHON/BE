@@ -46,7 +46,7 @@ public class RoundMapper {
                         && req.getWildcardEnabled() != null
                         && req.getWildcardEnabled())
                 .minTeamsFinal(isFinal ? null : req.getMinTeamsFinal())
-                .tiebreakRule(req.getTiebreakRule() == null ? TiebreakRule.PENALTY_SCORE : req.getTiebreakRule())
+                .tiebreakRule(req.getTiebreakRule() == null ? TiebreakRule.COORDINATOR_DECISION : req.getTiebreakRule())
                 .defaultPresentationMinutes(isFinal && req.getDefaultPresentationMinutes() != null
                         ? req.getDefaultPresentationMinutes()
                         : 10)
@@ -127,6 +127,8 @@ public class RoundMapper {
                 .problemStatementFilename(Boolean.TRUE.equals(e.getIsFinal())
                         ? RoundProblemStatementStorage.displayFilename(e) : null)
                 .problemReleasedAt(e.getProblemReleasedAt())
+                .finalProblemMigrationClearedAt(e.getFinalProblemMigrationClearedAt())
+                .finalProblemMigrationBannerDismissedAt(e.getFinalProblemMigrationBannerDismissedAt())
                 .topNAdvance(e.getTopNAdvance())
                 .wildcardEnabled(e.getWildcardEnabled())
                 .minTeamsFinal(e.getMinTeamsFinal())
