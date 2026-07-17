@@ -87,14 +87,15 @@ class TempJudgeServiceImplTest {
         User saved = userCaptor.getValue();
         assertThat(saved.getPasswordHash()).isEqualTo("bcrypt-hash");
         assertThat(saved.getMustChangePassword()).isTrue();
-        assertThat(saved.getStatus()).isEqualTo(UserStatus.APPROVED);
+        assertThat(saved.getStatus()).isEqualTo(UserStatus.PENDING);
         assertThat(saved.getEmailVerifiedAt()).isNotNull();
 
         ArgumentCaptor<Invitation> invCaptor = ArgumentCaptor.forClass(Invitation.class);
-        verify(invitationRepository).save(invCaptor.capture());
+        verify(invitationRepository, org.mockito.Mockito.atLeastOnce()).save(invCaptor.capture());
         Invitation inv = invCaptor.getValue();
         assertThat(inv.getRole()).isEqualTo(UserRole.JUDGE);
         assertThat(inv.getExpiresAt()).isAfter(LocalDateTime.now().plusHours(InvitationConstants.INVITATION_EXPIRY_HOURS - 1));
+        assertThat(inv.getLastTokenSent()).isTrue();
 
         verify(emailService).sendGuestJudgeInvitation(
                 anyString(), anyString(), anyString(), anyString(), any(LocalDateTime.class));

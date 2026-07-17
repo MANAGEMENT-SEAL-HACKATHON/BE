@@ -62,7 +62,9 @@ public class InvitationServiceImpl implements InvitationService {
                     "Invitation đã được accept tại " + inv.getAcceptedAt(),
                     Map.of("invitationId", invitationId, "acceptedAt", inv.getAcceptedAt()));
         }
-        if (inv.getExpiresAt() != null && inv.getExpiresAt().isAfter(LocalDateTime.now())) {
+        boolean stillValid = inv.getExpiresAt() != null && inv.getExpiresAt().isAfter(LocalDateTime.now());
+        boolean lastSendFailed = Boolean.FALSE.equals(inv.getLastTokenSent());
+        if (stillValid && !lastSendFailed) {
             throw new BusinessRuleException(ErrorCode.INVITATION_STILL_VALID,
                     "Token còn hiệu lực — chỉ resend sau khi hết hạn",
                     Map.of("invitationId", invitationId, "expiresAt", inv.getExpiresAt()));
@@ -93,6 +95,8 @@ public class InvitationServiceImpl implements InvitationService {
             log.warn("[Invitation] resend failed for {}: {}", saved.getEmail(), ex.getMessage());
             tokenSent = false;
         }
+        saved.setLastTokenSent(tokenSent);
+        saved = invitationRepository.save(saved);
 
         auditService.log(AuditAction.INVITATION_RESEND, "invitations", saved.getId(), Map.of(
                 "email", saved.getEmail(),

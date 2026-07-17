@@ -224,6 +224,8 @@ public final class ErrorCode {
 
     // ---------- MF-03 GĐ3–GĐ5 (GD03 v4.1 §7) ----------
     public static final String NO_TEAMS_IN_ROUND                        = "NO_TEAMS_IN_ROUND";
+    /** Activate prelim: ít nhất một bảng đấu chưa có đội (every-track gate). */
+    public static final String TRACK_EMPTY_TEAMS                        = "TRACK_EMPTY_TEAMS";
     public static final String JUDGE_NOT_ASSIGNED                       = "JUDGE_NOT_ASSIGNED";
     public static final String ROUND_NOT_ACTIVE                         = "ROUND_NOT_ACTIVE";
     public static final String TEAM_NOT_READY                           = "TEAM_NOT_READY";

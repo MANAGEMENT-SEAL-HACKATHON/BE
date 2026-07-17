@@ -1,8 +1,8 @@
 # Playbook Kiểm Thử Giao Diện GĐ1 - GĐ6 (Manual UI Test)
 
 > **Mục đích:** hướng dẫn tester click-by-click trên FE thật, kèm expect UI / ErrorCode / seed đúng code.  
-> **Cập nhật lần cuối:** **2026-07-16 (Session Evening)** — Highlight: tối ưu Wildcard Plan C; Chung kết kế thừa đề Sơ loại; chuẩn hóa Timer Sequence GĐ3/GĐ5; sửa F5 GĐ2; sửa Data Seed E2E; lifecycle sync (v9+polish) vẫn áp dụng.  
-> **Changelog phiên:** [session-changelog-2026-07-15-16.md](session-changelog-2026-07-15-16.md).  
+> **Cập nhật lần cuối:** **2026-07-17 (Session Morning)** — Highlight: bỏ tab Đánh giá & Kiểm tra (activate trên header + tooltip blockers); guest judge **PENDING → APPROVED** sau đổi MK; Events không tạo PRESENTATION; timer TT/Q&A theo Round; UX Nhân sự (loading/gán xám). Session 15–16: Wildcard Plan C; CK kế thừa đề; Timer Sequence; F5 GĐ2; seed E2E; lifecycle v9+polish.  
+> **Changelog phiên:** [session-changelog-2026-07-15-16.md](session-changelog-2026-07-15-16.md) (15–17/07).  
 > **Không phải tóm tắt:** mỗi happy path (đặc biệt **§3.3 / §5.3 / §6.3 / §7A**) ghi đủ nhãn nút/tab/toast/ErrorCode như trên FE.  
 > **API catalog / Postman:** [full-workflow-api-test-gd1-gd6.md](full-workflow-api-test-gd1-gd6.md).  
 > **Slug SSOT (9 happy):** [dev-seed-slugs-guide.md](dev-seed-slugs-guide.md), [master-slug-test-matrix.md](master-slug-test-matrix.md).  
@@ -64,10 +64,12 @@ $env:PLAYWRIGHT_BROWSERS_PATH = "C:\Users\ASUS\AppData\Local\ms-playwright"
 | Student GĐ3 leader (demo nộp) | `student.gd3.leader06@fpt.edu.vn` | `Student@dev1` |
 | Student GĐ5 | `student.gd5.leader01@fpt.edu.vn` | `Student@dev1` |
 | Judge | `judge1@fpt.edu.vn` | `Judge@dev1` |
-| Guest judge | `guestjudge@gmail.com` | `GuestJudge@dev1` |
+| Guest judge (seed đã kích hoạt) | `guestjudge@gmail.com` | `GuestJudge@dev1` |
 | Mentor | `mentor@fpt.edu.vn` | `Mentor@dev1` |
 
-> **Guest judge (2026-07-14):** tài khoản EXTERNAL temp bị `401 TEMP_JUDGE_HACKATHON_ENDED` chỉ khi **mọi** hackathon gắn assignment/invitation đã kết thúc. Có assignment trên kỳ **ONGOING** (vd `seal-gd5-final-active`) → vẫn login được dù archive `seal-fall-2025-finished` còn trong danh sách.
+> **Guest judge login archive (2026-07-14):** tài khoản EXTERNAL temp bị `401 TEMP_JUDGE_HACKATHON_ENDED` chỉ khi **mọi** hackathon gắn assignment/invitation đã kết thúc. Có assignment trên kỳ **ONGOING** (vd `seal-gd5-final-active`) → vẫn login được dù archive `seal-fall-2025-finished` còn trong danh sách.
+>
+> **Guest judge onboard (2026-07-17):** mời mới → user `PENDING` + `mustChangePassword=true` (UI: **Chờ đổi mật khẩu**, **không** «Đã duyệt» ngay). Login bằng MK tạm trong email (ngoại lệ Auth) → **đổi mật khẩu bắt buộc** → `APPROVED`. Lời mời hết hạn **72h** → badge **Lời mời hết hạn** + Resend (**MK tạm mới**). Email gửi fail → **Email chưa gửi** + Resend ngay. Chỉ guest `APPROVED` mới vào pool gán Chung kết. Seed `guestjudge@gmail.com` đã activate sẵn — không cần đổi MK lại.
 
 **Cách login FE (mọi giai đoạn):**
 
@@ -81,7 +83,8 @@ $env:PLAYWRIGHT_BROWSERS_PATH = "C:\Users\ASUS\AppData\Local\ms-playwright"
 |------|------------------|
 | Danh sách hackathon | `/hackathons` — nút **Tạo sự kiện** |
 | Setup wizard | `/hackathons/{id}/setup?tab=...` |
-| Tab setup (đúng label FE) | **Cấu hình chung**, **Vòng thi**, **Bảng đấu**, **Bốc thăm & khai mạc**, **Tiêu chí đánh giá**, **Nhân sự**, **Lịch trình & Sự kiện**, **Đánh giá & Kiểm tra**, **Phân tích & Dữ liệu**, **Cấu hình Chung kết** |
+| Tab setup (đúng label FE) | **Cấu hình chung**, **Vòng thi**, **Bảng đấu**, **Bốc thăm & khai mạc**, **Tiêu chí đánh giá**, **Nhân sự**, **Lịch trình & Sự kiện**, **Phân tích & Dữ liệu**, **Cấu hình Chung kết** — **không** còn tab **Đánh giá & Kiểm tra** (17/07) |
+| Kích hoạt hackathon (DRAFT→ONGOING) | Header setup: nút **Xác nhận Kích hoạt** (góc phải). Chưa đủ điều kiện → nút disabled + icon ℹ️ / tooltip liệt kê blockers. Đủ → nút sáng → click → ONGOING |
 | Quản lý đội | `/teams` hoặc **`/teams?hackathonId={id}`** — tab/nhãn **Duyệt đội**, nút **Duyệt** |
 | Final config (dual entry) | `/coordinator/final-config?hackathonId={id}` **hoặc** `setup?tab=final-config` (**Cấu hình Chung kết**) |
 | Nộp bài SV | `/student/submit` — tiêu đề **Đề thi & Nộp bài dự thi**; tab **Sơ loại** \| **Chung kết** |
@@ -346,7 +349,7 @@ Expect: **0 fail**.
 
 ### 1.1 Mục đích
 
-Cấu hình hackathon đủ rounds / tracks / criteria / people / events đến khi readiness cho phép **Xác nhận Kích hoạt** → **Kích hoạt ngay** → status **ONGOING** (mở đăng ký).
+Cấu hình hackathon đủ rounds / tracks / criteria / people / events đến khi readiness cho phép nút header **Xác nhận Kích hoạt** sáng → click → status **ONGOING** (mở đăng ký). Không còn tab / bước **Đánh giá & Kiểm tra**.
 
 ### 1.2 Điều kiện đầu
 
@@ -381,8 +384,8 @@ Tạo slug sự kiện mới hoàn toàn như các step hiện tại của GĐ1.
   * **Thao tác:** Tạo vòng **Sơ loại**, rồi tạo vòng **Chung kết**.
   * **Kết quả kỳ vọng:** Form CK **không** có nút Upload PDF đề mới. Trường Ngày Mở/Hạn nộp bị mờ (disabled) và có icon `(i)` giải thích. Có thể chỉnh **Thời lượng thi**.
 * **Bước 3**
-  * **Thao tác:** Nhấn **Kích hoạt sự kiện** / **Xác nhận Kích hoạt** → chọn **Bắt đầu sớm** (`START_NOW`, lead time vd 2 phút) **hoặc** hoàn tất checklist tab **Đánh giá & Kiểm tra** → **Kích hoạt ngay**.
-  * **Kết quả kỳ vọng:** Sự kiện chuyển **ONGOING**. (RESCHEDULE trên vòng: đổi lịch khi còn Bản nháp — **không** bắt đầu ngay.)
+  * **Thao tác:** Trên header **Thiết lập**, nếu nút **Xác nhận Kích hoạt** xám → hover icon ℹ️ (hoặc nút) để xem điều kiện thiếu → bổ sung (vòng, sự kiện KICKOFF/AWARDS, …). Khi nút sáng → nhấn **Xác nhận Kích hoạt**.
+  * **Kết quả kỳ vọng:** Toast *Đã mở đăng ký — sự kiện đang diễn ra.* Status **ONGOING**. (Kích hoạt **vòng** Sơ loại/CK sau này ở tab **Vòng thi** — modal KEEP / START_NOW / RESCHEDULE — là bước GĐ2+, khác nút này.)
 
 #### Chi tiết đầy đủ (QA / regression)
 
@@ -434,6 +437,7 @@ Tạo slug sự kiện mới hoàn toàn như các step hiện tại của GĐ1.
 | Chung kết? | **Là vòng chung kết** | Tắt (đồng bộ với Loại = Sơ loại) |
 | Lịch | **Ngày giờ thi** | hợp lệ theo rule form (sau `regEnd` + gap) |
 | Thời lượng | **Thời lượng thi** / **Thời gian thi (Giờ)** | vd `1` (E2E Mode B) hoặc `6` (test tay dài) |
+| Timer TT / Q&A | **Thời lượng thuyết trình / Q&A** (phút) nếu form có | Gửi `defaultPresentationMinutes` / `defaultQaMinutes` lên BE (Sơ loại + CK) |
 | Advance | **Vào chung kết mỗi bảng** | vd `5` (chỉ hiện khi Sơ loại) |
 | Cap | **Tối đa vào chung kết** | vd `2` |
 | Policy | late (hidden / auto) | **ALLOW_LATE_PENDING** |
@@ -475,38 +479,38 @@ Tạo slug sự kiện mới hoàn toàn như các step hiện tại của GĐ1.
 #### F. Tab **Nhân sự**
 
 28. Click tab **Nhân sự** (`?tab=people`).
-29. Phân công mentor / giám khảo Sơ loại (tab con kiểu **Giám khảo Sơ loại** nếu có) — UI hiện **avatar** khi chọn nhân sự.
-30. **Chưa** gán guest judge Chung kết quá sớm nếu seed/gate `JUDGE_FINAL_AT_PHASE1` — chỉ gán CK khi đến GĐ4/GĐ5 theo quy trình.
-31. Expect: có ít nhất judge nội bộ cho Sơ loại khi sẵn sàng activate round sau này.
+29. Phân công mentor / giám khảo Sơ loại — UI hiện **avatar**; người đã gán / conflict mentor↔judge cùng bảng = option **xám / disabled**; nút gán có spinner «Đang gán…».
+30. Tab **Giám khảo khách mời** (tuỳ chọn Mode B): **Mời giám khảo** → expect badge **Chờ đổi mật khẩu** (hoặc **Email chưa gửi** nếu SMTP fail) — **không** «Đã duyệt» ngay. Guest phải login + đổi MK rồi mới **Đã duyệt** và vào pool CK.
+31. **Chưa** gán guest judge Chung kết quá sớm nếu seed/gate `JUDGE_FINAL_AT_PHASE1` — chỉ gán CK khi đến GĐ4/GĐ5; pool CK cũng **ẩn** guest chưa APPROVED.
+32. Expect: có ít nhất judge nội bộ cho Sơ loại khi sẵn sàng activate round sau này.
 
 #### G. Tab **Lịch trình & Sự kiện** — KICKOFF → WORKSHOP → AWARDS
 
-32. Click tab **Lịch trình & Sự kiện** (`?tab=events`).
-33. Click thêm sự kiện → modal **Thêm sự kiện**.
-34. **Lần 1 — bắt buộc trước:**
+33. Click tab **Lịch trình & Sự kiện** (`?tab=events`).
+34. Click thêm sự kiện → modal **Thêm sự kiện**.
+35. **Lần 1 — bắt buộc trước:**
    - **Loại sự kiện** = Khai mạc / type **KICKOFF** (`Lễ khai mạc`).
    - Điền thời gian hợp lệ (trước ngày thi ~1 ngày theo hint UI).
    - **Lưu**.
-35. **Lần 2 (khuyến nghị — E2E Mode B có bước này):**  
+36. **Lần 2 (khuyến nghị — E2E Mode B có bước này):**  
    - **Loại sự kiện** = Workshop / type **WORKSHOP**.  
    - Thời gian sau `regEnd`, trước KICKOFF (≥1 ngày lịch theo rule FE).  
    - **Lưu**.
-36. **Lần 3:**
+37. **Lần 3:**
    - **Loại sự kiện** = Trao giải / type **AWARDS** (`Lễ trao giải`).
-   - Thời gian cuối kỳ, sau KICKOFF (và sau WORKSHOP nếu có).
+   - Thời gian cuối kỳ, sau KICKOFF (và sau WORKSHOP nếu có). Min AWARDS theo FE: `publishedAt` → `scoringLockedAt` → planned CK end.
    - **Lưu**.
-37. Expect: stepper hiện Khai mạc (+ Workshop) + Trao giải; không tạo AWARDS trước KICKOFF (sẽ lỗi thứ tự).
+38. Expect: stepper Khai mạc (+ Workshop) + Trao giải. Modal **không** còn option tạo **PRESENTATION** (Buổi thuyết trình) — loại này không creatable (17/07). Không tạo AWARDS trước KICKOFF (lỗi thứ tự). Có thể sửa sự kiện qua modal edit.
 
-#### H. Tab **Đánh giá & Kiểm tra** — kích hoạt ONGOING
+#### H. Header setup — kích hoạt ONGOING (không còn tab Review)
 
-38. Click tab **Đánh giá & Kiểm tra** (`?tab=review`).
-39. Kiểm checklist readiness (Vòng Sơ loại & Bảng đấu, Vòng Chung kết, Tiêu chí, sự kiện, …) — các mục xanh / ready.
-40. Click **Xác nhận Kích hoạt**.
-41. Modal/Popconfirm → click **Kích hoạt ngay** (hoặc chế độ bắt đầu sớm với lead time nếu UI ActivateSchedule trên vòng).
-42. Expect toast kiểu: *Đã mở đăng ký — kỳ thi đang ở trạng thái ONGOING.*
-43. Status hackathon = **ONGOING**.
+39. Ở lại bất kỳ tab setup (thường **Cấu hình chung**). Nhìn **góc phải header**: nút **Xác nhận Kích hoạt**.
+40. Nếu nút **disabled**: hover icon ℹ️ hoặc nút → tooltip **Chưa thể kích hoạt** + danh sách blockers (thiếu Sơ loại / CK / KICKOFF / …). **Không** còn Alert vàng full-width dưới header.
+41. Bổ sung cấu hình đến khi nút **sáng** (readiness `ready: true`).
+42. Click **Xác nhận Kích hoạt**.
+43. Expect toast: *Đã mở đăng ký — sự kiện đang diễn ra.* Status hackathon = **ONGOING**.
 
-> **Ghi chú E2E (2026-07-15):** Mode B — form **Tạo sự kiện** UI → **Vòng thi** UI (**Thêm vòng thi** ×2) → track / criteria / judge / events vẫn API helper (Ant Select flaky) → tab **Đánh giá** UI **Kích hoạt ngay**. Xem bảng ánh xạ §7A.
+> **Ghi chú E2E (2026-07-17):** Mode B — form **Tạo sự kiện** UI → **Vòng thi** UI ×2 → track / criteria / judge / events (API helper nếu Ant Select flaky) → click **`[data-testid=hackathon-activate-btn]`** trên header (không `?tab=review`). Xem bảng ánh xạ §7A.
 
 ### 1.4 Bad / edge (Mode A)
 
@@ -514,10 +518,10 @@ Tạo slug sự kiện mới hoàn toàn như các step hiện tại của GĐ1.
 
 | Kịch bản (catalog) | Bước FE click-by-click | Expect |
 |-----------------|------------------------|--------|
-| Incomplete setup | **Thiết lập** → **Đánh giá & Kiểm tra** (thiếu round/criteria) | Readiness FAIL |
-| No KICKOFF | **Lịch trình & Sự kiện** / **Đánh giá & Kiểm tra** | Blocker thiếu KICKOFF |
-| No AWARDS | Review | Blocker thiếu AWARDS |
-| Judge final early | **Nhân sự** gán guest CK sớm / review | Blocker `JUDGE_FINAL_AT_PHASE1` / G1-N05 |
+| Incomplete setup | **Thiết lập** → hover ℹ️ nút **Xác nhận Kích hoạt** (thiếu round/criteria) | Tooltip blockers / nút disabled |
+| No KICKOFF | **Lịch trình & Sự kiện** / hover activate | Blocker thiếu KICKOFF |
+| No AWARDS | Hover activate | Blocker thiếu AWARDS |
+| Judge final early | **Nhân sự** gán guest CK sớm | Blocker `JUDGE_FINAL_AT_PHASE1` / G1-N05; guest PENDING cũng không vào pool CK |
 | Event order bad | Thêm event sai thứ tự | `EVENT_KICKOFF_MISSING` |
 | Event order violation | Tạo AWARDS khi rule còn vi phạm | `EVENT_ORDER_VIOLATION` |
 | Prelim only | Chỉ có Sơ loại → cố kích hoạt đủ CK | `MISSING_FINAL_ROUND` |
@@ -529,7 +533,7 @@ Tạo slug sự kiện mới hoàn toàn như các step hiện tại của GĐ1.
 GET /api/v1/hackathons/{id}/readiness?targetStatus=ONGOING
 ```
 
-- Expect body: `ready: true` trước khi **Kích hoạt ngay** thành công.
+- Expect body: `ready: true` trước khi nút header **Xác nhận Kích hoạt** sáng / click thành công.
 - Sau kích hoạt: `GET /api/v1/hackathons/{id}` → `status: ONGOING`.
 
 ### 1.6 Đường tắt
@@ -638,10 +642,10 @@ Duyệt đội PENDING → khóa đăng ký (tự nhiên hoặc sớm) → bốc
     - **Chỉ kích hoạt vòng thi — giữ nguyên lịch dự kiến** (`KEEP`) — mặc định an toàn.
     - **Kích hoạt và bắt đầu thi ngay** (`START_NOW`) — nén lịch round (coding/QA/deadline); có thể set **lead time** vài phút; Mode B E2E thường chọn mục này.
     - **Kích hoạt và dời giờ thi sang mốc mới** (`RESCHEDULE`) — chọn `newExamAt` ≥ now; **không** bắt đầu ngay — chờ đến mốc đã đổi.
-12. Click **Kích hoạt** (okText modal — **không** nhầm với popconfirm hackathon **Kích hoạt ngay** ở tab **Đánh giá & Kiểm tra**).
+12. Click **Kích hoạt** (okText modal — **không** nhầm với nút header hackathon **Xác nhận Kích hoạt**).
 13. Expect: vòng Sơ loại `isActive`; có **Phát đề bài**, sau này **Kết thúc thời gian thi sớm**.
 
-> **Phân biệt hai “Kích hoạt”:** (1) Hackathon ONGOING = tab **Đánh giá & Kiểm tra** → **Xác nhận Kích hoạt** → popconfirm **Kích hoạt ngay**. (2) Vòng Sơ loại/CK = tab **Vòng thi** → modal **ActivateScheduleModal** ở trên.
+> **Phân biệt hai “Kích hoạt”:** (1) Hackathon ONGOING = header setup → **Xác nhận Kích hoạt** (DRAFT→ONGOING). (2) Vòng Sơ loại/CK = tab **Vòng thi** → modal **ActivateScheduleModal** (`KEEP` / `START_NOW` / `RESCHEDULE`).
 
 ### 2.4 Bad / edge
 
@@ -956,7 +960,7 @@ Công bố kết quả Sơ loại, giải quyết Tiebreak nếu có, duyệt v�
     - `/coordinator/final-config?hackathonId={id}`, **hoặc**
     - `setup?tab=final-config` — tab **Cấu hình Chung kết**.
 19. Kiểm / chỉnh tham số CK theo UI (quota, lịch, …).
-20. Tab **Nhân sự** → **Giám khảo Chung kết**: gán guest / EXTERNAL / trưởng ban (`guestjudge@gmail.com` nếu seed).
+20. Tab **Nhân sự** → **Giám khảo Chung kết**: gán guest / EXTERNAL / trưởng ban (`guestjudge@gmail.com` nếu seed đã APPROVED). Guest mời mới chỉ hiện trong pool khi đã đổi MK (**Đã duyệt**).
 
 #### E. Activate Chung kết
 
@@ -1356,7 +1360,7 @@ node scripts/gd3-gd4-gd5-full-chain-api.mjs
 
 | GĐ | Vẫn UI trong E2E | Đã chuyển API / helper (E2E only) |
 |----|------------------|-----------------------------------|
-| 1 | Form **Tạo sự kiện** + **Vòng thi** (**Thêm vòng thi** ×2) + tab **Đánh giá** → **Kích hoạt ngay** | `createPrelimTrack`, `applyStandardCriteriaBundle`, `assignPrelimJudgeByEmail`, `createMilestoneEvents`. ~~`createPrelimAndFinalRounds`~~ deprecated cho Mode B |
+| 1 | Form **Tạo sự kiện** + **Vòng thi** (**Thêm vòng thi** ×2) + header **Xác nhận Kích hoạt** (`hackathon-activate-btn`) | `createPrelimTrack`, `applyStandardCriteriaBundle`, `assignPrelimJudgeByEmail`, `createMilestoneEvents`. ~~`createPrelimAndFinalRounds`~~ / ~~tab Đánh giá~~ deprecated cho Mode B |
 | 2 | close-reg sớm, lottery, activate SL (modal **START_NOW** + `confirmActivateScheduleModal`; có `activateRoundByApi` fallback) | `registerStudentForHackathon`, `createStudentTeam` + confirm-formation, `approvePendingTeams` |
 | 3 | Phát đề / end-early / shuffle / timer QA / judge chấm (UI ưu tiên) | `releaseTrackProblem` / `releaseRoundProblem`, `drivePresentationTimerToQa`, `lockScoringByApi` fallback |
 | 4 | results / activate CK (UI ưu tiên) | `publishRoundByApi`, `advanceRoundByApi`, `assignFinalGuestJudgeByEmail`, `uploadRoundProblemPdf`, `activateRoundByApi` |
@@ -1371,7 +1375,7 @@ npx playwright test e2e/mode-b-continuous-ui.spec.js --project=mutating-e2e --wo
 
 #### Chuỗi click tóm tắt có nhãn (chạy tay — vẫn đủ; khác E2E ở bảng trên)
 
-1. **GĐ1:** `/hackathons` → **Tạo sự kiện** → điền form (`buildTimelineDates` nếu muốn khớp E2E) → **Tạo sự kiện** → **Thiết lập** → **Vòng thi** (**Thêm vòng thi** ×2) → **Bảng đấu** (+ PDF đề) → **Tiêu chí đánh giá** (weight **1.0**) → **Nhân sự** (judge1 SL; **chưa** guest CK) → **Lịch trình & Sự kiện** (KICKOFF rồi WORKSHOP rồi AWARDS) → **Đánh giá & Kiểm tra** → **Xác nhận Kích hoạt** → **Kích hoạt ngay** → ONGOING.  
+1. **GĐ1:** `/hackathons` → **Tạo sự kiện** → điền form (`buildTimelineDates` nếu muốn khớp E2E) → **Tạo sự kiện** → **Thiết lập** → **Vòng thi** (**Thêm vòng thi** ×2) → **Bảng đấu** (+ PDF đề) → **Tiêu chí đánh giá** (weight **1.0**) → **Nhân sự** (judge1 SL; **chưa** guest CK; guest mời mới = PENDING) → **Lịch trình & Sự kiện** (KICKOFF rồi WORKSHOP rồi AWARDS; **không** PRESENTATION) → header **Xác nhận Kích hoạt** (`hackathon-activate-btn`) → ONGOING.  
    *Hoặc Mode A:* mở `seal-e2e-2026` → chỉ verify tabs.
 2. **GĐ2:** SV orphan đăng ký + tạo đội (min size 1) → khóa đội / confirm-formation → Coord **`/teams?hackathonId={id}`** **Duyệt** → `setup?tab=general` → **Kết thúc đăng ký sớm** → **Bốc thăm & khai mạc** → **Bốc thăm Tự động (Cho đội chưa có)** → **Vòng thi** → **Kích hoạt Vòng thi** → modal chọn **Kích hoạt và bắt đầu thi ngay** (Sơ loại).
 3. **GĐ3 (lifecycle):** **Phát đề bài** → SV `/student/submit` tab **Sơ loại** → **Nộp bài Sơ loại** (đủ đội) → Coord **Kết thúc thời gian thi sớm** (chữ **Hành động này KHÔNG THỂ HOÀN TÁC.**) → queue: confirm shuffle **disabled trước** close / **enabled sau** → **Khởi Động Máy Quay Số** → gán **Người Điều Phối Timer** (Transfer/Takeover) → timer **Q&A** → Judge **HOÀN TẤT & CHỐT SỔ ĐIỂM** (**đủ đội**) + heartbeat 30s → **Đội tiếp** chỉ sau QA/ENDED → optional late-append / FAIL-03 → **Khóa chấm điểm** → **Xác nhận Khóa** (optional **Mở khóa chấm**).
@@ -1800,11 +1804,13 @@ Lần này: **25/25** (chạy **trước** mutating hoặc **sau** restart BE).
 | Shuffle trước close-submission | Shuffle UI có thể mở sớm; **chấm** và IT flow cần **Kết thúc thời gian thi sớm** trước — nếu không → `SCORING_NOT_OPEN` |
 | Timer Q&A / **Đội tiếp** | `queue/next` và early-end Q&A chỉ khi phase **QA** hoặc **ENDED**; judge chưa chấm → `SCORING_INCOMPLETE_BEFORE_NEXT` (+ Coord ack) |
 | Guest judge login archive | `401 TEMP_JUDGE_HACKATHON_ENDED` chỉ khi **mọi** hackathon gắn guest đã FINISHED — còn ONGOING → login OK |
+| Guest judge mời mới (17/07) | `PENDING` + đổi MK → `APPROVED`; Resend = MK tạm mới; 72h expiry |
 | `/teams` auto-select archive | Dùng **`/teams?hackathonId={id}`** để không nhảy sang `seal-fall-2025-finished` |
-| Guest judge CK sớm (GĐ1) | Gate `JUDGE_FINAL_AT_PHASE1` — đừng gán ở phase 1 |
+| Guest judge CK sớm (GĐ1) | Gate `JUDGE_FINAL_AT_PHASE1` — đừng gán ở phase 1; guest chưa APPROVED không vào pool |
 | Mode B GĐ1 rounds | UI **Thêm vòng thi** (không API create rounds) — track/criteria/people/events vẫn API |
 | List rounds thiếu `isFinal` | Phân biệt Sơ loại / CK bằng **tên** khi list DTO omit flag |
-| Tab setup labels | Đúng 10 tab: **Cấu hình chung**, **Vòng thi**, **Bảng đấu**, **Bốc thăm & khai mạc**, **Tiêu chí đánh giá**, **Nhân sự**, **Lịch trình & Sự kiện**, **Đánh giá & Kiểm tra**, **Phân tích & Dữ liệu**, **Cấu hình Chung kết** |
+| Tab setup labels | **9 tab:** **Cấu hình chung**, **Vòng thi**, **Bảng đấu**, **Bốc thăm & khai mạc**, **Tiêu chí đánh giá**, **Nhân sự**, **Lịch trình & Sự kiện**, **Phân tích & Dữ liệu**, **Cấu hình Chung kết** — **đã bỏ** **Đánh giá & Kiểm tra** |
+| Activate hackathon | Header **Xác nhận Kích hoạt** + tooltip blockers (không Alert vàng) |
 
 ---
 
@@ -1829,14 +1835,16 @@ Lần này: **25/25** (chạy **trước** mutating hoặc **sau** restart BE).
 - [ ] Login Coord
 - [ ] **Tạo sự kiện** + đủ field (hoặc skip nếu Mode A `seal-e2e-2026`)
 - [ ] Form: **không** nhập Bắt đầu/Kết thúc sự kiện; **không** công tắc BXH cá nhân
-- [ ] **Thiết lập** → đủ tabs cấu hình
+- [ ] **Thiết lập** → đủ tabs (không còn **Đánh giá & Kiểm tra**)
 - [ ] Sơ loại + Chung kết qua **Thêm vòng thi** ×2 (`Loại vòng thi` → tự sync `Là vòng chung kết` + policy)
 - [ ] CK: **không** upload PDF đề mới; Mở/Hạn nộp disabled + `(i)`
+- [ ] (Optional) Timer TT/Q&A phút trên form vòng
 - [ ] Tracks + PDF (Sơ loại)
 - [ ] Criteria tổng **1.0**
-- [ ] People (chưa guest CK sớm) + avatar khi chọn
-- [ ] KICKOFF → WORKSHOP → AWARDS
-- [ ] **Xác nhận Kích hoạt** → **Kích hoạt ngay** / START_NOW lead phút → ONGOING
+- [ ] People (chưa guest CK sớm) + avatar; dropdown xám conflict; gán có spinner
+- [ ] (Optional) Mời guest → badge **Chờ đổi mật khẩu** → login đổi MK → **Đã duyệt**
+- [ ] KICKOFF → WORKSHOP → AWARDS (không tạo PRESENTATION)
+- [ ] Header **Xác nhận Kích hoạt** — hover blockers nếu disabled → sáng → click → ONGOING
 - [ ] API readiness `ready: true`
 
 ### Phiếu GĐ2
@@ -1971,7 +1979,7 @@ Lần này: **25/25** (chạy **trước** mutating hoặc **sau** restart BE).
 - [x] Helpers T1–T4 + H5–H6 (`modeBContinuousHelpers.js`)
 - [x] **Tạo sự kiện** slug ephemeral + `buildTimelineDates`
 - [x] **Vòng thi** UI **Thêm vòng thi** ×2 (`createPrelimAndFinalRoundsViaUi`) — log `[ModeB] GĐ1 rounds via UI`
-- [x] Setup track/criteria/people/events (API) → **Kích hoạt ngay** → ONGOING
+- [x] Setup track/criteria/people/events (API) → header **Xác nhận Kích hoạt** → ONGOING
 - [ ] Full-chain API: `node scripts/gd3-gd4-gd5-full-chain-api.mjs`
 - [ ] Sau Confirm trên e2e → **restart BE** rồi `probe:seeds` **26/26**
 - [x] SV đăng ký / tạo đội (account free) → **Duyệt**
@@ -2030,7 +2038,7 @@ Lần này: **25/25** (chạy **trước** mutating hoặc **sau** restart BE).
 
 ## Phụ lục C — Tài liệu liên quan
 
-- [session-changelog-2026-07-15-16.md](session-changelog-2026-07-15-16.md) — changelog phiên 15–16/07 (DONE map + KNOWN_GAP + verify)
+- [session-changelog-2026-07-15-16.md](session-changelog-2026-07-15-16.md) — changelog phiên 15–17/07 (DONE map + KNOWN_GAP + verify + guest PENDING)
 - [dev-seed-slugs-guide.md](dev-seed-slugs-guide.md) — **9 happy slug SSOT**
 - [dev-seed-guide.md](dev-seed-guide.md)
 - [master-slug-test-matrix.md](master-slug-test-matrix.md)

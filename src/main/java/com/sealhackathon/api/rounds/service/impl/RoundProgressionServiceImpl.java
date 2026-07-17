@@ -1462,6 +1462,8 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
             }
             for (List<RoundRankingItemResponse> group : byGroup.values()) {
                 group.stream()
+                        .filter(item -> item.getParticipationStatus() == null
+                                || !ParticipationStatus.ELIMINATED.name().equals(item.getParticipationStatus()))
                         .sorted(Comparator.comparing(RoundRankingItemResponse::getRank,
                                 Comparator.nullsLast(Integer::compareTo)))
                         .limit(topNVal)

@@ -17,6 +17,7 @@ import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
 import com.sealhackathon.api.users.value_object.UserRole;
 import com.sealhackathon.api.users.value_object.UserStatus;
+import com.sealhackathon.api.users.value_object.UserType;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -100,6 +101,12 @@ public class AuthService {
         LocalDateTime now = LocalDateTime.now();
         user.setPasswordHash(passwordEncoder.encode(req.getNewPassword()));
         user.setMustChangePassword(false);
+        if (Boolean.TRUE.equals(user.getIsTempAccount())
+                && user.getUserType() == UserType.EXTERNAL
+                && user.getRole() == UserRole.JUDGE
+                && user.getStatus() == UserStatus.PENDING) {
+            user.setStatus(UserStatus.APPROVED);
+        }
         user.setUpdatedAt(now);
         userRepository.save(user);
 
@@ -187,6 +194,14 @@ public class AuthService {
 
     private void assertApproved(User user) {
         if (user.getRole() == UserRole.STUDENT && user.getStatus() == UserStatus.PENDING) {
+            return;
+        }
+        // Guest judge onboard: cho login PENDING chỉ khi bắt buộc đổi MK lần đầu
+        if (Boolean.TRUE.equals(user.getIsTempAccount())
+                && user.getUserType() == UserType.EXTERNAL
+                && user.getRole() == UserRole.JUDGE
+                && user.getStatus() == UserStatus.PENDING
+                && Boolean.TRUE.equals(user.getMustChangePassword())) {
             return;
         }
         if (user.getStatus() == UserStatus.PENDING) {

@@ -130,7 +130,7 @@ public class HackathonController {
 
     @PostMapping(value = "/{id}/banner", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @CoordinatorOnly
-    @Operation(summary = "Upload ảnh banner hackathon (chỉ DRAFT)")
+    @Operation(summary = "Upload ảnh banner hackathon (DRAFT hoặc ONGOING)")
     public ResponseEntity<ApiResponse<HackathonResponse>> uploadBanner(
             @PathVariable Integer id,
             @RequestParam("file") MultipartFile file) {

@@ -11,6 +11,7 @@ import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.notifications.service.NotificationService;
 import com.sealhackathon.api.mentors.repository.MentorAssignmentRepository;
 import com.sealhackathon.api.mentors.repository.MentorTeamAssignmentRepository;
+import com.sealhackathon.api.rounds.query.RoundRankingQueryService;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.teams.entity.TeamMember;
 import com.sealhackathon.api.teams.entity.TeamMemberId;
@@ -27,6 +28,7 @@ import com.sealhackathon.api.teams.dto.response.TeamResponse;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.mapper.TeamMapper;
 import com.sealhackathon.api.teams.repository.TeamRepository;
+import com.sealhackathon.api.teams.service.TeamDqBackfillService;
 import com.sealhackathon.api.teams.service.TeamMembershipReleaseService;
 import com.sealhackathon.api.teams.service.TeamService;
 import com.sealhackathon.api.hackathons.support.HackathonRegistrationSupport;
@@ -38,6 +40,7 @@ import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.users.dto.response.UserSummaryResponse;
 import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
+import com.sealhackathon.api.wildcard_reviews.repository.WildcardReviewRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -72,6 +75,9 @@ public class TeamServiceImpl implements TeamService {
     private final NotificationService notificationService;
     private final TeamMembershipReleaseService teamMembershipReleaseService;
     private final HackathonRegistrationRepository hackathonRegistrationRepository;
+    private final TeamDqBackfillService teamDqBackfillService;
+    private final WildcardReviewRepository wildcardReviewRepository;
+    private final RoundRankingQueryService roundRankingQueryService;
 
     private HackathonTeamSizeResolver.TeamSizeLimits limitsFor(Team team) {
         return teamSizeResolver.forTeam(team);
@@ -870,25 +876,71 @@ public class TeamServiceImpl implements TeamService {
 
     @Override
     public TeamResponse eliminateTeam(Integer teamId, EliminateTeamRequest req) {
+        if (req == null || req.getReason() == null || req.getReason().isBlank()) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                    "Lý do loại đội (DQ) bắt buộc không được để trống");
+        }
+        String reason = req.getReason().trim();
+
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new ResourceNotFoundException("Team", teamId));
         if (team.getStatus() == TeamStatus.ELIMINATED) {
             throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Đội đã bị loại");
         }
+
+        // Capture ADVANCED prelim seats BEFORE mutating TRT → ELIMINATED
+        var teamTracks = teamRoundTrackRepository.findByTeamIdWithTrackAndRound(teamId);
+        List<TeamDqBackfillService.AdvancedPrelimSeat> previouslyAdvanced = new ArrayList<>();
+        for (com.sealhackathon.api.teams.entity.TeamRoundTrack trt : teamTracks) {
+            if (trt.getParticipationStatus() != ParticipationStatus.ADVANCED) {
+                continue;
+            }
+            if (trt.getTrack() == null || trt.getTrack().getRound() == null
+                    || Boolean.TRUE.equals(trt.getTrack().getRound().getIsFinal())) {
+                continue;
+            }
+            boolean wasWildcard = wasAdvancedViaWildcard(teamId, trt.getTrack().getRound());
+            previouslyAdvanced.add(new TeamDqBackfillService.AdvancedPrelimSeat(trt, wasWildcard));
+        }
+
         team.setStatus(TeamStatus.ELIMINATED);
         team.setEliminatedAt(java.time.LocalDateTime.now());
-        team.setEliminationReason(req.getReason());
+        team.setEliminationReason(reason);
         Team saved = teamRepository.save(team);
 
-        var teamTracks = teamRoundTrackRepository.findByTeam_Id(teamId);
         for (com.sealhackathon.api.teams.entity.TeamRoundTrack trt : teamTracks) {
             trt.setParticipationStatus(ParticipationStatus.ELIMINATED);
         }
         teamRoundTrackRepository.saveAll(teamTracks);
 
-        auditService.log(com.sealhackathon.api.common.audit.AuditAction.TEAM_ELIMINATE_MANUAL,
-                "teams", teamId, java.util.Map.of("reason", req.getReason()));
+        auditService.log(AuditAction.TEAM_ELIMINATE_DQ,
+                "teams", teamId, java.util.Map.of(
+                        "reason", reason,
+                        "previouslyAdvancedCount", previouslyAdvanced.size()));
+
+        teamDqBackfillService.afterEliminate(saved, previouslyAdvanced, reason);
         return teamMapper.toResponse(saved);
+    }
+
+    /** Same rule as AdvanceRoster: WC if approved and outside Top N (while still ADVANCED). */
+    private boolean wasAdvancedViaWildcard(Integer teamId,
+                                           com.sealhackathon.api.rounds.entity.Round prelim) {
+        boolean wcApproved = wildcardReviewRepository.findByRound_IdAndTeam_Id(prelim.getId(), teamId)
+                .map(w -> Boolean.TRUE.equals(w.getCoordinatorApproved()))
+                .orElse(false);
+        if (!wcApproved) {
+            return false;
+        }
+        Integer topN = prelim.getTopNAdvance();
+        int topNVal = topN != null && topN > 0 ? topN : 0;
+        if (topNVal <= 0) {
+            return true;
+        }
+        return roundRankingQueryService.rankingForRound(prelim.getId(), false).stream()
+                .filter(r -> java.util.Objects.equals(r.getTeamId(), teamId))
+                .findFirst()
+                .map(r -> r.getRank() == null || r.getRank() > topNVal)
+                .orElse(true);
     }
 
     // XỬ LÝ GOM ĐỘI CHO NGƯỜI CHƠ VƠ (GOD MODE CỦA COORDINATOR)

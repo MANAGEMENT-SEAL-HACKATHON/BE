@@ -47,10 +47,10 @@ public class RoundMapper {
                         && req.getWildcardEnabled())
                 .minTeamsFinal(isFinal ? null : req.getMinTeamsFinal())
                 .tiebreakRule(req.getTiebreakRule() == null ? TiebreakRule.COORDINATOR_DECISION : req.getTiebreakRule())
-                .defaultPresentationMinutes(isFinal && req.getDefaultPresentationMinutes() != null
+                .defaultPresentationMinutes(req.getDefaultPresentationMinutes() != null
                         ? req.getDefaultPresentationMinutes()
                         : 10)
-                .defaultQaMinutes(isFinal && req.getDefaultQaMinutes() != null
+                .defaultQaMinutes(req.getDefaultQaMinutes() != null
                         ? req.getDefaultQaMinutes()
                         : 5)
                 .isActive(false)
@@ -94,13 +94,11 @@ public class RoundMapper {
         if (req.getForceLockReason() != null) {
             entity.setForceLockReason(req.getForceLockReason());
         }
-        if (Boolean.TRUE.equals(entity.getIsFinal())) {
-            if (req.getDefaultPresentationMinutes() != null) {
-                entity.setDefaultPresentationMinutes(req.getDefaultPresentationMinutes());
-            }
-            if (req.getDefaultQaMinutes() != null) {
-                entity.setDefaultQaMinutes(req.getDefaultQaMinutes());
-            }
+        if (req.getDefaultPresentationMinutes() != null) {
+            entity.setDefaultPresentationMinutes(req.getDefaultPresentationMinutes());
+        }
+        if (req.getDefaultQaMinutes() != null) {
+            entity.setDefaultQaMinutes(req.getDefaultQaMinutes());
         }
     }
 

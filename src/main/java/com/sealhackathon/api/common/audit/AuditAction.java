@@ -122,6 +122,13 @@ public final class AuditAction {
     public static final String WILDCARD_PROPOSAL_CONFIRMED  = "WILDCARD_PROPOSAL_CONFIRMED";
     public static final String WILDCARD_OVERRIDE            = "WILDCARD_OVERRIDE";
     public static final String TEAM_ELIMINATE_MANUAL        = "TEAM_ELIMINATE_MANUAL";
+    public static final String TEAM_ELIMINATE_DQ            = "TEAM_ELIMINATE_DQ";
+    public static final String TOP_N_BACKFILL               = "TOP_N_BACKFILL";
+    public static final String WILDCARD_BACKFILL            = "WILDCARD_BACKFILL";
+    public static final String DQ_NO_BACKFILL_BENCH_EMPTY   = "DQ_NO_BACKFILL_BENCH_EMPTY";
+    public static final String DQ_REJECTED_CK_ACTIVE        = "DQ_REJECTED_CK_ACTIVE";
+    public static final String DQ_AFTER_FINISHED_LOG_ONLY   = "DQ_AFTER_FINISHED_LOG_ONLY";
+    public static final String DQ_WILDCARD_NO_CANDIDATE     = "DQ_WILDCARD_NO_CANDIDATE";
 
     // ---------- MF-03 GĐ6 PRIZES ----------
     public static final String PRIZE_AWARDED              = "PRIZE_AWARDED";

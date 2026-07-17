@@ -91,9 +91,9 @@ class RoundMapperTimerFieldsTest {
                 || v.getPropertyPath().toString().contains("presentation"))).isTrue();
     }
 
-    /** TC-BE-03 — Prelimpaysload timer ignored → entity keeps defaults 10/5 (not client 15) */
+    /** TC-BE-03 — Prelim persists custom timer 15/8 */
     @Test
-    void tcBe03_toEntity_prelim_ignoresClientTimerPayload() {
+    void tcBe03_toEntity_prelim_persistsCustomTimer() {
         CreateRoundRequest req = baseCreate(false)
                 .defaultPresentationMinutes(15)
                 .defaultQaMinutes(8)
@@ -103,8 +103,8 @@ class RoundMapperTimerFieldsTest {
 
         Round entity = mapper.toEntity(req, Hackathon.builder().id(1).build());
 
-        assertThat(entity.getDefaultPresentationMinutes()).isEqualTo(10);
-        assertThat(entity.getDefaultQaMinutes()).isEqualTo(5);
+        assertThat(entity.getDefaultPresentationMinutes()).isEqualTo(15);
+        assertThat(entity.getDefaultQaMinutes()).isEqualTo(8);
     }
 
     /** TC-BE-04 — Update Final changes timer 15/8 → 20/10 */
@@ -132,7 +132,7 @@ class RoundMapperTimerFieldsTest {
     }
 
     @Test
-    void applyUpdate_prelim_ignoresTimerPayload() {
+    void applyUpdate_prelim_updatesTimer() {
         Round round = Round.builder()
                 .isFinal(false)
                 .defaultPresentationMinutes(10)
@@ -149,8 +149,8 @@ class RoundMapperTimerFieldsTest {
 
         mapper.applyUpdate(round, req);
 
-        assertThat(round.getDefaultPresentationMinutes()).isEqualTo(10);
-        assertThat(round.getDefaultQaMinutes()).isEqualTo(5);
+        assertThat(round.getDefaultPresentationMinutes()).isEqualTo(20);
+        assertThat(round.getDefaultQaMinutes()).isEqualTo(10);
     }
 
     @Test

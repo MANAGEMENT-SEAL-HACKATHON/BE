@@ -167,9 +167,11 @@ public class HackathonServiceImpl implements HackathonService {
         Hackathon hackathon = hackathonRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Hackathon", id));
         archiveGuard.assertNotArchived(hackathon);
-        if (hackathon.getStatus() != HackathonStatus.DRAFT) {
+        if (hackathon.getStatus() != HackathonStatus.DRAFT
+                && hackathon.getStatus() != HackathonStatus.ONGOING) {
             throw new ConflictException(ErrorCode.HACKATHON_NOT_DRAFT,
-                    "Chỉ được đổi banner khi status=DRAFT (hiện %s)".formatted(hackathon.getStatus()));
+                    "Chỉ được đổi banner khi status=DRAFT hoặc ONGOING (hiện %s)"
+                            .formatted(hackathon.getStatus()));
         }
         String storageKey = bannerStorageService.store(hackathon.getId(), file, hackathon.getBannerUrl());
         hackathon.setBannerUrl(storageKey);

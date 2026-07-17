@@ -1,8 +1,8 @@
-# Session Changelog: 15/07 - 16/07/2026
+# Session Changelog: 15/07 – 17/07/2026
 
-**Bối cảnh:** Báo cáo tổng hợp các bản vá lỗi P0 về logic vận hành, workflow và UX/FE từ sáng 15/07 đến tối 16/07. Các thay đổi tập trung vào việc đồng bộ state giữa Coordinator và Student, vá các lỗ hổng nghiệp vụ (Wildcard, Timer, Chấm điểm) và chuẩn hóa UI phi kỹ thuật.
+**Bối cảnh:** Báo cáo tổng hợp các bản vá lỗi P0 về logic vận hành, workflow và UX/FE từ sáng 15/07 đến sáng 17/07. Các thay đổi tập trung vào đồng bộ state Coord↔Student, vá lỗ hổng nghiệp vụ (Wildcard, Timer, Chấm điểm), chuẩn hóa UI phi kỹ thuật, và **luồng onboard giám khảo khách (PENDING → APPROVED)**.
 
-**Trạng thái nhánh:** `BE HEAD 175acfe`, `FE HEAD a541205` (bao gồm các file modified/untracked trong working tree).
+**Trạng thái nhánh (tham chiếu lúc cập nhật doc 17/07):** BE gần `5b47087` / FE gần `818da5e` — working tree có thể còn uncommitted (guest-judge PENDING, activate tooltip, …).
 
 **Playbook liên quan:** [manual-ui-playbook-gd1-gd6.md](manual-ui-playbook-gd1-gd6.md) (cập nhật cùng phiên — happy path click-by-click non-IT).
 
@@ -17,6 +17,22 @@
 * **[DONE]** Sửa lỗi tạo Vòng chung kết bị crash khi thay đổi thời lượng thi (form default duration bug).
 * **[DONE]** Modal Activate: Chế độ "Đổi lịch" (Reschedule) đã chặn logic bắt đầu ngay lập tức, bắt buộc chờ đến ngày đã đổi.
 * **[DONE]** Modal Activate: Chế độ "Bắt đầu sớm" (START_NOW) cho phép setup lead time (vài phút) và kích hoạt ngay.
+* **[DONE] (17/07)** Bỏ tab **Đánh giá & Kiểm tra** — nút **Xác nhận Kích hoạt** nằm góc phải header setup; blockers hiện trong **Tooltip** (icon ℹ️ + hover nút), không còn Alert vàng full-width.
+* **[DONE] (17/07)** Events: không còn tạo loại **PRESENTATION** từ modal; timeline tạo = KICKOFF → WORKSHOP → AWARDS (+ OTHER).
+* **[DONE] (17/07)** Timer thuyết trình / Q&A: gửi `defaultPresentationMinutes` / `defaultQaMinutes` từ FE lên BE cho cả vòng Sơ loại (không chỉ CK).
+* **[DONE] (17/07)** Trạng thái vòng trên UI: **Badge** (không Switch) + gate `canActivateRound` FE/BE.
+* **[DONE] (17/07)** Nhân sự: loading nút gán mentor/GK; dropdown xám người đã gán / conflict mentor↔judge cùng bảng; refresh assignment không full-page reload.
+
+### GĐ1b: Giám khảo khách — onboard (17/07)
+
+* **[DONE]** Tạo temp judge: `status=PENDING` + `mustChangePassword=true` (không còn APPROVED ngay sau gửi mail).
+* **[DONE]** Auth deadlock fix: `assertApproved` cho phép login khi `isTempAccount && EXTERNAL && JUDGE && PENDING && mustChangePassword`.
+* **[DONE]** `POST change-password` (cùng transaction): clear `mustChangePassword` + set `APPROVED`; đánh dấu invitation `acceptedAt`.
+* **[DONE]** List temp-judges expose `mustChangePassword` + `invitation.expiresAt` / `tokenSent`.
+* **[DONE]** Resend invitation: **luôn** tạo MK tạm mới; cho phép resend ngay khi `lastTokenSent=false` (email fail) dù token còn hạn 72h.
+* **[DONE]** FE badge thứ tự: Email chưa gửi → Lời mời hết hạn → Chờ đổi mật khẩu (tooltip) → Đã duyệt.
+* **[DONE]** Pool gán GK Chung kết: loại guest chưa `APPROVED` / còn `mustChangePassword`.
+* **SQL manual:** [`V20260717_invitation_last_token_sent.sql`](../../src/main/resources/db/manual/V20260717_invitation_last_token_sent.sql) — cột `invitations.last_token_sent` (ddl-auto=update cũng áp dụng).
 
 ### GĐ2: Đăng ký & Ghép đội
 
@@ -67,14 +83,22 @@
 | Probe seed (hint FINISHED → repair) | `seal-hackathon-fe/e2e/helpers/seedApiProbe.js` |
 | Seed repair thứ tự | `DataInitializer`: `repairForGd5FullChainRetest` **trước** `repairForGd2Testing` |
 | GĐ2 membership / giải tán | `TeamMembershipReleaseService` / `TeamMembershipReleaseServiceImpl` |
+| Guest judge create / list | `TempJudgeServiceImpl`, `UserMapper.toSummary(u, inv)` |
+| Guest login / đổi MK | `AuthService.assertApproved` + `changePassword` |
+| Resend MK tạm mới | `InvitationServiceImpl.resend` + `Invitation.lastTokenSent` |
+| Activate header tooltip | `HackathonSetupPage.jsx` (không tab review) |
 
 ---
 
 ## 2. Các Mảng Ngoài Scope (KNOWN_GAP — xử lý sau)
 
 * Chưa xóa API/Logic Wildcard dựa trên top-max của tài liệu cũ (để bảo vệ GĐ4).
-* Đưa cấu hình Timer Thuyết trình/Q&A từ cấp Track lên cấp Round.
-* Invite Giám khảo tự động duyệt (chưa có luồng gửi Email 72h).
+* Guest xóa email **trong** cửa sổ 72h còn hạn + `lastTokenSent=true`: Resend API vẫn chặn (`INVITATION_STILL_VALID`) — Coord chờ hết hạn rồi Resend (MK mới), hoặc đợi edge case mở rộng “force resend khi user quên MK” nếu PO yêu cầu.
+* Record guest **cũ** (đã `APPROVED` trước fix 17/07): **không backfill** — UI vẫn dùng `mustChangePassword` để phân biệt «Chờ đổi mật khẩu» nếu còn flag.
+
+~~* Invite Giám khảo tự động duyệt (chưa có luồng gửi Email 72h).~~ → **Đóng (17/07):** PENDING sau mời; APPROVED sau đổi MK; invitation expiry 72h + Resend rotate MK.
+
+~~* Đưa cấu hình Timer Thuyết trình/Q&A từ cấp Track lên cấp Round.~~ → **Đóng (17/07):** FE gửi `defaultPresentationMinutes` / `defaultQaMinutes` theo Round (prelim + final).
 
 ---
 
@@ -86,5 +110,8 @@
 | Mode A | Mở đúng happy slug theo [manual-ui-playbook-gd1-gd6.md](manual-ui-playbook-gd1-gd6.md) §0.6 |
 | Mode B / full-chain API | `node scripts/gd3-gd4-gd5-full-chain-api.mjs` |
 | Sau Confirm GĐ6 trên `seal-e2e-2026` | **Restart BE** (create-drop + repair) rồi mới `probe:seeds` |
+| Unit guest judge (BE) | `mvn -Dtest=TempJudgeServiceImplTest,AuthServiceTest,InvitationServiceImplTest test` |
+| Manual GĐ1 activate | DRAFT thiếu điều kiện → hover ℹ️ / nút → danh sách blockers; đủ điều kiện → nút sáng → ONGOING |
+| Manual mời guest | Tab Nhân sự → badge **Chờ đổi mật khẩu** (không «Đã duyệt» ngay); login + đổi MK → **Đã duyệt** → mới gán CK |
 
 Happy slug seed (`DevSeedCatalog.ALL_DEV_HACKATHON_SLUGS`): **9** — `seal-e2e-2026`, `seal-fall-2025-finished`, `seal-gd3-prelim-open`, `seal-gd4-advance-ready`, `seal-gd4-tiebreak-submission-time`, `seal-gd4-tiebreak-manual`, `seal-gd4-wildcard-gap`, `seal-gd5-final-active`, `seal-gd6-pending-confirm`.

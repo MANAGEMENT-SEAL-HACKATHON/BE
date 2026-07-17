@@ -50,12 +50,40 @@ class InvitationServiceImplTest {
                 .email("j@test.com")
                 .role(UserRole.JUDGE)
                 .expiresAt(LocalDateTime.now().plusHours(24))
+                .lastTokenSent(true)
                 .build();
         when(invitationRepository.findById(1)).thenReturn(Optional.of(inv));
 
         BusinessRuleException ex = assertThrows(BusinessRuleException.class,
                 () -> invitationService.resend(1));
         assertEquals(ErrorCode.INVITATION_STILL_VALID, ex.getCode());
+    }
+
+    @Test
+    void resendWhenLastTokenSentFalse_allowsWhileStillValid() {
+        Hackathon hackathon = Hackathon.builder().id(1).build();
+        Invitation inv = Invitation.builder()
+                .id(3)
+                .email("j@test.com")
+                .role(UserRole.JUDGE)
+                .hackathon(hackathon)
+                .expiresAt(LocalDateTime.now().plusHours(24))
+                .lastTokenSent(false)
+                .build();
+        User user = User.builder().id(9).email("j@test.com").fullName("Judge").build();
+        when(invitationRepository.findById(3)).thenReturn(Optional.of(inv));
+        when(userRepository.findByEmail("j@test.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.encode(anyString())).thenReturn("new-hash");
+        when(appProperties.getFrontendUrl()).thenReturn("https://seal-hackathon-fe.vercel.app");
+        when(invitationRepository.save(any(Invitation.class))).thenAnswer(i -> i.getArgument(0));
+
+        invitationService.resend(3);
+
+        assertEquals("new-hash", user.getPasswordHash());
+        assertEquals(Boolean.TRUE, user.getMustChangePassword());
+        assertEquals(Boolean.TRUE, inv.getLastTokenSent());
+        verify(emailService).resendGuestJudgeInvitation(
+                anyString(), anyString(), anyString(), anyString(), any(LocalDateTime.class));
     }
 
     @Test

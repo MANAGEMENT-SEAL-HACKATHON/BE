@@ -80,7 +80,7 @@ public class TempJudgeServiceImpl implements TempJudgeService {
                 .isTempAccount(true)
                 .isDeptHead(false)
                 .mustChangePassword(true)
-                .status(UserStatus.APPROVED)
+                .status(UserStatus.PENDING)
                 .institution(req.getInstitution())
                 .phone(req.getPhone())
                 .emailVerifiedAt(now)
@@ -101,6 +101,7 @@ public class TempJudgeServiceImpl implements TempJudgeService {
                 .invitedBy(invitedById == null ? null : User.builder().id(invitedById).build())
                 .token(generateToken())
                 .expiresAt(now.plusHours(InvitationConstants.INVITATION_EXPIRY_HOURS))
+                .lastTokenSent(true)
                 .createdAt(now)
                 .build();
         Invitation savedInv = invitationRepository.save(invitation);
@@ -114,6 +115,8 @@ public class TempJudgeServiceImpl implements TempJudgeService {
             log.warn("[TempJudge] sendGuestJudgeInvitation failed for {}: {}", savedUser.getEmail(), ex.getMessage());
             tokenSent = false;
         }
+        savedInv.setLastTokenSent(tokenSent);
+        savedInv = invitationRepository.save(savedInv);
 
         auditService.log(AuditAction.TEMP_ACCOUNT_CREATE, "users", savedUser.getId(), Map.of(
                 "invitationId", savedInv.getId(),
@@ -128,7 +131,14 @@ public class TempJudgeServiceImpl implements TempJudgeService {
         String inst = (institution == null || institution.isBlank()) ? null : institution.trim();
         String keyword = (q == null || q.isBlank()) ? null : q.trim();
         Page<User> page = userRepository.searchTempJudges(inst, keyword, pageable);
-        return PageResponse.from(page, page.getContent().stream().map(userMapper::toSummary).toList());
+        return PageResponse.from(page, page.getContent().stream()
+                .map(u -> {
+                    Invitation inv = invitationRepository
+                            .findFirstByEmailAndRoleOrderByCreatedAtDesc(u.getEmail(), UserRole.JUDGE)
+                            .orElse(null);
+                    return userMapper.toSummary(u, inv);
+                })
+                .toList());
     }
 
     private String generateToken() {

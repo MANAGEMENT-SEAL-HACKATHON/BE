@@ -302,6 +302,13 @@ public class SocialAuthService {
         if (user.getRole() == UserRole.STUDENT && user.getStatus() == UserStatus.PENDING) {
             return;
         }
+        if (Boolean.TRUE.equals(user.getIsTempAccount())
+                && user.getUserType() == UserType.EXTERNAL
+                && user.getRole() == UserRole.JUDGE
+                && user.getStatus() == UserStatus.PENDING
+                && Boolean.TRUE.equals(user.getMustChangePassword())) {
+            return;
+        }
         if (user.getStatus() == UserStatus.PENDING) {
             throw new AuthException(ErrorCode.ACCOUNT_PENDING_NOT_ALLOWED_LOGIN,
                     "Tài khoản đang chờ duyệt", HttpStatus.UNAUTHORIZED,

@@ -22,5 +22,8 @@ public class UserSummaryResponse {
     private final UserType userType;
     private final Boolean isTempAccount;
     private final Boolean isDeptHead;
+    private final Boolean mustChangePassword;
     private final String institution;
+    /** Latest judge invitation (temp judges list) — expiresAt / tokenSent for Coord UI. */
+    private final TempJudgeResponse.InvitationInfo invitation;
 }

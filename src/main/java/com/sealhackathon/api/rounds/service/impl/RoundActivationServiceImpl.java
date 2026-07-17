@@ -21,7 +21,6 @@ import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.service.RoundActivationService;
 import com.sealhackathon.api.rounds.support.RoundScheduleShiftService;
 import com.sealhackathon.api.rounds.value_object.ActivateScheduleMode;
-import com.sealhackathon.api.teams.repository.TeamRoundParticipationRepository;
 import com.sealhackathon.api.teams.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
@@ -57,7 +56,6 @@ public class RoundActivationServiceImpl implements RoundActivationService {
     private final AuditService auditService;
     private final WeightSummaryService weightSummaryService;
     private final NotificationService notificationService;
-    private final TeamRoundParticipationRepository teamRoundParticipationRepository;
     private final TeamRoundTrackRepository teamRoundTrackRepository;
     private final RoundScheduleShiftService roundScheduleShiftService;
 
@@ -162,12 +160,28 @@ public class RoundActivationServiceImpl implements RoundActivationService {
     }
 
     private void validateTeamsInRound(Round round) {
-        long participation = teamRoundParticipationRepository.countByRound_Id(round.getId());
-        long trackAssignments = teamRoundTrackRepository.findByTrack_Round_Id(round.getId()).size();
-        if (participation == 0 && trackAssignments == 0) {
+        List<Track> tracks = trackRepository.findByRoundIdOrderBySequenceOrderAsc(round.getId()).stream()
+                .filter(t -> t.getStatus() != TrackStatus.CANCELLED)
+                .toList();
+        if (tracks.isEmpty()) {
             throw new BusinessRuleException(ErrorCode.NO_TEAMS_IN_ROUND,
-                    "Không có đội tham gia round này",
+                    "Không có đội tham gia vòng thi này",
                     Map.of("roundId", round.getId()));
+        }
+        List<Integer> emptyTrackIds = new ArrayList<>();
+        List<String> emptyTrackNames = new ArrayList<>();
+        for (Track t : tracks) {
+            if (teamRoundTrackRepository.countByTrack_Id(t.getId()) == 0) {
+                emptyTrackIds.add(t.getId());
+                emptyTrackNames.add(t.getName());
+            }
+        }
+        if (!emptyTrackIds.isEmpty()) {
+            throw new BusinessRuleException(ErrorCode.TRACK_EMPTY_TEAMS,
+                    "Mọi bảng đấu của vòng thi phải có ít nhất một đội. Còn trống: %s"
+                            .formatted(String.join(", ", emptyTrackNames)),
+                    Map.of("roundId", round.getId(), "emptyTrackIds", emptyTrackIds,
+                            "emptyTrackNames", emptyTrackNames));
         }
     }
 
@@ -185,14 +199,14 @@ public class RoundActivationServiceImpl implements RoundActivationService {
     private void validateFinalRoundCriteria(Integer roundId) {
         if (criteriaRepository.countNormalByFinalRoundId(roundId) == 0) {
             throw new BusinessRuleException(ErrorCode.ROUND_NO_CRITERIA,
-                    "Round Chung kết chưa có Criteria",
+                    "Vòng thi Chung kết chưa có Criteria",
                     Map.of("roundId", roundId));
         }
         Optional<Double> totalOpt = criteriaRepository.sumWeightExcludingPenaltyByFinalRoundId(roundId);
         double total = totalOpt.orElse(0.0);
         if (Math.abs(total - WeightSummaryService.TARGET) > WeightSummaryService.TOLERANCE) {
             throw new BusinessRuleException(ErrorCode.ROUND_WEIGHT_NOT_ONE,
-                    "Round Chung kết: tổng weight = %.4f".formatted(total),
+                    "Vòng thi Chung kết: tổng weight = %.4f".formatted(total),
                     Map.of("roundId", roundId, "currentTotal", total));
         }
     }
@@ -201,7 +215,7 @@ public class RoundActivationServiceImpl implements RoundActivationService {
         List<JudgeAssignment> assignments = judgeAssignmentRepository.findByRoundId(roundId);
         if (assignments.isEmpty()) {
             throw new BusinessRuleException(ErrorCode.JUDGE_NOT_ASSIGNED,
-                    "Round Chung kết chưa có Judge được phân công",
+                    "Vòng thi Chung kết chưa có Judge được phân công",
                     Map.of("roundId", roundId));
         }
         boolean hasFinalExternal = false;
@@ -209,7 +223,7 @@ public class RoundActivationServiceImpl implements RoundActivationService {
             JudgeAssignmentType type = ja.getAssignmentType();
             if (type != JudgeAssignmentType.FINAL_EXTERNAL && type != JudgeAssignmentType.HEAD) {
                 throw new BusinessRuleException(ErrorCode.INVALID_ASSIGNMENT_TYPE,
-                        "Round Chung kết chỉ chấp nhận Judge FINAL_EXTERNAL hoặc HEAD",
+                        "Vòng thi Chung kết chỉ chấp nhận Judge FINAL_EXTERNAL hoặc HEAD",
                         Map.of("roundId", roundId, "judgeId", ja.getJudge().getId(),
                                 "assignmentType", type));
             }
@@ -230,7 +244,7 @@ public class RoundActivationServiceImpl implements RoundActivationService {
         }
         if (!hasFinalExternal) {
             throw new BusinessRuleException(ErrorCode.JUDGE_NOT_ASSIGNED,
-                    "Round Chung kết cần ít nhất một Judge FINAL_EXTERNAL",
+                    "Vòng thi Chung kết cần ít nhất một Judge FINAL_EXTERNAL",
                     Map.of("roundId", roundId));
         }
     }
@@ -242,18 +256,18 @@ public class RoundActivationServiceImpl implements RoundActivationService {
         for (Track t : tracks) {
             if (criteriaRepository.countNormalByTrackId(t.getId()) == 0) {
                 throw new BusinessRuleException(ErrorCode.ROUND_NO_CRITERIA,
-                        "Track '%s' chưa có Criteria".formatted(t.getName()),
+                        "Bảng đấu '%s' của vòng thi chưa có Criteria".formatted(t.getName()),
                         Map.of("trackId", t.getId(), "roundId", round.getId()));
             }
             if (!weightSummaryService.isValidForTrack(t.getId())) {
                 double raw = weightSummaryService.rawTotalForTrack(t.getId()).orElse(0.0);
                 throw new BusinessRuleException(ErrorCode.ROUND_WEIGHT_NOT_ONE,
-                        "Track '%s': tổng weight = %.4f".formatted(t.getName(), raw),
+                        "Bảng đấu '%s' của vòng thi: tổng weight = %.4f".formatted(t.getName(), raw),
                         Map.of("trackId", t.getId(), "roundId", round.getId(), "total", raw));
             }
             if (judgeAssignmentRepository.findByTrackId(t.getId()).isEmpty()) {
                 throw new BusinessRuleException(ErrorCode.JUDGE_NOT_ASSIGNED,
-                        "Track '%s' chưa có Judge được phân công".formatted(t.getName()),
+                        "Bảng đấu '%s' của vòng thi chưa có Judge được phân công".formatted(t.getName()),
                         Map.of("trackId", t.getId(), "roundId", round.getId()));
             }
             validateTrackMentorJudgeConflict(t);

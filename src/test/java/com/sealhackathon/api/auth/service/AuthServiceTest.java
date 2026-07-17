@@ -122,6 +122,7 @@ class AuthServiceTest {
         User user = tempJudgeUser();
         user.setId(10);
         user.setMustChangePassword(true);
+        user.setStatus(UserStatus.PENDING);
         when(currentUserAccessor.currentUserId()).thenReturn(10);
         when(userRepository.findById(10)).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("oldPass12", "hash")).thenReturn(true);
@@ -143,10 +144,35 @@ class AuthServiceTest {
         authService.changePassword(req);
 
         assertThat(user.getMustChangePassword()).isFalse();
+        assertThat(user.getStatus()).isEqualTo(UserStatus.APPROVED);
         assertThat(user.getPasswordHash()).isEqualTo("new-hash");
         assertThat(inv.getAcceptedAt()).isNotNull();
         verify(invitationRepository).save(inv);
         verify(userSessionService).revokeAllForUser(10);
+    }
+
+    @Test
+    void login_pendingTempJudge_mustChangePassword_allowsLogin() {
+        User user = tempJudgeUser();
+        user.setStatus(UserStatus.PENDING);
+        when(userRepository.findByEmail("guest@company.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("tempPass12", "hash")).thenReturn(true);
+        when(invitationRepository.findFirstByEmailAndRoleAndAcceptedAtIsNullOrderByCreatedAtDesc(
+                user.getEmail(), UserRole.JUDGE))
+                .thenReturn(Optional.empty());
+        when(jwtTokenService.createAccessToken(user)).thenReturn("access");
+        when(userSessionService.createSession(any(), any(), any()))
+                .thenReturn(new UserSessionService.RefreshTokenPair("refresh", new UserSession()));
+        when(jwtProperties.getAccessTtlMinutes()).thenReturn(30);
+
+        LoginRequest req = new LoginRequest();
+        req.setEmail("guest@company.com");
+        req.setPassword("tempPass12");
+
+        var response = authService.login(req, new MockHttpServletRequest());
+
+        assertThat(response.getAccessToken()).isEqualTo("access");
+        assertThat(response.isMustChangePassword()).isTrue();
     }
 
     @Test
@@ -270,7 +296,7 @@ class AuthServiceTest {
                 .userType(UserType.EXTERNAL)
                 .isTempAccount(true)
                 .mustChangePassword(true)
-                .status(UserStatus.APPROVED)
+                .status(UserStatus.PENDING)
                 .build();
     }
 }

@@ -10,8 +10,25 @@ import org.springframework.stereotype.Component;
 public class UserMapper {
 
     public UserSummaryResponse toSummary(User u) {
+        return toSummary(u, null, null);
+    }
+
+    public UserSummaryResponse toSummary(User u, Invitation inv) {
+        return toSummary(u, inv, inv == null ? null : inv.getLastTokenSent());
+    }
+
+    public UserSummaryResponse toSummary(User u, Invitation inv, Boolean tokenSent) {
         if (u == null) {
             return null;
+        }
+        TempJudgeResponse.InvitationInfo invitationInfo = null;
+        if (inv != null) {
+            invitationInfo = TempJudgeResponse.InvitationInfo.builder()
+                    .id(inv.getId())
+                    .expiresAt(inv.getExpiresAt())
+                    .acceptedAt(inv.getAcceptedAt())
+                    .tokenSent(tokenSent)
+                    .build();
         }
         return UserSummaryResponse.builder()
                 .id(u.getId())
@@ -21,13 +38,16 @@ public class UserMapper {
                 .status(u.getStatus())
                 .userType(u.getUserType())
                 .isTempAccount(u.getIsTempAccount())
+                .isDeptHead(u.getIsDeptHead())
+                .mustChangePassword(u.getMustChangePassword())
                 .institution(u.getInstitution())
+                .invitation(invitationInfo)
                 .build();
     }
 
     public TempJudgeResponse toTempJudgeResponse(User u, Invitation inv, boolean tokenSent) {
         return TempJudgeResponse.builder()
-                .user(toSummary(u))
+                .user(toSummary(u, inv, tokenSent))
                 .invitation(TempJudgeResponse.InvitationInfo.builder()
                         .id(inv == null ? null : inv.getId())
                         .expiresAt(inv == null ? null : inv.getExpiresAt())
