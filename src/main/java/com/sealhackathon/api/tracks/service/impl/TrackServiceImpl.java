@@ -287,11 +287,16 @@ public class TrackServiceImpl implements TrackService {
             throw new BusinessRuleException(ErrorCode.INVALID_STATE,
                     "Vòng thi đã phát đề toàn bộ — không cần phát từng bảng đấu");
         }
+        LocalDateTime now = LocalDateTime.now();
+        if (round.getExamAt() == null || round.getExamAt().isAfter(now)) {
+            throw new BusinessRuleException(ErrorCode.INVALID_ROUND_STATE_BEFORE_EXAM,
+                    "Chưa tới giờ thi, chưa thể phát đề!");
+        }
         if (!TrackProblemStatementStorage.hasProblemFile(track)) {
             throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
                     "Bảng đấu chưa có file PDF đề bài — upload trước khi phát");
         }
-        track.setProblemReleasedAt(LocalDateTime.now());
+        track.setProblemReleasedAt(now);
         Track saved = trackRepository.save(track);
         auditService.log(AuditAction.TRACK_RELEASE_PROBLEM, "tracks", trackId, Map.of(
                 "trackName", saved.getName(),

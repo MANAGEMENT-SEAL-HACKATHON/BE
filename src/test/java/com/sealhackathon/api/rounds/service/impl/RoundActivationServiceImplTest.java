@@ -66,6 +66,7 @@ class RoundActivationServiceImplTest {
     @Mock private TeamRoundParticipationRepository teamRoundParticipationRepository;
     @Mock private TeamRoundTrackRepository teamRoundTrackRepository;
     @Mock private RoundScheduleShiftService roundScheduleShiftService;
+    @Mock private com.sealhackathon.api.hackathons.support.PendingTeamGateService pendingTeamGateService;
 
     @InjectMocks
     private RoundActivationServiceImpl activationService;
@@ -92,6 +93,68 @@ class RoundActivationServiceImplTest {
         verify(roundScheduleShiftService, never()).applyOnActivate(any(), any(), any(), any());
     }
 
+    /** J3 — vòng đã active + START_NOW phải nén lịch (examAt/deadline) thay vì no-op. */
+    @Test
+    void activate_alreadyActive_startNow_compressesSchedule() {
+        LocalDateTime oldExam = LocalDateTime.now().plusHours(5);
+        Round round = Round.builder()
+                .id(5)
+                .isActive(true)
+                .isFinal(false)
+                .codingDurationHours(7)
+                .examAt(oldExam)
+                .hackathon(Hackathon.builder().id(1).build())
+                .build();
+
+        when(roundRepository.findByIdForUpdate(5)).thenReturn(Optional.of(round));
+        when(roundScheduleShiftService.applyOnActivate(
+                eq(round), eq(ActivateScheduleMode.START_NOW), any(), eq(10)))
+                .thenAnswer(inv -> {
+                    Round r = inv.getArgument(0);
+                    r.setExamAt(LocalDateTime.now().plusMinutes(10));
+                    return true;
+                });
+        when(roundRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(roundMapper.toResponse(any())).thenAnswer(inv -> {
+            Round r = inv.getArgument(0);
+            return RoundResponse.builder().id(r.getId()).isActive(r.getIsActive()).examAt(r.getExamAt()).build();
+        });
+
+        RoundResponse result = activationService.activate(5, ActivateRoundRequest.builder()
+                .scheduleMode(ActivateScheduleMode.START_NOW)
+                .setupLeadMinutes(10)
+                .build());
+
+        assertNotNull(result.getExamAt());
+        assertFalse(result.getExamAt().isAfter(oldExam));
+        verify(roundScheduleShiftService).applyOnActivate(
+                eq(round), eq(ActivateScheduleMode.START_NOW), any(), eq(10));
+        verify(roundRepository).save(round);
+        verifyNoInteractions(notificationService);
+    }
+
+    /** J3 — đã phát đề thì không cho nén lịch nữa. */
+    @Test
+    void activate_alreadyActive_startNow_blockedAfterProblemReleased() {
+        Round round = Round.builder()
+                .id(5)
+                .isActive(true)
+                .isFinal(false)
+                .codingDurationHours(7)
+                .examAt(LocalDateTime.now().plusHours(5))
+                .problemReleasedAt(LocalDateTime.now().minusMinutes(1))
+                .hackathon(Hackathon.builder().id(1).build())
+                .build();
+        when(roundRepository.findByIdForUpdate(5)).thenReturn(Optional.of(round));
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class,
+                () -> activationService.activate(5, ActivateRoundRequest.builder()
+                        .scheduleMode(ActivateScheduleMode.START_NOW)
+                        .build()));
+        assertEquals(ErrorCode.INVALID_STATE, ex.getCode());
+        verify(roundScheduleShiftService, never()).applyOnActivate(any(), any(), any(), any());
+    }
+
     @Test
     void activate_keep_doesNotShiftSchedule() {
         Round round = Round.builder()
@@ -105,6 +168,7 @@ class RoundActivationServiceImplTest {
         when(roundRepository.findByIdForUpdate(5)).thenReturn(Optional.of(round));
         when(teamRoundParticipationRepository.countByRound_Id(5)).thenReturn(3L);
         when(trackRepository.findByRoundIdOrderBySequenceOrderAsc(5)).thenReturn(List.of(track));
+        when(teamRoundTrackRepository.countByTrack_Id(10)).thenReturn(1L);
         when(criteriaRepository.countNormalByTrackId(10)).thenReturn(2L);
         when(weightSummaryService.isValidForTrack(10)).thenReturn(true);
         when(judgeAssignmentRepository.findByTrackId(10)).thenReturn(List.of(
@@ -136,6 +200,7 @@ class RoundActivationServiceImplTest {
         when(roundRepository.findByIdForUpdate(5)).thenReturn(Optional.of(round));
         when(teamRoundParticipationRepository.countByRound_Id(5)).thenReturn(3L);
         when(trackRepository.findByRoundIdOrderBySequenceOrderAsc(5)).thenReturn(List.of(track));
+        when(teamRoundTrackRepository.countByTrack_Id(10)).thenReturn(1L);
         when(criteriaRepository.countNormalByTrackId(10)).thenReturn(2L);
         when(weightSummaryService.isValidForTrack(10)).thenReturn(true);
         when(judgeAssignmentRepository.findByTrackId(10)).thenReturn(List.of());
@@ -144,6 +209,28 @@ class RoundActivationServiceImplTest {
         BusinessRuleException ex = assertThrows(BusinessRuleException.class,
                 () -> activationService.activate(5, ActivateRoundRequest.builder().note("test").build()));
         assertEquals(ErrorCode.JUDGE_NOT_ASSIGNED, ex.getCode());
+    }
+
+    /** LOT-04 — activate prelim bị chặn khi còn đội PENDING. */
+    @Test
+    void activatePreliminary_failsWhenPendingTeamsRemain() {
+        Round round = Round.builder()
+                .id(5)
+                .isFinal(false)
+                .isActive(false)
+                .hackathon(Hackathon.builder().id(1).build())
+                .build();
+        when(roundRepository.findByIdForUpdate(5)).thenReturn(Optional.of(round));
+        org.mockito.Mockito.doThrow(new BusinessRuleException(
+                        ErrorCode.TEAMS_PENDING_APPROVAL,
+                        "Còn đội PENDING",
+                        java.util.Map.of("pendingTotal", 2)))
+                .when(pendingTeamGateService).assertNoPendingTeams(1);
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class,
+                () -> activationService.activate(5, ActivateRoundRequest.builder().build()));
+        assertEquals(ErrorCode.TEAMS_PENDING_APPROVAL, ex.getCode());
+        verify(roundRepository, never()).save(any());
     }
 
     @Test
@@ -234,6 +321,7 @@ class RoundActivationServiceImplTest {
         when(roundRepository.findByIdForUpdate(5)).thenReturn(Optional.of(round));
         when(teamRoundParticipationRepository.countByRound_Id(5)).thenReturn(3L);
         when(trackRepository.findByRoundIdOrderBySequenceOrderAsc(5)).thenReturn(List.of(track));
+        when(teamRoundTrackRepository.countByTrack_Id(10)).thenReturn(1L);
         when(criteriaRepository.countNormalByTrackId(10)).thenReturn(2L);
         when(weightSummaryService.isValidForTrack(10)).thenReturn(true);
         when(judgeAssignmentRepository.findByTrackId(10)).thenReturn(List.of(

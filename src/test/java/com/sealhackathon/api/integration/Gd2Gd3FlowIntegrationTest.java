@@ -636,7 +636,8 @@ class Gd2Gd3FlowIntegrationTest {
         String acknowledgeBody = """
                 {
                   "currentSubmissionId": %d,
-                  "acknowledgeIncompleteScoring": true
+                  "acknowledgeIncompleteScoring": true,
+                  "forceAckReason": "integration test — judge chưa chốt điểm"
                 }
                 """.formatted(ctx.submissionId());
 

@@ -11,6 +11,7 @@ import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.prizes.dto.request.AwardPrizeRequest;
+import com.sealhackathon.api.prizes.dto.request.RevokePrizeRequest;
 import com.sealhackathon.api.prizes.dto.request.UpdateAwardedPrizeRequest;
 import com.sealhackathon.api.prizes.dto.response.PrizeResponse;
 import com.sealhackathon.api.prizes.entity.Prize;
@@ -31,7 +32,9 @@ import com.sealhackathon.api.users.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.List;
 
@@ -187,9 +190,21 @@ public class PrizeServiceImpl implements PrizeService {
                 .toList();
     }
 
-    // LOGIC THU HỒI GIẢI THƯỞNG
+    // LOGIC THU HỒI GIẢI THƯỞNG — category + note bắt buộc (ngang Wildcard Override)
     @Override
-    public void revoke(Integer prizeId) {
+    public void revoke(Integer prizeId, RevokePrizeRequest req) {
+        if (req == null
+                || !StringUtils.hasText(req.getCategory())
+                || !StringUtils.hasText(req.getNote())) {
+            throw new BusinessRuleException(ErrorCode.PRIZE_REVOKE_REASON_REQUIRED,
+                    "Thu hồi giải bắt buộc chọn lý do (category) và ghi chú.");
+        }
+        String category = req.getCategory().trim().toUpperCase();
+        if (!ALLOWED_REVOKE_CATEGORIES.contains(category)) {
+            throw new BusinessRuleException(ErrorCode.PRIZE_REVOKE_CATEGORY_INVALID,
+                    "Category thu hồi không hợp lệ: " + category);
+        }
+
         Prize prize = prizeRepository.findById(prizeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Prize", prizeId));
 
@@ -202,18 +217,21 @@ public class PrizeServiceImpl implements PrizeService {
                     Map.of("hackathonId", hackathon.getId(), "status", hackathon.getStatus().name()));
         }
 
-        Map<String, Object> auditDetails = Map.of(
-                "hackathonId", hackathon.getId(),
-                "teamId", prize.getTeam().getId(),
-                "prizeName", prize.getPrizeName(),
-                "prizeRank", prize.getPrizeRank() != null ? prize.getPrizeRank().name() : "NONE"
-        );
+        Map<String, Object> auditDetails = new LinkedHashMap<>();
+        auditDetails.put("hackathonId", hackathon.getId());
+        auditDetails.put("teamId", prize.getTeam().getId());
+        auditDetails.put("prizeName", prize.getPrizeName());
+        auditDetails.put("prizeRank", prize.getPrizeRank() != null ? prize.getPrizeRank().name() : "NONE");
+        auditDetails.put("revokeCategory", category);
+        auditDetails.put("revokeNote", req.getNote().trim());
 
         prizeRepository.delete(prize);
 
-        // FR-36: Audit log việc xóa dữ liệu
         auditService.log(AuditAction.PRIZE_REVOKED, "prizes", prizeId, auditDetails);
     }
+
+    private static final java.util.Set<String> ALLOWED_REVOKE_CATEGORIES = java.util.Set.of(
+            "AWARDED_IN_ERROR", "TEAM_DQ", "DUPLICATE_AWARD", "OTHER");
 
     private void assertNoDuplicate(Integer hackathonId, Integer roundId, Integer teamId, PrizeRank prizeRank) {
         if (prizeRepository.existsByRound_IdAndTeam_Id(roundId, teamId)

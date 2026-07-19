@@ -135,6 +135,7 @@ public class Gd6PendingConfirmDataSeeder {
                     chapters[i]);
             seedHelper.registerStudent(hackathon, leader);
             Team team = seedHelper.ensureActiveTeam(hackathon, teamNames[i], leader, chapters[i], now);
+            seedHelper.ensureTeamLocked(team, now);
             Track track = (idx % 2 == 1) ? track1 : track2;
             seedHelper.ensureLottery(hackathon, prelim, track, "BANG-" + ((idx % 2) + 1), team, coordinator, now);
             seedHelper.markAdvanced(team, prelim, finalRound, hackathon);
@@ -272,13 +273,15 @@ public class Gd6PendingConfirmDataSeeder {
             }
             boolean synced = seedHelper.syncHackathonCalendarFromDates(
                     Gd6SeedConstants.SLUG_GD6_PENDING_CONFIRM, seedHelper.computeGd6PendingConfirmDates());
+            int locked = seedHelper.ensureAllActiveTeamsLocked(hackathon.getId(), LocalDateTime.now());
             // Backfill: thiếu điểm từ HEAD / guest2/3 → confirm báo SCORING_INCOMPLETE_BEFORE_CONFIRM
             repairCompleteFinalScores(hackathon, finalRound);
-            if (synced) {
+            if (synced || locked > 0) {
                 log.info(
-                        "[Gd6PendingConfirmDataSeeder] FE repair — final ended slug={} deadline={}",
+                        "[Gd6PendingConfirmDataSeeder] FE repair — final ended slug={} deadline={} lockedTeams={}",
                         Gd6SeedConstants.SLUG_GD6_PENDING_CONFIRM,
-                        finalRound.getSubmissionDeadline());
+                        finalRound.getSubmissionDeadline(),
+                        locked);
             }
         });
     }

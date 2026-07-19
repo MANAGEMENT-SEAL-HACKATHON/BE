@@ -11,10 +11,6 @@ import com.sealhackathon.api.chapters.value_object.ChapterStatus;
 import com.sealhackathon.api.common.response.PageResponse;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.judge_assignments.dto.response.JudgeAssignmentResponse;
-import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
-import com.sealhackathon.api.judge_assignments.mapper.JudgeAssignmentMapper;
-import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
-import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
 import com.sealhackathon.api.users.dto.request.PatchMeRequest;
 import com.sealhackathon.api.users.dto.request.PatchUserRequest;
 import com.sealhackathon.api.users.dto.request.PatchUserStatusRequest;
@@ -31,6 +27,7 @@ import com.sealhackathon.api.users.value_object.UserRole;
 import com.sealhackathon.api.users.value_object.UserStatus;
 import com.sealhackathon.api.users.value_object.UserType;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -39,19 +36,14 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 @Transactional
 public class UserAdminServiceImpl implements UserAdminService {
-
-    private static final Set<UserRole> DEPT_HEAD_ELIGIBLE =
-            EnumSet.of(UserRole.JUDGE, UserRole.MENTOR);
 
     private final UserRepository userRepository;
     private final ChapterRepository chapterRepository;
@@ -59,8 +51,6 @@ public class UserAdminServiceImpl implements UserAdminService {
     private final CurrentUserAccessor currentUserAccessor;
     private final UserResponseMapper userResponseMapper;
     private final StudentCardStorageService studentCardStorageService;
-    private final JudgeAssignmentRepository judgeAssignmentRepository;
-    private final JudgeAssignmentMapper judgeAssignmentMapper;
 
     @Override
     @Transactional(readOnly = true)
@@ -178,68 +168,14 @@ public class UserAdminServiceImpl implements UserAdminService {
 
         List<JudgeAssignmentResponse> syncedAssignments = null;
         if (req.getIsDeptHead() != null) {
-            if (!DEPT_HEAD_ELIGIBLE.contains(user.getRole())) {
-                throw new BusinessRuleException(ErrorCode.USER_INVALID_ROLE,
-                        "is_dept_head chỉ áp dụng cho JUDGE hoặc MENTOR",
-                        Map.of("userId", userId, "role", user.getRole()));
-            }
-            Boolean previous = user.getIsDeptHead();
-            user.setIsDeptHead(req.getIsDeptHead());
-            user.setUpdatedAt(LocalDateTime.now());
-            if (Boolean.TRUE.equals(req.getIsDeptHead()) && !Boolean.TRUE.equals(previous)) {
-                auditService.log(AuditAction.USER_DEPT_HEAD_SET, "users", userId, Map.of(
-                        "setBy", currentUserAccessor.currentUserId(),
-                        "isDeptHead", true));
-            }
-            syncedAssignments = syncJudgeAssignmentTypes(user, Boolean.TRUE.equals(req.getIsDeptHead()));
+            log.warn("Deprecated PATCH isDeptHead for user #{} — ignored", userId);
+            throw new BusinessRuleException(ErrorCode.INVALID_ASSIGNMENT_TYPE,
+                    "is_dept_head đã ngừng sử dụng — chọn HEAD khi gán giám khảo Sơ loại hoặc Chung kết",
+                    Map.of("userId", userId));
         }
 
         User saved = userRepository.save(user);
         return userResponseMapper.toResponse(saved, syncedAssignments);
-    }
-
-    /**
-     * B5 — sync assignmentType when isDeptHead flips.
-     * Track: HEAD ↔ NORMAL. Final EXTERNAL: always FINAL_EXTERNAL. Final INTERNAL: HEAD.
-     * Does not revoke live presentation controller (sticky until takeover).
-     */
-    private List<JudgeAssignmentResponse> syncJudgeAssignmentTypes(User user, boolean isDeptHead) {
-        List<JudgeAssignment> assignments = judgeAssignmentRepository.findByJudgeId(user.getId());
-        if (assignments.isEmpty()) {
-            return List.of();
-        }
-        List<JudgeAssignment> changed = new ArrayList<>();
-        for (JudgeAssignment ja : assignments) {
-            JudgeAssignmentType next = resolveAssignmentType(ja, user, isDeptHead);
-            if (next != null && next != ja.getAssignmentType()) {
-                ja.setAssignmentType(next);
-                changed.add(ja);
-            }
-        }
-        if (!changed.isEmpty()) {
-            judgeAssignmentRepository.saveAll(changed);
-        }
-        return assignments.stream().map(judgeAssignmentMapper::toResponse).toList();
-    }
-
-    private static JudgeAssignmentType resolveAssignmentType(
-            JudgeAssignment ja, User user, boolean isDeptHead) {
-        if (ja.getAssignmentType() == JudgeAssignmentType.CALIBRATION) {
-            return JudgeAssignmentType.CALIBRATION;
-        }
-        // Final-round XOR: round set, track null
-        if (ja.getRound() != null && ja.getTrack() == null) {
-            if (user.getUserType() == UserType.EXTERNAL) {
-                return JudgeAssignmentType.FINAL_EXTERNAL;
-            }
-            // INTERNAL final panel: HEAD is the only valid non-external type
-            return JudgeAssignmentType.HEAD;
-        }
-        // Track (prelim) assignment
-        if (ja.getTrack() != null) {
-            return isDeptHead ? JudgeAssignmentType.HEAD : JudgeAssignmentType.NORMAL;
-        }
-        return ja.getAssignmentType();
     }
 
     @Override

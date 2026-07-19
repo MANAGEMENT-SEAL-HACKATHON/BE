@@ -46,6 +46,7 @@ public class HackathonClosureServiceImpl implements HackathonClosureService {
     private final AuditService auditService;
     private final CurrentUserAccessor currentUserAccessor;
     private final ApplicationEventPublisher eventPublisher;
+    private final com.sealhackathon.api.announcements.service.AnnouncementService announcementService;
 
     @Override
     public HackathonResponse confirm(Integer hackathonId, ConfirmHackathonRequest req) {
@@ -105,6 +106,12 @@ public class HackathonClosureServiceImpl implements HackathonClosureService {
         auditMeta.put("validatedAt", LocalDateTime.now().toString());
         auditMeta.put("via", "confirm");
         auditService.log(AuditAction.HACKATHON_STATUS_CHANGE, "hackathons", saved.getId(), auditMeta);
+
+        announcementService.publishResults(
+                hackathonId,
+                finalRound.getId(),
+                "Kết quả chung cuộc đã công bố",
+                "Ban tổ chức đã chốt sổ & công bố kết quả cuối cùng của hackathon. Xem bảng xếp hạng và giải thưởng trên trang Kết quả.");
 
         eventPublisher.publishEvent(new HackathonFinishedEvent(this, hackathonId));
 

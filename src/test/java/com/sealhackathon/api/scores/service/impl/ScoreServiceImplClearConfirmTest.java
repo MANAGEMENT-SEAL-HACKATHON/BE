@@ -1,6 +1,5 @@
 package com.sealhackathon.api.scores.service.impl;
 
-import com.sealhackathon.api.calibration_sessions.repository.CalibrationSessionRepository;
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.criteria.entity.Criteria;
@@ -59,7 +58,6 @@ class ScoreServiceImplClearConfirmTest {
     @Mock private PresentationSlotRepository presentationSlotRepository;
     @Mock private AuditService auditService;
     @Mock private ApplicationEventPublisher eventPublisher;
-    @Mock private CalibrationSessionRepository calibrationSessionRepository;
     @Mock private RoundPhaseResolver roundPhaseResolver;
     @Mock private JudgeSubmissionScoringConfirmationRepository scoringConfirmationRepository;
 

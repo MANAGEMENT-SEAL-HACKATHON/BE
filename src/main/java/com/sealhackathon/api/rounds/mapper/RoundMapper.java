@@ -160,6 +160,7 @@ public class RoundMapper {
                 .name(e.getName())
                 .examAt(e.getExamAt())
                 .submissionDeadline(e.getSubmissionDeadline())
+                .isFinal(e.getIsFinal())
                 .isActive(e.getIsActive())
                 .scoringLocked(e.getScoringLocked())
                 .isPublished(e.getIsPublished())

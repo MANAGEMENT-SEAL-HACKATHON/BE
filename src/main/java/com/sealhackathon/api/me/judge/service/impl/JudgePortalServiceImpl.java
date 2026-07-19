@@ -1,7 +1,5 @@
 package com.sealhackathon.api.me.judge.service.impl;
 
-import com.sealhackathon.api.calibration_sessions.dto.response.CalibrationSessionResponse;
-import com.sealhackathon.api.calibration_sessions.service.CalibrationSessionService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.AuthException;
 import com.sealhackathon.api.common.exception.ErrorCode;
@@ -10,7 +8,6 @@ import com.sealhackathon.api.common.exception.ScoringLockedException;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
-import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
 import com.sealhackathon.api.me.judge.dto.request.JudgeScoreCommentRequest;
 import com.sealhackathon.api.me.judge.dto.request.JudgeScoringCompletionRequest;
 import com.sealhackathon.api.me.judge.dto.request.TiebreakVoteRequest;
@@ -69,7 +66,6 @@ public class JudgePortalServiceImpl implements JudgePortalService {
     private final PresentationSlotRepository presentationSlotRepository;
     private final JudgeSubmissionScoringConfirmationRepository scoringConfirmationRepository;
     private final PresentationScoringCompletionHelper scoringCompletionHelper;
-    private final CalibrationSessionService calibrationSessionService;
     private final PresentationControllerGuard presentationControllerGuard;
     private final TrackRepository trackRepository;
 
@@ -142,26 +138,6 @@ public class JudgePortalServiceImpl implements JudgePortalService {
                             .build();
                 })
                 .toList();
-    }
-
-    @Override
-    public List<CalibrationSessionResponse> listCalibrationSessions(Integer roundId) {
-        return listCalibrationSessions(roundId, null);
-    }
-
-    @Override
-    public List<CalibrationSessionResponse> listCalibrationSessions(Integer roundId, Integer trackId) {
-        Integer judgeId = currentUserAccessor.currentUserId();
-        if (roundId == null) {
-            throw new AuthException(ErrorCode.VALIDATION_FAILED, "roundId bắt buộc", HttpStatus.BAD_REQUEST);
-        }
-        if (!judgeAssignmentRepository.existsByJudgeIdAndRoundScope(judgeId, roundId)) {
-            throw new AuthException(ErrorCode.FORBIDDEN, "Judge chưa được phân công round này", HttpStatus.FORBIDDEN);
-        }
-        if (trackId != null && !judgeAssignmentRepository.existsByJudgeIdAndTrackId(judgeId, trackId)) {
-            throw new AuthException(ErrorCode.FORBIDDEN, "Judge chưa được phân công bảng này", HttpStatus.FORBIDDEN);
-        }
-        return calibrationSessionService.listByRound(roundId, trackId);
     }
 
     @Override
@@ -335,15 +311,16 @@ public class JudgePortalServiceImpl implements JudgePortalService {
         Integer judgeId = currentUserAccessor.currentUserId();
         Integer roundId = request.getRoundId();
 
-        // 1. Kiểm tra Quyền HEAD Judge
-        boolean isHead = judgeAssignmentRepository.findByJudgeId(judgeId).stream()
-                .anyMatch(ja -> ja.getAssignmentType() == JudgeAssignmentType.HEAD
-                        && ((ja.getRound() != null && ja.getRound().getId().equals(roundId))
-                        || (ja.getTrack() != null && ja.getTrack().getRound().getId().equals(roundId))));
+        // 1. Bất kỳ giám khảo được phân công trong phạm vi vòng thi (round CK hoặc track thuộc round)
+        //    đều được quyền quyết định Tiebreak — không còn giới hạn HEAD.
+        boolean isAssignedJudge = judgeAssignmentRepository.findByJudgeId(judgeId).stream()
+                .anyMatch(ja -> (ja.getRound() != null && ja.getRound().getId().equals(roundId))
+                        || (ja.getTrack() != null && ja.getTrack().getRound().getId().equals(roundId)));
 
-        if (!isHead) {
+        if (!isAssignedJudge) {
             throw new AuthException(ErrorCode.FORBIDDEN,
-                    "Chỉ Trưởng nhóm Giám khảo (HEAD) mới có quyền quyết định Tiebreak", HttpStatus.FORBIDDEN);
+                    "Bạn chưa được phân công Giám khảo trong vòng thi này — không có quyền quyết định Tiebreak",
+                    HttpStatus.FORBIDDEN);
         }
 
         // 2. Lấy thông tin Round
@@ -354,7 +331,7 @@ public class JudgePortalServiceImpl implements JudgePortalService {
             throw new ScoringLockedException("Vòng thi đã đóng sổ, không thể thay đổi Tiebreak");
         }
 
-        // 3. Xóa các vote cũ của HEAD Judge này trong Round hiện tại
+        // 3. Xóa các vote cũ của Giám khảo này trong Round hiện tại
         tiebreakEvaluationRepository.deleteByRound_IdAndJudge_IdAndIsCastingVoteTrue(roundId, judgeId);
 
         // 4. Lưu thứ tự các đội được Vote (Đội xếp trước được điểm phạt ít hơn)
@@ -370,7 +347,7 @@ public class JudgePortalServiceImpl implements JudgePortalService {
                     .judge(User.builder().id(judgeId).build())
                     .penaltyScore((float) i) // Đội xếp 0 -> Penalty 0; Xếp 1 -> Penalty 1
                     .isCastingVote(true)
-                    .tiebreakLevel(2) // Level 2: HEAD Vote
+                    .tiebreakLevel(2) // Level 2: Casting Vote của giám khảo
                     .evaluatedAt(LocalDateTime.now())
                     .build();
 

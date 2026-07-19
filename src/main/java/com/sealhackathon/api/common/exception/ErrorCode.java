@@ -120,6 +120,7 @@ public final class ErrorCode {
     public static final String USER_EMAIL_TAKEN         = "USER_EMAIL_TAKEN";
     public static final String INVITATION_NOT_FOUND     = "INVITATION_NOT_FOUND";
     public static final String INVITATION_ALREADY_ACCEPTED = "INVITATION_ALREADY_ACCEPTED";
+    public static final String INVITATION_ALREADY_REVOKED  = "INVITATION_ALREADY_REVOKED";
     public static final String INVITATION_STILL_VALID     = "INVITATION_STILL_VALID";
     public static final String INVITATION_EXPIRED         = "INVITATION_EXPIRED";
     public static final String INVITATION_HACKATHON_REQUIRED = "INVITATION_HACKATHON_REQUIRED";
@@ -294,12 +295,14 @@ public final class ErrorCode {
     public static final String ROUND_HAS_ACTIVE_STATE                       = "ROUND_HAS_ACTIVE_STATE";
     public static final String TRACK_PARENT_ROUND_ACTIVE                    = "TRACK_PARENT_ROUND_ACTIVE";
     public static final String PRIZE_DUPLICATE                              = "PRIZE_DUPLICATE";
-    public static final String CALIBRATION_SESSION_CLOSED                   = "CALIBRATION_SESSION_CLOSED";
-    public static final String CALIBRATION_SESSION_ID_REQUIRED              = "CALIBRATION_SESSION_ID_REQUIRED";
     public static final String HACKATHON_NOT_PENDING_CONFIRM                = "HACKATHON_NOT_PENDING_CONFIRM";
     public static final String NO_PRIZES_RECORDED                           = "NO_PRIZES_RECORDED";
     public static final String EXPORT_JOB_NOT_READY                         = "EXPORT_JOB_NOT_READY";
     public static final String TRACK_DELETE_HAS_SUBMISSIONS                 = "TRACK_DELETE_HAS_SUBMISSIONS";
     public static final String CONCURRENT_MODIFICATION                      = "CONCURRENT_MODIFICATION";
     public static final String ACTIVE_TEAMS_NOT_LOCKED                      = "ACTIVE_TEAMS_NOT_LOCKED";
+    /** Còn đội PENDING (chờ duyệt / 24h grace / blocked) — chặn lottery + activate prelim. */
+    public static final String TEAMS_PENDING_APPROVAL                       = "TEAMS_PENDING_APPROVAL";
+    public static final String PRIZE_REVOKE_REASON_REQUIRED                 = "PRIZE_REVOKE_REASON_REQUIRED";
+    public static final String PRIZE_REVOKE_CATEGORY_INVALID                = "PRIZE_REVOKE_CATEGORY_INVALID";
 }

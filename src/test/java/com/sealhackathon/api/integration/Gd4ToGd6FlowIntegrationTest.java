@@ -375,7 +375,9 @@ class Gd4ToGd6FlowIntegrationTest {
                         .param("roundId", finalRound.getId().toString())
                         .header("Authorization", "Bearer " + coordToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"currentSubmissionId\": %d, \"acknowledgeIncompleteScoring\": true}"
+                        .content("""
+                                {"currentSubmissionId": %d, "acknowledgeIncompleteScoring": true, \
+                                "forceAckReason": "integration test — judge chưa chốt điểm"}"""
                                 .formatted(finalSubmissionId)))
                 .andExpect(status().isOk());
 
@@ -447,7 +449,7 @@ class Gd4ToGd6FlowIntegrationTest {
                 .andReturn();
         String fullCsv = fullDownload.getResponse().getContentAsString(StandardCharsets.UTF_8);
         assertThat(fullCsv).contains("# SECTION: RANKINGS");
-        assertThat(fullCsv).contains("# SECTION: RBL_VARIANCE_ANONYMIZED");
+        assertThat(fullCsv).contains("# SECTION: RBL_VARIANCE_AGGREGATE");
         assertThat(fullCsv.lines().count()).isGreaterThan(10);
 
         MvcResult journeyResult = mockMvc.perform(get("/api/v1/teams/{id}/journey", team.getId())
@@ -555,7 +557,9 @@ class Gd4ToGd6FlowIntegrationTest {
                         .param("trackId", track.getId().toString())
                         .header("Authorization", "Bearer " + coordToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"currentSubmissionId\": %d, \"acknowledgeIncompleteScoring\": true}"
+                        .content("""
+                                {"currentSubmissionId": %d, "acknowledgeIncompleteScoring": true, \
+                                "forceAckReason": "integration test — judge chưa chốt điểm"}"""
                                 .formatted(submissionId)))
                 .andExpect(status().isOk());
 

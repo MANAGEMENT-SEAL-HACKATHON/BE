@@ -75,7 +75,6 @@ public final class DevSeedCatalog {
             "seal-gd3-scoring-gate",
             "seal-gd3-tiebreak-hybrid",
             "seal-gd3-edge-errors",
-            "seal-gd3-calibration-timer",
             "seal-gd3-judge-mentor-conflict",
             "seal-gd3-round-config-edge",
             "seal-gd3-no-lottery",
@@ -96,7 +95,6 @@ public final class DevSeedCatalog {
             // GĐ5 mid/bad
             "seal-gd5-submit-open",
             "seal-gd5-scoring-live",
-            "seal-gd5-calibration-timer",
             "seal-gd5-edge-errors",
             "seal-gd5-late-hardlock",
             "seal-gd5-judge-edge",

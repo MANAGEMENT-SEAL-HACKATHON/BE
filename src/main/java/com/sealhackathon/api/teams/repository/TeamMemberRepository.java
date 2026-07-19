@@ -71,6 +71,17 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, TeamMemb
             @Param("userId") Integer userId,
             @Param("hackathonId") Integer hackathonId);
 
+    /** ACCEPTED membership trên bất kỳ team nào trong hackathon (kể cả ELIMINATED). */
+    @Query("""
+            SELECT COUNT(tm) > 0 FROM TeamMember tm
+            WHERE tm.user.id = :userId
+              AND tm.team.hackathon.id = :hackathonId
+              AND tm.status = 'ACCEPTED'
+            """)
+    boolean existsAcceptedMembershipInHackathon(
+            @Param("userId") Integer userId,
+            @Param("hackathonId") Integer hackathonId);
+
     @Query("""
             SELECT tm FROM TeamMember tm
             JOIN FETCH tm.team t
@@ -80,4 +91,15 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, TeamMemb
               AND t.status IN ('PENDING', 'ACTIVE')
             """)
     List<TeamMember> findActiveMembershipsByUserId(@Param("userId") Integer userId);
+
+    /** Active + eliminated teams for results / history views. */
+    @Query("""
+            SELECT tm FROM TeamMember tm
+            JOIN FETCH tm.team t
+            JOIN FETCH t.hackathon
+            WHERE tm.user.id = :userId
+              AND tm.status = 'ACCEPTED'
+              AND t.status IN ('PENDING', 'ACTIVE', 'ELIMINATED')
+            """)
+    List<TeamMember> findMembershipsIncludingEliminatedByUserId(@Param("userId") Integer userId);
 }

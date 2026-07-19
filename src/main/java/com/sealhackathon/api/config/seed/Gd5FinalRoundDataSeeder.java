@@ -106,6 +106,7 @@ public class Gd5FinalRoundDataSeeder {
                     chapter);
             seedHelper.registerStudent(hackathon, leader);
             Team team = seedHelper.ensureActiveTeam(hackathon, teamNames[i], leader, chapter, now);
+            seedHelper.ensureTeamLocked(team, now);
             Track track = (idx % 2 == 1) ? track1 : track2;
             User judge = (idx % 2 == 1) ? judge1 : judge2;
             String group = "BANG-" + ((idx % 2) + 1);
@@ -173,11 +174,13 @@ public class Gd5FinalRoundDataSeeder {
         }
         seedHelper.clearFinalRoundArtifacts(hackathon.getId());
         seedHelper.repairGd5FeTestingScheduleAndState(hackathon, prelim, finalRound);
+        int locked = seedHelper.ensureAllActiveTeamsLocked(hackathon.getId(), LocalDateTime.now());
         finalRound = roundRepository.findById(finalRound.getId()).orElse(finalRound);
         log.info(
-                "[Gd5FinalRoundDataSeeder] FE repair — submit-open (prelim kept), final deadline={} slug={}",
+                "[Gd5FinalRoundDataSeeder] FE repair — submit-open (prelim kept), final deadline={} slug={} lockedTeams={}",
                 finalRound.getSubmissionDeadline(),
-                Gd5SeedConstants.SLUG_GD5_FINAL_ACTIVE);
+                Gd5SeedConstants.SLUG_GD5_FINAL_ACTIVE,
+                locked);
     }
 
     /** Idempotent recreate — purge rồi seed lại khi cần DB sạch. */

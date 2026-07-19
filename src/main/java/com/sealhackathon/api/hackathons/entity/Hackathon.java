@@ -83,6 +83,14 @@ public class Hackathon {
     @JoinColumn(name = "created_by")
     private User createdBy;
 
+    /** Provenance — hackathon được nhân bản từ sự kiện nguồn (nullable). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cloned_from_hackathon_id")
+    private Hackathon clonedFromHackathon;
+
+    @Column(name = "cloned_at")
+    private LocalDateTime clonedAt;
+
     @Builder.Default
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();

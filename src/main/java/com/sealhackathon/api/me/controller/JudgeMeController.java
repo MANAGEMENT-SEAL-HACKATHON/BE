@@ -1,6 +1,5 @@
 package com.sealhackathon.api.me.controller;
 
-import com.sealhackathon.api.calibration_sessions.dto.response.CalibrationSessionResponse;
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.JudgeOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
@@ -69,14 +68,6 @@ public class JudgeMeController {
             @RequestParam Integer roundId,
             @RequestParam(required = false) Integer trackId) {
         return ResponseEntity.ok(ApiResponse.ok(judgePortalService.listSubmissions(roundId, trackId)));
-    }
-
-    @GetMapping("/judge/calibration-sessions")
-    @Operation(summary = "Phiên calibration OPEN cho judge đã phân công (optional trackId)")
-    public ResponseEntity<ApiResponse<List<CalibrationSessionResponse>>> judgeCalibrationSessions(
-            @RequestParam Integer roundId,
-            @RequestParam(required = false) Integer trackId) {
-        return ResponseEntity.ok(ApiResponse.ok(judgePortalService.listCalibrationSessions(roundId, trackId)));
     }
 
     @PostMapping("/judge/submissions/{submissionId}/confirm-scoring")

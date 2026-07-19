@@ -212,6 +212,7 @@ class EventScheduleValidatorImplTest {
                 .thenReturn(Optional.of(Round.builder()
                         .id(99)
                         .submissionDeadline(LocalDateTime.of(2026, 6, 10, 16, 30))
+                        .publishedAt(LocalDateTime.of(2026, 6, 10, 16, 30))
                         .build()));
         Hackathon h = Hackathon.builder()
                 .id(1)

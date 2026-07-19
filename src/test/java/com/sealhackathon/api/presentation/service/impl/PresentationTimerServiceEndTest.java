@@ -28,9 +28,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.lenient;
@@ -40,87 +38,95 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class PresentationTimerServiceEndTest {
 
-    @Mock private RoundRepository roundRepository;
-    @Mock private TrackRepository trackRepository;
-    @Mock private PresentationSlotRepository presentationSlotRepository;
-    @Mock private PresentationControllerGuard controllerGuard;
-    @Mock private PresentationDurationResolver durationResolver;
-    @Mock private PresentationQueueService presentationQueueService;
-    @Mock private PresentationQueuePublisher queuePublisher;
-    @Mock private RoundPhaseResolver roundPhaseResolver;
+  private static final int SLOT_ID = 42;
 
-    @InjectMocks private PresentationTimerServiceImpl service;
+  @Mock private RoundRepository roundRepository;
+  @Mock private TrackRepository trackRepository;
+  @Mock private PresentationSlotRepository presentationSlotRepository;
+  @Mock private PresentationControllerGuard controllerGuard;
+  @Mock private PresentationDurationResolver durationResolver;
+  @Mock private PresentationQueueService presentationQueueService;
+  @Mock private PresentationQueuePublisher queuePublisher;
+  @Mock private RoundPhaseResolver roundPhaseResolver;
 
-    private final Round round = Round.builder().id(1).build();
-    private final Track track = Track.builder().id(7).round(round).build();
-    private final Submission submission = Submission.builder().id(100).build();
+  @InjectMocks private PresentationTimerServiceImpl service;
 
-    @BeforeEach
-    void stubContext() {
-        when(roundRepository.findById(1)).thenReturn(Optional.of(round));
-        when(trackRepository.findById(7)).thenReturn(Optional.of(track));
-        when(roundPhaseResolver.resolve(round)).thenReturn(RoundPhase.JUDGING);
-        lenient().doNothing().when(controllerGuard).requireControllerForTrack(anyInt(), any(), any());
-        lenient().when(presentationQueueService.getQueue(1, 7)).thenReturn(PresentationQueueResponse.builder().build());
-        lenient().when(durationResolver.presentationMinutes(any(), any())).thenReturn(10);
-        lenient().when(durationResolver.qaMinutes(any(), any())).thenReturn(5);
-    }
+  private final Round round = Round.builder().id(1).build();
+  private final Track track = Track.builder().id(7).round(round).build();
+  private final Submission submission = Submission.builder().id(100).build();
 
-    @Test
-    void earlyEnd_incompleteScores_stillSetsEnded_withoutScoringGuard() {
-        PresentationSlot slot = qaSlotStillRunning();
-        when(presentationSlotRepository.findFirstByRound_IdAndTrack_IdAndQueueStatus(
-                1, 7, PresentationQueueStatus.PRESENTING)).thenReturn(Optional.of(slot));
-        when(presentationSlotRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+  @BeforeEach
+  void stubContext() {
+    when(roundRepository.findById(1)).thenReturn(Optional.of(round));
+    when(trackRepository.findById(7)).thenReturn(Optional.of(track));
+    when(roundPhaseResolver.resolve(round)).thenReturn(RoundPhase.JUDGING);
+    lenient().doNothing().when(controllerGuard).requireControllerForTrack(anyInt(), any(), any());
+    lenient()
+        .when(presentationQueueService.getQueue(1, 7))
+        .thenReturn(PresentationQueueResponse.builder().build());
+    lenient().when(durationResolver.presentationMinutes(any(), any())).thenReturn(10);
+    lenient().when(durationResolver.qaMinutes(any(), any())).thenReturn(5);
+  }
 
-        var response = service.end(1, 7, false);
+  private void stubPresentingSlot(PresentationSlot slot) {
+    slot.setId(SLOT_ID);
+    when(presentationSlotRepository.findFirstByRound_IdAndTrack_IdAndQueueStatus(
+            1, 7, PresentationQueueStatus.PRESENTING))
+        .thenReturn(Optional.of(slot));
+    when(presentationSlotRepository.findByIdForUpdate(SLOT_ID)).thenReturn(Optional.of(slot));
+    when(presentationSlotRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+  }
 
-        assertThat(slot.getTimerPhase()).isEqualTo(PresentationTimerPhase.ENDED);
-        assertThat(response.getTimer().getPhase()).isEqualTo("ENDED");
-        verify(queuePublisher).publishTimerPhase(eq(1), eq(7), eq(100), eq("ENDED"), anyInt());
-    }
+  @Test
+  void earlyEnd_incompleteScores_stillSetsEnded_withoutScoringGuard() {
+    PresentationSlot slot = qaSlotStillRunning();
+    stubPresentingSlot(slot);
 
-    @Test
-    void earlyEnd_completeScores_setsEnded() {
-        PresentationSlot slot = qaSlotStillRunning();
-        when(presentationSlotRepository.findFirstByRound_IdAndTrack_IdAndQueueStatus(
-                1, 7, PresentationQueueStatus.PRESENTING)).thenReturn(Optional.of(slot));
-        when(presentationSlotRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+    var response = service.end(1, 7, false);
 
-        var response = service.end(1, 7, false);
+    assertThat(slot.getTimerPhase()).isEqualTo(PresentationTimerPhase.ENDED);
+    assertThat(response.getTimer().getPhase()).isEqualTo("ENDED");
+    verify(queuePublisher).publishTimerPhase(eq(1), eq(7), eq(100), eq("ENDED"), anyInt());
+  }
 
-        assertThat(slot.getTimerPhase()).isEqualTo(PresentationTimerPhase.ENDED);
-        assertThat(response.getTimer().getPhase()).isEqualTo("ENDED");
-        verify(queuePublisher).publish(eq(1), eq(7), any());
-        verify(queuePublisher).publishTimerPhase(eq(1), eq(7), eq(100), eq("ENDED"), anyInt());
-    }
+  @Test
+  void earlyEnd_completeScores_setsEnded() {
+    PresentationSlot slot = qaSlotStillRunning();
+    stubPresentingSlot(slot);
 
-    @Test
-    void autoTimeout_qaRemainingZero_endsWithoutScoringGuard() {
-        PresentationSlot slot = PresentationSlot.builder()
-                .timerPhase(PresentationTimerPhase.QA)
-                .qaStartedAt(LocalDateTime.now().minusMinutes(30))
-                .pausedAccumulatedSeconds(0)
-                .submission(submission)
-                .build();
-        when(presentationSlotRepository.findFirstByRound_IdAndTrack_IdAndQueueStatus(
-                1, 7, PresentationQueueStatus.PRESENTING)).thenReturn(Optional.of(slot));
-        when(durationResolver.qaMinutes(track, round)).thenReturn(5);
-        when(presentationSlotRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+    var response = service.end(1, 7, false);
 
-        var response = service.end(1, 7, false);
+    assertThat(slot.getTimerPhase()).isEqualTo(PresentationTimerPhase.ENDED);
+    assertThat(response.getTimer().getPhase()).isEqualTo("ENDED");
+    verify(queuePublisher).publish(eq(1), eq(7), any());
+    verify(queuePublisher).publishTimerPhase(eq(1), eq(7), eq(100), eq("ENDED"), anyInt());
+  }
 
-        assertThat(slot.getTimerPhase()).isEqualTo(PresentationTimerPhase.ENDED);
-        assertThat(response.getTimer().getPhase()).isEqualTo("ENDED");
-        verify(queuePublisher).publishTimerPhase(eq(1), eq(7), eq(100), eq("ENDED"), anyInt());
-    }
+  @Test
+  void autoTimeout_qaRemainingZero_endsWithoutScoringGuard() {
+    PresentationSlot slot =
+        PresentationSlot.builder()
+            .timerPhase(PresentationTimerPhase.QA)
+            .qaStartedAt(LocalDateTime.now().minusMinutes(30))
+            .pausedAccumulatedSeconds(0)
+            .submission(submission)
+            .build();
+    stubPresentingSlot(slot);
+    when(durationResolver.qaMinutes(track, round)).thenReturn(5);
 
-    private PresentationSlot qaSlotStillRunning() {
-        return PresentationSlot.builder()
-                .timerPhase(PresentationTimerPhase.QA)
-                .qaStartedAt(LocalDateTime.now())
-                .pausedAccumulatedSeconds(0)
-                .submission(submission)
-                .build();
-    }
+    var response = service.end(1, 7, false);
+
+    assertThat(slot.getTimerPhase()).isEqualTo(PresentationTimerPhase.ENDED);
+    assertThat(response.getTimer().getPhase()).isEqualTo("ENDED");
+    verify(queuePublisher).publishTimerPhase(eq(1), eq(7), eq(100), eq("ENDED"), anyInt());
+  }
+
+  private PresentationSlot qaSlotStillRunning() {
+    return PresentationSlot.builder()
+        .timerPhase(PresentationTimerPhase.QA)
+        .qaStartedAt(LocalDateTime.now())
+        .pausedAccumulatedSeconds(0)
+        .submission(submission)
+        .build();
+  }
 }

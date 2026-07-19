@@ -3,6 +3,7 @@ package com.sealhackathon.api.prizes.controller;
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
+import com.sealhackathon.api.prizes.dto.request.RevokePrizeRequest;
 import com.sealhackathon.api.prizes.dto.request.UpdateAwardedPrizeRequest;
 import com.sealhackathon.api.prizes.dto.response.PrizeResponse;
 import com.sealhackathon.api.prizes.service.PrizeService;
@@ -38,9 +39,11 @@ public class PrizeController {
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "FR-32 — Thu hồi giải")
-    public ResponseEntity<ApiResponse<Void>> revoke(@PathVariable Integer id) {
-        prizeService.revoke(id);
+    @Operation(summary = "FR-32 — Thu hồi giải (category + note bắt buộc, audit công khai)")
+    public ResponseEntity<ApiResponse<Void>> revoke(
+            @PathVariable Integer id,
+            @Valid @RequestBody RevokePrizeRequest req) {
+        prizeService.revoke(id, req);
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
 }

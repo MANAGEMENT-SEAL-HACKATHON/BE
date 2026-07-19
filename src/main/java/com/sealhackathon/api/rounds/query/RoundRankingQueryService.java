@@ -64,6 +64,13 @@ public class RoundRankingQueryService {
                         Collectors.summingDouble(TiebreakEvaluation::getPenaltyScore)
                 ));
 
+        // Điểm công khai: không trừ micro-penalty tiebreak (chỉ dùng sắp xếp nội bộ).
+        // FINISHED: giữ trừ để khớp điểm đã công bố.
+        boolean preservePublishedPenaltyInDisplay = round != null
+                && round.getHackathon() != null
+                && round.getHackathon().getStatus()
+                == com.sealhackathon.api.hackathons.value_object.HackathonStatus.FINISHED;
+
         List<RankRow> rows = new ArrayList<>();
         for (Submission submission : submissions) {
             if (!SubmissionGradablePolicy.isGradable(submission)) {
@@ -110,11 +117,6 @@ public class RoundRankingQueryService {
             }
 
             double penalty = penaltyByTeam.getOrDefault(submission.getTeam().getId(), 0.0);
-            // Điểm công khai: không trừ micro-penalty tiebreak (chỉ dùng sắp xếp nội bộ).
-            // FINISHED: giữ trừ để khớp điểm đã công bố.
-            boolean preservePublishedPenaltyInDisplay = round != null
-                    && round.getHackathon() != null
-                    && round.getHackathon().getStatus() == com.sealhackathon.api.hackathons.value_object.HackathonStatus.FINISHED;
             double displayTotal = preservePublishedPenaltyInDisplay ? (total - penalty) : total;
 
             rows.add(new RankRow(
@@ -131,7 +133,7 @@ public class RoundRankingQueryService {
         }
 
         List<RankRow> sortedRows = sortRankRows(rows, isFinalRound);
-        return assignRanks(sortedRows, isFinalRound);
+        return assignRanks(sortedRows, isFinalRound, preservePublishedPenaltyInDisplay);
     }
 
     static List<RankRow> sortRankRows(List<RankRow> rows, boolean isFinalRound) {
@@ -141,20 +143,28 @@ public class RoundRankingQueryService {
     }
 
     static List<RoundRankingItemResponse> assignRanks(List<RankRow> sortedRows, boolean isFinalRound) {
+        return assignRanks(sortedRows, isFinalRound, false);
+    }
+
+    /**
+     * @param displayNetsPenalty true khi totalScore đã trừ penalty (hackathon FINISHED) —
+     *                           khi đó cờ tiebreakRequired gom theo totalScore; ngược lại gom theo điểm hiệu lực.
+     */
+    static List<RoundRankingItemResponse> assignRanks(
+            List<RankRow> sortedRows, boolean isFinalRound, boolean displayNetsPenalty) {
         List<RoundRankingItemResponse> result = new ArrayList<>();
         if (isFinalRound) {
             Map<Double, Long> scoreCounts = sortedRows.stream()
-                    .collect(Collectors.groupingBy(RankRow::totalScore, Collectors.counting()));
+                    .collect(Collectors.groupingBy(
+                            row -> effectiveScoreForTieFlag(row, displayNetsPenalty), Collectors.counting()));
             int rank = 1;
             for (RankRow row : sortedRows) {
-                boolean tie = scoreCounts.getOrDefault(row.totalScore(), 0L) > 1;
+                boolean tie = scoreCounts.getOrDefault(effectiveScoreForTieFlag(row, displayNetsPenalty), 0L) > 1;
                 result.add(toRankingItem(row, rank++, tie));
             }
             return result;
         }
 
-        String currentGroup = null;
-        int rankInGroup = 0;
         for (int i = 0; i < sortedRows.size(); ) {
             String group = sortedRows.get(i).assignedGroup() != null ? sortedRows.get(i).assignedGroup() : "";
             int j = i;
@@ -167,16 +177,25 @@ public class RoundRankingQueryService {
             }
             List<RankRow> groupSlice = sortedRows.subList(i, j);
             Map<Double, Long> scoreCounts = groupSlice.stream()
-                    .collect(Collectors.groupingBy(RankRow::totalScore, Collectors.counting()));
-            rankInGroup = 0;
+                    .collect(Collectors.groupingBy(
+                            row -> effectiveScoreForTieFlag(row, displayNetsPenalty), Collectors.counting()));
+            int rankInGroup = 0;
             for (RankRow row : groupSlice) {
                 rankInGroup++;
-                boolean tie = scoreCounts.getOrDefault(row.totalScore(), 0L) > 1;
+                boolean tie = scoreCounts.getOrDefault(effectiveScoreForTieFlag(row, displayNetsPenalty), 0L) > 1;
                 result.add(toRankingItem(row, rankInGroup, tie));
             }
             i = j;
         }
         return result;
+    }
+
+    /** Điểm hiệu lực cho cờ tiebreakRequired — khớp detector progression. */
+    static double effectiveScoreForTieFlag(RankRow row, boolean displayNetsPenalty) {
+        if (displayNetsPenalty) {
+            return row.totalScore();
+        }
+        return row.totalScore() - row.penaltyScore();
     }
 
     private static Comparator<RankRow> rankComparator(boolean isFinalRound) {

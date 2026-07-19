@@ -58,6 +58,7 @@ public class RoundActivationServiceImpl implements RoundActivationService {
     private final NotificationService notificationService;
     private final TeamRoundTrackRepository teamRoundTrackRepository;
     private final RoundScheduleShiftService roundScheduleShiftService;
+    private final com.sealhackathon.api.hackathons.support.PendingTeamGateService pendingTeamGateService;
 
     @Override
     public RoundResponse activate(Integer roundId, ActivateRoundRequest request) {
@@ -75,6 +76,11 @@ public class RoundActivationServiceImpl implements RoundActivationService {
         }
 
         if (Boolean.TRUE.equals(round.getIsActive())) {
+            // Vòng đã active + START_NOW = «bắt đầu thi sớm»: phải nén examAt/submissionOpen/submissionDeadline.
+            // Trước đây nhánh này return luôn → lịch không đổi (bug J3).
+            if (scheduleMode == ActivateScheduleMode.START_NOW) {
+                return startAlreadyActiveRoundEarly(round, body);
+            }
             return roundMapper.toResponse(round);
         }
 
@@ -83,6 +89,8 @@ public class RoundActivationServiceImpl implements RoundActivationService {
             validateFinalRoundCriteria(roundId);
             validateFinalRoundJudges(roundId);
         } else {
+            // LOT-04: defense-in-depth — không activate sơ loại khi còn đội PENDING
+            pendingTeamGateService.assertNoPendingTeams(round.getHackathon().getId());
             validateTeamsInRound(round);
             validatePreliminaryRoundTracks(round);
         }
@@ -128,6 +136,35 @@ public class RoundActivationServiceImpl implements RoundActivationService {
         auditService.log(AuditAction.ROUND_ACTIVATE, "rounds", roundId, activateAudit);
 
         notifyRoundStarted(saved);
+        return roundMapper.toResponse(saved);
+    }
+
+    /**
+     * Vòng đã active nhưng examAt còn ở tương lai — Coord bấm «bắt đầu thi sớm» (START_NOW).
+     * Nén examAt = now + setupLead và tính lại submissionOpen/submissionDeadline qua ShiftService.
+     */
+    private RoundResponse startAlreadyActiveRoundEarly(Round round, ActivateRoundRequest body) {
+        if (round.getProblemReleasedAt() != null) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Đề bài đã được phát — không thể dời giờ thi sớm nữa",
+                    Map.of("roundId", round.getId()));
+        }
+        boolean scheduleShifted = roundScheduleShiftService.applyOnActivate(
+                round, ActivateScheduleMode.START_NOW, body.getNewExamAt(), body.getSetupLeadMinutes());
+        Round saved = roundRepository.save(round);
+
+        Map<String, Object> audit = new LinkedHashMap<>();
+        audit.put("hackathonId", round.getHackathon() != null ? round.getHackathon().getId() : null);
+        audit.put("note", body.getNote());
+        audit.put("scheduleMode", ActivateScheduleMode.START_NOW.name());
+        audit.put("scheduleShifted", scheduleShifted);
+        audit.put("alreadyActive", true);
+        audit.put("setupLeadMinutes",
+                body.getSetupLeadMinutes() != null
+                        ? body.getSetupLeadMinutes()
+                        : RoundScheduleShiftService.DEFAULT_SETUP_LEAD_MINUTES);
+        auditService.log(AuditAction.ROUND_SCHEDULE_SHIFTED, "rounds", saved.getId(), audit);
+
         return roundMapper.toResponse(saved);
     }
 
@@ -221,9 +258,12 @@ public class RoundActivationServiceImpl implements RoundActivationService {
         boolean hasFinalExternal = false;
         for (JudgeAssignment ja : assignments) {
             JudgeAssignmentType type = ja.getAssignmentType();
-            if (type != JudgeAssignmentType.FINAL_EXTERNAL && type != JudgeAssignmentType.HEAD) {
+            // HEAD legacy trong DB được chấp nhận như NORMAL — không còn quyền đặc biệt.
+            if (type != JudgeAssignmentType.FINAL_EXTERNAL
+                    && type != JudgeAssignmentType.NORMAL
+                    && type != JudgeAssignmentType.HEAD) {
                 throw new BusinessRuleException(ErrorCode.INVALID_ASSIGNMENT_TYPE,
-                        "Vòng thi Chung kết chỉ chấp nhận Judge FINAL_EXTERNAL hoặc HEAD",
+                        "Vòng thi Chung kết chỉ chấp nhận Judge NORMAL hoặc FINAL_EXTERNAL",
                         Map.of("roundId", roundId, "judgeId", ja.getJudge().getId(),
                                 "assignmentType", type));
             }
@@ -234,12 +274,6 @@ public class RoundActivationServiceImpl implements RoundActivationService {
                             "FINAL_EXTERNAL yêu cầu Judge EXTERNAL",
                             Map.of("roundId", roundId, "judgeId", ja.getJudge().getId()));
                 }
-            }
-            if (type == JudgeAssignmentType.HEAD
-                    && ja.getJudge().getUserType() != UserType.INTERNAL) {
-                throw new BusinessRuleException(ErrorCode.INVALID_ASSIGNMENT_TYPE,
-                        "HEAD Chung kết yêu cầu Judge INTERNAL",
-                        Map.of("roundId", roundId, "judgeId", ja.getJudge().getId()));
             }
         }
         if (!hasFinalExternal) {

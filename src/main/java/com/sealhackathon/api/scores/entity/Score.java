@@ -1,6 +1,5 @@
 package com.sealhackathon.api.scores.entity;
 
-import com.sealhackathon.api.calibration_sessions.entity.CalibrationSession;
 import com.sealhackathon.api.criteria.entity.Criteria;
 import com.sealhackathon.api.scores.value_object.ScoreType;
 import com.sealhackathon.api.submissions.entity.Submission;
@@ -65,10 +64,6 @@ public class Score {
     @Builder.Default
     @Column(name = "is_final", nullable = false)
     private Boolean isFinal = false;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "calibration_session_id")
-    private CalibrationSession calibrationSession;
 
     @Builder.Default
     @Column(name = "scored_at", nullable = false)

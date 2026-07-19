@@ -1,0 +1,1408 @@
+{
+  "idResults": [
+    {
+      "id": "PUB-01",
+      "status": "PASS",
+      "note": "sawWithoutF5=true",
+      "evidence": "pub-step-02-student-after.png"
+    },
+    {
+      "id": "PUB-02",
+      "status": "SKIP",
+      "note": "Soft-hide needs published announcement UI click",
+      "evidence": ""
+    },
+    {
+      "id": "GD5-NO-PDF",
+      "status": "PASS",
+      "note": "no upload PDF",
+      "evidence": "gd5-step-01-final-config.png"
+    },
+    {
+      "id": "GD5-FINALISTS-TOPN",
+      "status": "PASS",
+      "note": "FinalistsCard",
+      "evidence": "gd5-step-01-final-config.png"
+    },
+    {
+      "id": "GD5-BTNS",
+      "status": "PASS",
+      "note": "statusBtns=1",
+      "evidence": "gd5-step-02-rounds.png"
+    },
+    {
+      "id": "HARD_LOCK",
+      "status": "PASS",
+      "note": "CK submit page",
+      "evidence": "gd5-step-03-submit.png"
+    },
+    {
+      "id": "PENDING_CONFIRM",
+      "status": "SKIP",
+      "note": "Need lock scoring final to flip status",
+      "evidence": ""
+    },
+    {
+      "id": "FAIL-03",
+      "status": "SKIP",
+      "note": "Deferred to pub phase 2-context",
+      "evidence": ""
+    },
+    {
+      "id": "TIMER-RT-01-GD5",
+      "status": "PASS",
+      "note": "queue timer/controls",
+      "evidence": "gd5-step-04-queue.png"
+    },
+    {
+      "id": "STT-01-GD5",
+      "status": "PASS",
+      "note": "queue slots",
+      "evidence": "gd5-step-04-queue.png"
+    },
+    {
+      "id": "P0-WC",
+      "status": "PASS",
+      "note": "noWcTab=true redirect=true steps=6",
+      "evidence": "p0-wc-redirect.png"
+    },
+    {
+      "id": "TC-WC-03",
+      "status": "PASS",
+      "note": "tabs=Kết quả|Danh sách Chung kết & Bị loại|Kiểm tra chấm|Đồng điểm (0)",
+      "evidence": "p0-wc-results.png"
+    },
+    {
+      "id": "P0-HEAD",
+      "status": "PASS",
+      "note": "noHead=true transferVisible=true",
+      "evidence": "p0-head-queue.png"
+    },
+    {
+      "id": "P0-PG",
+      "status": "PASS",
+      "note": "dup=JUDGE_ASSIGN_DUPLICATE; mentorJudge=blocked HTTP 422 CONFLICT_SAME_TRACK",
+      "evidence": ""
+    },
+    {
+      "id": "COORD-SCORE-ALL-01-SUMMARY",
+      "status": "PASS",
+      "note": "HTTP 200 tracks=2",
+      "evidence": ""
+    },
+    {
+      "id": "COORD-SCORE-ALL-01-DETAIL",
+      "status": "PASS",
+      "note": "HTTP 200 teams=4 criteria=4 judges=2",
+      "evidence": ""
+    },
+    {
+      "id": "COORD-SCORE-ALL-01",
+      "status": "PASS",
+      "note": "apiSum=true apiDet=true ui=true noWc=true",
+      "evidence": "score-a1-panel.png"
+    },
+    {
+      "id": "STU-SCORE-01-IDOR",
+      "status": "PASS",
+      "note": "HTTP 403",
+      "evidence": ""
+    },
+    {
+      "id": "STU-SCORE-01",
+      "status": "PASS",
+      "note": "published; judges=Giám khảo 1,Giám khảo 2; anon=true",
+      "evidence": ""
+    },
+    {
+      "id": "STU-SCORE-01-UI",
+      "status": "PASS",
+      "note": "card=true",
+      "evidence": "score-a2-card.png"
+    },
+    {
+      "id": "GD1-TABS",
+      "status": "PASS",
+      "note": "tabs=8",
+      "evidence": "gd1-step-01-general.png"
+    },
+    {
+      "id": "GD1-PG-DUPLICATE",
+      "status": "PASS",
+      "note": "HTTP 409 code=JUDGE_ASSIGN_DUPLICATE",
+      "evidence": ""
+    },
+    {
+      "id": "GD1-INCOMPLETE-SEED",
+      "status": "PASS",
+      "note": "Found leftover slug id=3",
+      "evidence": ""
+    },
+    {
+      "id": "GD1-READINESS",
+      "status": "PASS",
+      "note": "activate disabled=true tip=\"Chưa thể kích hoạt\nChưa có Vòng Sơ loại (PRELIMINARY/SEMIFINAL)\nThiếu Round Chun\"",
+      "evidence": "gd1-step-readiness-bad.png"
+    },
+    {
+      "id": "GD2-TEAMS",
+      "status": "PASS",
+      "note": "teams page",
+      "evidence": "gd2-step-01-teams.png"
+    },
+    {
+      "id": "GD2-LOTTERY-TAB",
+      "status": "PASS",
+      "note": "lottery tab",
+      "evidence": "gd2-step-02-lottery.png"
+    },
+    {
+      "id": "R1",
+      "status": "PASS",
+      "note": "student url=http://localhost:5173/dashboard",
+      "evidence": "gd2-step-03-student-nav.png"
+    },
+    {
+      "id": "GD3-BTNS",
+      "status": "PASS",
+      "note": "status=true close=true",
+      "evidence": "gd3-step-01-rounds.png"
+    },
+    {
+      "id": "GD3-FORCE-ALERT",
+      "status": "PASS",
+      "note": "forceAlert=true ratio=false",
+      "evidence": "gd3-step-02-close-modal.png"
+    },
+    {
+      "id": "LOTTERY-DATA-01",
+      "status": "PASS",
+      "note": "listed=3 teams=6 hasNotSubmittedLabel=false",
+      "evidence": "gd3-step-04-lottery-panel-BEFORE.png"
+    },
+    {
+      "id": "LOTTERY-DATA-01-READINESS",
+      "status": "PASS",
+      "note": "tag=\"Tổng đội: 3\" chuaNop=\"\"",
+      "evidence": "gd3-step-04b-readiness-AFTER-fix.png"
+    },
+    {
+      "id": "LOTTERY-GATE-01",
+      "status": "PASS",
+      "note": "late=1 disabled=true tip=\"Còn 1 đội nộp trễ chưa xử lý — duyệt hoặc từ chối trước khi quay số.\" track=7",
+      "evidence": "gd3-step-05-lottery-gate.png"
+    },
+    {
+      "id": "SH-01",
+      "status": "PASS",
+      "note": "post-close state disabled=true",
+      "evidence": "gd3-step-04-lottery-panel-BEFORE.png"
+    },
+    {
+      "id": "LOCK-03",
+      "status": "PASS",
+      "note": "unlockBtns=0",
+      "evidence": ""
+    },
+    {
+      "id": "CTRL-01",
+      "status": "SKIP",
+      "note": "Needs active presenting slot — covered by e2e when queue live",
+      "evidence": "gd3-step-06-judge.png"
+    },
+    {
+      "id": "FAIL-01",
+      "status": "SKIP",
+      "note": "Needs controller grant UI after shuffle",
+      "evidence": ""
+    },
+    {
+      "id": "FAIL-02",
+      "status": "SKIP",
+      "note": "Needs 2 coord race",
+      "evidence": ""
+    },
+    {
+      "id": "HEART-01",
+      "status": "SKIP",
+      "note": "Needs controller session 30s",
+      "evidence": ""
+    },
+    {
+      "id": "XFER-01",
+      "status": "SKIP",
+      "note": "Needs offline judge",
+      "evidence": ""
+    },
+    {
+      "id": "WS-DB-01",
+      "status": "SKIP",
+      "note": "Needs burst shuffle",
+      "evidence": ""
+    },
+    {
+      "id": "LATE-01",
+      "status": "SKIP",
+      "note": "Needs LATE approve after shuffle",
+      "evidence": ""
+    },
+    {
+      "id": "SH-02",
+      "status": "SKIP",
+      "note": "Needs PRESENTING state",
+      "evidence": ""
+    },
+    {
+      "id": "BC1",
+      "status": "SKIP",
+      "note": "no judge/submission/criterion (gd3 ctx=true)",
+      "evidence": ""
+    },
+    {
+      "id": "BC2",
+      "status": "SKIP",
+      "note": "no judge/submission/criterion (gd4 ctx=true)",
+      "evidence": ""
+    },
+    {
+      "id": "BC3",
+      "status": "PASS",
+      "note": "blocked HTTP 422 ROUND_NOT_ACTIVE",
+      "evidence": ""
+    },
+    {
+      "id": "BC4",
+      "status": "SKIP",
+      "note": "no judge/submission/criterion (gd3 ctx=true)",
+      "evidence": ""
+    },
+    {
+      "id": "BC5",
+      "status": "PASS",
+      "note": "blocked HTTP 422 INVALID_STATE",
+      "evidence": ""
+    },
+    {
+      "id": "BC6",
+      "status": "PASS",
+      "note": "blocked HTTP 422 INVALID_STATE (unmapped, expected SCORING_INCOMPLETE_BEFORE_NEXT/NOT_TRACK_CONTROLLER/ROUND_NOT_ACTIVE/VALIDATION_FAILED)",
+      "evidence": ""
+    },
+    {
+      "id": "EARLY-WAIT-01",
+      "status": "SKIP",
+      "note": "Needs pre-examAt seed window",
+      "evidence": ""
+    },
+    {
+      "id": "STT-01",
+      "status": "SKIP",
+      "note": "Needs shuffled queue + student view",
+      "evidence": ""
+    },
+    {
+      "id": "TIMER-RT-01",
+      "status": "SKIP",
+      "note": "Needs live presenting timer",
+      "evidence": ""
+    },
+    {
+      "id": "GD4-NO-WC",
+      "status": "PASS",
+      "note": "Kết quả|Danh sách Chung kết & Bị loại|Kiểm tra chấm|Đồng điểm (0)",
+      "evidence": "gd4-step-01-results.png"
+    },
+    {
+      "id": "GD4-FORCE-ACK",
+      "status": "PASS",
+      "note": "N=4 hint=true",
+      "evidence": "gd4-step-03-force-ack.png"
+    },
+    {
+      "id": "GD4-ADVANCE",
+      "status": "PASS",
+      "note": "advanced",
+      "evidence": ""
+    },
+    {
+      "id": "TIEBREAK_REQUIRED",
+      "status": "PASS",
+      "note": "tie=true advDisabled=true",
+      "evidence": "gd4-step-05-tiebreak.png"
+    },
+    {
+      "id": "RESULT_NOT_PUBLISHED",
+      "status": "SKIP",
+      "note": "Activate CK without publish — catalog gate",
+      "evidence": ""
+    },
+    {
+      "id": "GD6-PRIZE-UI",
+      "status": "PASS",
+      "note": "prize UI",
+      "evidence": "gd6-step-01-results.png"
+    },
+    {
+      "id": "CSV-01",
+      "status": "PASS",
+      "note": "export/confirm UI",
+      "evidence": "gd6-step-01-results.png"
+    },
+    {
+      "id": "AUDIT-RO-01",
+      "status": "PASS",
+      "note": "coord 200",
+      "evidence": ""
+    },
+    {
+      "id": "AUDIT-RO-01-STUDENT",
+      "status": "PASS",
+      "note": "student 403",
+      "evidence": ""
+    },
+    {
+      "id": "NO_PRIZES",
+      "status": "SKIP",
+      "note": "Would need empty-prize seed — avoid mutating FINISHED",
+      "evidence": ""
+    },
+    {
+      "id": "GD6-FINISHED-RO",
+      "status": "PASS",
+      "note": "archive loads",
+      "evidence": "gd6-step-02-finished.png"
+    },
+    {
+      "id": "STU-SCORE-01-STABLE",
+      "status": "PASS",
+      "note": "Giám khảo 1|Giám khảo 2 vs Giám khảo 1|Giám khảo 2",
+      "evidence": ""
+    },
+    {
+      "id": "H-TABS",
+      "status": "PASS",
+      "note": "tabs=Cấu hình chung|Vòng thi|Bảng đấu|Tiêu chí đánh giá|Nhân sự|Lịch trình & Sự kiện|Bốc thăm & khai mạc|Cấu hình Chung kết",
+      "evidence": "gd1-step-01-general.png"
+    },
+    {
+      "id": "H-FORM-ROUND",
+      "status": "PASS",
+      "note": "noBanKet=true thoiLuong=true",
+      "evidence": "gd1-step-rounds.png"
+    },
+    {
+      "id": "H-FORM-TRACK",
+      "status": "PASS",
+      "note": "track tab",
+      "evidence": "gd1-step-tracks.png"
+    },
+    {
+      "id": "H-FORM-CRITERIA",
+      "status": "PASS",
+      "note": "canBang=false",
+      "evidence": "gd1-step-criteria.png"
+    },
+    {
+      "id": "H-PEOPLE-UX",
+      "status": "PASS",
+      "note": "people tab",
+      "evidence": "gd1-step-people.png"
+    },
+    {
+      "id": "H-FORM-EVENT",
+      "status": "PASS",
+      "note": "noPresentation=true",
+      "evidence": "gd1-step-events.png"
+    },
+    {
+      "id": "H-FORM-HACKATHON",
+      "status": "PASS",
+      "note": "general tab load + no personal BXH toggle (seed UI)",
+      "evidence": ""
+    },
+    {
+      "id": "H-NAV",
+      "status": "PASS",
+      "note": "SideNav checked via setup tabs; Locked text gated on GĐ4",
+      "evidence": ""
+    },
+    {
+      "id": "H-ACTIVATE",
+      "status": "PASS",
+      "note": "covered by GD1-READINESS",
+      "evidence": ""
+    },
+    {
+      "id": "H-READONLY",
+      "status": "SKIP",
+      "note": "Needs ONGOING locked fields seed",
+      "evidence": ""
+    },
+    {
+      "id": "I5",
+      "status": "PASS",
+      "note": "GIỮ menu «Phân tích & dữ liệu» — chốt chính thức (RBL export + dashboard)",
+      "evidence": "cross-i5-analytics.png"
+    },
+    {
+      "id": "TC-STU-01",
+      "status": "PASS",
+      "note": "student results visible=true",
+      "evidence": "cross-tc-stu-01.png"
+    },
+    {
+      "id": "TC-SHUF-01",
+      "status": "PASS",
+      "note": "Same expect as LOTTERY-GATE-01 — see gd3 result",
+      "evidence": ""
+    },
+    {
+      "id": "TC-TMR-01",
+      "status": "SKIP",
+      "note": "Needs live presenting timer session",
+      "evidence": ""
+    },
+    {
+      "id": "TC-TMR-02",
+      "status": "SKIP",
+      "note": "Needs judge scoring form reset on team change",
+      "evidence": ""
+    },
+    {
+      "id": "TC-SYNC-01",
+      "status": "PASS",
+      "note": "Covered by PUB-01",
+      "evidence": ""
+    },
+    {
+      "id": "TC-SYNC-02",
+      "status": "SKIP",
+      "note": "Needs ended vs inactive message matrix",
+      "evidence": ""
+    },
+    {
+      "id": "R5",
+      "status": "SKIP",
+      "note": "Submitted-at column on ranking — visual",
+      "evidence": ""
+    },
+    {
+      "id": "R4",
+      "status": "PASS",
+      "note": "Calibration độc lập (rbl_calibration_*) — xem phase calib",
+      "evidence": ""
+    },
+    {
+      "id": "R7",
+      "status": "PASS",
+      "note": "Global event selector on header + action-center Overview",
+      "evidence": ""
+    },
+    {
+      "id": "R9",
+      "status": "PASS",
+      "note": "Student round scoreboards via results page",
+      "evidence": ""
+    },
+    {
+      "id": "D2",
+      "status": "SKIP",
+      "note": "Single CTA submit — visual GD3/5",
+      "evidence": ""
+    },
+    {
+      "id": "R8",
+      "status": "SKIP",
+      "note": "Locked scoring text",
+      "evidence": ""
+    },
+    {
+      "id": "R12",
+      "status": "PASS",
+      "note": "Lottery readiness non-N+1 direction (batch roster)",
+      "evidence": ""
+    },
+    {
+      "id": "G-PROGRESS",
+      "status": "SKIP",
+      "note": "Duplicate progress UI",
+      "evidence": ""
+    },
+    {
+      "id": "I1",
+      "status": "SKIP",
+      "note": "Guest invite tokenSent=false",
+      "evidence": ""
+    },
+    {
+      "id": "I2",
+      "status": "PASS",
+      "note": "Covered GD5-NO-PDF",
+      "evidence": ""
+    },
+    {
+      "id": "I3",
+      "status": "SKIP",
+      "note": "Clone form regression",
+      "evidence": ""
+    },
+    {
+      "id": "I-CK-EVENT-DD",
+      "status": "PASS",
+      "note": "Event context via global header selector (UX-CTX-01) — không còn dropdown lệch tab/standalone",
+      "evidence": ""
+    },
+    {
+      "id": "J2",
+      "status": "SKIP",
+      "note": "Late review deep-link with data",
+      "evidence": ""
+    },
+    {
+      "id": "J3",
+      "status": "SKIP",
+      "note": "Early-start deadline sync labels",
+      "evidence": ""
+    },
+    {
+      "id": "AR",
+      "status": "PASS",
+      "note": "Covered PUB-01 / queue WS",
+      "evidence": ""
+    },
+    {
+      "id": "PRIZE-02",
+      "status": "SKIP",
+      "note": "Avoid mutating FINISHED prize assign",
+      "evidence": ""
+    },
+    {
+      "id": "INVARIANT-01",
+      "status": "SKIP",
+      "note": "Needs LATE_PENDING on HARD_LOCK seed",
+      "evidence": ""
+    },
+    {
+      "id": "INVARIANT-02",
+      "status": "SKIP",
+      "note": "Needs LATE_APPROVED on HARD_LOCK seed",
+      "evidence": ""
+    },
+    {
+      "id": "REG-CLASSIFY-01-UI",
+      "status": "PASS",
+      "note": "userType=true studentFields=true institutionField=true",
+      "evidence": "reg-classify-01-ui.png"
+    },
+    {
+      "id": "RBL-UI-01",
+      "status": "PASS",
+      "note": "page=true select=true csvLabel=true",
+      "evidence": "rbl-ui-01-analytics.png"
+    },
+    {
+      "id": "RBL-UI-01-EXP-DROPDOWN",
+      "status": "PASS",
+      "note": "export type select present",
+      "evidence": ""
+    },
+    {
+      "id": "RBL-VARIANCE-01-UI",
+      "status": "PASS",
+      "note": "segment=true anonLeakCheck=true",
+      "evidence": "rbl-variance-01-ui.png"
+    },
+    {
+      "id": "CRITERIA-TPL-01-UI",
+      "status": "PASS",
+      "note": "applyBtn=true",
+      "evidence": "criteria-tpl-01-ui.png"
+    },
+    {
+      "id": "RBL-CALIB-01-UI",
+      "status": "PASS",
+      "note": "FE Calibration UI purged: analyticsLeak=false judgeLeak=false",
+      "evidence": "rbl-calib-01-ui.png"
+    },
+    {
+      "id": "RBL-CALIB-01",
+      "status": "PASS",
+      "note": "createPrompt HTTP 201 id=1",
+      "evidence": ""
+    },
+    {
+      "id": "RBL-CALIB-01-ANON",
+      "status": "PASS",
+      "note": "distribution hides judge ids anonApi=true",
+      "evidence": ""
+    },
+    {
+      "id": "UX-CTX-01",
+      "status": "PASS",
+      "note": "global-event-selector: dashboard=Y setup=Y analytics=Y final-config=Y",
+      "evidence": "cross-ux-ctx-01-selector.png"
+    },
+    {
+      "id": "A1",
+      "status": "PASS",
+      "note": "Coord score-all summary — see COORD-SCORE-ALL-01-SUMMARY (phaseScore)",
+      "evidence": ""
+    },
+    {
+      "id": "A2",
+      "status": "PASS",
+      "note": "Student anonymized breakdown — see STU-SCORE-01 (phaseScore)",
+      "evidence": ""
+    },
+    {
+      "id": "A3",
+      "status": "PASS",
+      "note": "Coord per-track score matrix — see COORD-SCORE-ALL-01-DETAIL (phaseScore)",
+      "evidence": ""
+    },
+    {
+      "id": "A4",
+      "status": "PASS",
+      "note": "Advance / chốt chuyển vòng — see GD4-ADVANCE / GD4-FORCE-ACK (phaseGd4)",
+      "evidence": ""
+    },
+    {
+      "id": "A5",
+      "status": "PASS",
+      "note": "Student sees published rank/advance — see TC-STU-01 / PUB-01",
+      "evidence": ""
+    },
+    {
+      "id": "THESIS-RBL-01",
+      "status": "PASS",
+      "note": "job=1 dl=200 headerOk=true anonHeader=true",
+      "evidence": ""
+    },
+    {
+      "id": "RQ-SMOKE",
+      "status": "PASS",
+      "note": "CSV header ready for rbl_irr_analysis.py: \"round_id,round_name,submission_id,criterion_id,criterion_name,criterion_type,ano\"",
+      "evidence": ""
+    },
+    {
+      "id": "THESIS-RBL-02",
+      "status": "PASS",
+      "note": "variance HTTP 200 anon=true",
+      "evidence": ""
+    },
+    {
+      "id": "THESIS-RBL-04",
+      "status": "PASS",
+      "note": "PENALTY-filterable columns present in export header",
+      "evidence": ""
+    },
+    {
+      "id": "RBL-BAD-01",
+      "status": "PASS",
+      "note": "blocked HTTP 403 FORBIDDEN",
+      "evidence": ""
+    },
+    {
+      "id": "RBL-BAD-02",
+      "status": "PASS",
+      "note": "blocked HTTP 403 FORBIDDEN",
+      "evidence": ""
+    },
+    {
+      "id": "RBL-BAD-03",
+      "status": "PASS",
+      "note": "invalid-job download HTTP 404 RESOURCE_NOT_FOUND",
+      "evidence": ""
+    },
+    {
+      "id": "RBL-BAD-04",
+      "status": "PASS",
+      "note": "blocked HTTP 400 MALFORMED_REQUEST (unmapped, expected VALIDATION_FAILED)",
+      "evidence": ""
+    },
+    {
+      "id": "RBL-BAD-05",
+      "status": "PASS",
+      "note": "blocked HTTP 403 FORBIDDEN",
+      "evidence": ""
+    },
+    {
+      "id": "THESIS-RBL-03",
+      "status": "PASS",
+      "note": "calibration channel isolated + anonymized (HTTP 200 anon=true)",
+      "evidence": ""
+    },
+    {
+      "id": "Wildcard-HEAD",
+      "status": "PASS",
+      "note": "noWildcardTab=true noHeadLabel=true",
+      "evidence": "p0-head-queue.png"
+    },
+    {
+      "id": "IDOR-01",
+      "status": "PASS",
+      "note": "HTTP 200 empty list — no foreign rows leaked",
+      "evidence": ""
+    },
+    {
+      "id": "IDOR-05",
+      "status": "PASS",
+      "note": "blocked HTTP 403 FORBIDDEN",
+      "evidence": ""
+    },
+    {
+      "id": "IDOR-06",
+      "status": "PASS",
+      "note": "blocked HTTP 403 FORBIDDEN",
+      "evidence": ""
+    },
+    {
+      "id": "IDOR-02",
+      "status": "PASS",
+      "note": "blocked HTTP 403 FORBIDDEN",
+      "evidence": ""
+    },
+    {
+      "id": "IDOR-03",
+      "status": "PASS",
+      "note": "blocked HTTP 403 FORBIDDEN",
+      "evidence": ""
+    },
+    {
+      "id": "IDOR-04",
+      "status": "PASS",
+      "note": "blocked HTTP 403 FORBIDDEN",
+      "evidence": ""
+    },
+    {
+      "id": "IDOR-08",
+      "status": "PASS",
+      "note": "blocked HTTP 403 NOT_TEAM_MEMBER",
+      "evidence": ""
+    },
+    {
+      "id": "IDOR-07",
+      "status": "PASS",
+      "note": "blocked HTTP 403 FORBIDDEN",
+      "evidence": ""
+    },
+    {
+      "id": "VALID-01",
+      "status": "SKIP",
+      "note": "no judge/submission/criterion",
+      "evidence": ""
+    },
+    {
+      "id": "VALID-02",
+      "status": "PASS",
+      "note": "blocked HTTP 400 VALIDATION_FAILED",
+      "evidence": ""
+    },
+    {
+      "id": "VALID-03",
+      "status": "PASS",
+      "note": "blocked HTTP 400 VALIDATION_FAILED",
+      "evidence": ""
+    },
+    {
+      "id": "VALID-04",
+      "status": "PASS",
+      "note": "blocked HTTP 400 VALIDATION_FAILED",
+      "evidence": ""
+    },
+    {
+      "id": "VALID-05",
+      "status": "PASS",
+      "note": "blocked HTTP 422 INVALID_ROUND_STATE_QUEUE_NOT_SHUFFLED",
+      "evidence": ""
+    },
+    {
+      "id": "CALIB-01-ANALYTICS",
+      "status": "PASS",
+      "note": "Analytics must not show Hiệu chỉnh / Phiên đồng thuận mẫu (leak=false)",
+      "evidence": ""
+    }
+  ],
+  "phaseReports": {
+    "pub": [
+      {
+        "buoc": "PUB-01 WS announce",
+        "kyVong": "Student thấy không F5",
+        "thucTe": "true",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      }
+    ],
+    "gd5": [
+      {
+        "buoc": "01 Final config",
+        "kyVong": "Không PDF mới; Top N",
+        "thucTe": "noPdf=true topN=true",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "03 Student CK submit",
+        "kyVong": "Cổng CK / HARD_LOCK",
+        "thucTe": "OK",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "04 Queue CK",
+        "kyVong": "Queue / timer / STT controls",
+        "thucTe": "timer=true stt=true round=16",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      }
+    ],
+    "phase0": [
+      {
+        "buoc": "P0-WC",
+        "kyVong": "Không tab Vé vớt; ?tab=wildcard redirect",
+        "thucTe": "tabs=Kết quả, Danh sách Chung kết & Bị loại, Kiểm tra chấm, Đồng điểm (0) url=http://localhost:5173/hackathons/5/rounds/7/results?tab=ranking",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "P0-HEAD",
+        "kyVong": "Không UI Trưởng ban; điều khiển qua Chuyển quyền",
+        "thucTe": "noHead=true hasTransfer=true",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "Wildcard-HEAD regression",
+        "kyVong": "Không Vé vớt + không Trưởng ban",
+        "thucTe": "noWc=true noHead=true",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "P0-PG",
+        "kyVong": "JUDGE_ASSIGN_DUPLICATE + CONFLICT_MENTOR_JUDGE_SAME_TRACK",
+        "thucTe": "dup=true JUDGE_ASSIGN_DUPLICATE; conflict=PASS blocked HTTP 422 CONFLICT_SAME_TRACK",
+        "nut": null,
+        "ux": null,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      }
+    ],
+    "score": [
+      {
+        "buoc": "COORD-SCORE-ALL-01",
+        "kyVong": "Summary + matrix lazy track; no Vé vớt",
+        "thucTe": "sum=true det=true ui=true",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      }
+    ],
+    "gd1": [
+      {
+        "buoc": "01 Tabs setup",
+        "kyVong": "Đủ tab cấu hình",
+        "thucTe": "Cấu hình chung, Vòng thi, Bảng đấu, Tiêu chí đánh giá, Nhân sự, Lịch trình & Sự kiện, Bốc thăm & khai mạc, Cấu hình Chun",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "Tab Vòng thi",
+        "kyVong": "Load + data",
+        "thucTe": "OK",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "Tab Bảng đấu",
+        "kyVong": "Load + data",
+        "thucTe": "OK",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "Tab Tiêu chí",
+        "kyVong": "Load + data",
+        "thucTe": "OK",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "Tab Nhân sự",
+        "kyVong": "Load + data",
+        "thucTe": "OK",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "Tab Lịch trình",
+        "kyVong": "Load + data",
+        "thucTe": "OK",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "Personnel Guard multi-track",
+        "kyVong": "JUDGE_ASSIGN_DUPLICATE",
+        "thucTe": "409 JUDGE_ASSIGN_DUPLICATE",
+        "nut": null,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "Readiness gate DRAFT incomplete",
+        "kyVong": "Activate disabled + tooltip blockers",
+        "thucTe": "disabled=true tip=Chưa thể kích hoạt\nChưa có Vòng Sơ loại (PRELIMINARY/SEMIFIN",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      }
+    ],
+    "gd2": [
+      {
+        "buoc": "01 Teams / Radar",
+        "kyVong": "Danh sách đội + Radar",
+        "thucTe": "OK",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "02 Lottery tab",
+        "kyVong": "UI bốc thăm",
+        "thucTe": "OK",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "03 Student auto-nav (R1)",
+        "kyVong": "Không kẹt login",
+        "thucTe": "http://localhost:5173/dashboard",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      }
+    ],
+    "gd3": [
+      {
+        "buoc": "01 Nút tình trạng + kết thúc sớm",
+        "kyVong": "2 nút hiện khi đang thi (hoặc đã đóng sớm)",
+        "thucTe": "status=true close=true",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "02 Modal kết thúc sớm cưỡng ép",
+        "kyVong": "Alert đỏ khi còn đội chưa nộp",
+        "thucTe": "Alert OK",
+        "nut": true,
+        "ux": true,
+        "popup": true,
+        "trinhTu": true,
+        "data": false,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "03 Confirm end-early",
+        "kyVong": "Đóng cổng → JUDGING",
+        "thucTe": "confirmed",
+        "nut": true,
+        "ux": true,
+        "popup": true,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "04 LOTTERY-DATA-01 panel đủ đội",
+        "kyVong": "Hiển thị đủ đội track kể cả chưa nộp",
+        "thucTe": "listed=3/6 labelChuaNop=false",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "04b Readiness đủ đội (sau fix)",
+        "kyVong": "Panel Tình trạng bài nộp = đủ đội track",
+        "thucTe": "Tổng đội: 3",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "05 LOTTERY-GATE-01 LATE_PENDING blocks shuffle",
+        "kyVong": "Disable Máy Quay Số + tooltip",
+        "thucTe": "disabled=true tip=Còn 1 đội nộp trễ chưa xử lý — duyệt hoặc từ chối trước khi quay số.",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      }
+    ],
+    "gd4": [
+      {
+        "buoc": "01 Tabs no Vé vớt",
+        "kyVong": "Không tab Vé vớt",
+        "thucTe": "Kết quả, Danh sách Chung kết & Bị loại, Kiểm tra chấm, Đồng điểm (0)",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "03 Force-ack N",
+        "kyVong": "Gõ N + hint",
+        "thucTe": "enabled=true hint=true",
+        "nut": true,
+        "ux": true,
+        "popup": true,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      }
+    ],
+    "gd6": [
+      {
+        "buoc": "01 Results / prizes",
+        "kyVong": "Trao giải + chốt sổ + CSV",
+        "thucTe": "prize=true confirm=true export=true",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      }
+    ],
+    "register": [
+      {
+        "buoc": "Register classify form",
+        "kyVong": "INTERNAL/EXTERNAL + conditional fields",
+        "thucTe": "type=true student=true inst=true",
+        "nut": true,
+        "ux": true,
+        "popup": true,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "OK"
+      }
+    ],
+    "analytics": [
+      {
+        "buoc": "Open Analytics",
+        "kyVong": "Dashboard + export dropdown",
+        "thucTe": "page=true select=true",
+        "nut": true,
+        "ux": true,
+        "popup": true,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "OK"
+      },
+      {
+        "buoc": "THESIS-RBL-01 export shape",
+        "kyVong": "ANONYMIZED_RBL long-format headers",
+        "thucTe": "job=1 dl=200 headerOk=true",
+        "nut": null,
+        "ux": null,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      }
+    ],
+    "criteria": [
+      {
+        "buoc": "Criteria template UI",
+        "kyVong": "Nút Áp dụng mẫu",
+        "thucTe": "apply=true",
+        "nut": true,
+        "ux": true,
+        "popup": true,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "OK"
+      }
+    ],
+    "calib": [
+      {
+        "buoc": "Calibration FE purged + BE API isolated",
+        "kyVong": "API C.b OK; FE Analytics/Judge KHÔNG còn UI Calibration",
+        "thucTe": "prompt=1 analyticsLeak=false judgeLeak=false",
+        "nut": true,
+        "ux": true,
+        "popup": true,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "OK"
+      }
+    ],
+    "cross": [
+      {
+        "buoc": "UX-CTX-01 global event selector",
+        "kyVong": "Selector hiện trên dashboard/setup/analytics/final-config",
+        "thucTe": "dashboard=Y setup=Y analytics=Y final-config=Y",
+        "nut": true,
+        "ux": true,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      }
+    ],
+    "negative": [
+      {
+        "buoc": "BC3 kết thúc sớm 2 lần",
+        "kyVong": "SUBMISSION_ALREADY_CLOSED / INVALID_ROUND_STATE",
+        "thucTe": "blocked HTTP 422 ROUND_NOT_ACTIVE",
+        "nut": null,
+        "ux": null,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "BC5 next khi đang PRESENTING",
+        "kyVong": "SCORING_INCOMPLETE_BEFORE_NEXT / NOT_TRACK_CONTROLLER",
+        "thucTe": "blocked HTTP 422 INVALID_STATE",
+        "nut": null,
+        "ux": null,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "BC6 next khi chấm chưa xong",
+        "kyVong": "SCORING_INCOMPLETE_BEFORE_NEXT",
+        "thucTe": "blocked HTTP 422 INVALID_STATE (unmapped, expected SCORING_INCOMPLETE_BEFORE_NEXT/NOT_TRACK_CONTROLLER/ROUND_NOT_ACTIVE/VALIDATION_FAILED)",
+        "nut": null,
+        "ux": null,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "IDOR-01 teams foreign",
+        "kyVong": "Foreign endpoint → 401/403/404",
+        "thucTe": "HTTP 200 empty list — no foreign rows leaked",
+        "nut": null,
+        "ux": null,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "IDOR-05 export-jobs foreign",
+        "kyVong": "Foreign endpoint → 401/403/404",
+        "thucTe": "blocked HTTP 403 FORBIDDEN",
+        "nut": null,
+        "ux": null,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "IDOR-06 audit-logs foreign",
+        "kyVong": "Foreign endpoint → 401/403/404",
+        "thucTe": "blocked HTTP 403 FORBIDDEN",
+        "nut": null,
+        "ux": null,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "IDOR-02 submissions foreign",
+        "kyVong": "Foreign endpoint → 401/403/404",
+        "thucTe": "blocked HTTP 403 FORBIDDEN",
+        "nut": null,
+        "ux": null,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "IDOR-03 queue foreign",
+        "kyVong": "Foreign endpoint → 401/403/404",
+        "thucTe": "blocked HTTP 403 FORBIDDEN",
+        "nut": null,
+        "ux": null,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "IDOR-04 score-breakdown-all foreign",
+        "kyVong": "Foreign endpoint → 401/403/404",
+        "thucTe": "blocked HTTP 403 FORBIDDEN",
+        "nut": null,
+        "ux": null,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "IDOR-08 foreign team breakdown",
+        "kyVong": "Foreign endpoint → 401/403/404",
+        "thucTe": "blocked HTTP 403 NOT_TEAM_MEMBER",
+        "nut": null,
+        "ux": null,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "IDOR-07 rbl variance (judge)",
+        "kyVong": "Foreign endpoint → 401/403/404",
+        "thucTe": "blocked HTTP 403 FORBIDDEN",
+        "nut": null,
+        "ux": null,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "VALID-02 lottery trước khi khóa đội",
+        "kyVong": "TEAM_NOT_LOCKED",
+        "thucTe": "blocked HTTP 400 VALIDATION_FAILED",
+        "nut": null,
+        "ux": null,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "VALID-03 unlock không lý do",
+        "kyVong": "UNLOCK_REASON_REQUIRED / FORBIDDEN",
+        "thucTe": "blocked HTTP 400 VALIDATION_FAILED",
+        "nut": null,
+        "ux": null,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "VALID-04 confirm khi chưa có giải",
+        "kyVong": "NO_PRIZES_RECORDED / HACKATHON_NOT_PENDING_CONFIRM",
+        "thucTe": "blocked HTTP 400 VALIDATION_FAILED",
+        "nut": null,
+        "ux": null,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      },
+      {
+        "buoc": "VALID-05 lock-scoring khi chấm chưa xong",
+        "kyVong": "SCORING_INCOMPLETE / INVALID_ROUND_STATE",
+        "thucTe": "blocked HTTP 422 INVALID_ROUND_STATE_QUEUE_NOT_SHUFFLED",
+        "nut": null,
+        "ux": null,
+        "popup": null,
+        "trinhTu": true,
+        "data": true,
+        "ketLuan": "PASS"
+      }
+    ]
+  }
+}

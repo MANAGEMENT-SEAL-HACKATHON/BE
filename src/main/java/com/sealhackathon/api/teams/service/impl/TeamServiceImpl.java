@@ -87,6 +87,16 @@ public class TeamServiceImpl implements TeamService {
         return teamSizeResolver.forHackathon(hackathonId);
     }
 
+    /** Chặn tạo/gộp đội sau khi vòng Sơ loại đã kích hoạt — tránh chen cohort đã lottery. */
+    private void assertPrelimRoundNotActive(Integer hackathonId) {
+        boolean prelimActive = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathonId).stream()
+                .anyMatch(r -> !Boolean.TRUE.equals(r.getIsFinal()) && Boolean.TRUE.equals(r.getIsActive()));
+        if (prelimActive) {
+            throw new BusinessRuleException(ErrorCode.ROUND_ALREADY_ACTIVE,
+                    "Vòng Sơ loại đã kích hoạt — không thể tạo/gộp đội mới vào cohort thi.");
+        }
+    }
+
     private void assertAcceptedCountInRange(long acceptedCount, HackathonTeamSizeResolver.TeamSizeLimits limits) {
         if (acceptedCount < limits.minTeamSize() || acceptedCount > limits.maxTeamSize()) {
             throw new BusinessRuleException(ErrorCode.TEAM_INVALID_MEMBER_COUNT,
@@ -155,8 +165,8 @@ public class TeamServiceImpl implements TeamService {
             throw new BusinessRuleException(ErrorCode.TEAM_LEADER_INVALID_ROLE, "Chỉ sinh viên mới được tạo đội");
         }
 
-        // 2. Kiểm tra Hackathon
-        Hackathon hackathon = hackathonRepository.findById(req.getHackathonId())
+        // 2. Kiểm tra Hackathon (PESSIMISTIC_WRITE — serialize với lottery / close-early)
+        Hackathon hackathon = hackathonRepository.findByIdForUpdate(req.getHackathonId())
                 .orElseThrow(() -> new ResourceNotFoundException("Hackathon", req.getHackathonId()));
 
         if (hackathon.getStatus() != com.sealhackathon.api.hackathons.value_object.HackathonStatus.ONGOING) {
@@ -946,8 +956,10 @@ public class TeamServiceImpl implements TeamService {
     // XỬ LÝ GOM ĐỘI CHO NGƯỜI CHƠ VƠ (GOD MODE CỦA COORDINATOR)
     @Override
     public TeamDetailResponse adminCreateTeam(AdminCreateTeamRequest req) {
-        Hackathon hackathon = hackathonRepository.findById(req.getHackathonId())
+        Hackathon hackathon = hackathonRepository.findByIdForUpdate(req.getHackathonId())
                 .orElseThrow(() -> new ResourceNotFoundException("Hackathon", req.getHackathonId()));
+
+        assertPrelimRoundNotActive(hackathon.getId());
 
         // RÀO CHẮN: quy mô đội theo cấu hình track của hackathon
         HackathonTeamSizeResolver.TeamSizeLimits createLimits = limitsForHackathon(hackathon.getId());
@@ -956,10 +968,6 @@ public class TeamServiceImpl implements TeamService {
             throw new BusinessRuleException(ErrorCode.TEAM_INVALID_MEMBER_COUNT,
                     "Vi phạm quy tắc: Ban Tổ Chức chỉ được phép tạo đội ép buộc khi gom đủ từ %d đến %d thành viên. Số lượng bạn đang chọn là: %d"
                             .formatted(createLimits.minTeamSize(), createLimits.maxTeamSize(), totalMembers));
-        }
-
-        if (teamRepository.existsByHackathon_IdAndTeamNameIgnoreCase(hackathon.getId(), req.getTeamName().trim())) {
-            throw new ConflictException(ErrorCode.TEAM_NAME_DUPLICATE, "Tên đội đã tồn tại trong Hackathon này");
         }
 
         if (teamRepository.existsByHackathon_IdAndTeamNameIgnoreCase(hackathon.getId(), req.getTeamName().trim())) {
@@ -977,14 +985,16 @@ public class TeamServiceImpl implements TeamService {
             }
         }
 
-        // Tạo Đội với trạng thái ACTIVE ngay lập tức
+        // Sau đóng đăng ký: tạo ACTIVE đã khóa để không để ACTIVE unlocked chặn lottery
+        boolean registrationClosed = HackathonRegistrationSupport.isRegistrationClosed(hackathon);
         Team team = Team.builder()
                 .hackathon(hackathon)
                 .teamName(req.getTeamName().trim())
                 .leader(leader)
                 .chapter(leader.getChapter())
                 .status(TeamStatus.ACTIVE)
-                .isLocked(false)
+                .isLocked(registrationClosed)
+                .lockedAt(registrationClosed ? LocalDateTime.now() : null)
                 .build();
         Team savedTeam = teamRepository.save(team);
 
@@ -1082,7 +1092,8 @@ public class TeamServiceImpl implements TeamService {
         for (Team t : pendingTeams) {
             long acceptedCount = teamMemberRepository.countByTeam_IdAndStatus(t.getId(), TeamMemberStatus.ACCEPTED);
             HackathonTeamSizeResolver.TeamSizeLimits limits = limitsFor(t);
-            if (acceptedCount < limits.minTeamSize()) {
+            // Under-min OR over-max — both need Coordinator rescue (radar / merge / adjust).
+            if (acceptedCount < limits.minTeamSize() || acceptedCount > limits.maxTeamSize()) {
                 incompleteTeams.add(getTeam(t.getId()));
             }
         }
@@ -1146,6 +1157,10 @@ public class TeamServiceImpl implements TeamService {
                 .orElseThrow(() -> new ResourceNotFoundException("Target Team", targetTeamId));
         Team sourceTeam = teamRepository.findById(req.getSourceTeamId())
                 .orElseThrow(() -> new ResourceNotFoundException("Source Team", req.getSourceTeamId()));
+
+        Hackathon hackathon = hackathonRepository.findByIdForUpdate(targetTeam.getHackathon().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Hackathon", targetTeam.getHackathon().getId()));
+        assertPrelimRoundNotActive(hackathon.getId());
 
         if (targetTeam.getId().equals(sourceTeam.getId())) {
             throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Không thể tự gộp đội vào chính nó.");

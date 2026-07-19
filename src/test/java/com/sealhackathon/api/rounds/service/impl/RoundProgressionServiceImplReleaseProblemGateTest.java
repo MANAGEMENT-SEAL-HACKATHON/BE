@@ -30,6 +30,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyFloat;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -89,38 +90,20 @@ class RoundProgressionServiceImplReleaseProblemGateTest {
                 .build();
     }
 
-    /** TC-SYNC-01 — Phát đề không cần chờ examAt. */
+    /** TC-SYNC-01 — Phát đề bị chặn khi chưa tới examAt. */
     @Test
-    void releaseProblem_beforeExamAt_allowsWhenActiveAndPdfReady() {
-        Track track = Track.builder()
-                .id(1)
-                .name("T1")
-                .status(TrackStatus.OPEN)
-                .problemStatementStorageKey("key")
-                .build();
+    void releaseProblem_beforeExamAt_rejectsWhenActiveAndPdfReady() {
         when(roundAccessGuard.requireActiveRound(10)).thenReturn(round);
-        when(trackRepository.findByRoundIdOrderBySequenceOrderAsc(10)).thenReturn(List.of(track));
-        when(roundRepository.save(any(Round.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(trackRepository.save(any(Track.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(roundMapper.toSummary(any(Round.class), anyInt(), anyInt(), anyFloat())).thenReturn(null);
 
-        try (MockedStatic<com.sealhackathon.api.tracks.support.TrackProblemStatementStorage> trackStorage =
-                     mockStatic(com.sealhackathon.api.tracks.support.TrackProblemStatementStorage.class)) {
-            trackStorage.when(() ->
-                            com.sealhackathon.api.tracks.support.TrackProblemStatementStorage.hasProblemFile(track))
-                    .thenReturn(true);
-
-            assertThatCode(() -> service.releaseProblem(10, null)).doesNotThrowAnyException();
-        }
-
-        verify(roundRepository).save(any(Round.class));
-        verify(trackRepository).save(track);
-        org.assertj.core.api.Assertions.assertThat(track.getProblemReleasedAt()).isNotNull();
+        assertThatThrownBy(() -> service.releaseProblem(10, null))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasFieldOrPropertyWithValue("code", ErrorCode.INVALID_ROUND_STATE_BEFORE_EXAM);
     }
 
     /** REL cascade — mọi track active được stamp problemReleasedAt. */
     @Test
     void releaseProblem_prelim_stampsAllActiveTracks() {
+        round.setExamAt(LocalDateTime.now().minusMinutes(1));
         Track t1 = Track.builder().id(1).name("RAG").status(TrackStatus.OPEN)
                 .problemStatementStorageKey("k1").build();
         Track t2 = Track.builder().id(2).name("Train").status(TrackStatus.OPEN)

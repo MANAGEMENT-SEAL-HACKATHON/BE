@@ -402,6 +402,18 @@ public class Gd1DataSeeder {
                 chapters.hcm(),
                 false,
                 false);
+        // SUPERADMIN dev — seed SAU coordinator để giữ invariant coordinator id=1
+        // (StubCurrentUserAccessor giả định userId=1). Không thuộc SeedUsers record;
+        // chỉ dùng login UI + unlock-scoring (@SuperAdminOnly).
+        upsertUser(
+                Gd1SeedConstants.EMAIL_SUPERADMIN,
+                "Nguyễn Văn SuperAdmin",
+                UserRole.SUPERADMIN,
+                UserType.INTERNAL,
+                UserStatus.APPROVED,
+                chapters.hcm(),
+                false,
+                false);
         User judge1 = upsertUser(
                 Gd1SeedConstants.EMAIL_JUDGE1,
                 "Trần Thị Judge Internal",
@@ -594,6 +606,7 @@ public class Gd1DataSeeder {
     private void logDevLoginCredentials() {
         log.info("""
                 [Gd1DataSeeder] ========== Dev login (MF-02, profile dev) ==========
+                  {}  Password: {}  (SUPERADMIN — unlock-scoring)
                   {}  Password: {}
                   {} / {} / {} / {}  Password: {}
                   {} / {} / {}  Password: {}
@@ -601,6 +614,7 @@ public class Gd1DataSeeder {
                   {}  Password: {}  (status PENDING — login 401 cho đến khi duyệt)
                 ================================================================
                 """,
+                Gd1SeedConstants.EMAIL_SUPERADMIN, Gd1SeedConstants.DEV_SUPERADMIN_PASSWORD,
                 Gd1SeedConstants.EMAIL_COORDINATOR, Gd1SeedConstants.DEV_COORDINATOR_PASSWORD,
                 Gd1SeedConstants.EMAIL_JUDGE1, Gd1SeedConstants.EMAIL_JUDGE2,
                 Gd1SeedConstants.EMAIL_JUDGE3, Gd1SeedConstants.EMAIL_JUDGE4,
@@ -812,14 +826,13 @@ public class Gd1DataSeeder {
                     .build());
         }
 
-        // Prelim: INTERNAL only — HEAD + NORMAL; EXTERNAL chỉ trên CK
+        // Prelim: INTERNAL — 1 HEAD / track + NORMAL; EXTERNAL chỉ trên CK
         if (judgeAssignmentRepository.findByTrackId(track1.getId()).isEmpty()) {
             saveJudgeAssignment(users.judge1(), track1, coord, assignedAt, JudgeAssignmentType.HEAD);
             saveJudgeAssignment(users.judge2(), track1, coord, assignedAt, JudgeAssignmentType.NORMAL);
         }
         if (judgeAssignmentRepository.findByTrackId(track2.getId()).isEmpty()) {
-            saveJudgeAssignment(users.judge2(), track2, coord, assignedAt, JudgeAssignmentType.HEAD);
-            saveJudgeAssignment(users.judge3(), track2, coord, assignedAt, JudgeAssignmentType.NORMAL);
+            saveJudgeAssignment(users.judge3(), track2, coord, assignedAt, JudgeAssignmentType.HEAD);
         }
         if (track3 != null) {
             if (mentorAssignmentRepository.findByTrackId(track3.getId()).isEmpty()) {
@@ -831,8 +844,7 @@ public class Gd1DataSeeder {
                         .build());
             }
             if (judgeAssignmentRepository.findByTrackId(track3.getId()).isEmpty()) {
-                saveJudgeAssignment(users.judge3(), track3, coord, assignedAt, JudgeAssignmentType.HEAD);
-                saveJudgeAssignment(users.judge4(), track3, coord, assignedAt, JudgeAssignmentType.NORMAL);
+                saveJudgeAssignment(users.judge4(), track3, coord, assignedAt, JudgeAssignmentType.HEAD);
             }
         }
 
@@ -891,6 +903,7 @@ public class Gd1DataSeeder {
         prelim.setIsActive(false);
         prelim.setScoringLocked(true);
         prelim.setScoringLockedAt(lockedAt);
+        prelim.setIsPublished(true);
         finalRound.setIsActive(false);
         finalRound.setScoringLocked(true);
         finalRound.setScoringLockedAt(lockedAt);
@@ -1068,9 +1081,8 @@ public class Gd1DataSeeder {
             filled++;
         }
         if (judgeAssignmentRepository.findByTrackId(track3.getId()).isEmpty()) {
-            saveJudgeAssignment(users.judge3(), track3, coord, assignedAt, JudgeAssignmentType.HEAD);
             saveJudgeAssignment(users.judge4(), track3, coord, assignedAt, JudgeAssignmentType.NORMAL);
-            filled += 2;
+            filled += 1;
         }
         return filled;
     }

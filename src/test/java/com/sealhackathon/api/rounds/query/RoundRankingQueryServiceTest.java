@@ -78,6 +78,22 @@ class RoundRankingQueryServiceTest {
                         tuple("GD3-05", false));
     }
 
+    @Test
+    void assignRanks_clearsTieFlagWhenMicroPenaltyDiffersEffectiveScore() {
+        // Cùng điểm gốc 8.50 nhưng T02 đã bị micro-penalty → không còn đồng điểm hiệu lực
+        List<RankRow> sorted = List.of(
+                rowWithPenalty(1, "T01", 8.50, 0.0),
+                rowWithPenalty(2, "T02", 8.50, 0.01));
+
+        List<RoundRankingItemResponse> ranked =
+                RoundRankingQueryService.assignRanks(sorted, false, false);
+
+        assertThat(ranked).extracting(RoundRankingItemResponse::getTeamName, RoundRankingItemResponse::getTiebreakRequired)
+                .containsExactly(
+                        tuple("T01", false),
+                        tuple("T02", false));
+    }
+
     private static RankRow row(int teamId, String name, double score, ParticipationStatus status) {
         return row(teamId, name, score, status, "BANG-1");
     }
@@ -85,5 +101,11 @@ class RoundRankingQueryServiceTest {
     private static RankRow row(
             int teamId, String name, double score, ParticipationStatus status, String group) {
         return new RankRow(null, teamId, name, 1, group, score, status.name(), null, null, 0.0);
+    }
+
+    private static RankRow rowWithPenalty(int teamId, String name, double score, double penalty) {
+        return new RankRow(
+                null, teamId, name, 1, "BANG-1", score,
+                ParticipationStatus.PARTICIPATING.name(), null, null, penalty);
     }
 }

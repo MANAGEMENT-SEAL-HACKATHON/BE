@@ -24,6 +24,8 @@ public class UserSummaryResponse {
     private final Boolean isDeptHead;
     private final Boolean mustChangePassword;
     private final String institution;
+    /** Cloudinary / CDN avatar URL for personnel pickers. */
+    private final String avatarUrl;
     /** Latest judge invitation (temp judges list) — expiresAt / tokenSent for Coord UI. */
     private final TempJudgeResponse.InvitationInfo invitation;
 }

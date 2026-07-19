@@ -15,11 +15,13 @@ import com.sealhackathon.api.mentors.dto.request.CreateMentorAssignmentRequest;
 import com.sealhackathon.api.mentors.dto.response.MentorAssignmentResponse;
 import com.sealhackathon.api.mentors.mapper.MentorAssignmentMapper;
 import com.sealhackathon.api.mentors.repository.MentorAssignmentRepository;
+import com.sealhackathon.api.mentors.repository.MentorTeamAssignmentRepository;
 import com.sealhackathon.api.mentors.service.impl.MentorAssignmentServiceImpl;
 import com.sealhackathon.api.notifications.service.NotificationService;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.value_object.RoundType;
+import com.sealhackathon.api.teams.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.tracks.value_object.TrackStatus;
@@ -50,6 +52,8 @@ class PersonnelAssignmentCrossTrackTest {
 
     @Mock private JudgeAssignmentRepository judgeAssignmentRepository;
     @Mock private MentorAssignmentRepository mentorAssignmentRepository;
+    @Mock private MentorTeamAssignmentRepository mentorTeamAssignmentRepository;
+    @Mock private TeamRoundTrackRepository teamRoundTrackRepository;
     @Mock private UserRepository userRepository;
     @Mock private RoundRepository roundRepository;
     @Mock private TrackRepository trackRepository;

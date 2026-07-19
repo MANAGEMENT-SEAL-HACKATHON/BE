@@ -40,6 +40,23 @@ public class StudentAccessGuard {
     }
 
     /**
+     * GATE 1b: Student đã đăng ký HOẶC từng/đang là member ACCEPTED của đội trong hackathon
+     * (kể cả team ELIMINATED) — dùng cho leaderboard/rankings.
+     */
+    public void assertParticipatedInHackathon(Integer hackathonId) {
+        Integer userId = currentUserAccessor.currentUserId();
+        if (hackathonRegistrationRepository.existsByHackathon_IdAndUser_Id(hackathonId, userId)) {
+            return;
+        }
+        if (teamMemberRepository.existsAcceptedMembershipInHackathon(userId, hackathonId)) {
+            return;
+        }
+        throw new AuthException(ErrorCode.FORBIDDEN,
+                "Truy cập bị từ chối: Bạn không thuộc kỳ Hackathon này.",
+                HttpStatus.FORBIDDEN);
+    }
+
+    /**
      * GATE 2: Kiểm tra quyền THÀNH VIÊN ĐỘI (Read-Only).
      * Dùng cho các API xem thông tin đội, xem bài nộp, lấy đề bài (FR-U-14, 17, 20).
      */

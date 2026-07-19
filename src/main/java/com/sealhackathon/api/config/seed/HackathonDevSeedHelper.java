@@ -1,8 +1,5 @@
 package com.sealhackathon.api.config.seed;
 
-import com.sealhackathon.api.calibration_sessions.entity.CalibrationSession;
-import com.sealhackathon.api.calibration_sessions.repository.CalibrationSessionRepository;
-import com.sealhackathon.api.calibration_sessions.value_object.CalibrationStatus;
 import com.sealhackathon.api.chapters.entity.Chapter;
 import com.sealhackathon.api.chapters.repository.ChapterRepository;
 import com.sealhackathon.api.criteria.entity.Criteria;
@@ -120,7 +117,6 @@ public class HackathonDevSeedHelper {
     private final HackathonRegistrationRepository hackathonRegistrationRepository;
     private final PrizeRepository prizeRepository;
     private final PresentationSlotRepository presentationSlotRepository;
-    private final CalibrationSessionRepository calibrationSessionRepository;
     private final WildcardReviewRepository wildcardReviewRepository;
     private final TiebreakEvaluationRepository tiebreakEvaluationRepository;
     private final IndividualRankingRepository individualRankingRepository;
@@ -1756,6 +1752,15 @@ public class HackathonDevSeedHelper {
         scoreRepository
                 .findBySubmission_IdAndJudge_IdAndCriterion_IdAndScoreType(
                         submission.getId(), judge.getId(), criterion.getId(), ScoreType.NORMAL)
+                .map(existing -> {
+                    if (existing.getScoreValue() == null
+                            || Float.compare(existing.getScoreValue(), scoreValue) != 0) {
+                        existing.setScoreValue(scoreValue);
+                        existing.setUpdatedAt(LocalDateTime.now());
+                        return scoreRepository.save(existing);
+                    }
+                    return existing;
+                })
                 .orElseGet(() -> scoreRepository.save(Score.builder()
                         .submission(submission)
                         .judge(judge)
@@ -1793,8 +1798,10 @@ public class HackathonDevSeedHelper {
             if (c.getType() == CriteriaType.PENALTY) {
                 continue;
             }
-            for (User judge : judges) {
-                ensureNormalScore(submission, c, judge, scoreValue, true);
+            for (int ji = 0; ji < judges.size(); ji++) {
+                // Lệch nhẹ giữa GK → inter-rater StdDev > 0 trên Analytics (RBL).
+                float adjusted = Math.max(0f, Math.min(10f, scoreValue + (ji * 0.4f) - 0.4f));
+                ensureNormalScore(submission, c, judges.get(ji), adjusted, true);
             }
         }
     }
@@ -1806,11 +1813,6 @@ public class HackathonDevSeedHelper {
                 DELETE s FROM scores s
                 INNER JOIN submissions sub ON sub.id = s.submission_id
                 INNER JOIN rounds r ON r.id = sub.round_id
-                WHERE r.hackathon_id = ? AND r.is_final = 1
-                """, hackathonId);
-        jdbcTemplate.update("""
-                DELETE cs FROM calibration_sessions cs
-                INNER JOIN rounds r ON r.id = cs.round_id
                 WHERE r.hackathon_id = ? AND r.is_final = 1
                 """, hackathonId);
         jdbcTemplate.update("""
@@ -2024,6 +2026,18 @@ public class HackathonDevSeedHelper {
         }
     }
 
+    /** Khóa mọi đội ACTIVE chưa khóa — GĐ4+ seed phải giữ nền GĐ2 (xem lại lịch sử). */
+    public int ensureAllActiveTeamsLocked(Integer hackathonId, LocalDateTime now) {
+        int locked = 0;
+        for (Team team : teamRepository.findByHackathon_Id(hackathonId)) {
+            if (team.getStatus() == TeamStatus.ACTIVE && !Boolean.TRUE.equals(team.getIsLocked())) {
+                ensureTeamLocked(team, now);
+                locked++;
+            }
+        }
+        return locked;
+    }
+
     public Team ensureTeam(
             Hackathon hackathon,
             String teamName,
@@ -2096,6 +2110,152 @@ public class HackathonDevSeedHelper {
                     "Archive Fall 2025 Student",
                     requireChapter(Gd1SeedConstants.CHAPTER_FPT_HCM));
             ensureFinishedArchiveIndividualRankings(h, student, 1);
+        });
+    }
+
+    /**
+     * Deepen shallow FINISHED archive ({@link Gd1SeedConstants#SLUG_FINISHED}):
+     * locked teams + lottery + published prelim + advanced + prelim/final submissions & scores
+     * with Internal + Guest judges on CK (RQ3). Idempotent.
+     */
+    @Transactional
+    public void deepenFinishedArchiveIfShallow() {
+        hackathonRepository.findBySlug(Gd1SeedConstants.SLUG_FINISHED).ifPresent(hackathon -> {
+            List<Round> rounds = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathon.getId());
+            Round prelim = rounds.stream()
+                    .filter(r -> !Boolean.TRUE.equals(r.getIsFinal()))
+                    .findFirst()
+                    .orElse(null);
+            Round finalRound = rounds.stream()
+                    .filter(r -> Boolean.TRUE.equals(r.getIsFinal()))
+                    .findFirst()
+                    .orElse(null);
+            if (prelim == null || finalRound == null) {
+                return;
+            }
+
+            LocalDateTime lockedAt = LocalDateTime.now();
+            prelim.setIsActive(false);
+            prelim.setScoringLocked(true);
+            prelim.setScoringLockedAt(lockedAt);
+            prelim.setIsPublished(true);
+            finalRound.setIsActive(false);
+            finalRound.setScoringLocked(true);
+            finalRound.setScoringLockedAt(lockedAt);
+            roundRepository.save(prelim);
+            roundRepository.save(finalRound);
+
+            ensureFinalGuestJudgeAssignment(hackathon, finalRound);
+
+            List<Track> tracks = trackRepository.findByHackathonIdOrderById(hackathon.getId());
+            if (tracks.size() < 2) {
+                log.warn("[HackathonDevSeedHelper] deepenFinishedArchive — need ≥2 tracks on {}",
+                        Gd1SeedConstants.SLUG_FINISHED);
+                return;
+            }
+            Track track1 = tracks.get(0);
+            Track track2 = tracks.get(1);
+
+            long finalSubs = submissionRepository.countByRoundId(finalRound.getId());
+            List<Team> activeTeams = teamRepository.findByHackathon_Id(hackathon.getId()).stream()
+                    .filter(t -> t.getStatus() == TeamStatus.ACTIVE)
+                    .toList();
+            List<Criteria> finalCriteria = listFinalCriteria(finalRound);
+            float[] finalScores = {9.1f, 8.6f, 8.2f};
+            if (activeTeams.size() >= 3 && finalSubs >= 3) {
+                // Đã sâu — vẫn refresh điểm CK lệch giữa GK (inter-rater RBL).
+                List<Submission> existingFinals = submissionRepository.findByRound_Id(finalRound.getId());
+                for (int i = 0; i < existingFinals.size(); i++) {
+                    float base = finalScores[Math.min(i, finalScores.length - 1)];
+                    if (!finalCriteria.isEmpty()) {
+                        ensureFinalScoresFromAllAssignedJudges(
+                                finalRound, existingFinals.get(i), finalCriteria, base);
+                    }
+                }
+                log.debug("[HackathonDevSeedHelper] deepenFinishedArchive — already deep, refreshed RBL scores (teams={}, finalSubs={})",
+                        activeTeams.size(), finalSubs);
+                return;
+            }
+
+            User coordinator = requireCoordinator();
+            Chapter hcm = requireChapter(Gd1SeedConstants.CHAPTER_FPT_HCM);
+            Chapter hn = requireChapter(Gd1SeedConstants.CHAPTER_FPT_HN);
+            LocalDateTime now = LocalDateTime.now();
+            float[] prelimScores = {9.0f, 8.5f, 8.0f};
+            String[] teamNames = {
+                    "Archive Alpha",
+                    "Archive Beta",
+                    "Archive Gamma"
+            };
+            Chapter[] chapters = {hcm, hcm, hn};
+            User judge1 = requireJudge1();
+            User judge2 = requireJudge2();
+            List<Team> teams = new ArrayList<>();
+            List<Submission> prelimTrack1 = new ArrayList<>();
+            List<Submission> prelimTrack2 = new ArrayList<>();
+            List<Submission> finalSubList = new ArrayList<>();
+            LocalDateTime prelimSubmittedAt = now.minusDays(40);
+
+            for (int i = 0; i < teamNames.length; i++) {
+                int idx = i + 1;
+                User leader = upsertStudent(
+                        "student.archive.t%d@fpt.edu.vn".formatted(idx),
+                        "Archive Student %d".formatted(idx),
+                        chapters[i]);
+                registerStudent(hackathon, leader);
+                Team team = ensureActiveTeam(hackathon, teamNames[i], leader, chapters[i], now);
+                ensureTeamLocked(team, now);
+                Track track = (idx % 2 == 1) ? track1 : track2;
+                ensureLottery(hackathon, prelim, track, "BANG-" + ((idx % 2) + 1), team, coordinator, now);
+                markAdvanced(team, prelim, finalRound, hackathon);
+                teams.add(team);
+
+                User judge = (i % 2 == 0) ? judge1 : judge2;
+                Submission prelimSub = ensurePrelimSubmission(
+                        hackathon, prelim, track, team,
+                        SubmissionStatus.SUBMITTED,
+                        false,
+                        prelimSubmittedAt.minusMinutes(i));
+                scoreAllTrackCriteria(prelimSub, track, judge, prelimScores[i], true);
+                if (i % 2 == 0) {
+                    prelimTrack1.add(prelimSub);
+                } else {
+                    prelimTrack2.add(prelimSub);
+                }
+
+                Submission finalSub = ensureFinalSubmission(
+                        hackathon, finalRound, team,
+                        "https://github.com/seal-warriors/archive-team%02d".formatted(idx));
+                if (!finalCriteria.isEmpty()) {
+                    ensureFinalScoresFromAllAssignedJudges(
+                            finalRound, finalSub, finalCriteria, finalScores[i]);
+                }
+                finalSubList.add(finalSub);
+            }
+
+            seedPresentationQueue(prelim, track1, prelimTrack1, -1);
+            seedPresentationQueue(prelim, track2, prelimTrack2, -1);
+            seedFinalPresentationQueue(finalRound, finalSubList, -1);
+            seedPrelimTrackProblems(prelim);
+            seedFinalRoundProblem(finalRound);
+
+            if (!teams.isEmpty()) {
+                ensureFirstPrize(hackathon, finalRound, teams.get(0), coordinator);
+                if (teams.size() > 1) {
+                    ensureSecondPrize(hackathon, finalRound, teams.get(1), coordinator);
+                }
+                if (teams.size() > 2) {
+                    ensureThirdPrize(hackathon, finalRound, teams.get(2), coordinator);
+                }
+            }
+
+            log.info("""
+                    [HackathonDevSeedHelper] deepenFinishedArchive slug={} teams={} finalSubs={}
+                      Internal+Guest scored CK — RBL analytics ready
+                    """,
+                    Gd1SeedConstants.SLUG_FINISHED,
+                    teams.size(),
+                    finalSubList.size());
         });
     }
 
@@ -2375,57 +2535,6 @@ public class HackathonDevSeedHelper {
         applyFinalState(finalRound, state, requireCoordinator());
     }
 
-    public CalibrationSession ensureOpenCalibrationSession(
-            Round round,
-            Submission sampleSubmission,
-            User coordinator,
-            float targetScore,
-            String instructions) {
-        return ensureOpenCalibrationSession(round, sampleSubmission, coordinator, targetScore, instructions, null);
-    }
-
-    public CalibrationSession ensureOpenCalibrationSession(
-            Round round,
-            Submission sampleSubmission,
-            User coordinator,
-            float targetScore,
-            String instructions,
-            Track track) {
-        Stream<CalibrationSession> openStream = calibrationSessionRepository
-                .findByRound_IdOrderByStartedAtDesc(round.getId())
-                .stream()
-                .filter(s -> s.getStatus() == CalibrationStatus.OPEN);
-        Optional<CalibrationSession> existing;
-        if (track != null) {
-            Integer trackId = track.getId();
-            existing = openStream
-                    .filter(s -> s.getTrack() != null && trackId.equals(s.getTrack().getId()))
-                    .findFirst();
-        } else {
-            existing = openStream
-                    .filter(s -> s.getTrack() == null)
-                    .findFirst();
-        }
-        return existing
-                .map(ex -> {
-                    ex.setSampleSubmission(sampleSubmission);
-                    ex.setTargetScore(targetScore);
-                    ex.setInstructions(instructions);
-                    ex.setTrack(track);
-                    return calibrationSessionRepository.save(ex);
-                })
-                .orElseGet(() -> calibrationSessionRepository.save(CalibrationSession.builder()
-                        .round(round)
-                        .track(track)
-                        .sampleSubmission(sampleSubmission)
-                        .status(CalibrationStatus.OPEN)
-                        .targetScore(targetScore)
-                        .instructions(instructions)
-                        .startedAt(LocalDateTime.now())
-                        .createdBy(coordinator)
-                        .build()));
-    }
-
     public void scoreAllTrackCriteria(
             Submission submission,
             Track track,
@@ -2656,11 +2765,6 @@ public class HackathonDevSeedHelper {
                 DELETE s FROM scores s
                 INNER JOIN submissions sub ON sub.id = s.submission_id
                 INNER JOIN rounds r ON r.id = sub.round_id
-                WHERE r.hackathon_id = ? AND r.is_final = 0
-                """, hackathonId);
-        jdbcTemplate.update("""
-                DELETE cs FROM calibration_sessions cs
-                INNER JOIN rounds r ON r.id = cs.round_id
                 WHERE r.hackathon_id = ? AND r.is_final = 0
                 """, hackathonId);
         jdbcTemplate.update("""

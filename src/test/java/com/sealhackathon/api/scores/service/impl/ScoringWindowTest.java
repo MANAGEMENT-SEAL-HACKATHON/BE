@@ -1,6 +1,5 @@
 package com.sealhackathon.api.scores.service.impl;
 
-import com.sealhackathon.api.calibration_sessions.repository.CalibrationSessionRepository;
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ErrorCode;
@@ -62,7 +61,6 @@ class ScoringWindowTest {
     @Mock private PresentationSlotRepository presentationSlotRepository;
     @Mock private AuditService auditService;
     @Mock private ApplicationEventPublisher eventPublisher;
-    @Mock private CalibrationSessionRepository calibrationSessionRepository;
     @Mock private JudgeSubmissionScoringConfirmationRepository scoringConfirmationRepository;
     @Spy private RoundPhaseResolver roundPhaseResolver = new RoundPhaseResolver();
 

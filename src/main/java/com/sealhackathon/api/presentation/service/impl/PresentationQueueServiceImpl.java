@@ -378,6 +378,11 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
                 .findFirst()
                 .orElse(null);
 
+        if (presenting != null) {
+            // Race guard: reload with lock so concurrent Next/Early-QA không ghi đè lẫn nhau
+            presenting = presentationSlotRepository.findByIdForUpdate(presenting.getId()).orElse(presenting);
+        }
+
         if (presenting == null) {
             if (currentSubmissionId != null) {
                 presenting = slots.stream()

@@ -5,6 +5,7 @@ import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.criteria.value_object.CriteriaType;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.rounds.dto.response.RoundScoringProgressResponse;
+import com.sealhackathon.api.rounds.dto.response.ScoringProgressItemResponse;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.scores.repository.ScoreRepository;
 import com.sealhackathon.api.scores.value_object.ScoreType;
@@ -36,21 +37,40 @@ public class ScoringProgressQueryService {
         List<Submission> submissions = mergeRoundSubmissions(roundId);
         int gradable = 0;
         int scored = 0;
+        List<ScoringProgressItemResponse> items = new ArrayList<>();
         for (Submission s : submissions) {
             if (!SubmissionGradablePolicy.isGradable(s)) {
                 continue;
             }
             gradable++;
-            if (isFullyScored(s, round)) {
+            boolean fullyScored = isFullyScored(s, round);
+            if (fullyScored) {
                 scored++;
             }
+            var team = s.getTeam();
+            var track = s.getTrack();
+            items.add(ScoringProgressItemResponse.builder()
+                    .submissionId(s.getId())
+                    .teamId(team != null ? team.getId() : null)
+                    .teamName(team != null ? team.getTeamName() : null)
+                    .trackId(track != null ? track.getId() : null)
+                    .trackName(track != null ? track.getName() : (Boolean.TRUE.equals(round.getIsFinal()) ? "Chung kết" : null))
+                    .scored(fullyScored)
+                    .build());
         }
+        items.sort((a, b) -> {
+            int trackCmp = String.valueOf(a.getTrackName()).compareToIgnoreCase(String.valueOf(b.getTrackName()));
+            if (trackCmp != 0) return trackCmp;
+            if (a.isScored() != b.isScored()) return a.isScored() ? 1 : -1;
+            return String.valueOf(a.getTeamName()).compareToIgnoreCase(String.valueOf(b.getTeamName()));
+        });
         return RoundScoringProgressResponse.builder()
                 .roundId(roundId)
                 .totalSubmissions(gradable)
                 .scoredSubmissions(scored)
                 .pendingSubmissions(Math.max(0, gradable - scored))
                 .scoringLocked(round.getScoringLocked())
+                .items(items)
                 .build();
     }
 

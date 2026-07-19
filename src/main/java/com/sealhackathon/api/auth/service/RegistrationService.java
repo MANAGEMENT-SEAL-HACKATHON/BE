@@ -3,6 +3,8 @@ package com.sealhackathon.api.auth.service;
 import com.sealhackathon.api.auth.config.JwtProperties;
 import com.sealhackathon.api.auth.dto.request.RegisterRequest;
 import com.sealhackathon.api.auth.dto.response.RegisterResponse;
+import com.sealhackathon.api.chapters.entity.Chapter;
+import com.sealhackathon.api.chapters.repository.ChapterRepository;
 import com.sealhackathon.api.common.audit.AuditAction;
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
@@ -37,6 +39,7 @@ public class RegistrationService {
     private final JwtTokenService jwtTokenService;
     private final JwtProperties jwtProperties;
     private final AppProperties appProperties;
+    private final ChapterRepository chapterRepository;
 
     @Transactional
     public RegisterResponse register(RegisterRequest req) {
@@ -50,6 +53,28 @@ public class RegistrationService {
                     ErrorCode.VALIDATION_FAILED,
                     "Mật khẩu nhập lại không khớp");
         }
+        UserType userType = req.getUserType();
+        if (userType == null || userType == UserType.UNSPECIFIED) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                    "userType phải là INTERNAL hoặc EXTERNAL");
+        }
+        String studentCode = requireStudentCode(req.getStudentCode());
+        Chapter chapter = null;
+        String institution = null;
+        if (userType == UserType.INTERNAL) {
+            if (req.getChapterId() == null) {
+                throw new BusinessRuleException(ErrorCode.INVALID_CHAPTER, "Vui lòng chọn cơ sở");
+            }
+            chapter = chapterRepository.findById(req.getChapterId())
+                    .orElseThrow(() -> new BusinessRuleException(
+                            ErrorCode.INVALID_CHAPTER, "Cơ sở không hợp lệ"));
+        } else {
+            if (req.getInstitution() == null || req.getInstitution().isBlank()) {
+                throw new BusinessRuleException(
+                        ErrorCode.INSTITUTION_REQUIRED, "Vui lòng nhập trường / tổ chức");
+            }
+            institution = req.getInstitution().trim();
+        }
 
         LocalDateTime now = LocalDateTime.now();
         User user = User.builder()
@@ -57,10 +82,10 @@ public class RegistrationService {
                 .email(email)
                 .passwordHash(passwordEncoder.encode(req.getPassword()))
                 .role(UserRole.STUDENT)
-                .userType(UserType.UNSPECIFIED)
-                .studentCode(null)
-                .chapter(null)
-                .institution(null)
+                .userType(userType)
+                .studentCode(studentCode)
+                .chapter(chapter)
+                .institution(institution)
                 .studentCardImagePath(null)
                 .status(UserStatus.PENDING)
                 .isTempAccount(false)
@@ -73,7 +98,7 @@ public class RegistrationService {
 
         auditService.log(AuditAction.ACCOUNT_REGISTER, "users", saved.getId(), Map.of(
                 "email", email,
-                "userType", UserType.UNSPECIFIED.name(),
+                "userType", userType.name(),
                 "status", UserStatus.PENDING.name()));
 
         emailVerificationService.sendVerificationEmail(saved);
@@ -103,5 +128,13 @@ public class RegistrationService {
         }
         int at = email.indexOf('@');
         return at > 0 ? email.substring(0, at) : email;
+    }
+
+    private static String requireStudentCode(String studentCode) {
+        if (studentCode == null || studentCode.isBlank()) {
+            throw new BusinessRuleException(
+                    ErrorCode.STUDENT_CODE_REQUIRED, "Vui lòng nhập mã sinh viên");
+        }
+        return studentCode.trim();
     }
 }

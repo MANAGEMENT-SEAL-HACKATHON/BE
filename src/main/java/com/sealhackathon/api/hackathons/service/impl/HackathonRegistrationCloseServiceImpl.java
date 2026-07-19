@@ -61,7 +61,7 @@ public class HackathonRegistrationCloseServiceImpl implements HackathonRegistrat
     @Override
     @Transactional
     public CloseRegistrationEarlyResponse closeRegistrationEarly(Integer hackathonId) {
-        Hackathon hackathon = hackathonRepository.findById(hackathonId)
+        Hackathon hackathon = hackathonRepository.findByIdForUpdate(hackathonId)
                 .orElseThrow(() -> new ResourceNotFoundException("Hackathon", hackathonId));
 
         if (hackathon.getStatus() != HackathonStatus.ONGOING) {
@@ -227,12 +227,13 @@ public class HackathonRegistrationCloseServiceImpl implements HackathonRegistrat
         notificationService.sendBatch(
                 recipients,
                 "TEAM_FORMATION_GRACE",
-                "24h để xác nhận thành lập đội",
+                "Khẩn: 24h để xác nhận thành lập đội",
                 "Hackathon đã kết thúc đăng ký sớm. Đội " + team.getTeamName()
                         + " có 24 giờ (đến " + graceDeadline.toLocalDate() + " "
                         + String.format("%02d:%02d", graceDeadline.getHour(), graceDeadline.getMinute())
                         + ") để trưởng nhóm xác nhận thành lập. "
-                        + "Nếu không xác nhận, toàn đội sẽ bị loại khỏi sự kiện.",
+                        + "Nếu không xác nhận, CẢ ĐỘI sẽ tự động bị loại và mất suất thi. "
+                        + "Thành viên hãy nhắc trưởng nhóm xác nhận ngay trên trang Quản lý đội.",
                 "teams",
                 team.getId());
     }

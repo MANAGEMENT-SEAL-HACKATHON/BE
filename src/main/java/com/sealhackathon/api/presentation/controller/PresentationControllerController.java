@@ -52,7 +52,7 @@ public class PresentationControllerController {
 
     @PutMapping("/tracks/{trackId}/controller")
     @CoordinatorOnly
-    @Operation(summary = "Gán / transfer / takeover presentation controller cho track")
+    @Operation(summary = "Gán / transfer presentation controller cho track (chỉ TRANSFER, không yêu cầu judge online)")
     public ResponseEntity<ApiResponse<PresentationControllerResponse>> grantTrackController(
             @PathVariable Integer trackId,
             @Valid @RequestBody PresentationControllerGrantRequest request) {
@@ -78,7 +78,7 @@ public class PresentationControllerController {
 
     @PutMapping("/rounds/{roundId}/controller")
     @CoordinatorOnly
-    @Operation(summary = "Gán / transfer / takeover presentation controller cho vòng chung kết")
+    @Operation(summary = "Gán / transfer presentation controller cho vòng chung kết (chỉ TRANSFER, không yêu cầu judge online)")
     public ResponseEntity<ApiResponse<PresentationControllerResponse>> grantRoundController(
             @PathVariable Integer roundId,
             @Valid @RequestBody PresentationControllerGrantRequest request) {

@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -239,7 +240,6 @@ public class GlobalExceptionHandler {
             case ErrorCode.FINAL_JUDGE_CANNOT_BE_MENTOR -> "Judge Chung kết không được làm Mentor Sơ loại";
             case ErrorCode.RESULT_NOT_PUBLISHED -> "Chưa công bố kết quả Sơ loại";
             case ErrorCode.CRITERION_WRONG_ROUND -> "Tiêu chí không thuộc round của bài nộp";
-            case ErrorCode.CALIBRATION_SESSION_CLOSED -> "Phiên hiệu chuẩn đã đóng";
             default -> "Vi phạm ràng buộc nghiệp vụ tại cơ sở dữ liệu";
         };
     }
@@ -276,6 +276,20 @@ public class GlobalExceptionHandler {
                         ErrorCode.INVALID_SLIDE_FILE,
                         "slideFile vượt quá dung lượng cho phép (tối đa 25MB)",
                         HttpStatus.PAYLOAD_TOO_LARGE.value())
+        );
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResource(
+            NoResourceFoundException ex, HttpServletRequest req) {
+        String traceId = traceId();
+        log.warn("[{}] {} {} -> 404 RESOURCE_NOT_FOUND: {}",
+                traceId, req.getMethod(), req.getRequestURI(), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                ErrorResponse.of(
+                        ErrorCode.RESOURCE_NOT_FOUND,
+                        "Endpoint hoặc tài nguyên không tồn tại",
+                        HttpStatus.NOT_FOUND.value())
         );
     }
 

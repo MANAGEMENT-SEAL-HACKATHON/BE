@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayInputStream;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -79,6 +80,17 @@ public class ExportJobServiceImpl implements ExportJobService {
                 Map.of("hackathonId", hackathonId, "type", req.getType().name(), "storageKey", storageKey));
 
         return toResponse(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ExportJobResponse> listByHackathon(Integer hackathonId) {
+        if (!hackathonRepository.existsById(hackathonId)) {
+            throw new ResourceNotFoundException("Hackathon", hackathonId);
+        }
+        return exportJobRepository.findByHackathonIdOrderByCreatedAtDesc(hackathonId).stream()
+                .map(ExportJobServiceImpl::toResponse)
+                .toList();
     }
 
     @Override

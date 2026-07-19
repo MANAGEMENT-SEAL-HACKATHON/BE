@@ -23,7 +23,6 @@ import com.sealhackathon.api.users.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -34,7 +33,6 @@ import java.util.Map;
 @Transactional
 public class PresentationControllerServiceImpl implements PresentationControllerService {
 
-    private static final long ONLINE_TRANSFER_SECONDS = 60;
     private static final long ONLINE_STATUS_SECONDS = 90;
 
     private final TrackRepository trackRepository;
@@ -71,18 +69,15 @@ public class PresentationControllerServiceImpl implements PresentationController
         ensureJudgeOnTrack(judge.getId(), trackId);
         Integer previousId = track.getControllerJudge() != null ? track.getControllerJudge().getId() : null;
         assertExpectedController(previousId, request.getExpectedControllerJudgeId());
-        assertTransferOnlineIfNeeded(request, judge.getId());
 
         track.setControllerJudge(judge);
         trackRepository.save(track);
 
-        boolean takeover = isTakeover(request);
-        String audit = takeover ? AuditAction.PRESENTATION_CONTROLLER_TAKEOVER : AuditAction.PRESENTATION_CONTROLLER_GRANTED;
         Map<String, Object> detail = new HashMap<>();
         detail.put("judgeId", judge.getId());
         detail.put("previousJudgeId", previousId);
-        detail.put("mode", StringUtils.hasText(request.getMode()) ? request.getMode() : "TRANSFER");
-        auditService.log(audit, "tracks", trackId, detail);
+        detail.put("mode", "TRANSFER");
+        auditService.log(AuditAction.PRESENTATION_CONTROLLER_GRANTED, "tracks", trackId, detail);
 
         queuePublisher.publishControllerChanged(round.getId(), trackId, judge.getId(), previousId);
         return toResponse(judge.getId(), "OVERRIDE");
@@ -125,18 +120,15 @@ public class PresentationControllerServiceImpl implements PresentationController
         ensureJudgeOnRound(judge.getId(), roundId);
         Integer previousId = round.getControllerJudge() != null ? round.getControllerJudge().getId() : null;
         assertExpectedController(previousId, request.getExpectedControllerJudgeId());
-        assertTransferOnlineIfNeeded(request, judge.getId());
 
         round.setControllerJudge(judge);
         roundRepository.save(round);
 
-        boolean takeover = isTakeover(request);
-        String audit = takeover ? AuditAction.PRESENTATION_CONTROLLER_TAKEOVER : AuditAction.PRESENTATION_CONTROLLER_GRANTED;
         Map<String, Object> detail = new HashMap<>();
         detail.put("judgeId", judge.getId());
         detail.put("previousJudgeId", previousId);
-        detail.put("mode", StringUtils.hasText(request.getMode()) ? request.getMode() : "TRANSFER");
-        auditService.log(audit, "rounds", roundId, detail);
+        detail.put("mode", "TRANSFER");
+        auditService.log(AuditAction.PRESENTATION_CONTROLLER_GRANTED, "rounds", roundId, detail);
 
         queuePublisher.publishControllerChanged(roundId, null, judge.getId(), previousId);
         return toResponse(judge.getId(), "OVERRIDE");
@@ -182,21 +174,6 @@ public class PresentationControllerServiceImpl implements PresentationController
         }
     }
 
-    private void assertTransferOnlineIfNeeded(PresentationControllerGrantRequest request, Integer judgeId) {
-        if (isTakeover(request)) {
-            return;
-        }
-        if (!presenceRegistry.isOnline(judgeId, ONLINE_TRANSFER_SECONDS)) {
-            throw new BusinessRuleException(ErrorCode.JUDGE_OFFLINE,
-                    "Judge chưa online (không có heartbeat trong 60s) — không thể transfer",
-                    Map.of("judgeId", judgeId));
-        }
-    }
-
-    private boolean isTakeover(PresentationControllerGrantRequest request) {
-        return request != null && "TAKEOVER".equalsIgnoreCase(request.getMode());
-    }
-
     private Track loadTrack(Integer trackId) {
         return trackRepository.findById(trackId)
                 .orElseThrow(() -> new ResourceNotFoundException("Track", trackId));
@@ -215,14 +192,16 @@ public class PresentationControllerServiceImpl implements PresentationController
     private void ensureJudgeOnTrack(Integer judgeId, Integer trackId) {
         if (!judgeAssignmentRepository.existsByJudgeIdAndTrackId(judgeId, trackId)) {
             throw new BusinessRuleException(ErrorCode.JUDGE_NOT_ASSIGNED_TO_TRACK,
-                    "Judge chưa được phân công cho track");
+                    "Giám khảo chưa được phân công vào bảng đấu này — không thể trao quyền điều khiển",
+                    Map.of("judgeId", judgeId, "trackId", trackId));
         }
     }
 
     private void ensureJudgeOnRound(Integer judgeId, Integer roundId) {
         if (!judgeAssignmentRepository.existsByJudgeIdAndRoundId(judgeId, roundId)) {
             throw new BusinessRuleException(ErrorCode.JUDGE_NOT_ASSIGNED,
-                    "Judge chưa được phân công cho round chung kết");
+                    "Giám khảo chưa được phân công vào vòng Chung kết này — không thể trao quyền điều khiển",
+                    Map.of("judgeId", judgeId, "roundId", roundId));
         }
     }
 

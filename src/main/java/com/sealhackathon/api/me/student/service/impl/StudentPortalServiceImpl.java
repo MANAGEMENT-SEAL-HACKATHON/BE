@@ -25,10 +25,15 @@ import com.sealhackathon.api.me.student.dto.request.RelotteryTrackRequest;
 import com.sealhackathon.api.me.student.dto.response.*;
 import com.sealhackathon.api.me.student.service.StudentPortalService;
 import com.sealhackathon.api.me.support.StudentAccessGuard;
+import com.sealhackathon.api.presentation.support.PresentationDurationResolver;
+import com.sealhackathon.api.presentation.support.PresentationTimerCalculator;
 import com.sealhackathon.api.presentation.value_object.PresentationQueueStatus;
+import com.sealhackathon.api.presentation.value_object.PresentationTimerPhase;
+import com.sealhackathon.api.rounds.dto.response.ScoreBreakdownResponse;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.query.RoundRankingQueryService;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
+import com.sealhackathon.api.rounds.service.RoundProgressionService;
 import com.sealhackathon.api.rounds.support.RoundProblemStatementStorage;
 import com.sealhackathon.api.storage.StoredObjectResource;
 import com.sealhackathon.api.submissions.entity.Submission;
@@ -66,8 +71,10 @@ import java.net.MalformedURLException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.Year;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -94,7 +101,9 @@ public class StudentPortalServiceImpl implements StudentPortalService {
     private final RoundRepository roundRepository;
     private final SubmissionRepository submissionRepository;
     private final PresentationSlotRepository presentationSlotRepository;
+    private final PresentationDurationResolver presentationDurationResolver;
     private final RoundRankingQueryService roundRankingQueryService;
+    private final RoundProgressionService roundProgressionService;
     private final PrizeRepository prizeRepository;
     private final CertificateRepository certificateRepository;
     private final CertificateFileResolver certificateFileResolver;
@@ -149,11 +158,13 @@ public class StudentPortalServiceImpl implements StudentPortalService {
     }
 
     @Override
-    public List<MeTeamSummaryResponse> listMyTeams() {
+    public List<MeTeamSummaryResponse> listMyTeams(boolean includeEliminated) {
         Integer userId = currentUserAccessor.currentUserId();
 
-        // Chỉ trả đội đang hoạt động (PENDING/ACTIVE) — loại REJECTED/ELIMINATED khỏi active view
-        List<TeamMember> myMemberships = teamMemberRepository.findActiveMembershipsByUserId(userId);
+        // Mặc định PENDING/ACTIVE; includeEliminated thêm ELIMINATED (trang kết quả)
+        List<TeamMember> myMemberships = includeEliminated
+                ? teamMemberRepository.findMembershipsIncludingEliminatedByUserId(userId)
+                : teamMemberRepository.findActiveMembershipsByUserId(userId);
 
         return myMemberships.stream().map(tm -> {
             com.sealhackathon.api.teams.entity.Team team = tm.getTeam();
@@ -412,6 +423,90 @@ public class StudentPortalServiceImpl implements StudentPortalService {
     }
 
     @Override
+    public StudentTeamScoreBreakdownResponse getTeamScoreBreakdown(Integer teamId, Integer roundId) {
+        studentAccessGuard.assertTeamMember(teamId);
+        Round round = roundRepository.findById(roundId)
+                .orElseThrow(() -> new ResourceNotFoundException("Round", roundId));
+        if (!Boolean.TRUE.equals(round.getIsPublished())) {
+            throw new BusinessRuleException(ErrorCode.RESULT_NOT_PUBLISHED,
+                    "Kết quả vòng chưa được công bố — đội chưa thể xem điểm chi tiết",
+                    Map.of("roundId", roundId));
+        }
+        List<Submission> submissions = findSubmissions(teamId, roundId);
+        if (submissions.isEmpty()) {
+            throw new ResourceNotFoundException("Submission", "teamId=" + teamId + ",roundId=" + roundId);
+        }
+        Submission submission = submissions.stream()
+                .max(Comparator.comparing(Submission::getSubmittedAt, Comparator.nullsLast(Comparator.naturalOrder())))
+                .orElseThrow();
+
+        ScoreBreakdownResponse raw = roundProgressionService.scoreBreakdown(roundId, submission.getId());
+
+        // Sort judges by judgeId for stable «Giám khảo 1/2/3»; never expose ids/names.
+        List<ScoreBreakdownResponse.JudgeRow> sortedJudges = (raw.getJudges() == null ? List.<ScoreBreakdownResponse.JudgeRow>of() : raw.getJudges())
+                .stream()
+                .sorted(Comparator.comparing(ScoreBreakdownResponse.JudgeRow::getJudgeId,
+                        Comparator.nullsLast(Integer::compareTo)))
+                .toList();
+
+        Map<Integer, Integer> judgeIdToOrdinal = new HashMap<>();
+        List<StudentTeamScoreBreakdownResponse.AnonymousJudge> anonJudges = new ArrayList<>();
+        for (int i = 0; i < sortedJudges.size(); i++) {
+            int ordinal = i + 1;
+            judgeIdToOrdinal.put(sortedJudges.get(i).getJudgeId(), ordinal);
+            anonJudges.add(StudentTeamScoreBreakdownResponse.AnonymousJudge.builder()
+                    .ordinal(ordinal)
+                    .label("Giám khảo " + ordinal)
+                    .build());
+        }
+
+        List<StudentTeamScoreBreakdownResponse.CriterionColumn> criteria = (raw.getCriteria() == null
+                ? List.<ScoreBreakdownResponse.CriterionColumn>of()
+                : raw.getCriteria()).stream()
+                .map(c -> StudentTeamScoreBreakdownResponse.CriterionColumn.builder()
+                        .criterionId(c.getCriterionId())
+                        .name(c.getName())
+                        .maxScore(c.getMaxScore())
+                        .build())
+                .toList();
+
+        List<StudentTeamScoreBreakdownResponse.Cell> cells = (raw.getCells() == null
+                ? List.<ScoreBreakdownResponse.Cell>of()
+                : raw.getCells()).stream()
+                .map(c -> StudentTeamScoreBreakdownResponse.Cell.builder()
+                        .judgeOrdinal(judgeIdToOrdinal.getOrDefault(c.getJudgeId(), 0))
+                        .criterionId(c.getCriterionId())
+                        .scoreValue(c.getScoreValue())
+                        .comment(c.getComment())
+                        .build())
+                .filter(c -> c.getJudgeOrdinal() > 0)
+                .toList();
+
+        List<StudentTeamScoreBreakdownResponse.CriterionAvg> avgs = (raw.getCriterionStats() == null
+                ? List.<ScoreBreakdownResponse.CriterionStats>of()
+                : raw.getCriterionStats()).stream()
+                .map(s -> StudentTeamScoreBreakdownResponse.CriterionAvg.builder()
+                        .criterionId(s.getCriterionId())
+                        .average(s.getMean())
+                        .build())
+                .toList();
+
+        Team team = teamRepository.findById(teamId).orElse(null);
+        return StudentTeamScoreBreakdownResponse.builder()
+                .roundId(roundId)
+                .roundName(round.getName())
+                .teamId(teamId)
+                .teamName(team != null ? team.getTeamName() : (raw.getTeamName()))
+                .submissionId(submission.getId())
+                .criteria(criteria)
+                .judges(anonJudges)
+                .cells(cells)
+                .criterionAverages(avgs)
+                .teamAverage(raw.getOverallMean())
+                .build();
+    }
+
+    @Override
     public StudentRoundDeadlineResponse getCurrentDeadline(Integer hackathonId) {
         Integer userId = currentUserAccessor.currentUserId();
         Round activeRound = findActivePrelimRoundForUserOrNull(userId, hackathonId);
@@ -434,6 +529,7 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                 .roundId(activeRound.getId())
                 .deadline(activeRound.getSubmissionDeadline())
                 .problemReleased(problemReleased)
+                .closedEarlyAt(activeRound.getSubmissionClosedEarlyAt())
                 .build();
     }
 
@@ -477,6 +573,11 @@ public class StudentPortalServiceImpl implements StudentPortalService {
     public List<StudentLeaderboardItemResponse> getRoundLeaderboard(Integer roundId) {
         Round round = roundRepository.findById(roundId)
                 .orElseThrow(() -> new ResourceNotFoundException("Round", roundId));
+
+        Integer hackathonId = round.getHackathon() != null ? round.getHackathon().getId() : null;
+        if (hackathonId != null) {
+            studentAccessGuard.assertParticipatedInHackathon(hackathonId);
+        }
 
         // RÀO CHẮN: Xếp hạng chỉ xem được khi đã PUBLISHED (FR-U-21)
         if (!Boolean.TRUE.equals(round.getIsPublished())) {
@@ -533,6 +634,17 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                     .count();
         }
 
+        String timerPhase = mySlot.getTimerPhase() != null ? mySlot.getTimerPhase().name() : null;
+        Integer remainingSeconds = null;
+        if (mySlot.getQueueStatus() == PresentationQueueStatus.PRESENTING
+                || (mySlot.getTimerPhase() != null
+                    && mySlot.getTimerPhase() != PresentationTimerPhase.IDLE
+                    && mySlot.getTimerPhase() != PresentationTimerPhase.SETUP
+                    && mySlot.getTimerPhase() != PresentationTimerPhase.ENDED)) {
+            remainingSeconds = PresentationTimerCalculator.remainingSeconds(
+                    mySlot, mySlot.getTrack(), round, presentationDurationResolver);
+        }
+
         return StudentPresentationSlotResponse.builder()
                 .available(true)
                 .order(myOrder)
@@ -545,6 +657,8 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                 .currentPresentingOrder(presenting.map(PresentationSlot::getSequenceOrder).orElse(null))
                 .currentPresentingDisplayCode(presenting.map(StudentPortalServiceImpl::toDisplayCode).orElse(null))
                 .teamsAhead(teamsAhead)
+                .timerPhase(timerPhase)
+                .remainingSeconds(remainingSeconds)
                 .build();
     }
 
@@ -593,6 +707,8 @@ public class StudentPortalServiceImpl implements StudentPortalService {
     public StudentRankingResponse getHackathonRankings(Integer hackathonId) {
         Hackathon hackathon = hackathonRepository.findById(hackathonId)
                 .orElseThrow(() -> new ResourceNotFoundException("Hackathon", hackathonId));
+
+        studentAccessGuard.assertParticipatedInHackathon(hackathonId);
 
         if (hackathon.getStatus() != HackathonStatus.FINISHED && hackathon.getStatus() != HackathonStatus.PENDING_CONFIRM) {
             throw new BusinessRuleException("RESULT_NOT_AVAILABLE",
@@ -667,10 +783,15 @@ public class StudentPortalServiceImpl implements StudentPortalService {
     @Override
     public StudentHistoryResponse getHistory() {
         Integer userId = currentUserAccessor.currentUserId();
-        List<TeamMember> myMemberships = teamMemberRepository.findByUser_IdAndStatus(userId, TeamMemberStatus.ACCEPTED);
+        List<TeamMember> myMemberships = teamMemberRepository.findMembershipsIncludingEliminatedByUserId(userId);
 
         List<StudentHistoryResponse.StudentHistoryHackathonItem> items = myMemberships.stream()
-                .filter(tm -> tm.getTeam().getHackathon().getStatus() == HackathonStatus.FINISHED)
+                .filter(tm -> {
+                    HackathonStatus status = tm.getTeam().getHackathon().getStatus();
+                    return status == HackathonStatus.FINISHED
+                            || status == HackathonStatus.ONGOING
+                            || status == HackathonStatus.PENDING_CONFIRM;
+                })
                 .map(tm -> StudentHistoryResponse.StudentHistoryHackathonItem.builder()
                         .hackathonId(tm.getTeam().getHackathon().getId())
                         .name(tm.getTeam().getHackathon().getName())

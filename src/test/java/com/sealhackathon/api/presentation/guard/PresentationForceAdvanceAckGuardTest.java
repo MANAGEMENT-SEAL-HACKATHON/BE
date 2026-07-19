@@ -4,11 +4,9 @@ import com.sealhackathon.api.common.exception.AuthException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.common.security.CurrentUserStub;
-import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
-import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
-import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
 import com.sealhackathon.api.rounds.entity.Round;
-import com.sealhackathon.api.users.entity.User;
+import com.sealhackathon.api.tracks.entity.Track;
+import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.users.value_object.UserRole;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,7 +14,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -26,7 +24,8 @@ import static org.mockito.Mockito.when;
 class PresentationForceAdvanceAckGuardTest {
 
     @Mock private CurrentUserAccessor currentUserAccessor;
-    @Mock private JudgeAssignmentRepository judgeAssignmentRepository;
+    @Mock private PresentationControllerGuard controllerGuard;
+    @Mock private TrackRepository trackRepository;
 
     @InjectMocks private PresentationForceAdvanceAckGuard guard;
 
@@ -39,43 +38,36 @@ class PresentationForceAdvanceAckGuardTest {
     }
 
     @Test
-    void headJudgeOnTrack_canAcknowledge() {
+    void trackControllerJudge_canAcknowledge() {
+        Track track = Track.builder().id(7).build();
         when(currentUserAccessor.currentUser()).thenReturn(
                 CurrentUserStub.builder().userId(5).role(UserRole.JUDGE).build());
         when(currentUserAccessor.currentUserId()).thenReturn(5);
-        when(judgeAssignmentRepository.findByJudgeIdAndTrackId(5, 7)).thenReturn(List.of(
-                JudgeAssignment.builder()
-                        .assignmentType(JudgeAssignmentType.HEAD)
-                        .judge(User.builder().id(5).build())
-                        .build()));
+        when(trackRepository.findById(7)).thenReturn(Optional.of(track));
+        when(controllerGuard.resolveTrackControllerId(track)).thenReturn(5);
 
         assertThat(guard.resolveAcknowledge(true, 7, Round.builder().id(1).build())).isTrue();
     }
 
     @Test
-    void headJudgeOnFinalRound_canAcknowledge() {
+    void roundControllerJudge_canAcknowledge() {
+        Round round = Round.builder().id(3).build();
         when(currentUserAccessor.currentUser()).thenReturn(
                 CurrentUserStub.builder().userId(9).role(UserRole.JUDGE).build());
         when(currentUserAccessor.currentUserId()).thenReturn(9);
-        when(judgeAssignmentRepository.findByRoundId(3)).thenReturn(List.of(
-                JudgeAssignment.builder()
-                        .assignmentType(JudgeAssignmentType.HEAD)
-                        .judge(User.builder().id(9).build())
-                        .build()));
+        when(controllerGuard.resolveRoundControllerId(round)).thenReturn(9);
 
-        assertThat(guard.resolveAcknowledge(true, null, Round.builder().id(3).build())).isTrue();
+        assertThat(guard.resolveAcknowledge(true, null, round)).isTrue();
     }
 
     @Test
-    void normalJudge_cannotAcknowledge() {
+    void nonControllerJudge_cannotAcknowledge() {
+        Track track = Track.builder().id(7).build();
         when(currentUserAccessor.currentUser()).thenReturn(
                 CurrentUserStub.builder().userId(5).role(UserRole.JUDGE).build());
         when(currentUserAccessor.currentUserId()).thenReturn(5);
-        when(judgeAssignmentRepository.findByJudgeIdAndTrackId(5, 7)).thenReturn(List.of(
-                JudgeAssignment.builder()
-                        .assignmentType(JudgeAssignmentType.NORMAL)
-                        .judge(User.builder().id(5).build())
-                        .build()));
+        when(trackRepository.findById(7)).thenReturn(Optional.of(track));
+        when(controllerGuard.resolveTrackControllerId(track)).thenReturn(99);
 
         assertThatThrownBy(() -> guard.resolveAcknowledge(true, 7, Round.builder().id(1).build()))
                 .isInstanceOf(AuthException.class)

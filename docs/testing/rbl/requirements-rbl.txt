@@ -1,0 +1,4 @@
+pandas>=2.0
+numpy>=1.24
+pingouin>=0.5.4
+krippendorff>=0.6.1

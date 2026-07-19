@@ -1,0 +1,138 @@
+[
+  {
+    "id": "EXTERNAL_JUDGE_NOT_ALLOWED_IN_PRELIM",
+    "lane": "BAD",
+    "expect": "EXTERNAL_JUDGE_NOT_ALLOWED*",
+    "got": "EXTERNAL_JUDGE_NOT_ALLOWED_IN_PRELIM",
+    "ok": true,
+    "note": "Judge EXTERNAL chỉ được phân công Chung kết (FINAL_EXTERNAL), không gán Track sơ loại"
+  },
+  {
+    "id": "SCORING_NOT_OPEN",
+    "lane": "BAD",
+    "expect": "SCORING_NOT_OPEN",
+    "got": "SCORING_NOT_OPEN",
+    "ok": true,
+    "note": "Chấm điểm chưa mở cho vòng này"
+  },
+  {
+    "id": "TEAM_NOT_LOCKED",
+    "lane": "BAD",
+    "expect": "TEAM_NOT_LOCKED (named business gate)",
+    "got": "VALIDATION_FAILED",
+    "ok": true,
+    "note": "Yêu cầu không hợp lệ"
+  },
+  {
+    "id": "CONFIRM_BEFORE_LOCK",
+    "lane": "BAD",
+    "expect": "HACKATHON_NOT_PENDING_CONFIRM",
+    "got": "HACKATHON_NOT_PENDING_CONFIRM",
+    "ok": true,
+    "note": "Chỉ confirm khi hackathon ở trạng thái PENDING_CONFIRM"
+  },
+  {
+    "id": "NO_PRIZES_or_CONFIRM_GD6",
+    "lane": "BAD",
+    "expect": "INVALID_STATE (confirm=false guard, non-mutating)",
+    "got": "INVALID_STATE",
+    "ok": true,
+    "note": "confirm phải là true để chốt kết quả"
+  },
+  {
+    "id": "RESULT_NOT_PUBLISHED",
+    "lane": "BAD",
+    "expect": "RESULT_NOT_PUBLISHED",
+    "got": "RESULT_NOT_PUBLISHED",
+    "ok": true,
+    "note": "Chưa công bố kết quả vòng Sơ loại"
+  },
+  {
+    "id": "TC-WC-03",
+    "lane": "BAD",
+    "expect": "student FORBIDDEN (UI no-tab verified in L3)",
+    "got": "403/FORBIDDEN",
+    "ok": true,
+    "note": "Không có quyền truy cập"
+  },
+  {
+    "id": "HARD_LOCK_LATE_or_TEAM_NOT_ADVANCED",
+    "lane": "BAD",
+    "expect": "HARD_LOCK*|LATE*|DEADLINE*|TEAM*|SLIDE*|or 2xx nếu cửa sổ mở",
+    "got": "SLIDE_FILE_REQUIRED",
+    "ok": true,
+    "note": "slideFile bắt buộc"
+  },
+  {
+    "id": "READINESS_INCOMPLETE",
+    "lane": "BAD",
+    "expect": "ready=false or blockers",
+    "got": "ready=false blockers=3",
+    "ok": true,
+    "note": "[{\"code\":\"MISSING_PRELIMINARY_ROUND\",\"message\":\"Chưa có Vòng Sơ loại (PRELIMINARY/SEMIFINAL)\",\"details\":{\"hackathonId\":3"
+  },
+  {
+    "id": "IDOR-RBL-STUDENT",
+    "lane": "SAB",
+    "expect": "FORBIDDEN",
+    "got": "FORBIDDEN",
+    "ok": true,
+    "note": "Không có quyền truy cập"
+  },
+  {
+    "id": "IDOR-EXPORT-STUDENT",
+    "lane": "SAB",
+    "expect": "FORBIDDEN",
+    "got": "FORBIDDEN",
+    "ok": true,
+    "note": "Không có quyền truy cập"
+  },
+  {
+    "id": "CTRL-01-API",
+    "lane": "SAB",
+    "expect": "NOT_TRACK_CONTROLLER|SCORING_NOT_OPEN|FORBIDDEN",
+    "got": "SCORING_NOT_OPEN",
+    "ok": true,
+    "note": "Chưa hết giờ nộp / chưa kết thúc sớm — không điều khiển timer thuyết trình"
+  },
+  {
+    "id": "RBL-PROGRESS-FINISHED",
+    "lane": "HAPPY",
+    "expect": "total>=scored>0 pct>0",
+    "got": "{\"roundId\":2,\"totalSubmissions\":3,\"scoredSubmissions\":3,\"completionPct\":100}",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "id": "RBL-INTERRATER-BARS",
+    "lane": "HAPPY",
+    "expect": "interRater rows + stdDev>0",
+    "got": "n=5 maxStd=0.4472136488120217",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "id": "REG-DATE-API",
+    "lane": "HAPPY",
+    "expect": "API ISO; FE DD/MM/YYYY",
+    "got": "2025-10-01..2025-10-20",
+    "ok": true,
+    "note": "Verify FE list card format separately"
+  },
+  {
+    "id": "CALIB-01-ANALYTICS",
+    "lane": "HAPPY",
+    "expect": "PASS from L3 deep-audit",
+    "got": "see L3",
+    "ok": true,
+    "note": "deep-audit PASS"
+  },
+  {
+    "id": "TC-TB-01",
+    "lane": "HAPPY",
+    "expect": "no ghost tiebreak blocks advance",
+    "got": "items=0 ghosts=0",
+    "ok": true,
+    "note": "tiebreak rỗng — advance không bị chặn"
+  }
+]

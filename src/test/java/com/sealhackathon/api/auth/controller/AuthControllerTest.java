@@ -16,6 +16,7 @@ import com.sealhackathon.api.auth.service.EmailVerificationService;
 import com.sealhackathon.api.auth.service.PasswordResetService;
 import com.sealhackathon.api.auth.service.RegistrationService;
 import com.sealhackathon.api.auth.service.SocialAuthService;
+import com.sealhackathon.api.users.value_object.UserType;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
@@ -73,6 +74,9 @@ class AuthControllerTest {
         req.setEmail("user@gmail.com");
         req.setPassword("password12");
         req.setConfirmPassword("password12");
+        req.setUserType(UserType.INTERNAL);
+        req.setStudentCode("SE123456");
+        req.setChapterId(1);
 
         mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)

@@ -21,9 +21,11 @@ import com.sealhackathon.api.judge_assignments.service.JudgeAssignmentService;
 import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
 import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
 import com.sealhackathon.api.mentors.repository.MentorAssignmentRepository;
+import com.sealhackathon.api.mentors.repository.MentorTeamAssignmentRepository;
 import com.sealhackathon.api.notifications.service.NotificationService;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
+import com.sealhackathon.api.teams.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.tracks.support.TrackRoundRules;
@@ -39,6 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -53,6 +56,8 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
 
     private final JudgeAssignmentRepository judgeAssignmentRepository;
     private final MentorAssignmentRepository mentorAssignmentRepository;
+    private final MentorTeamAssignmentRepository mentorTeamAssignmentRepository;
+    private final TeamRoundTrackRepository teamRoundTrackRepository;
     private final UserRepository userRepository;
     private final RoundRepository roundRepository;
     private final TrackRepository trackRepository;
@@ -87,9 +92,14 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
                     "FINAL_EXTERNAL không dùng cho Track Sơ loại",
                     Map.of("trackId", trackId));
         }
-        if (assignType != JudgeAssignmentType.NORMAL && assignType != JudgeAssignmentType.HEAD) {
+        if (assignType == JudgeAssignmentType.HEAD) {
             throw new BusinessRuleException(ErrorCode.INVALID_ASSIGNMENT_TYPE,
-                    "Track Sơ loại chỉ gán NORMAL hoặc HEAD",
+                    "Loại phân công không hợp lệ — Sơ loại chỉ chấp nhận Giám khảo thường (NORMAL)",
+                    Map.of("trackId", trackId, "assignmentType", assignType.name()));
+        }
+        if (assignType != JudgeAssignmentType.NORMAL) {
+            throw new BusinessRuleException(ErrorCode.INVALID_ASSIGNMENT_TYPE,
+                    "Track Sơ loại chỉ gán Giám khảo NORMAL",
                     Map.of("trackId", trackId, "assignmentType", assignType.name()));
         }
         Track track = trackRepository.findById(trackId)
@@ -103,15 +113,26 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
                             .formatted(trackId),
                     Map.of("trackId", trackId, "judgeId", judge.getId()));
         }
+        assertNotMentorOfTeamInTrack(judge, trackId);
         if (judgeAssignmentRepository.existsByJudgeIdAndTrackId(judge.getId(), trackId)) {
             throw new ConflictException(ErrorCode.JUDGE_ASSIGN_DUPLICATE,
                     "Judge #%d đã được phân công Track #%d".formatted(judge.getId(), trackId));
+        }
+        Integer roundId = track.getRound() != null ? track.getRound().getId() : null;
+        if (roundId != null
+                && judgeAssignmentRepository.existsByJudgeIdAndRoundScope(judge.getId(), roundId)) {
+            throw new ConflictException(ErrorCode.JUDGE_ASSIGN_DUPLICATE,
+                    ("Giám khảo #%d đã được phân công vào bảng khác trong cùng vòng thi #%d — "
+                            + "mỗi giám khảo chỉ được chấm một bảng trong một vòng")
+                            .formatted(judge.getId(), roundId),
+                    Map.of("judgeId", judge.getId(), "roundId", roundId, "trackId", trackId));
         }
 
         JudgeAssignment saved = saveAssignment(judge, track, null, assignType);
         JudgeAssignmentResponse response = judgeAssignmentMapper.toResponse(saved);
         auditService.log(AuditAction.JUDGE_ASSIGNED, "judge_assignments", saved.getId(), Map.of(
                 "judgeId", judge.getId(), "trackId", trackId, "type", assignType.name()));
+        logHeadChangeIfNeeded(saved, null, assignType, trackId, null);
         notificationService.send(judge, "JUDGE_ASSIGNED",
                 "Bạn được phân công làm Judge Track '%s'".formatted(track.getName()),
                 "Track: %s".formatted(track.getName()),
@@ -130,10 +151,10 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
                     "Judge qua round_id chỉ cho Round Chung kết",
                     Map.of("roundId", roundId));
         }
-        if (assignType != JudgeAssignmentType.FINAL_EXTERNAL) {
+        if (assignType == JudgeAssignmentType.HEAD) {
             throw new BusinessRuleException(ErrorCode.INVALID_ASSIGNMENT_TYPE,
-                    "Round Chung kết yêu cầu assignment_type=FINAL_EXTERNAL",
-                    Map.of("roundId", roundId));
+                    "Loại phân công không hợp lệ — Chung kết chỉ chấp nhận Giám khảo khách (FINAL_EXTERNAL) hoặc Giám khảo thường (NORMAL)",
+                    Map.of("roundId", roundId, "assignmentType", assignType.name()));
         }
         throw new BusinessRuleException(ErrorCode.JUDGE_FINAL_AT_PHASE1,
                 "Phân công Judge Chung kết chỉ thực hiện ở GĐ4 — không làm ở GĐ1",
@@ -151,9 +172,14 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
         JudgeAssignmentType assignType = assignmentType != null
                 ? assignmentType
                 : JudgeAssignmentType.FINAL_EXTERNAL;
-        if (assignType != JudgeAssignmentType.HEAD && assignType != JudgeAssignmentType.FINAL_EXTERNAL) {
+        if (assignType == JudgeAssignmentType.HEAD) {
             throw new BusinessRuleException(ErrorCode.INVALID_ASSIGNMENT_TYPE,
-                    "Round Chung kết chỉ gán HEAD hoặc FINAL_EXTERNAL",
+                    "Loại phân công không hợp lệ — Chung kết chỉ chấp nhận Giám khảo khách (FINAL_EXTERNAL) hoặc Giám khảo thường (NORMAL)",
+                    Map.of("roundId", finalRoundId, "assignmentType", assignType.name()));
+        }
+        if (assignType != JudgeAssignmentType.NORMAL && assignType != JudgeAssignmentType.FINAL_EXTERNAL) {
+            throw new BusinessRuleException(ErrorCode.INVALID_ASSIGNMENT_TYPE,
+                    "Round Chung kết chỉ gán NORMAL hoặc FINAL_EXTERNAL",
                     Map.of("roundId", finalRoundId, "assignmentType", assignType.name()));
         }
         if (assignType == JudgeAssignmentType.FINAL_EXTERNAL && judge.getUserType() != UserType.EXTERNAL) {
@@ -162,9 +188,9 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
                     Map.of("roundId", finalRoundId, "judgeId", judge.getId(),
                             "userType", judge.getUserType() == null ? "null" : judge.getUserType().name()));
         }
-        if (assignType == JudgeAssignmentType.HEAD && judge.getUserType() != UserType.INTERNAL) {
+        if (assignType == JudgeAssignmentType.NORMAL && judge.getUserType() != UserType.INTERNAL) {
             throw new BusinessRuleException(ErrorCode.INVALID_ASSIGNMENT_TYPE,
-                    "HEAD Chung kết yêu cầu Judge INTERNAL (trưởng ban)",
+                    "Giám khảo NORMAL của Chung kết yêu cầu Judge INTERNAL",
                     Map.of("roundId", finalRoundId, "judgeId", judge.getId(),
                             "userType", judge.getUserType() == null ? "null" : judge.getUserType().name()));
         }
@@ -197,6 +223,7 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
         auditService.log(AuditAction.JUDGE_ASSIGNED, "judge_assignments", saved.getId(), Map.of(
                 "judgeId", judge.getId(), "roundId", finalRoundId, "type", assignType.name(),
                 "phase", "G4"));
+        logHeadChangeIfNeeded(saved, null, assignType, null, finalRoundId);
         notificationService.send(judge, "JUDGE_ASSIGNED",
                 "Bạn được phân công làm Judge Chung kết '%s'".formatted(round.getName()),
                 "Round: %s".formatted(round.getName()),
@@ -238,6 +265,9 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
             archiveGuard.assertNotArchivedForRound(ja.getRound());
         }
         User judge = ja.getJudge();
+        JudgeAssignmentType previousType = ja.getAssignmentType();
+        Integer trackId = ja.getTrack() != null ? ja.getTrack().getId() : null;
+        Integer roundId = ja.getRound() != null ? ja.getRound().getId() : null;
         String label = ja.getTrack() != null ? ja.getTrack().getName()
                 : (ja.getRound() != null ? ja.getRound().getName() : "?");
         judgeAssignmentRepository.delete(ja);
@@ -247,7 +277,33 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
                 "judge_assignments", id);
         auditService.log(AuditAction.JUDGE_UNASSIGNED, "judge_assignments", id,
                 Map.of("judgeId", judge.getId()));
+        logHeadChangeIfNeeded(ja, previousType, null, trackId, roundId);
         return id;
+    }
+
+    private void logHeadChangeIfNeeded(JudgeAssignment ja, JudgeAssignmentType from,
+                                       JudgeAssignmentType to, Integer trackId, Integer roundId) {
+        boolean fromHead = from == JudgeAssignmentType.HEAD;
+        boolean toHead = to == JudgeAssignmentType.HEAD;
+        if (!fromHead && !toHead) {
+            return;
+        }
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("judgeId", ja.getJudge() != null ? ja.getJudge().getId() : null);
+        detail.put("from", from == null ? null : from.name());
+        detail.put("to", to == null ? null : to.name());
+        if (trackId != null) {
+            detail.put("trackId", trackId);
+        }
+        if (roundId != null) {
+            detail.put("roundId", roundId);
+        }
+        Integer actorId = currentUserAccessor.currentUserId();
+        if (actorId != null) {
+            detail.put("actorId", actorId);
+        }
+        auditService.log(AuditAction.JUDGE_HEAD_CHANGED, "judge_assignments",
+                ja.getId() != null ? ja.getId() : 0, detail);
     }
 
     private void sendJudgeAssignmentEmail(User judge, String assignmentLabel, String hackathonName) {
@@ -256,6 +312,23 @@ public class JudgeAssignmentServiceImpl implements JudgeAssignmentService {
                     assignmentLabel, hackathonName, FrontendUrls.loginUrl(appProperties));
         } catch (RuntimeException ex) {
             log.warn("[JudgeAssign] email failed for {}: {}", judge.getEmail(), ex.getMessage());
+        }
+    }
+
+    /**
+     * Mentor isolation: user đang mentor bất kỳ đội nào thuộc track → cấm phân công Judge track đó.
+     */
+    private void assertNotMentorOfTeamInTrack(User judge, Integer trackId) {
+        boolean mentorsTeamInTrack = mentorTeamAssignmentRepository.findByMentor_Id(judge.getId()).stream()
+                .anyMatch(mta -> mta.getTeam() != null
+                        && teamRoundTrackRepository
+                                .findByTeam_IdAndTrack_Id(mta.getTeam().getId(), trackId)
+                                .isPresent());
+        if (mentorsTeamInTrack) {
+            throw new BusinessRuleException(ErrorCode.CONFLICT_MENTOR_JUDGE_SAME_TRACK,
+                    "User đang là Mentor của một đội trong Bảng #%d — không thể phân công làm Giám khảo bảng này"
+                            .formatted(trackId),
+                    Map.of("trackId", trackId, "judgeId", judge.getId()));
         }
     }
 

@@ -35,9 +35,11 @@ public class StudentMeController {
     private final TeamService teamService;
 
     @GetMapping("/teams")
-    @Operation(summary = "FR-U-15 — Đội của tôi")
-    public ResponseEntity<ApiResponse<List<MeTeamSummaryResponse>>> listMyTeams() {
-        return ResponseEntity.ok(ApiResponse.ok(studentPortalService.listMyTeams()));
+    @Operation(summary = "FR-U-15 — Đội của tôi",
+            description = "Mặc định chỉ PENDING/ACTIVE. `includeEliminated=true` thêm đội ELIMINATED (trang kết quả).")
+    public ResponseEntity<ApiResponse<List<MeTeamSummaryResponse>>> listMyTeams(
+            @RequestParam(defaultValue = "false") boolean includeEliminated) {
+        return ResponseEntity.ok(ApiResponse.ok(studentPortalService.listMyTeams(includeEliminated)));
     }
 
     @PostMapping("/teams")

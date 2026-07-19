@@ -39,6 +39,7 @@ class StudentPortalPresentationSlotTest {
     @Mock private TeamMemberRepository teamMemberRepository;
     @Mock private TeamRoundTrackRepository teamRoundTrackRepository;
     @Mock private PresentationSlotRepository presentationSlotRepository;
+    @Mock private com.sealhackathon.api.presentation.support.PresentationDurationResolver presentationDurationResolver;
 
     @InjectMocks
     private StudentPortalServiceImpl service;

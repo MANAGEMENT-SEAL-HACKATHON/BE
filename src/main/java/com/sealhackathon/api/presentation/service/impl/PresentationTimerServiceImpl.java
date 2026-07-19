@@ -197,7 +197,11 @@ public class PresentationTimerServiceImpl implements PresentationTimerService {
     }
 
     private PresentationSlot requirePresentingSlot(TimerContext ctx) {
-        return findPresentingSlot(ctx)
+        PresentationSlot found = findPresentingSlot(ctx)
+                .orElseThrow(() -> new BusinessRuleException(ErrorCode.INVALID_STATE,
+                        "Không có đội đang PRESENTING trong queue"));
+        // Atomic race guard: re-load with PESSIMISTIC_WRITE trước khi mutate phase
+        return presentationSlotRepository.findByIdForUpdate(found.getId())
                 .orElseThrow(() -> new BusinessRuleException(ErrorCode.INVALID_STATE,
                         "Không có đội đang PRESENTING trong queue"));
     }

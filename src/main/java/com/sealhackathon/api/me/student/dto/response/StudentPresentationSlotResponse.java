@@ -48,4 +48,10 @@ public class StudentPresentationSlotResponse {
      * (excludes SKIPPED, DONE, ELIMINATED, PRESENTING).
      */
     private Integer teamsAhead;
+
+    /** Timer phase when this team's slot is live (PRESENTING / QA / PAUSED / …). */
+    private String timerPhase;
+
+    /** Remaining seconds for the live timer phase (null when not presenting). */
+    private Integer remainingSeconds;
 }

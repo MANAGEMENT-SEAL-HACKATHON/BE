@@ -1,8 +1,5 @@
 package com.sealhackathon.api.scores.service.impl;
 
-import com.sealhackathon.api.calibration_sessions.entity.CalibrationSession;
-import com.sealhackathon.api.calibration_sessions.repository.CalibrationSessionRepository;
-import com.sealhackathon.api.calibration_sessions.value_object.CalibrationStatus;
 import com.sealhackathon.api.common.audit.AuditAction;
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
@@ -24,7 +21,6 @@ import com.sealhackathon.api.scores.guard.MentorJudgeConflictGuard;
 import com.sealhackathon.api.submissions.policy.SubmissionGradablePolicy;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
-import com.sealhackathon.api.scores.dto.request.SubmitCalibrationScoreRequest;
 import com.sealhackathon.api.scores.dto.request.SubmitScoreRequest;
 import com.sealhackathon.api.scores.dto.response.ScoreResponse;
 import com.sealhackathon.api.scores.entity.Score;
@@ -61,7 +57,6 @@ public class ScoreServiceImpl implements ScoreService {
     private final TeamRoundTrackRepository teamRoundTrackRepository;
     private final AuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
-    private final CalibrationSessionRepository calibrationSessionRepository;
     private final RoundPhaseResolver roundPhaseResolver;
     private final PresentationSlotRepository presentationSlotRepository;
     private final JudgeSubmissionScoringConfirmationRepository scoringConfirmationRepository;
@@ -138,90 +133,6 @@ public class ScoreServiceImpl implements ScoreService {
         return response;
     }
 
-    // LOGIC ĐƯỢC BỔ SUNG CHO PHIÊN CHẤM CALIBRATION
-    @Override
-    public ScoreResponse submitCalibrationScore(SubmitCalibrationScoreRequest req) {
-        Integer judgeId = currentUserAccessor.currentUserId();
-        if (req.getCalibrationSessionId() == null) {
-            throw new BusinessRuleException(ErrorCode.CALIBRATION_SESSION_ID_REQUIRED,
-                    "Thiếu calibrationSessionId khi chấm hiệu chuẩn");
-        }
-
-        Submission submission = submissionRepository.findById(req.getSubmissionId())
-                .orElseThrow(() -> new ResourceNotFoundException("Submission", req.getSubmissionId()));
-        Criteria criterion = criteriaRepository.findById(req.getCriterionId())
-                .orElseThrow(() -> new ResourceNotFoundException("Criteria", req.getCriterionId()));
-
-        validateCriterionForSubmission(submission, criterion);
-
-        if (req.getScoreValue() > criterion.getMaxScore()) {
-            throw new BusinessRuleException(ErrorCode.SCORE_EXCEEDS_MAX,
-                    "Điểm vượt max_score của tiêu chí",
-                    Map.of("maxScore", criterion.getMaxScore(), "given", req.getScoreValue()));
-        }
-
-        CalibrationSession session = calibrationSessionRepository.findById(req.getCalibrationSessionId())
-                .orElseThrow(() -> new ResourceNotFoundException("CalibrationSession", req.getCalibrationSessionId()));
-
-        if (session.getStatus() == CalibrationStatus.CLOSED) {
-            throw new BusinessRuleException(ErrorCode.CALIBRATION_SESSION_CLOSED,
-                    "Phiên hiệu chuẩn điểm này đã bị ĐÓNG");
-        }
-
-        Integer sessionRoundId = session.getRound() != null ? session.getRound().getId() : null;
-        Integer submissionRoundId = submission.getRound() != null ? submission.getRound().getId() : null;
-        if (sessionRoundId == null || submissionRoundId == null || !sessionRoundId.equals(submissionRoundId)) {
-            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
-                    "Bài nộp không thuộc cùng vòng với phiên hiệu chuẩn");
-        }
-
-        if (session.getTrack() != null) {
-            Integer sessionTrackId = session.getTrack().getId();
-            Integer submissionTrackId = submission.getTrack() != null ? submission.getTrack().getId() : null;
-            if (submissionTrackId == null || !submissionTrackId.equals(sessionTrackId)) {
-                throw new BusinessRuleException(ErrorCode.INVALID_STATE,
-                        "Bài nộp không thuộc cùng bảng với phiên hiệu chuẩn");
-            }
-        }
-
-        if (session.getSampleSubmission() != null
-                && !session.getSampleSubmission().getId().equals(submission.getId())) {
-            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
-                    "Chỉ được chấm bài mẫu của phiên hiệu chuẩn");
-        }
-
-        // Resolve team/track from submission (payload only has submissionId) — same guards as normal score
-        judgeAssignmentGuard.requireJudgeForSubmission(judgeId, submission);
-        mentorJudgeConflictGuard.requireNoConflict(judgeId, submission);
-
-        User judge = userRepository.findById(judgeId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", judgeId));
-
-        Score score = scoreRepository
-                .findBySubmission_IdAndJudge_IdAndCriterion_IdAndScoreType(
-                        submission.getId(), judgeId, criterion.getId(), ScoreType.CALIBRATION)
-                .orElseGet(() -> Score.builder()
-                        .submission(submission)
-                        .judge(judge)
-                        .criterion(criterion)
-                        .scoreType(ScoreType.CALIBRATION)
-                        .calibrationSession(session)
-                        .build());
-
-        score.setScoreValue(req.getScoreValue());
-        score.setComment(req.getComment());
-        score.setIsFinal(false);
-        score.setScoredAt(LocalDateTime.now());
-        score.setUpdatedAt(LocalDateTime.now());
-
-        Score saved = scoreRepository.save(score);
-
-        auditService.log(AuditAction.SCORE_UPSERT, "scores", saved.getId(),
-                Map.of("submissionId", submission.getId(), "criterionId", criterion.getId(), "type", "CALIBRATION"));
-
-        return toResponse(saved);
-    }
-
     private void requireScoringOpen(Round round, Submission submission) {
         if (roundPhaseResolver.resolve(round) != RoundPhase.JUDGING) {
             throw new BusinessRuleException(ErrorCode.SCORING_NOT_OPEN, "Chấm điểm chưa mở cho vòng này");
@@ -267,8 +178,6 @@ public class ScoreServiceImpl implements ScoreService {
                 .comment(score.getComment())
                 .scoreType(score.getScoreType())
                 .isFinal(score.getIsFinal())
-                .calibrationSessionId(score.getCalibrationSession() != null
-                        ? score.getCalibrationSession().getId() : null)
                 .scoredAt(score.getScoredAt())
                 .updatedAt(score.getUpdatedAt())
                 .build();

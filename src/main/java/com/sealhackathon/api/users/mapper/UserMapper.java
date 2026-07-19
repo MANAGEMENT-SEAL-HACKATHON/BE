@@ -28,6 +28,7 @@ public class UserMapper {
                     .expiresAt(inv.getExpiresAt())
                     .acceptedAt(inv.getAcceptedAt())
                     .tokenSent(tokenSent)
+                    .revokedAt(inv.getRevokedAt())
                     .build();
         }
         return UserSummaryResponse.builder()
@@ -41,6 +42,7 @@ public class UserMapper {
                 .isDeptHead(u.getIsDeptHead())
                 .mustChangePassword(u.getMustChangePassword())
                 .institution(u.getInstitution())
+                .avatarUrl(u.getAvatarUrl())
                 .invitation(invitationInfo)
                 .build();
     }
@@ -53,6 +55,7 @@ public class UserMapper {
                         .expiresAt(inv == null ? null : inv.getExpiresAt())
                         .acceptedAt(inv == null ? null : inv.getAcceptedAt())
                         .tokenSent(tokenSent)
+                        .revokedAt(inv == null ? null : inv.getRevokedAt())
                         .build())
                 .build();
     }

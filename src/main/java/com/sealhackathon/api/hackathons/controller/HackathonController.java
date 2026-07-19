@@ -73,6 +73,20 @@ public class HackathonController {
         return ResponseEntity.created(location).body(ApiResponse.created(data));
     }
 
+    @PostMapping("/{id}/clone")
+    @CoordinatorOnly
+    @Operation(summary = "Nhân bản hackathon", description = "Sao chép rounds/tracks/criteria từ sự kiện nguồn. Không copy teams/judges/events.")
+    public ResponseEntity<ApiResponse<HackathonResponse>> clone(
+            @PathVariable Integer id,
+            @Valid @RequestBody CreateHackathonRequest req) {
+        HackathonResponse data = hackathonService.cloneFrom(id, req);
+        URI location = ServletUriComponentsBuilder.fromCurrentRequest()
+                .replacePath("/api/v1/hackathons/{id}")
+                .buildAndExpand(data.getId())
+                .toUri();
+        return ResponseEntity.created(location).body(ApiResponse.created(data));
+    }
+
     @GetMapping
     @Operation(summary = "Tìm kiếm và phân trang hackathon", description = "Mọi user đều có thể xem danh sách.")
     public ResponseEntity<ApiResponse<PageResponse<HackathonSummaryResponse>>> search(

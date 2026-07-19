@@ -24,6 +24,9 @@ public class PresentationControllerGrantRequest {
      */
     private Integer expectedControllerJudgeId;
 
-    /** TRANSFER requires target judge WS-online; TAKEOVER may skip online check. */
+    /**
+     * Chỉ hỗ trợ TRANSFER (không còn TAKEOVER). Không yêu cầu judge online —
+     * field giữ lại cho tương thích FE, giá trị bị bỏ qua.
+     */
     private String mode;
 }

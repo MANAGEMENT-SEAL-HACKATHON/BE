@@ -33,6 +33,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -57,6 +58,7 @@ public class HackathonServiceImpl implements HackathonService {
     private final EventRepository eventRepository;
     private final HackathonArchiveGuard archiveGuard;
     private final HackathonBannerStorageService bannerStorageService;
+    private final HackathonCloneSupport hackathonCloneSupport;
 
     @Override
     public HackathonResponse create(CreateHackathonRequest req) {
@@ -82,6 +84,43 @@ public class HackathonServiceImpl implements HackathonService {
         HackathonResponse response = hackathonMapper.toResponse(saved);
         auditService.log(AuditAction.HACKATHON_CREATE, "hackathons", saved.getId(),
                 Map.of("snapshot", response));
+        return response;
+    }
+
+    @Override
+    public HackathonResponse cloneFrom(Integer sourceId, CreateHackathonRequest req) {
+        Hackathon source = hackathonRepository.findById(sourceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Hackathon", sourceId));
+
+        if (hackathonRepository.existsByNameAndSeasonAndYear(req.getName(), req.getSeason(), req.getYear())) {
+            throw new ConflictException(ErrorCode.HACKATHON_DUPLICATE,
+                    "Hackathon đã tồn tại cho (name=%s, season=%s, year=%d)"
+                            .formatted(req.getName(), req.getSeason(), req.getYear()));
+        }
+        if (hackathonRepository.existsBySlug(req.getSlug())) {
+            throw new ConflictException(ErrorCode.HACKATHON_DUPLICATE,
+                    "Slug đã được sử dụng: " + req.getSlug());
+        }
+        validateEventStartAfterRegistrationEnd(req.getRegistrationEnd(), req.getEventStart());
+
+        Hackathon entity = hackathonMapper.toEntity(req);
+        entity.setStatus(HackathonStatus.DRAFT);
+        entity.setClonedFromHackathon(source);
+        entity.setClonedAt(LocalDateTime.now());
+        Integer uid = currentUserAccessor.currentUserId();
+        if (uid != null) {
+            entity.setCreatedBy(User.builder().id(uid).build());
+        }
+        Hackathon saved = hackathonRepository.save(entity);
+        hackathonCloneSupport.copyStructureFrom(source, saved);
+
+        Hackathon reloaded = hackathonRepository.findById(saved.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Hackathon", saved.getId()));
+        HackathonResponse response = hackathonMapper.toResponse(reloaded);
+        auditService.log(AuditAction.HACKATHON_CLONE, "hackathons", saved.getId(), Map.of(
+                "sourceHackathonId", sourceId,
+                "sourceHackathonName", source.getName(),
+                "snapshot", response));
         return response;
     }
 

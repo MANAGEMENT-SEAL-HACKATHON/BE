@@ -16,6 +16,7 @@ import com.sealhackathon.api.rounds.dto.response.RoundRankingItemResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoreboardResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoringProgressResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundSummaryResponse;
+import com.sealhackathon.api.rounds.dto.response.RoundScoreAuditResponse;
 import com.sealhackathon.api.rounds.dto.response.ScoreBreakdownResponse;
 import com.sealhackathon.api.rounds.dto.response.TiebreakItemResponse;
 import com.sealhackathon.api.rounds.dto.response.WildcardCandidatesResponse;
@@ -83,7 +84,11 @@ public interface RoundProgressionService {
 
     /**
      * Ma trận điểm judges × criteria cho submission (Bug4). COORD only qua controller.
-     * G5-J: full scoring-audit list deferred — use this per-submission view instead.
      */
     ScoreBreakdownResponse scoreBreakdown(Integer roundId, Integer submissionId);
+
+    /**
+     * A1 — Kiểm tra chấm tổng thể: không trackId = summary; có trackId = ma trận 1 query/track.
+     */
+    RoundScoreAuditResponse scoreBreakdownAll(Integer roundId, Integer trackId);
 }

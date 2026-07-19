@@ -5,6 +5,7 @@ import com.sealhackathon.api.common.security.StudentOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
 import com.sealhackathon.api.me.student.dto.request.RelotteryTrackRequest;
 import com.sealhackathon.api.me.student.dto.response.StudentSubmissionStatusResponse;
+import com.sealhackathon.api.me.student.dto.response.StudentTeamScoreBreakdownResponse;
 import com.sealhackathon.api.me.student.service.StudentPortalService;
 import com.sealhackathon.api.tracks.dto.response.TrackSummaryResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,6 +34,14 @@ public class StudentTeamController {
             @PathVariable Integer teamId,
             @RequestParam(required = false) Integer roundId) {
         return ResponseEntity.ok(ApiResponse.ok(studentPortalService.listTeamSubmissions(teamId, roundId)));
+    }
+
+    @GetMapping("/teams/{teamId}/rounds/{roundId}/score-breakdown")
+    @Operation(summary = "A2-1 — Bảng điểm đội (ẩn danh GK), chỉ sau khi vòng đã công bố")
+    public ResponseEntity<ApiResponse<StudentTeamScoreBreakdownResponse>> teamScoreBreakdown(
+            @PathVariable Integer teamId,
+            @PathVariable Integer roundId) {
+        return ResponseEntity.ok(ApiResponse.ok(studentPortalService.getTeamScoreBreakdown(teamId, roundId)));
     }
 
     @GetMapping("/submission")

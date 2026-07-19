@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Component
@@ -80,8 +81,8 @@ public class PresentationControllerGuard {
     }
 
     /**
-     * Mặc định: trưởng ban (is_dept_head), nếu không có thì judge được gán sớm nhất (assignedAt).
-     * Không dùng assignment_type HEAD — đó chỉ là nhãn phân công, không phải trưởng ban thật.
+     * Mặc định: judge được gán sớm nhất (assignedAt).
+     * Không dùng assignment_type HEAD hay is_dept_head — timer override qua coordinator grant.
      */
     static Optional<Integer> findDefaultControllerJudgeId(List<JudgeAssignment> assignments) {
         if (assignments == null || assignments.isEmpty()) {
@@ -91,17 +92,10 @@ public class PresentationControllerGuard {
                 JudgeAssignment::getAssignedAt,
                 Comparator.nullsLast(Comparator.naturalOrder()));
 
-        Optional<Integer> deptHead = assignments.stream()
-                .filter(ja -> ja.getJudge() != null && Boolean.TRUE.equals(ja.getJudge().getIsDeptHead()))
-                .sorted(byAssignedAt)
-                .map(ja -> ja.getJudge().getId())
-                .findFirst();
-        if (deptHead.isPresent()) {
-            return deptHead;
-        }
         return assignments.stream()
                 .sorted(byAssignedAt)
-                .map(ja -> ja.getJudge().getId())
+                .map(ja -> ja.getJudge() != null ? ja.getJudge().getId() : null)
+                .filter(Objects::nonNull)
                 .findFirst();
     }
 

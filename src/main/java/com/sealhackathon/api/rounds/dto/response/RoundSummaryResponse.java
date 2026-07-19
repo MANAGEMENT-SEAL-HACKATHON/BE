@@ -27,6 +27,8 @@ public class RoundSummaryResponse {
     private final String name;
     private final LocalDateTime examAt;
     private final LocalDateTime submissionDeadline;
+    /** true = Chung kết — cần expose để FE/probe phân biệt (list trước đây thiếu field này). */
+    private final Boolean isFinal;
     private final Boolean isActive;
     private final Boolean scoringLocked;
     private final Boolean isPublished;

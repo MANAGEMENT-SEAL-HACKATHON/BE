@@ -82,6 +82,7 @@ public class SubmissionServiceImpl implements SubmissionService {
     private final NotificationService notificationService;
     private final PrelimMutationGuard prelimMutationGuard;
     private final PresentationQueueService presentationQueueService;
+    private final com.sealhackathon.api.live_scoring.SubmissionRosterPublisher submissionRosterPublisher;
 
     @Override
     public SubmissionResponse submitMultipart(
@@ -234,6 +235,7 @@ public class SubmissionServiceImpl implements SubmissionService {
                 Map.of("teamId", team.getId(), "roundId", round.getId()));
         notifySubmissionReceived(team, round, track, saved, isCreate);
         submissionMetadataService.enqueueFetch(saved.getId());
+        submissionRosterPublisher.publishInvalidate(round.getId());
         return toResponse(saved, false);
     }
 
@@ -366,6 +368,9 @@ public class SubmissionServiceImpl implements SubmissionService {
                                 "error", ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName()));
                 notifyCoordinatorsQueueAppendFailed(saved, ex);
             }
+        }
+        if (saved.getRound() != null) {
+            submissionRosterPublisher.publishInvalidate(saved.getRound().getId());
         }
         SubmissionResponse response = toResponse(saved, false);
         if (queueAppendFailed) {

@@ -11,7 +11,7 @@ public interface StudentPortalService {
 
     List<StudentHackathonBrowseItemResponse> browseHackathons(String status);
 
-    List<MeTeamSummaryResponse> listMyTeams();
+    List<MeTeamSummaryResponse> listMyTeams(boolean includeEliminated);
 
     void relotteryTrack(Integer teamId, Integer roundId, RelotteryTrackRequest request);
 
@@ -26,6 +26,9 @@ public interface StudentPortalService {
     List<StudentSubmissionStatusResponse> listTeamSubmissions(Integer teamId, Integer roundId);
 
     StudentSubmissionStatusResponse getLatestSubmission(Integer teamId, Integer roundId);
+
+    /** A2-1 — điểm đội ẩn danh sau publish. */
+    StudentTeamScoreBreakdownResponse getTeamScoreBreakdown(Integer teamId, Integer roundId);
 
     StudentRoundDeadlineResponse getCurrentDeadline(Integer hackathonId);
 

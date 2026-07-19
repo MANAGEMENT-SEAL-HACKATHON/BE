@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class DevSeedCatalogTest {
 
-    private static final int EXPECTED_SLUG_COUNT = 6;
+    private static final int EXPECTED_SLUG_COUNT = 9;
 
     @Test
     void catalogHasExpectedSlugCount() {

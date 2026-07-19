@@ -1,6 +1,7 @@
 package com.sealhackathon.api.prizes.service;
 
 import com.sealhackathon.api.prizes.dto.request.AwardPrizeRequest;
+import com.sealhackathon.api.prizes.dto.request.RevokePrizeRequest;
 import com.sealhackathon.api.prizes.dto.request.UpdateAwardedPrizeRequest;
 import com.sealhackathon.api.prizes.dto.response.PrizeResponse;
 
@@ -14,5 +15,5 @@ public interface PrizeService {
 
     PrizeResponse updateAwarded(Integer prizeId, UpdateAwardedPrizeRequest req);
 
-    void revoke(Integer prizeId);
+    void revoke(Integer prizeId, RevokePrizeRequest req);
 }

@@ -149,7 +149,7 @@ class Gd3RoundGateIntegrationTest {
     }
 
     @Test
-    @DisplayName("slug: seal-gd3-no-lottery — NO_TEAMS_IN_ROUND (G3-N01)")
+    @DisplayName("slug: seal-gd3-no-lottery — TRACK_EMPTY_TEAMS (G3-N01)")
     void activatePrelimWithoutTeamsFails() throws Exception {
         String token = login(coordinator.getEmail(), "Coordinator@dev1");
         MvcResult result = mockMvc.perform(patch("/api/v1/rounds/{id}/activate", prelim.getId())
@@ -159,7 +159,7 @@ class Gd3RoundGateIntegrationTest {
                 .andExpect(status().isUnprocessableEntity())
                 .andReturn();
 
-        assertThat(readJson(result).path("error").path("code").asText()).isEqualTo("NO_TEAMS_IN_ROUND");
+        assertThat(readJson(result).path("error").path("code").asText()).isEqualTo("TRACK_EMPTY_TEAMS");
     }
 
     private User saveUser(Chapter chapter, String email, UserRole role) {

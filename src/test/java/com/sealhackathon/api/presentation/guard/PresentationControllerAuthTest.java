@@ -82,22 +82,43 @@ class PresentationControllerAuthTest {
     }
 
     @Test
-    void deptHeadJudgeAutoDefaultForFinalRound() {
+    void earliestAssignedJudgeIsDefaultForFinalRound() {
         Round round = Round.builder().id(20).build();
+        User laterJudge = User.builder().id(9).isDeptHead(true).build();
+        User earlierJudge = User.builder().id(11).build();
+        when(currentUserAccessor.currentUser()).thenReturn(
+                CurrentUserStub.builder().userId(11).role(UserRole.JUDGE).build());
+        when(currentUserAccessor.currentUserId()).thenReturn(11);
+        when(judgeAssignmentRepository.findByRoundId(20)).thenReturn(List.of(
+                JudgeAssignment.builder()
+                        .judge(earlierJudge)
+                        .assignedAt(LocalDateTime.now().minusDays(1))
+                        .build(),
+                JudgeAssignment.builder()
+                        .judge(laterJudge)
+                        .assignedAt(LocalDateTime.now())
+                        .build()));
+        assertThatCode(() -> guard.requireControllerForRound(20, round)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void deptHeadFlagNoLongerOverridesEarliestAssignee() {
+        Round round = Round.builder().id(21).build();
         User deptHead = User.builder().id(9).isDeptHead(true).build();
-        User otherJudge = User.builder().id(11).build();
+        User earliest = User.builder().id(11).build();
         when(currentUserAccessor.currentUser()).thenReturn(
                 CurrentUserStub.builder().userId(9).role(UserRole.JUDGE).build());
         when(currentUserAccessor.currentUserId()).thenReturn(9);
-        when(judgeAssignmentRepository.findByRoundId(20)).thenReturn(List.of(
+        when(judgeAssignmentRepository.findByRoundId(21)).thenReturn(List.of(
                 JudgeAssignment.builder()
-                        .judge(otherJudge)
-                        .assignedAt(LocalDateTime.now().minusDays(1))
+                        .judge(earliest)
+                        .assignedAt(LocalDateTime.now().minusDays(2))
                         .build(),
                 JudgeAssignment.builder()
                         .judge(deptHead)
                         .assignedAt(LocalDateTime.now())
                         .build()));
-        assertThatCode(() -> guard.requireControllerForRound(20, round)).doesNotThrowAnyException();
+        assertThatThrownBy(() -> guard.requireControllerForRound(21, round))
+                .isInstanceOf(AuthException.class);
     }
 }

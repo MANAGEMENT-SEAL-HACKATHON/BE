@@ -4,9 +4,13 @@ import com.sealhackathon.api.export_jobs.dto.request.CreateExportJobRequest;
 import com.sealhackathon.api.export_jobs.dto.response.ExportFileDownload;
 import com.sealhackathon.api.export_jobs.dto.response.ExportJobResponse;
 
+import java.util.List;
+
 public interface ExportJobService {
 
     ExportJobResponse create(Integer hackathonId, CreateExportJobRequest req);
+
+    List<ExportJobResponse> listByHackathon(Integer hackathonId);
 
     ExportJobResponse getById(Integer jobId);
 

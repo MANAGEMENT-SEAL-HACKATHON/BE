@@ -1,6 +1,5 @@
 package com.sealhackathon.api.me.judge.service;
 
-import com.sealhackathon.api.calibration_sessions.dto.response.CalibrationSessionResponse;
 import com.sealhackathon.api.me.judge.dto.request.JudgeScoreCommentRequest;
 import com.sealhackathon.api.me.judge.dto.request.JudgeScoringCompletionRequest;
 import com.sealhackathon.api.me.judge.dto.request.TiebreakVoteRequest;
@@ -21,10 +20,6 @@ public interface JudgePortalService {
     List<JudgeScoreSummaryResponse> listMyScores(Integer roundId);
 
     List<JudgeSubmissionListItemResponse> listSubmissions(Integer roundId, Integer trackId);
-
-    List<CalibrationSessionResponse> listCalibrationSessions(Integer roundId);
-
-    List<CalibrationSessionResponse> listCalibrationSessions(Integer roundId, Integer trackId);
 
     JudgePresentationScoringStatusResponse getPresentationScoringStatus(Integer roundId, Integer trackId);
 

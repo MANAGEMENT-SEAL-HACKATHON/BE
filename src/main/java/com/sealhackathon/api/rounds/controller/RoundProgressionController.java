@@ -18,6 +18,7 @@ import com.sealhackathon.api.rounds.dto.response.RoundRankingItemResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoreboardResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoringProgressResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundSummaryResponse;
+import com.sealhackathon.api.rounds.dto.response.RoundScoreAuditResponse;
 import com.sealhackathon.api.rounds.dto.response.ScoreBreakdownResponse;
 import com.sealhackathon.api.rounds.dto.response.TiebreakItemResponse;
 import com.sealhackathon.api.rounds.dto.response.WildcardCandidatesResponse;
@@ -93,9 +94,9 @@ public class RoundProgressionController {
     }
 
     @PatchMapping("/{id}/unlock-scoring")
-    @CoordinatorOnly
+    @com.sealhackathon.api.common.security.SuperAdminOnly
     @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
-    @Operation(summary = "Mở khóa chấm điểm — broadcast SCORING_UNLOCKED")
+    @Operation(summary = "Mở khóa chấm điểm — chỉ SUPERADMIN (audit bắt buộc; Coord không được gọi)")
     public ResponseEntity<ApiResponse<RoundSummaryResponse>> unlockScoring(
             @PathVariable Integer id,
             @Valid @RequestBody UnlockScoringRequest req) {
@@ -233,5 +234,15 @@ public class RoundProgressionController {
             @PathVariable Integer id,
             @RequestParam Integer submissionId) {
         return ResponseEntity.ok(ApiResponse.ok(progressionService.scoreBreakdown(id, submissionId)));
+    }
+
+    @GetMapping("/{id}/score-breakdown-all")
+    @CoordinatorOnly
+    @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
+    @Operation(summary = "A1 — Kiểm tra chấm tổng thể: không trackId=summary; có trackId=ma trận track")
+    public ResponseEntity<ApiResponse<RoundScoreAuditResponse>> scoreBreakdownAll(
+            @PathVariable Integer id,
+            @RequestParam(required = false) Integer trackId) {
+        return ResponseEntity.ok(ApiResponse.ok(progressionService.scoreBreakdownAll(id, trackId)));
     }
 }

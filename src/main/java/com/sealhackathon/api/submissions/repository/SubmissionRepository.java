@@ -35,12 +35,12 @@ public interface SubmissionRepository extends JpaRepository<Submission, Integer>
 
     Optional<Submission> findTopByTeam_IdAndRound_IdOrderBySubmittedAtDesc(Integer teamId, Integer roundId);
 
-    @Query("""
-            SELECT COUNT(s)
-              FROM Submission s
-             WHERE (s.round IS NOT NULL AND s.round.id = :roundId)
-                OR (s.track IS NOT NULL AND s.track.round.id = :roundId)
-            """)
+    /**
+     * Đếm theo {@code round_id} denormalized (luôn có sau v4.1).
+     * Không navigate {@code track.round} trong OR — Hibernate INNER JOIN track
+     * sẽ loại bài Chung kết ({@code track_id IS NULL}).
+     */
+    @Query("SELECT COUNT(s) FROM Submission s WHERE s.round.id = :roundId")
     long countByRoundId(@Param("roundId") Integer roundId);
 
     List<Submission> findByStatus(SubmissionStatus status);

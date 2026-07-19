@@ -77,15 +77,10 @@ public class DevSeedCleanup {
                 """, hackathonId);
         jdbcTemplate.update("DELETE FROM submissions WHERE hackathon_id = ?", hackathonId);
 
-        // Tiebreak / calibration (theo round)
+        // Tiebreak (theo round)
         jdbcTemplate.update("""
                 DELETE te FROM tiebreak_evaluations te
                 INNER JOIN rounds r ON r.id = te.round_id
-                WHERE r.hackathon_id = ?
-                """, hackathonId);
-        jdbcTemplate.update("""
-                DELETE cs FROM calibration_sessions cs
-                INNER JOIN rounds r ON r.id = cs.round_id
                 WHERE r.hackathon_id = ?
                 """, hackathonId);
 

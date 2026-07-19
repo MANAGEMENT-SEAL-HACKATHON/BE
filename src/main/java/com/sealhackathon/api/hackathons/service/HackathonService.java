@@ -39,6 +39,11 @@ public interface HackathonService {
     HackathonResponse create(CreateHackathonRequest req);
 
     /**
+     * POST /api/v1/hackathons/{id}/clone — nhân bản rounds/tracks/criteria từ nguồn.
+     */
+    HackathonResponse cloneFrom(Integer sourceId, CreateHackathonRequest req);
+
+    /**
      * GET /api/v1/hackathons/{id}.
      *
      * @throws ResourceNotFoundException

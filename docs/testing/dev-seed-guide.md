@@ -171,12 +171,17 @@ Toggle: `app.seed.gd1.no-kickoff.enabled`, `app.seed.gd1.no-awards.enabled`
 
 | Role | Email | Password |
 |------|-------|----------|
+| SUPERADMIN | `superadmin@fpt.edu.vn` | `SuperAdmin@dev1` |
 | Coordinator | `coord@fpt.edu.vn` | `Coordinator@dev1` |
 | Judge INTERNAL | `judge1@` … `judge4@fpt.edu.vn` | `Judge@dev1` |
 | Mentor | `mentor@` … `mentor3@fpt.edu.vn` | `Mentor@dev1` |
 | Guest judge EXTERNAL | `guestjudge@` … `guestjudge3@gmail.com` | `GuestJudge@dev1` |
 
 **Phân công:** sơ loại chỉ INTERNAL (`HEAD` + `NORMAL`); chung kết = EXTERNAL `FINAL_EXTERNAL` + INTERNAL `HEAD` (trưởng ban).
+
+**SUPERADMIN:** seed sau Coordinator (giữ `coord@` = user id=1 cho `StubCurrentUserAccessor`). Dùng để đăng nhập UI kiểu Coord và **Mở lại khóa chấm** (`PATCH /api/v1/rounds/{id}/unlock-scoring`, `@SuperAdminOnly`, lý do bắt buộc + audit). Coord không có nút unlock.
+
+**Role model:** BE không có role `ADMIN`; FE cũng không dùng `ADMIN` làm user role. Platform = **SUPERADMIN**, vận hành sự kiện = **COORDINATOR**. Các API path kiểu `admin-create` là tên nghiệp vụ cũ, không phải role đăng nhập.
 
 ---
 

@@ -21,4 +21,6 @@ public class PresentationQueueNextRequest {
      * (còn judge trên track chưa chấm lần nào).
      */
     private Boolean acknowledgeIncompleteScoring;
+    /** Lý do bắt buộc khi force-ack (Coord/HEAD) — ghi audit. */
+    private String forceAckReason;
 }

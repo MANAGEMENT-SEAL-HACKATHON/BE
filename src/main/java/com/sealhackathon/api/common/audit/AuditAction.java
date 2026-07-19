@@ -12,6 +12,7 @@ public final class AuditAction {
 
     // ---------- FR-01 / FR-06 HACKATHON ----------
     public static final String HACKATHON_CREATE         = "HACKATHON_CREATE";
+    public static final String HACKATHON_CLONE          = "HACKATHON_CLONE";
     public static final String HACKATHON_UPDATE         = "HACKATHON_UPDATE";
     public static final String HACKATHON_DELETE         = "HACKATHON_DELETE";
     public static final String HACKATHON_STATUS_CHANGE  = "HACKATHON_STATUS_CHANGE";
@@ -62,11 +63,14 @@ public final class AuditAction {
     public static final String TEMP_ACCOUNT_CREATE      = "TEMP_ACCOUNT_CREATE";
     public static final String INVITATION_RESEND        = "INVITATION_RESEND";
     public static final String INVITATION_CREATE        = "INVITATION_CREATE";
+    public static final String INVITATION_REVOKE        = "INVITATION_REVOKE";
     public static final String USER_DEPT_HEAD_SET       = "USER_DEPT_HEAD_SET";
     public static final String MENTOR_ASSIGNED          = "MENTOR_ASSIGNED";
     public static final String MENTOR_UNASSIGNED        = "MENTOR_UNASSIGNED";
     public static final String JUDGE_ASSIGNED           = "JUDGE_ASSIGNED";
     public static final String JUDGE_UNASSIGNED         = "JUDGE_UNASSIGNED";
+    /** Tạo/đổi/gỡ assignment_type HEAD — tra cứu thẩm quyền tiebreak/force-ack. */
+    public static final String JUDGE_HEAD_CHANGED       = "JUDGE_HEAD_CHANGED";
 
     // ---------- FR-06A EVENTS ----------
     public static final String EVENT_CREATE             = "EVENT_CREATE";
@@ -101,8 +105,8 @@ public final class AuditAction {
     public static final String PRESENTATION_QUEUE_SHUFFLE = "PRESENTATION_QUEUE_SHUFFLE";
     public static final String PRESENTATION_CONTROLLER_GRANTED = "PRESENTATION_CONTROLLER_GRANTED";
     public static final String PRESENTATION_CONTROLLER_REVOKED = "PRESENTATION_CONTROLLER_REVOKED";
-    public static final String PRESENTATION_CONTROLLER_TAKEOVER = "PRESENTATION_CONTROLLER_TAKEOVER";
     public static final String PRESENTATION_NO_SHOW_SKIPPED = "PRESENTATION_NO_SHOW_SKIPPED";
+    public static final String PRESENTATION_FORCE_ADVANCE_ACK = "PRESENTATION_FORCE_ADVANCE_ACK";
     public static final String PRESENTATION_DURATION_UPDATED = "PRESENTATION_DURATION_UPDATED";
     public static final String ROUND_SCORING_UNLOCKED = "ROUND_SCORING_UNLOCKED";
     public static final String ANNOUNCEMENT_PUBLISHED = "ANNOUNCEMENT_PUBLISHED";
@@ -137,10 +141,6 @@ public final class AuditAction {
     // ---------- MF-03 GĐ6 EXPORT ----------
     public static final String EXPORT_JOB_CREATED         = "EXPORT_JOB_CREATED";
     public static final String EXPORT_FILE_DOWNLOADED     = "EXPORT_FILE_DOWNLOADED";
-
-    // ---------- MF-03 GĐ5 CALIBRATION ----------
-    public static final String CALIBRATION_SESSION_CREATED  = "CALIBRATION_SESSION_CREATED";
-    public static final String CALIBRATION_SESSION_UPDATED  = "CALIBRATION_SESSION_UPDATED";
 
     // ---------- WARNINGS ----------
     public static final String WARNING_CONFLICT_CHECK_SKIPPED = "WARNING_CONFLICT_CHECK_SKIPPED";

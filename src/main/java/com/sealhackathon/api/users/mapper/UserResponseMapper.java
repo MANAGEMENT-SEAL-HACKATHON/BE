@@ -43,6 +43,7 @@ public class UserResponseMapper {
                 .isTempAccount(u.getIsTempAccount())
                 .isDeptHead(u.getIsDeptHead())
                 .institution(u.getInstitution())
+                .avatarUrl(u.getAvatarUrl())
                 .build();
     }
 

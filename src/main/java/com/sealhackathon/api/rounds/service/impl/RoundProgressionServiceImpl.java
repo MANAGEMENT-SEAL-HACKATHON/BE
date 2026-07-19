@@ -41,6 +41,7 @@ import com.sealhackathon.api.rounds.dto.response.RoundRankingItemResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoreboardResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoringProgressResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundSummaryResponse;
+import com.sealhackathon.api.rounds.dto.response.RoundScoreAuditResponse;
 import com.sealhackathon.api.rounds.dto.response.ScoreBreakdownResponse;
 import com.sealhackathon.api.rounds.dto.response.TiebreakItemResponse;
 import com.sealhackathon.api.rounds.dto.response.WildcardCandidateResponse;
@@ -141,7 +142,12 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
             throw new BusinessRuleException(ErrorCode.INVALID_STATE,
                     "Đề bài đã được phát — không thể thay đổi");
         }
-        // Phát đề: chỉ cần Active (+ PDF tracks cho prelim). examAt chỉ gate close-early.
+        LocalDateTime now = LocalDateTime.now();
+        if (round.getExamAt() == null || round.getExamAt().isAfter(now)) {
+            throw new BusinessRuleException(ErrorCode.INVALID_ROUND_STATE_BEFORE_EXAM,
+                    "Chưa tới giờ thi, chưa thể phát đề!");
+        }
+        // Phát đề: cần Active + đã tới examAt (+ PDF tracks cho prelim).
         if (!Boolean.TRUE.equals(round.getIsFinal())) {
             List<Track> tracks = trackRepository.findByRoundIdOrderBySequenceOrderAsc(roundId).stream()
                     .filter(t -> t.getStatus() != TrackStatus.CANCELLED)
@@ -158,7 +164,7 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                 throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
                         "Các bảng đấu chưa có file đề bài: " + String.join(", ", missing));
             }
-            LocalDateTime releasedAt = LocalDateTime.now();
+            LocalDateTime releasedAt = now;
             round.setProblemReleasedAt(releasedAt);
             for (Track track : tracks) {
                 if (track.getProblemReleasedAt() == null) {
@@ -185,7 +191,7 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
             throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
                     "Các bảng đấu sơ loại thiếu đề PDF: " + String.join(", ", missingPrelimPdfs));
         }
-        round.setProblemReleasedAt(LocalDateTime.now());
+        round.setProblemReleasedAt(now);
         Round saved = roundRepository.save(round);
         java.util.Map<String, Object> auditMeta = new java.util.HashMap<>();
         auditMeta.put("isFinal", true);
@@ -421,7 +427,35 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
             // durable flag already set; announcement is best-effort
         }
 
+        try {
+            notifyResultsPublished(round);
+        } catch (Exception ignored) {
+            // in-app notify is best-effort after durable publish flag
+        }
+
         return roundMapper.toSummary(saved, 0, 0, 0f);
+    }
+
+    /** Fan-out in-app notify to accepted team members of the published round. */
+    private void notifyResultsPublished(Round round) {
+        Set<User> recipients = new LinkedHashSet<>();
+        for (TeamRoundTrack trt : teamRoundTrackRepository.findByTrack_Round_Id(round.getId())) {
+            teamMemberRepository.findByTeam_Id(trt.getTeam().getId()).stream()
+                    .filter(tm -> tm.getStatus() == TeamMemberStatus.ACCEPTED)
+                    .map(TeamMember::getUser)
+                    .forEach(recipients::add);
+        }
+        if (recipients.isEmpty()) {
+            return;
+        }
+        notificationService.sendBatch(
+                new ArrayList<>(recipients),
+                "SCORE_RELEASED",
+                "Kết quả đã công bố — %s".formatted(round.getName()),
+                "Kết quả vòng «%s» đã được công bố. Xem bảng xếp hạng và điểm đội."
+                        .formatted(round.getName()),
+                "rounds",
+                round.getId());
     }
 
     @Override
@@ -461,7 +495,7 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
 
     private List<TiebreakItemResponse> detectRawTiebreakItems(Round round, Integer roundId) {
         if (Boolean.TRUE.equals(round.getIsFinal())) {
-            return detectTiebreakForFinalRound(roundId);
+            return detectTiebreakForFinalRound(round);
         }
 
         Integer topNAdvance = round.getTopNAdvance();
@@ -474,6 +508,8 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
             return List.of();
         }
 
+        boolean displayNetsPenalty = rankingDisplayNetsPenalty(round);
+
         Map<String, List<RoundRankingItemResponse>> partitionedRanking = ranking.stream()
                 .collect(Collectors.groupingBy(item -> {
                     String trackPart = item.getTrackId() != null ? item.getTrackId().toString() : "0";
@@ -484,16 +520,26 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         List<TiebreakItemResponse> tiebreakItems = new ArrayList<>();
 
         for (Map.Entry<String, List<RoundRankingItemResponse>> entry : partitionedRanking.entrySet()) {
-            List<RoundRankingItemResponse> groupRanking = entry.getValue();
+            // Sort by effective score so cutoff index matches progression order after micro-penalty resolve.
+            List<RoundRankingItemResponse> groupRanking = entry.getValue().stream()
+                    .sorted(Comparator
+                            .comparing((RoundRankingItemResponse r) -> effectiveScoreForTieDetection(r, displayNetsPenalty),
+                                    Comparator.reverseOrder())
+                            .thenComparing(r -> r.getPenaltyScore() != null ? r.getPenaltyScore() : 0.0)
+                            .thenComparing(RoundRankingItemResponse::getTeamId))
+                    .toList();
             if (groupRanking.size() <= topNAdvance) {
                 continue;
             }
 
-            Double cutoffScore = groupRanking.get(topNAdvance - 1).getTotalScore();
-            long safeCount = groupRanking.stream().filter(r -> r.getTotalScore() > cutoffScore).count();
+            double cutoffScore = effectiveScoreForTieDetection(groupRanking.get(topNAdvance - 1), displayNetsPenalty);
+            long safeCount = groupRanking.stream()
+                    .filter(r -> effectiveScoreForTieDetection(r, displayNetsPenalty) > cutoffScore + 1e-9)
+                    .count();
 
             List<Integer> borderlineTeamIds = groupRanking.stream()
-                    .filter(r -> r.getTotalScore().equals(cutoffScore))
+                    .filter(r -> sameEffectiveScore(
+                            effectiveScoreForTieDetection(r, displayNetsPenalty), cutoffScore))
                     .map(RoundRankingItemResponse::getTeamId)
                     .toList();
 
@@ -510,33 +556,68 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         return tiebreakItems;
     }
 
-    private List<TiebreakItemResponse> detectTiebreakForFinalRound(Integer roundId) {
-        List<RoundRankingItemResponse> ranking = roundRankingQueryService.rankingForRound(roundId, false);
+    private List<TiebreakItemResponse> detectTiebreakForFinalRound(Round round) {
+        List<RoundRankingItemResponse> ranking = roundRankingQueryService.rankingForRound(round.getId(), false);
         if (ranking.isEmpty()) {
             return List.of();
         }
 
+        boolean displayNetsPenalty = rankingDisplayNetsPenalty(round);
+        List<RoundRankingItemResponse> ordered = ranking.stream()
+                .sorted(Comparator
+                        .comparing((RoundRankingItemResponse r) -> effectiveScoreForTieDetection(r, displayNetsPenalty),
+                                Comparator.reverseOrder())
+                        .thenComparing(r -> r.getPenaltyScore() != null ? r.getPenaltyScore() : 0.0)
+                        .thenComparing(RoundRankingItemResponse::getTeamId))
+                .toList();
+
         List<TiebreakItemResponse> tiebreakItems = new ArrayList<>();
         int i = 0;
-        while (i < ranking.size()) {
-            Double score = ranking.get(i).getTotalScore();
+        while (i < ordered.size()) {
+            double score = effectiveScoreForTieDetection(ordered.get(i), displayNetsPenalty);
             int j = i + 1;
-            while (j < ranking.size() && java.util.Objects.equals(ranking.get(j).getTotalScore(), score)) {
+            while (j < ordered.size()
+                    && sameEffectiveScore(effectiveScoreForTieDetection(ordered.get(j), displayNetsPenalty), score)) {
                 j++;
             }
             if (j - i > 1) {
-                List<Integer> tiedTeamIds = ranking.subList(i, j).stream()
+                List<Integer> tiedTeamIds = ordered.subList(i, j).stream()
                         .map(RoundRankingItemResponse::getTeamId)
                         .toList();
                 tiebreakItems.add(TiebreakItemResponse.builder()
                         .partitionKey("FINAL")
-                        .cutoffRank(ranking.get(i).getRank())
+                        .cutoffRank(ordered.get(i).getRank())
                         .candidateTeamIds(tiedTeamIds)
                         .build());
             }
             i = j;
         }
         return tiebreakItems;
+    }
+
+    /**
+     * Điểm hiệu lực để phát hiện đồng điểm: trừ micro-penalty khi {@code totalScore} chưa nhúng penalty
+     * (ONGOING / PENDING_CONFIRM). Khi hackathon FINISHED, ranking đã trừ penalty vào totalScore —
+     * không trừ lần hai.
+     */
+    static double effectiveScoreForTieDetection(RoundRankingItemResponse item, boolean displayNetsPenalty) {
+        double total = item.getTotalScore() != null ? item.getTotalScore() : 0.0;
+        if (displayNetsPenalty) {
+            return total;
+        }
+        double penalty = item.getPenaltyScore() != null ? item.getPenaltyScore() : 0.0;
+        return total - penalty;
+    }
+
+    private static boolean rankingDisplayNetsPenalty(Round round) {
+        return round != null
+                && round.getHackathon() != null
+                && round.getHackathon().getStatus()
+                == com.sealhackathon.api.hackathons.value_object.HackathonStatus.FINISHED;
+    }
+
+    private static boolean sameEffectiveScore(double a, double b) {
+        return Math.abs(a - b) < 1e-9;
     }
 
     private List<TiebreakItemResponse> enrichTiebreakItems(Round round, List<TiebreakItemResponse> rawItems) {
@@ -740,50 +821,8 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         Round round = roundAccessGuard.requireRound(roundId);
         Hackathon hackathon = round.getHackathon();
         boolean hackathonEnabled = Boolean.TRUE.equals(hackathon.getWildcardEnabled());
-        boolean roundEnabled = Boolean.TRUE.equals(round.getWildcardEnabled());
-
-        if (!roundEnabled) {
-            return emptyWildcardResponse(hackathonEnabled, false);
-        }
-
-        // After LOCKED: do NOT re-sort from live scores — serve persisted proposal snapshot.
-        if (round.getWildcardProposalConfirmedAt() != null) {
-            return lockedWildcardResponse(round, hackathonEnabled);
-        }
-
-        Optional<WildcardPoolSnapshot> pool = resolveWildcardPool(round);
-        if (pool.isEmpty()) {
-            return WildcardCandidatesResponse.builder()
-                    .hackathonWildcardEnabled(hackathonEnabled)
-                    .roundWildcardEnabled(true)
-                    .availableSlots(0)
-                    .autoAdvancedCount(0)
-                    .approvedCount(0)
-                    .decisionsFinalized(false)
-                    .proposalConfirmedAt(null)
-                    .candidates(List.of())
-                    .build();
-        }
-
-        WildcardPoolSnapshot snapshot = pool.get();
-        List<WildcardCandidateResponse> responses = buildWildcardCandidateResponses(round, snapshot);
-
-        int approvedCount = (int) responses.stream()
-                .filter(c -> Boolean.TRUE.equals(c.getCoordinatorApproved()))
-                .count();
-        boolean decisionsFinalized = !responses.isEmpty()
-                && responses.stream().allMatch(c -> c.getCoordinatorApproved() != null);
-
-        return WildcardCandidatesResponse.builder()
-                .hackathonWildcardEnabled(hackathonEnabled)
-                .roundWildcardEnabled(true)
-                .availableSlots(snapshot.availableSlots())
-                .autoAdvancedCount(snapshot.autoAdvancedCount())
-                .approvedCount(approvedCount)
-                .decisionsFinalized(decisionsFinalized)
-                .proposalConfirmedAt(null)
-                .candidates(responses)
-                .build();
+        // Product decision: Wildcard removed — always empty pool (Top-N only). WC-MIG.
+        return emptyWildcardResponse(hackathonEnabled, false);
     }
 
     private WildcardCandidatesResponse lockedWildcardResponse(Round round, boolean hackathonEnabled) {
@@ -1241,8 +1280,8 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         Round round = requirePreliminaryRoundForProgression(roundId);
         requireScoringLockedAndPublished(round);
 
-        // Plan C: proposal must be confirmed when WC has slots; else pending decisions block.
-        requireWildcardReadyForAdvance(round);
+        // Wildcard removed (plan v3): advance is Top-N per track only — never block on WC.
+        // Legacy WC rows/flags are ignored for progression gates (WC-MIG).
 
         autoApplyResolvableTiebreaks(roundId);
 
@@ -1294,36 +1333,13 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                 .build();
     }
 
-    /** Plan C advance gate: confirmed proposal (or no WC slots / WC disabled). */
+    /**
+     * @deprecated Wildcard removed — always no-op. Kept so legacy callers compile;
+     * advance never waits on vé vớt (Top-N only).
+     */
+    @Deprecated
     private void requireWildcardReadyForAdvance(Round round) {
-        Integer roundId = round.getId();
-        if (!Boolean.TRUE.equals(round.getWildcardEnabled())) {
-            return;
-        }
-
-        Optional<WildcardPoolSnapshot> pool = resolveWildcardPool(round);
-        // After lock, live pool may look different if scores changed — use confirmedAt.
-        if (round.getWildcardProposalConfirmedAt() != null) {
-            List<WildcardReview> pending =
-                    wildcardReviewRepository.findByRound_IdAndCoordinatorApprovedIsNull(roundId);
-            if (!pending.isEmpty()) {
-                throw new ConflictException(
-                        ErrorCode.WILDCARD_PENDING,
-                        "Còn " + pending.size() + " vé vớt chưa có quyết định sau Override.",
-                        java.util.Map.of("pendingCount", pending.size()));
-            }
-            return;
-        }
-
-        if (pool.isEmpty()) {
-            // No slots / empty pool — WC không chặn advance
-            return;
-        }
-
-        throw new ConflictException(
-                ErrorCode.WILDCARD_PROPOSAL_NOT_CONFIRMED,
-                "Cần xác nhận đề xuất vé vớt trước khi chuyển vòng.",
-                java.util.Map.of("availableSlots", pool.get().availableSlots()));
+        // no-op
     }
 
     @Override
@@ -1669,6 +1685,211 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                 .overallMean(meanOf(allValues))
                 .overallVariance(varianceOf(allValues))
                 .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public RoundScoreAuditResponse scoreBreakdownAll(Integer roundId, Integer trackId) {
+        Round round = roundAccessGuard.requireRound(roundId);
+        boolean isFinal = Boolean.TRUE.equals(round.getIsFinal());
+
+        if (trackId == null) {
+            return buildScoreAuditSummary(round, isFinal);
+        }
+        return buildScoreAuditDetail(round, trackId, isFinal);
+    }
+
+    private RoundScoreAuditResponse buildScoreAuditSummary(Round round, boolean isFinal) {
+        Integer roundId = round.getId();
+        List<RoundScoreAuditResponse.TrackSummary> trackSummaries = new ArrayList<>();
+
+        if (isFinal) {
+            List<Submission> subs = submissionRepository.findByRound_Id(roundId);
+            List<JudgeAssignment> assignments = judgeAssignmentRepository.findByRoundId(roundId);
+            List<Criteria> criteriaList = criteriaRepository.findByFinalRoundIdOrderByDisplayOrderAsc(roundId);
+            trackSummaries.add(buildTrackSummary(null, round.getName() != null ? round.getName() : "Chung kết",
+                    subs, assignments, criteriaList));
+        } else {
+            List<Track> tracks = trackRepository.findByRoundIdOrderBySequenceOrderAsc(roundId);
+            for (Track track : tracks) {
+                List<Submission> subs = submissionRepository.findByTrack_Id(track.getId());
+                List<JudgeAssignment> assignments = judgeAssignmentRepository.findByTrackId(track.getId());
+                List<Criteria> criteriaList = criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(track.getId());
+                trackSummaries.add(buildTrackSummary(track.getId(), track.getName(), subs, assignments, criteriaList));
+            }
+        }
+
+        return RoundScoreAuditResponse.builder()
+                .roundId(roundId)
+                .tracks(trackSummaries)
+                .build();
+    }
+
+    private RoundScoreAuditResponse.TrackSummary buildTrackSummary(
+            Integer trackId,
+            String trackName,
+            List<Submission> subs,
+            List<JudgeAssignment> assignments,
+            List<Criteria> criteriaList) {
+        List<User> judges = distinctJudges(assignments);
+        int expectedPerJudge = Math.max(0, subs.size() * criteriaList.size());
+        List<Integer> subIds = subs.stream().map(Submission::getId).toList();
+        Map<Integer, Integer> scoredByJudge = new HashMap<>();
+        if (!subIds.isEmpty() && !criteriaList.isEmpty()) {
+            List<Score> scores = scoreRepository.findBySubmission_IdInAndScoreType(subIds, ScoreType.NORMAL);
+            for (Score s : scores) {
+                if (s.getJudge() == null || s.getScoreValue() == null) continue;
+                scoredByJudge.merge(s.getJudge().getId(), 1, Integer::sum);
+            }
+        }
+        List<RoundScoreAuditResponse.JudgeProgress> progress = judges.stream()
+                .map(j -> {
+                    int scored = scoredByJudge.getOrDefault(j.getId(), 0);
+                    double pct = expectedPerJudge == 0 ? 0.0 : (100.0 * scored / expectedPerJudge);
+                    return RoundScoreAuditResponse.JudgeProgress.builder()
+                            .judgeId(j.getId())
+                            .judgeName(j.getFullName())
+                            .scoredCells(scored)
+                            .expectedCells(expectedPerJudge)
+                            .percent(Math.round(pct * 10.0) / 10.0)
+                            .build();
+                })
+                .toList();
+
+        Set<Integer> teamIds = subs.stream()
+                .map(s -> s.getTeam() != null ? s.getTeam().getId() : null)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        return RoundScoreAuditResponse.TrackSummary.builder()
+                .trackId(trackId)
+                .trackName(trackName)
+                .teamCount(teamIds.size())
+                .submissionCount(subs.size())
+                .judgeProgress(progress)
+                .build();
+    }
+
+    private RoundScoreAuditResponse buildScoreAuditDetail(Round round, Integer trackId, boolean isFinal) {
+        Integer roundId = round.getId();
+        List<Submission> subs;
+        List<JudgeAssignment> assignments;
+        List<Criteria> criteriaList;
+        String trackName;
+        Integer resolvedTrackId = trackId;
+
+        if (isFinal) {
+            // CK: trackId optional / ignored — single matrix for whole final round
+            subs = submissionRepository.findByRound_Id(roundId);
+            assignments = judgeAssignmentRepository.findByRoundId(roundId);
+            criteriaList = criteriaRepository.findByFinalRoundIdOrderByDisplayOrderAsc(roundId);
+            trackName = round.getName() != null ? round.getName() : "Chung kết";
+            resolvedTrackId = null;
+        } else {
+            final Integer lookupTrackId = trackId;
+            Track track = trackRepository.findById(lookupTrackId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Track", lookupTrackId));
+            if (track.getRound() == null || !Objects.equals(track.getRound().getId(), roundId)) {
+                throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                        "Track không thuộc round này",
+                        Map.of("trackId", lookupTrackId, "roundId", roundId));
+            }
+            subs = submissionRepository.findByTrack_Id(lookupTrackId);
+            assignments = judgeAssignmentRepository.findByTrackId(lookupTrackId);
+            criteriaList = criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(lookupTrackId);
+            trackName = track.getName();
+            resolvedTrackId = lookupTrackId;
+        }
+
+        List<User> judges = distinctJudges(assignments);
+        List<Integer> subIds = subs.stream().map(Submission::getId).toList();
+        Map<String, Score> scoreMap = new HashMap<>();
+        if (!subIds.isEmpty()) {
+            for (Score s : scoreRepository.findBySubmission_IdInAndScoreType(subIds, ScoreType.NORMAL)) {
+                if (s.getJudge() == null || s.getCriterion() == null || s.getSubmission() == null) continue;
+                scoreMap.put(s.getSubmission().getId() + ":" + s.getJudge().getId() + ":" + s.getCriterion().getId(), s);
+            }
+        }
+
+        List<ScoreBreakdownResponse.CriterionColumn> criteriaCols = criteriaList.stream()
+                .map(c -> ScoreBreakdownResponse.CriterionColumn.builder()
+                        .criterionId(c.getId())
+                        .name(c.getName())
+                        .maxScore(c.getMaxScore() != null ? c.getMaxScore().floatValue() : null)
+                        .build())
+                .toList();
+
+        List<ScoreBreakdownResponse.JudgeRow> judgeRows = judges.stream()
+                .map(j -> ScoreBreakdownResponse.JudgeRow.builder()
+                        .judgeId(j.getId())
+                        .judgeName(j.getFullName())
+                        .build())
+                .toList();
+
+        List<RoundScoreAuditResponse.TeamMatrix> teams = new ArrayList<>();
+        for (Submission sub : subs) {
+            Team team = sub.getTeam();
+            List<ScoreBreakdownResponse.Cell> cells = new ArrayList<>();
+            List<Double> allValues = new ArrayList<>();
+            List<ScoreBreakdownResponse.CriterionStats> criterionStats = new ArrayList<>();
+            for (Criteria criterion : criteriaList) {
+                List<Double> values = new ArrayList<>();
+                int missing = 0;
+                for (User judge : judges) {
+                    Score s = scoreMap.get(sub.getId() + ":" + judge.getId() + ":" + criterion.getId());
+                    Float value = s != null ? s.getScoreValue() : null;
+                    cells.add(ScoreBreakdownResponse.Cell.builder()
+                            .judgeId(judge.getId())
+                            .criterionId(criterion.getId())
+                            .scoreValue(value)
+                            .comment(s != null ? s.getComment() : null)
+                            .build());
+                    if (value != null) {
+                        values.add(value.doubleValue());
+                        allValues.add(value.doubleValue());
+                    } else {
+                        missing++;
+                    }
+                }
+                criterionStats.add(ScoreBreakdownResponse.CriterionStats.builder()
+                        .criterionId(criterion.getId())
+                        .mean(meanOf(values))
+                        .variance(varianceOf(values))
+                        .scoredCount(values.size())
+                        .missingCount(missing)
+                        .build());
+            }
+            teams.add(RoundScoreAuditResponse.TeamMatrix.builder()
+                    .teamId(team != null ? team.getId() : null)
+                    .teamName(team != null ? team.getTeamName() : null)
+                    .submissionId(sub.getId())
+                    .cells(cells)
+                    .criterionStats(criterionStats)
+                    .overallMean(meanOf(allValues))
+                    .build());
+        }
+
+        teams.sort(Comparator.comparing(RoundScoreAuditResponse.TeamMatrix::getTeamName,
+                Comparator.nullsLast(String::compareTo)));
+
+        return RoundScoreAuditResponse.builder()
+                .roundId(roundId)
+                .trackId(resolvedTrackId)
+                .trackName(trackName)
+                .criteria(criteriaCols)
+                .judges(judgeRows)
+                .teams(teams)
+                .build();
+    }
+
+    private static List<User> distinctJudges(List<JudgeAssignment> assignments) {
+        return assignments.stream()
+                .map(JudgeAssignment::getJudge)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toMap(User::getId, u -> u, (a, b) -> a, LinkedHashMap::new))
+                .values().stream()
+                .sorted(Comparator.comparing(User::getId))
+                .toList();
     }
 
     private static Double meanOf(List<Double> values) {

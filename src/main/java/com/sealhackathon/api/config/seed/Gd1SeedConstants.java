@@ -39,6 +39,7 @@ public final class Gd1SeedConstants {
     }
 
     /** Chỉ dev — đăng nhập JWT (profile dev). */
+    public static final String DEV_SUPERADMIN_PASSWORD = "SuperAdmin@dev1";
     public static final String DEV_COORDINATOR_PASSWORD = "Coordinator@dev1";
     public static final String DEV_JUDGE_PASSWORD = "Judge@dev1";
     public static final String DEV_GUEST_JUDGE_PASSWORD = "GuestJudge@dev1";
@@ -54,6 +55,8 @@ public final class Gd1SeedConstants {
     public static final String SLUG_ONGOING = "seal-e2e-2026";
     public static final String SLUG_FINISHED = "seal-fall-2025-finished";
 
+    /** SUPERADMIN dev — dùng cho unlock-scoring (@SuperAdminOnly) + login UI. */
+    public static final String EMAIL_SUPERADMIN = "superadmin@fpt.edu.vn";
     public static final String EMAIL_COORDINATOR = "coord@fpt.edu.vn";
     public static final String EMAIL_JUDGE1 = "judge1@fpt.edu.vn";
     public static final String EMAIL_JUDGE2 = "judge2@fpt.edu.vn";
@@ -71,6 +74,7 @@ public final class Gd1SeedConstants {
     public static final String EMAIL_ARCHIVE_STUDENT = "student.archive.fall2025@fpt.edu.vn";
 
     private static final String[] SEED_EMAILS = {
+            EMAIL_SUPERADMIN,
             EMAIL_COORDINATOR,
             EMAIL_JUDGE1,
             EMAIL_JUDGE2,
@@ -103,6 +107,9 @@ public final class Gd1SeedConstants {
             return null;
         }
         String normalized = email.trim().toLowerCase();
+        if (EMAIL_SUPERADMIN.equalsIgnoreCase(normalized)) {
+            return DEV_SUPERADMIN_PASSWORD;
+        }
         if (EMAIL_COORDINATOR.equalsIgnoreCase(normalized)) {
             return DEV_COORDINATOR_PASSWORD;
         }

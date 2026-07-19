@@ -52,6 +52,7 @@ public class DataInitializer implements CommandLineRunner {
         gd1DataSeeder.repairSeededTimeline();
         gd1DataSeeder.repairSeededFinishedHackathon();
         hackathonDevSeedHelper.repairFinishedArchiveAwardsSeed();
+        hackathonDevSeedHelper.deepenFinishedArchiveIfShallow();
         gd1DataSeeder.repairSeededCriteriaAndTracks();
         gd1DataSeeder.repairDevUserPasswords();
 
@@ -98,6 +99,7 @@ public class DataInitializer implements CommandLineRunner {
         hackathonDevSeedHelper.repairAllDevHackathonMilestoneEvents();
         hackathonDevSeedHelper.repairAllHackathonBanners();
         hackathonDevSeedHelper.repairFinishedArchiveAwardsSeed();
+        hackathonDevSeedHelper.deepenFinishedArchiveIfShallow();
         accountStatesDataSeeder.repairForFeTesting();
 
         log.info("[DataInitializer] Dev seed sẵn sàng — {} happy slugs: {}",

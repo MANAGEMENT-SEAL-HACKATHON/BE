@@ -79,14 +79,17 @@ class AuthOnboardingFlowIntegrationTest {
         String email = "flow." + UUID.randomUUID().toString().substring(0, 8) + "@gmail.com";
         String password = "Student@123";
 
-        // 1) register minimal
+        // 1) register with student classification
         String registerBody = """
                 {
                   "email": "%s",
                   "password": "%s",
-                  "confirmPassword": "%s"
+                  "confirmPassword": "%s",
+                  "userType": "INTERNAL",
+                  "studentCode": "SE%s",
+                  "chapterId": 1
                 }
-                """.formatted(email, password, password);
+                """.formatted(email, password, password, UUID.randomUUID().toString().substring(0, 6));
         MvcResult registerResult = mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registerBody))

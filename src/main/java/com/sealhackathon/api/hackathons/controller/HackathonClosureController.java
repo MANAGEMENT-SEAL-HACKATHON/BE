@@ -72,6 +72,12 @@ public class HackathonClosureController {
         return ResponseEntity.ok(ApiResponse.ok(individualRankingService.listByHackathon(id)));
     }
 
+    @GetMapping("/{id}/export-jobs")
+    @Operation(summary = "FR-34 — Danh sách job xuất báo cáo (mới nhất trước)")
+    public ResponseEntity<ApiResponse<List<ExportJobResponse>>> listExportJobs(@PathVariable Integer id) {
+        return ResponseEntity.ok(ApiResponse.ok(exportJobService.listByHackathon(id)));
+    }
+
     @PostMapping("/{id}/export-jobs")
     @Operation(summary = "FR-34 — Tạo job xuất báo cáo / RBL")
     public ResponseEntity<ApiResponse<ExportJobResponse>> createExportJob(

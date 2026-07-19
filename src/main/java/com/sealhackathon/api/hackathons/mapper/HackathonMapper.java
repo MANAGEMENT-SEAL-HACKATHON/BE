@@ -81,6 +81,9 @@ public class HackathonMapper {
                 .createdAt(e.getCreatedAt())
                 .updatedAt(e.getUpdatedAt())
                 .maxParticipants(e.getMaxParticipants())
+                .clonedFromHackathonId(e.getClonedFromHackathon() == null ? null : e.getClonedFromHackathon().getId())
+                .clonedFromHackathonName(e.getClonedFromHackathon() == null ? null : e.getClonedFromHackathon().getName())
+                .clonedAt(e.getClonedAt())
                 .build();
     }
 
@@ -101,6 +104,9 @@ public class HackathonMapper {
                 .eventEnd(e.getEventEnd())
                 .maxParticipants(e.getMaxParticipants())
                 .bannerUrl(HackathonBannerUrls.resolveForResponse(e))
+                .clonedFromHackathonId(e.getClonedFromHackathon() == null ? null : e.getClonedFromHackathon().getId())
+                .clonedFromHackathonName(e.getClonedFromHackathon() == null ? null : e.getClonedFromHackathon().getName())
+                .clonedAt(e.getClonedAt())
                 .build();
     }
 }
