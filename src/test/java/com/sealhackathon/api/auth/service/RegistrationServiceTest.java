@@ -2,8 +2,6 @@ package com.sealhackathon.api.auth.service;
 
 import com.sealhackathon.api.auth.config.JwtProperties;
 import com.sealhackathon.api.auth.dto.request.RegisterRequest;
-import com.sealhackathon.api.chapters.entity.Chapter;
-import com.sealhackathon.api.chapters.repository.ChapterRepository;
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ConflictException;
@@ -26,7 +24,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import java.util.Optional;
 
 @ExtendWith(MockitoExtension.class)
 class RegistrationServiceTest {
@@ -45,14 +42,12 @@ class RegistrationServiceTest {
     private JwtProperties jwtProperties;
     @Mock
     private AppProperties appProperties;
-    @Mock
-    private ChapterRepository chapterRepository;
 
     @InjectMocks
     private RegistrationService registrationService;
 
     @Test
-    void registerInternal_savesPendingStudentWithChapter() {
+    void registerMinimal_savesPendingStudentWithUnspecifiedProfile() {
         when(passwordEncoder.encode(anyString())).thenReturn("hash");
         when(userRepository.existsByEmail("sv@fpt.edu.vn")).thenReturn(false);
         when(userRepository.save(any(User.class))).thenAnswer(inv -> {
@@ -67,11 +62,6 @@ class RegistrationServiceTest {
         req.setEmail("SV@fpt.edu.vn");
         req.setPassword("password12");
         req.setConfirmPassword("password12");
-        req.setUserType(UserType.INTERNAL);
-        req.setStudentCode("SE123456");
-        req.setChapterId(1);
-        Chapter chapter = Chapter.builder().id(1).name("FPT HCM").code("FPT-HCM").build();
-        when(chapterRepository.findById(1)).thenReturn(Optional.of(chapter));
 
         var response = registrationService.register(req);
 
@@ -81,48 +71,12 @@ class RegistrationServiceTest {
         verify(userRepository).save(captor.capture());
         assertThat(captor.getValue().getEmail()).isEqualTo("sv@fpt.edu.vn");
         assertThat(captor.getValue().getStatus()).isEqualTo(UserStatus.PENDING);
-        assertThat(captor.getValue().getUserType()).isEqualTo(UserType.INTERNAL);
-        assertThat(captor.getValue().getStudentCode()).isEqualTo("SE123456");
-        assertThat(captor.getValue().getChapter()).isSameAs(chapter);
+        assertThat(captor.getValue().getUserType()).isEqualTo(UserType.UNSPECIFIED);
+        assertThat(captor.getValue().getStudentCode()).isNull();
+        assertThat(captor.getValue().getChapter()).isNull();
         assertThat(captor.getValue().getInstitution()).isNull();
         assertThat(captor.getValue().getEmailVerifiedAt()).isNull();
         verify(emailVerificationService).sendVerificationEmail(any(User.class));
-    }
-
-    @Test
-    void registerExternal_savesInstitutionWithoutChapter() {
-        when(passwordEncoder.encode(anyString())).thenReturn("hash");
-        when(userRepository.existsByEmail("ext@example.com")).thenReturn(false);
-        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
-        RegisterRequest req = validRequest(UserType.EXTERNAL);
-        req.setInstitution("Đại học Bách Khoa");
-
-        registrationService.register(req);
-
-        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
-        verify(userRepository).save(captor.capture());
-        assertThat(captor.getValue().getUserType()).isEqualTo(UserType.EXTERNAL);
-        assertThat(captor.getValue().getInstitution()).isEqualTo("Đại học Bách Khoa");
-        assertThat(captor.getValue().getChapter()).isNull();
-    }
-
-    @Test
-    void registerInternalWithoutChapter_throwsValidation() {
-        when(userRepository.existsByEmail("ext@example.com")).thenReturn(false);
-        RegisterRequest req = validRequest(UserType.INTERNAL);
-
-        assertThatThrownBy(() -> registrationService.register(req))
-                .isInstanceOf(BusinessRuleException.class);
-    }
-
-    private static RegisterRequest validRequest(UserType userType) {
-        RegisterRequest req = new RegisterRequest();
-        req.setEmail("ext@example.com");
-        req.setPassword("password12");
-        req.setConfirmPassword("password12");
-        req.setUserType(userType);
-        req.setStudentCode("SV001");
-        return req;
     }
 
     @Test
