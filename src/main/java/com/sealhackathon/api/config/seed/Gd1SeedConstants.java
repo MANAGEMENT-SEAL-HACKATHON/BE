@@ -25,7 +25,8 @@ package com.sealhackathon.api.config.seed;
  * <ul>
  *   <li>{@link #EMAIL_COORDINATOR} — id=1 trên DB trống; khớp {@code StubCurrentUserAccessor}</li>
  *   <li>{@link #EMAIL_JUDGE1}…{@link #EMAIL_JUDGE4} — INTERNAL judges (pool sơ loại HEAD/NORMAL)</li>
- *   <li>{@link #EMAIL_GUEST_JUDGE}…{@link #EMAIL_GUEST_JUDGE3} — EXTERNAL temp judges (CK FINAL_EXTERNAL)</li>
+ *   <li>{@link #EMAIL_GUEST_JUDGE} / {@link #EMAIL_GUEST_JUDGE2} — EXTERNAL temp judges (CK FINAL_EXTERNAL; đúng 2 khách mời)</li>
+ *   <li>{@link #EMAIL_GUEST_JUDGE3} — legacy account (không còn gán CK)</li>
  *   <li>{@link #EMAIL_MENTOR}…{@link #EMAIL_MENTOR3} — mentors</li>
  *   <li>{@link #EMAIL_PENDING_JUDGE} — PENDING (FR-05 negative)</li>
  * </ul>
@@ -64,6 +65,7 @@ public final class Gd1SeedConstants {
     public static final String EMAIL_JUDGE4 = "judge4@fpt.edu.vn";
     public static final String EMAIL_GUEST_JUDGE = "guestjudge@gmail.com";
     public static final String EMAIL_GUEST_JUDGE2 = "guestjudge2@gmail.com";
+    /** Legacy — vẫn tạo user để password lookup, không gán FINAL_EXTERNAL. */
     public static final String EMAIL_GUEST_JUDGE3 = "guestjudge3@gmail.com";
     public static final String EMAIL_MENTOR = "mentor@fpt.edu.vn";
     public static final String EMAIL_MENTOR2 = "mentor2@fpt.edu.vn";
@@ -82,7 +84,6 @@ public final class Gd1SeedConstants {
             EMAIL_JUDGE4,
             EMAIL_GUEST_JUDGE,
             EMAIL_GUEST_JUDGE2,
-            EMAIL_GUEST_JUDGE3,
             EMAIL_MENTOR,
             EMAIL_MENTOR2,
             EMAIL_MENTOR3,
@@ -93,8 +94,9 @@ public final class Gd1SeedConstants {
             EMAIL_JUDGE1, EMAIL_JUDGE2, EMAIL_JUDGE3, EMAIL_JUDGE4
     };
 
+    /** Khách mời CK — đúng 2 FINAL_EXTERNAL (không gồm guestjudge3). */
     private static final String[] GUEST_JUDGE_EMAILS = {
-            EMAIL_GUEST_JUDGE, EMAIL_GUEST_JUDGE2, EMAIL_GUEST_JUDGE3
+            EMAIL_GUEST_JUDGE, EMAIL_GUEST_JUDGE2
     };
 
     private static final String[] MENTOR_EMAILS = {
@@ -122,6 +124,10 @@ public final class Gd1SeedConstants {
             if (guestEmail.equalsIgnoreCase(normalized)) {
                 return DEV_GUEST_JUDGE_PASSWORD;
             }
+        }
+        // Legacy guestjudge3 (không gán CK) — vẫn trả password nếu còn trong SEED_EMAILS/DB cũ
+        if (EMAIL_GUEST_JUDGE3.equalsIgnoreCase(normalized)) {
+            return DEV_GUEST_JUDGE_PASSWORD;
         }
         for (String mentorEmail : MENTOR_EMAILS) {
             if (mentorEmail.equalsIgnoreCase(normalized)) {

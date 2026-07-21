@@ -26,6 +26,8 @@ public class CloseRegistrationEarlyResponse {
     private final LocalDateTime prelimExamAt;
     /** Số giờ còn lại tới prelimExamAt (null nếu không có / đã qua). */
     private final Long hoursUntilPrelimExam;
+    /** true nếu đã nén WS/KO/SL/CK/AWARDS theo registrationEnd mới. */
+    private final Boolean timelineCompressed;
 
     @Getter
     @Builder

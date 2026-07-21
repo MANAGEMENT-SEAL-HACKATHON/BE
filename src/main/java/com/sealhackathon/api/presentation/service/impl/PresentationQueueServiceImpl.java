@@ -417,8 +417,11 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
                 }
                 boolean ack = forceAdvanceAckGuard.resolveAcknowledge(
                         acknowledgeIncompleteScoring, trackId, round);
+                // Kết thúc sớm Q&A → bắt đủ chốt (trừ force-ack). Hết giờ tự nhiên → thiếu điểm OK.
+                // null qaEndedEarly (slot cũ): giữ hành vi cũ = require complete.
+                boolean requireComplete = !Boolean.FALSE.equals(presenting.getQaEndedEarly());
                 nextScoringGuard.validateBeforeNext(
-                        presenting.getSubmission(), trackId, round, ack);
+                        presenting.getSubmission(), trackId, round, ack, requireComplete);
                 scoringSnapshot = nextScoringGuard.snapshot(
                         presenting.getSubmission(), trackId, round);
             }
@@ -690,6 +693,7 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
         slot.setQaStartedAt(null);
         slot.setPausedAt(null);
         slot.setPausedAccumulatedSeconds(0);
+        slot.setQaEndedEarly(null);
     }
 
     private static String defaultLocation(Integer teamId) {

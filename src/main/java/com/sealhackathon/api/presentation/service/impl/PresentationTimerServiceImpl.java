@@ -10,9 +10,11 @@ import com.sealhackathon.api.presentation.dto.response.PresentationQueueResponse
 import com.sealhackathon.api.presentation.dto.response.PresentationTimerActionResponse;
 import com.sealhackathon.api.presentation.dto.response.PresentationTimerBlock;
 import com.sealhackathon.api.presentation.guard.PresentationControllerGuard;
+import com.sealhackathon.api.presentation.guard.PresentationForceAdvanceAckGuard;
 import com.sealhackathon.api.presentation.service.PresentationQueueService;
 import com.sealhackathon.api.presentation.service.PresentationTimerService;
 import com.sealhackathon.api.presentation.support.PresentationDurationResolver;
+import com.sealhackathon.api.presentation.support.PresentationNextScoringGuard;
 import com.sealhackathon.api.presentation.support.PresentationQaTimeoutMaterializer;
 import com.sealhackathon.api.presentation.support.PresentationTimerCalculator;
 import com.sealhackathon.api.presentation.support.RoundPhaseResolver;
@@ -39,6 +41,8 @@ public class PresentationTimerServiceImpl implements PresentationTimerService {
     private final TrackRepository trackRepository;
     private final PresentationSlotRepository presentationSlotRepository;
     private final PresentationControllerGuard controllerGuard;
+    private final PresentationForceAdvanceAckGuard forceAdvanceAckGuard;
+    private final PresentationNextScoringGuard nextScoringGuard;
     private final PresentationDurationResolver durationResolver;
     private final PresentationQueueService presentationQueueService;
     private final PresentationQueuePublisher queuePublisher;
@@ -129,16 +133,27 @@ public class PresentationTimerServiceImpl implements PresentationTimerService {
                     "Chỉ kết thúc sớm Q&A khi đang ở pha QA (hoặc tạm dừng sau QA)");
         }
 
-        // Auto-timeout hoặc early-end Q&A → ENDED không scoring guard (scoring chỉ gate queue/next)
         int remaining = PresentationTimerCalculator.remainingSeconds(
                 slot, ctx.track(), ctx.round(), durationResolver);
+
+        // Hết giờ tự nhiên → ENDED, ghi nhận điểm tới đâu (không bắt đủ chốt)
         if (remaining <= 0 && slot.getTimerPhase() == PresentationTimerPhase.QA) {
             slot.setTimerPhase(PresentationTimerPhase.ENDED);
+            slot.setQaEndedEarly(false);
             presentationSlotRepository.save(slot);
             return publishAndRespond(ctx, slot);
         }
 
+        // Kết thúc sớm: mọi GK phải Chốt điểm (trừ Coord/controller force-ack)
+        if (slot.getSubmission() != null) {
+            boolean ack = forceAdvanceAckGuard.resolveAcknowledge(
+                    acknowledgeIncompleteScoring, ctx.trackId(), ctx.round());
+            nextScoringGuard.validateBeforeNext(
+                    slot.getSubmission(), ctx.trackId(), ctx.round(), ack, true);
+        }
+
         slot.setTimerPhase(PresentationTimerPhase.ENDED);
+        slot.setQaEndedEarly(true);
         slot.setPausedAt(null);
         slot.setTimerPhaseBeforePause(null);
         presentationSlotRepository.save(slot);
@@ -155,6 +170,7 @@ public class PresentationTimerServiceImpl implements PresentationTimerService {
         slot.setQaStartedAt(null);
         slot.setPausedAt(null);
         slot.setPausedAccumulatedSeconds(0);
+        slot.setQaEndedEarly(null);
         presentationSlotRepository.save(slot);
         return publishAndRespond(ctx, slot);
     }
@@ -193,6 +209,7 @@ public class PresentationTimerServiceImpl implements PresentationTimerService {
                 .pausedAt(slot.getPausedAt())
                 .pausedAccumulatedSeconds(slot.getPausedAccumulatedSeconds())
                 .remainingSeconds(PresentationTimerCalculator.remainingSeconds(slot, track, round, durationResolver))
+                .qaEndedEarly(slot.getQaEndedEarly())
                 .build();
     }
 

@@ -202,7 +202,7 @@ public class Gd1DataSeeder {
     }
 
     /**
-     * Idempotent — tạo thêm judge3–4 / guest2–3 / mentor2–3 trên DB đã seed trước đó.
+     * Idempotent — tạo thêm judge3–4 / guest2 / mentor2–3 trên DB đã seed trước đó.
      * Gọi mỗi lần start {@code dev} trước các repair phụ thuộc user pool.
      */
     @Transactional
@@ -253,14 +253,13 @@ public class Gd1DataSeeder {
         Optional<User> judge4 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_JUDGE4);
         Optional<User> guestJudge = userRepository.findByEmail(Gd1SeedConstants.EMAIL_GUEST_JUDGE);
         Optional<User> guestJudge2 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_GUEST_JUDGE2);
-        Optional<User> guestJudge3 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_GUEST_JUDGE3);
         Optional<User> mentor = userRepository.findByEmail(Gd1SeedConstants.EMAIL_MENTOR);
         Optional<User> mentor2 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_MENTOR2);
         Optional<User> mentor3 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_MENTOR3);
         Optional<User> pendingJudge = userRepository.findByEmail(Gd1SeedConstants.EMAIL_PENDING_JUDGE);
         if (coordinator.isEmpty() || judge1.isEmpty() || judge2.isEmpty()
                 || judge3.isEmpty() || judge4.isEmpty()
-                || guestJudge.isEmpty() || guestJudge2.isEmpty() || guestJudge3.isEmpty()
+                || guestJudge.isEmpty() || guestJudge2.isEmpty()
                 || mentor.isEmpty() || mentor2.isEmpty() || mentor3.isEmpty()
                 || pendingJudge.isEmpty()) {
             return Optional.empty();
@@ -273,7 +272,6 @@ public class Gd1DataSeeder {
                 judge4.get(),
                 guestJudge.get(),
                 guestJudge2.get(),
-                guestJudge3.get(),
                 mentor.get(),
                 mentor2.get(),
                 mentor3.get(),
@@ -309,7 +307,7 @@ public class Gd1DataSeeder {
         int prelimHours = RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS;
         LocalDateTime prelimDeadline = RoundScheduleSeedUtil.submissionDeadline(prelimExamAt, prelimHours);
         LocalDateTime finalDeadline = RoundScheduleSeedUtil.finalSubmissionDeadline(
-                RoundScheduleSeedUtil.minFinalExamAt(prelimExamAt, prelimHours));
+                RoundScheduleSeedUtil.maxFinalExamAt(prelimExamAt, prelimHours));
         return new SeedDates(
                 regStart,
                 regEnd,
@@ -343,7 +341,7 @@ public class Gd1DataSeeder {
         int prelimHours = RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS;
         LocalDateTime prelimDeadline = RoundScheduleSeedUtil.submissionDeadline(prelimExamAt, prelimHours);
         LocalDateTime finalDeadline = RoundScheduleSeedUtil.finalSubmissionDeadline(
-                RoundScheduleSeedUtil.minFinalExamAt(prelimExamAt, prelimHours));
+                RoundScheduleSeedUtil.maxFinalExamAt(prelimExamAt, prelimHours));
         return new SeedDates(
                 regStart,
                 regEnd,
@@ -468,15 +466,6 @@ public class Gd1DataSeeder {
                 chapters.ext(),
                 true,
                 false);
-        User guestJudge3 = upsertUser(
-                Gd1SeedConstants.EMAIL_GUEST_JUDGE3,
-                "Guest Judge Three",
-                UserRole.JUDGE,
-                UserType.EXTERNAL,
-                UserStatus.APPROVED,
-                chapters.ext(),
-                true,
-                false);
         User mentor = upsertUser(
                 Gd1SeedConstants.EMAIL_MENTOR,
                 "Phạm Minh Mentor",
@@ -515,7 +504,7 @@ public class Gd1DataSeeder {
                 false);
         return new SeedUsers(
                 coordinator, judge1, judge2, judge3, judge4,
-                guestJudge, guestJudge2, guestJudge3,
+                guestJudge, guestJudge2,
                 mentor, mentor2, mentor3, pendingJudge);
     }
 
@@ -609,7 +598,7 @@ public class Gd1DataSeeder {
                   {}  Password: {}  (SUPERADMIN — unlock-scoring)
                   {}  Password: {}
                   {} / {} / {} / {}  Password: {}
-                  {} / {} / {}  Password: {}
+                  {} / {}  Password: {}
                   {} / {} / {}  Password: {}
                   {}  Password: {}  (status PENDING — login 401 cho đến khi duyệt)
                 ================================================================
@@ -620,7 +609,7 @@ public class Gd1DataSeeder {
                 Gd1SeedConstants.EMAIL_JUDGE3, Gd1SeedConstants.EMAIL_JUDGE4,
                 Gd1SeedConstants.DEV_JUDGE_PASSWORD,
                 Gd1SeedConstants.EMAIL_GUEST_JUDGE, Gd1SeedConstants.EMAIL_GUEST_JUDGE2,
-                Gd1SeedConstants.EMAIL_GUEST_JUDGE3, Gd1SeedConstants.DEV_GUEST_JUDGE_PASSWORD,
+                Gd1SeedConstants.DEV_GUEST_JUDGE_PASSWORD,
                 Gd1SeedConstants.EMAIL_MENTOR, Gd1SeedConstants.EMAIL_MENTOR2,
                 Gd1SeedConstants.EMAIL_MENTOR3, Gd1SeedConstants.DEV_MENTOR_PASSWORD,
                 Gd1SeedConstants.EMAIL_PENDING_JUDGE, Gd1SeedConstants.DEV_PENDING_JUDGE_PASSWORD);
@@ -925,19 +914,37 @@ public class Gd1DataSeeder {
 
     private void seedTrackCriteria(Track track) {
         seedCriteriaRows(track, List.of(
-                new CriteriaSeed("Domain Accuracy", CriteriaType.TECHNICAL, 0.30f, 1),
-                new CriteriaSeed("Kiến trúc RAG", CriteriaType.TECHNICAL, 0.30f, 2),
-                new CriteriaSeed("Ý tưởng & Thuyết trình", CriteriaType.SOFT_SKILL, 0.15f, 3),
-                new CriteriaSeed("Thực thi & Sáng tạo", CriteriaType.TECHNICAL, 0.15f, 4),
-                new CriteriaSeed("UX & Giao diện", CriteriaType.SOFT_SKILL, 0.10f, 5)));
+                new CriteriaSeed("Domain Accuracy", CriteriaType.TECHNICAL, 0.30f, 1,
+                        "Độ chính xác nghiệp vụ / domain so với đề bài và dữ liệu thực tế.\n"
+                                + "Gợi ý (thang 0–10): 9–10 rất chính xác; 7–8 tốt; 5–6 đạt cơ bản; ≤4 lệch domain."),
+                new CriteriaSeed("Kiến trúc RAG", CriteriaType.TECHNICAL, 0.30f, 2,
+                        "Thiết kế pipeline RAG (retrieve–augment–generate), chất lượng index và grounding.\n"
+                                + "Gợi ý (thang 0–10): 9–10 pipeline rõ, grounding tốt; 7–8 ổn; 5–6 chạy được nhưng mỏng; ≤4 rối / ảo giác cao."),
+                new CriteriaSeed("Ý tưởng & Thuyết trình", CriteriaType.SOFT_SKILL, 0.15f, 3,
+                        "Độ rõ của ý tưởng sản phẩm và khả năng truyền đạt trước giám khảo.\n"
+                                + "Gợi ý (thang 0–10): 9–10 ý tưởng sắc, trình bày thuyết phục; 7–8 rõ ràng; 5–6 hiểu được ý chính; ≤4 khó theo dõi."),
+                new CriteriaSeed("Thực thi & Sáng tạo", CriteriaType.TECHNICAL, 0.15f, 4,
+                        "Mức hoàn thiện demo, tính năng chạy được và điểm sáng tạo so với baseline.\n"
+                                + "Gợi ý (thang 0–10): 9–10 demo đầy đủ + sáng tạo; 7–8 tốt; 5–6 cơ bản; ≤4 gần như không chạy."),
+                new CriteriaSeed("UX & Giao diện", CriteriaType.SOFT_SKILL, 0.10f, 5,
+                        "Trải nghiệm người dùng, bố cục và tính dễ dùng của giao diện.\n"
+                                + "Gợi ý (thang 0–10): 9–10 mượt, trực quan; 7–8 dễ dùng; 5–6 chấp nhận được; ≤4 gây khó chịu / khó thao tác.")));
     }
 
     private void seedTrack3Criteria(Track track) {
         seedCriteriaRows(track, List.of(
-                new CriteriaSeed("Domain EV & Sạc", CriteriaType.TECHNICAL, 0.30f, 1),
-                new CriteriaSeed("Kiến trúc tích hợp", CriteriaType.TECHNICAL, 0.30f, 2),
-                new CriteriaSeed("Thuyết trình", CriteriaType.SOFT_SKILL, 0.20f, 3),
-                new CriteriaSeed("Thực thi & Demo", CriteriaType.TECHNICAL, 0.20f, 4)));
+                new CriteriaSeed("Domain EV & Sạc", CriteriaType.TECHNICAL, 0.30f, 1,
+                        "Hiểu biết domain xe điện / hạ tầng sạc và độ chính xác nghiệp vụ trong giải pháp.\n"
+                                + "Gợi ý (thang 0–10): 9–10 sâu, sát thực tế; 7–8 tốt; 5–6 đạt cơ bản; ≤4 lệch domain."),
+                new CriteriaSeed("Kiến trúc tích hợp", CriteriaType.TECHNICAL, 0.30f, 2,
+                        "Thiết kế tích hợp hệ thống (API, dữ liệu, dịch vụ bên thứ ba) và độ vững của kiến trúc.\n"
+                                + "Gợi ý (thang 0–10): 9–10 tích hợp rõ, vững; 7–8 ổn; 5–6 chạy được nhưng mỏng; ≤4 rối / khó bảo trì."),
+                new CriteriaSeed("Thuyết trình", CriteriaType.SOFT_SKILL, 0.20f, 3,
+                        "Khả năng truyền đạt ý tưởng, cấu trúc bài nói và trả lời câu hỏi.\n"
+                                + "Gợi ý (thang 0–10): 9–10 mạch lạc, thuyết phục; 7–8 rõ ràng; 5–6 hiểu được ý chính; ≤4 khó theo dõi."),
+                new CriteriaSeed("Thực thi & Demo", CriteriaType.TECHNICAL, 0.20f, 4,
+                        "Mức hoàn thiện demo và tính năng chạy được trên kịch bản EV / sạc.\n"
+                                + "Gợi ý (thang 0–10): 9–10 demo đầy đủ, ổn định; 7–8 phần lớn chạy tốt; 5–6 demo cơ bản; ≤4 gần như không chạy.")));
     }
 
     private void seedCriteriaRows(Track track, List<CriteriaSeed> rows) {
@@ -951,17 +958,28 @@ public class Gd1DataSeeder {
                     .weight(row.weight())
                     .maxScore(10)
                     .displayOrder(row.order())
+                    .description(row.description())
                     .build());
         }
     }
 
     private void seedFinalCriteria(Round finalRound) {
         List<CriteriaSeed> rows = List.of(
-                new CriteriaSeed("Xử lý & Truy xuất", CriteriaType.TECHNICAL, 0.30f, 1),
-                new CriteriaSeed("Độ tin cậy", CriteriaType.TECHNICAL, 0.20f, 2),
-                new CriteriaSeed("Tư duy Agent", CriteriaType.TECHNICAL, 0.20f, 3),
-                new CriteriaSeed("Thực tế & Triển khai", CriteriaType.TECHNICAL, 0.20f, 4),
-                new CriteriaSeed("Mở rộng & Scale", CriteriaType.SOFT_SKILL, 0.10f, 5));
+                new CriteriaSeed("Xử lý & Truy xuất", CriteriaType.TECHNICAL, 0.30f, 1,
+                        "Chất lượng xử lý dữ liệu và truy xuất thông tin (retrieve / ranking) trong giải pháp Chung kết.\n"
+                                + "Gợi ý (thang 0–10): 9–10 chính xác, nhanh; 7–8 tốt; 5–6 đạt cơ bản; ≤4 yếu / nhiều nhiễu."),
+                new CriteriaSeed("Độ tin cậy", CriteriaType.TECHNICAL, 0.20f, 2,
+                        "Độ ổn định, kiểm soát lỗi và khả năng tin cậy kết quả hệ thống.\n"
+                                + "Gợi ý (thang 0–10): 9–10 rất tin cậy; 7–8 ổn định; 5–6 còn lỗi nhỏ; ≤4 dễ sập / kết quả khó tin."),
+                new CriteriaSeed("Tư duy Agent", CriteriaType.TECHNICAL, 0.20f, 3,
+                        "Khả năng lập kế hoạch, tool-use và hành vi agent hợp lý với bài toán.\n"
+                                + "Gợi ý (thang 0–10): 9–10 agent rõ ràng, hiệu quả; 7–8 tốt; 5–6 còn cứng nhắc; ≤4 gần như không có tư duy agent."),
+                new CriteriaSeed("Thực tế & Triển khai", CriteriaType.TECHNICAL, 0.20f, 4,
+                        "Tính khả thi triển khai thực tế (chi phí, vận hành, tích hợp môi trường thật).\n"
+                                + "Gợi ý (thang 0–10): 9–10 sẵn sàng triển khai; 7–8 gần sẵn sàng; 5–6 còn khoảng cách lớn; ≤4 khó đưa vào thực tế."),
+                new CriteriaSeed("Mở rộng & Scale", CriteriaType.SOFT_SKILL, 0.10f, 5,
+                        "Khả năng mở rộng quy mô người dùng / dữ liệu và tầm nhìn phát triển sản phẩm.\n"
+                                + "Gợi ý (thang 0–10): 9–10 lộ trình scale rõ; 7–8 có hướng mở rộng; 5–6 mới ở mức ý tưởng; ≤4 khó scale."));
         for (CriteriaSeed row : rows) {
             criteriaRepository.save(Criteria.builder()
                     .track(null)
@@ -972,6 +990,7 @@ public class Gd1DataSeeder {
                     .weight(row.weight())
                     .maxScore(10)
                     .displayOrder(row.order())
+                    .description(row.description())
                     .build());
         }
     }
@@ -1313,7 +1332,7 @@ public class Gd1DataSeeder {
 
         /** Ngày giờ thi chung kết — sau khi Sơ loại kết thúc (examAt + codingDurationHours). */
         LocalDateTime finalExamAt() {
-            return RoundScheduleSeedUtil.minFinalExamAt(
+            return RoundScheduleSeedUtil.maxFinalExamAt(
                     prelimExamAt(), RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS);
         }
 
@@ -1339,7 +1358,6 @@ public class Gd1DataSeeder {
             User judge4,
             User guestJudge,
             User guestJudge2,
-            User guestJudge3,
             User mentor,
             User mentor2,
             User mentor3,
@@ -1373,6 +1391,6 @@ public class Gd1DataSeeder {
             Track track3) {
     }
 
-    private record CriteriaSeed(String name, CriteriaType type, float weight, int order) {
+    private record CriteriaSeed(String name, CriteriaType type, float weight, int order, String description) {
     }
 }

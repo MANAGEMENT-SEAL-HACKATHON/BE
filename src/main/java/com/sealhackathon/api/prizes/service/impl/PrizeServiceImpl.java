@@ -25,6 +25,8 @@ import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.service.RoundProgressionService;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.repository.TeamRepository;
+import com.sealhackathon.api.teams.repository.TeamRoundParticipationRepository;
+import com.sealhackathon.api.teams.value_object.TeamStatus;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.users.entity.User;
@@ -47,6 +49,7 @@ public class PrizeServiceImpl implements PrizeService {
     private final RoundRepository roundRepository;
     private final RoundProgressionService roundProgressionService;
     private final TeamRepository teamRepository;
+    private final TeamRoundParticipationRepository teamRoundParticipationRepository;
     private final TrackRepository trackRepository;
     private final PrizeRepository prizeRepository;
     private final UserRepository userRepository;
@@ -85,6 +88,8 @@ public class PrizeServiceImpl implements PrizeService {
                     "Team không thuộc hackathon này",
                     Map.of("hackathonId", hackathonId, "teamId", req.getTeamId()));
         }
+
+        assertFinalistEligible(hackathonId, round, team);
 
         Track track = null;
         if (req.getTrackId() != null) {
@@ -153,6 +158,7 @@ public class PrizeServiceImpl implements PrizeService {
                         "Team không thuộc hackathon này",
                         Map.of("hackathonId", hackathon.getId(), "teamId", req.getTeamId()));
             }
+            assertFinalistEligible(hackathon.getId(), prize.getRound(), newTeam);
             // PRIZE-02: 1 đội ≤ 1 giải chính (re-validate on reassignment)
             if (prizeRepository.existsByHackathonIdAndTeamId(hackathon.getId(), newTeam.getId())) {
                 throw new ConflictException(ErrorCode.PRIZE_DUPLICATE,
@@ -228,6 +234,35 @@ public class PrizeServiceImpl implements PrizeService {
         prizeRepository.delete(prize);
 
         auditService.log(AuditAction.PRIZE_REVOKED, "prizes", prizeId, auditDetails);
+    }
+
+    private void assertFinalistEligible(Integer hackathonId, Round awardRound, Team team) {
+        if (team.getStatus() == TeamStatus.ELIMINATED) {
+            throw new BusinessRuleException(ErrorCode.PRIZE_TEAM_NOT_FINALIST,
+                    "Đội đã bị loại — không thể trao giải",
+                    Map.of("hackathonId", hackathonId, "teamId", team.getId()));
+        }
+        Round finalRound = roundRepository.findByHackathon_IdAndIsFinalTrue(hackathonId)
+                .orElse(null);
+        if (finalRound == null) {
+            throw new BusinessRuleException(ErrorCode.PRIZE_TEAM_NOT_FINALIST,
+                    "Hackathon chưa có vòng Chung kết — không thể trao giải",
+                    Map.of("hackathonId", hackathonId));
+        }
+        if (!Boolean.TRUE.equals(awardRound.getIsFinal())
+                || !awardRound.getId().equals(finalRound.getId())) {
+            throw new BusinessRuleException(ErrorCode.PRIZE_TEAM_NOT_FINALIST,
+                    "Chỉ trao giải trên vòng Chung kết",
+                    Map.of("hackathonId", hackathonId, "roundId", awardRound.getId()));
+        }
+        boolean inFinal = teamRoundParticipationRepository
+                .findByTeam_IdAndRound_Id(team.getId(), finalRound.getId())
+                .isPresent();
+        if (!inFinal) {
+            throw new BusinessRuleException(ErrorCode.PRIZE_TEAM_NOT_FINALIST,
+                    "Chỉ trao giải cho đội vào Chung kết",
+                    Map.of("hackathonId", hackathonId, "teamId", team.getId(), "finalRoundId", finalRound.getId()));
+        }
     }
 
     private static final java.util.Set<String> ALLOWED_REVOKE_CATEGORIES = java.util.Set.of(

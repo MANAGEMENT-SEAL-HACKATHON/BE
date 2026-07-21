@@ -45,15 +45,17 @@ public class HackathonCloneSupport {
     }
 
     private static Round copyRound(Round src, Hackathon targetHackathon) {
+        // Structure only: do not copy exam/submission schedule — new DRAFT must re-enter dates
+        // (copied past deadlines would make FE treat rounds as "Đã kết thúc" and hide Edit).
         return Round.builder()
                 .hackathon(targetHackathon)
                 .name(src.getName())
-                .examAt(src.getExamAt())
+                .examAt(null)
                 .isFinal(src.getIsFinal())
                 .roundType(src.getRoundType())
                 .codingDurationHours(src.getCodingDurationHours())
-                .submissionOpen(src.getSubmissionOpen())
-                .submissionDeadline(src.getSubmissionDeadline())
+                .submissionOpen(null)
+                .submissionDeadline(null)
                 .lateSubmissionPolicy(src.getLateSubmissionPolicy())
                 .topNAdvance(src.getTopNAdvance())
                 .minTeamsFinal(src.getMinTeamsFinal())

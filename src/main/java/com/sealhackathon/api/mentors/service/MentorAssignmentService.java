@@ -12,11 +12,13 @@ import java.util.Optional;
  *
  * <p>Business rules:
  * <ul>
- *   <li>{@code mentorId}: role=MENTOR &amp; status=APPROVED → 422.</li>
+ *   <li>{@code mentorId}: role MENTOR hoặc JUDGE &amp; status=APPROVED → 422 nếu sai.</li>
  *   <li>{@code trackId}: tồn tại; hackathon.status IN (DRAFT, ONGOING) → 409 nếu sai.</li>
  *   <li>UNIQUE(mentor_id, track_id) → 409 {@code MENTOR_ASSIGN_DUPLICATE}.</li>
  *   <li>Track {@code status=OPEN} (không CANCELLED) → 422 {@code INVALID_STATE}.</li>
  *   <li>Conflict Mentor↔Judge cùng track → 422 {@code CONFLICT_SAME_TRACK}.</li>
+ *   <li>Đã Mentor bảng khác trong cùng vòng → 409 {@code PERSONNEL_ONE_TRACK_PER_ROUND}.</li>
+ *   <li>Đã Judge bảng khác trong cùng vòng → được phép (cross-track).</li>
  *   <li>Đã Judge Chung kết cùng hackathon → 422 {@code FINAL_JUDGE_CANNOT_BE_MENTOR}.</li>
  * </ul>
  *

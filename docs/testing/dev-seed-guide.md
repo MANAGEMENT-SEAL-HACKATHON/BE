@@ -175,7 +175,7 @@ Toggle: `app.seed.gd1.no-kickoff.enabled`, `app.seed.gd1.no-awards.enabled`
 | Coordinator | `coord@fpt.edu.vn` | `Coordinator@dev1` |
 | Judge INTERNAL | `judge1@` … `judge4@fpt.edu.vn` | `Judge@dev1` |
 | Mentor | `mentor@` … `mentor3@fpt.edu.vn` | `Mentor@dev1` |
-| Guest judge EXTERNAL | `guestjudge@` … `guestjudge3@gmail.com` | `GuestJudge@dev1` |
+| Guest judge EXTERNAL (CK ×2) | `guestjudge@` · `guestjudge2@gmail.com` | `GuestJudge@dev1` |
 
 **Phân công:** sơ loại chỉ INTERNAL (`HEAD` + `NORMAL`); chung kết = EXTERNAL `FINAL_EXTERNAL` + INTERNAL `HEAD` (trưởng ban).
 

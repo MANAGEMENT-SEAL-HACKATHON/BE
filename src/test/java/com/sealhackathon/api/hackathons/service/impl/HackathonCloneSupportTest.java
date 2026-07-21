@@ -80,6 +80,9 @@ class HackathonCloneSupportTest {
         Round savedRound = roundCaptor.getValue();
         assertThat(savedRound.getIsActive()).isFalse();
         assertThat(savedRound.getProblemReleasedAt()).isNull();
+        assertThat(savedRound.getExamAt()).isNull();
+        assertThat(savedRound.getSubmissionOpen()).isNull();
+        assertThat(savedRound.getSubmissionDeadline()).isNull();
         assertThat(savedRound.getHackathon()).isEqualTo(target);
 
         verify(criteriaRepository).save(clonedCriterion);

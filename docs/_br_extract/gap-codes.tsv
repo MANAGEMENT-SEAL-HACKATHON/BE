@@ -1,0 +1,10 @@
+Module	RelatedReqID	RuleType	Statement	ConditionTrigger	SystemAction	ExceptionErrorCode	TestHint	Status	EvidencePath
+Common	N/A	Validation	Optimistic lock / concurrent update conflict	JPA version conflict hoặc handler map	409/422 Conflict	CONCURRENT_MODIFICATION	Two Coord lock-scoring race	Implemented	common/exception (GlobalExceptionHandler / OptimisticLock)
+Event	FR-06A	Gate	Thiếu event PRESENTATION khi readiness yêu cầu (nếu còn path)	Readiness/timeline check presentation	Blocker hoặc reject	EVENT_PRESENTATION_MISSING	Readiness target needing presentation	Partial	events / HackathonReadinessServiceImpl (may be soft-skipped)
+Common	N/A	Validation	Lỗi nội bộ không map business	Unhandled exception	500	INTERNAL_ERROR	Force NPE in handler test	Implemented	common/exception/GlobalExceptionHandler.java
+JudgeAssign	FR-05	Validation	Judge INTERNAL không được gán Chung kết (trừ ngoại lệ dept-head nếu còn)	assign final INTERNAL không hợp lệ	Reject	INTERNAL_JUDGE_NOT_ALLOWED_IN_FINAL	INTERNAL on FINAL_EXTERNAL path	Implemented	judge_assignments / personnel guards
+MentorAssign	FR-05	Validation	Mentor INTERNAL không được gán vòng Chung kết	assign mentor trên final	Reject	INTERNAL_MENTOR_NOT_ALLOWED_IN_FINAL	Mentor on final round	Implemented	mentors / TrackRoundRules
+Criteria	FR-04	Validation	Round không hợp lệ cho criteria (XOR / non-final)	criteria gắn round sai	Reject	INVALID_ROUND_FOR_CRITERIA	criteria on wrong round	Implemented	criteria/service/impl/CriteriaServiceImpl.java
+Common	N/A	Gap	Endpoint/logic chưa implement trả NOT_IMPLEMENTED	Gọi API stub	501/422	NOT_IMPLEMENTED	Legacy stub endpoints	Partial	Reserved ErrorCode; sparse usage
+Auth	FR-07	Validation	OAuth identity email chưa verified bởi provider	Social login email_verified=false	401	OAUTH_EMAIL_NOT_VERIFIED	Google account unverified email	Implemented	auth/service/SocialAuthService.java
+Auth	FR-07	Validation	OAuth access/id token không hợp lệ	Verify Google/GitHub token fail	401	OAUTH_TOKEN_INVALID	Bad google id_token	Implemented	auth/service/social/*IdentityVerifier.java

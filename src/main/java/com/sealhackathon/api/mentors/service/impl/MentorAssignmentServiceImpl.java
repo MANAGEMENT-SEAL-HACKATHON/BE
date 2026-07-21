@@ -22,6 +22,7 @@ import com.sealhackathon.api.mentors.mapper.MentorAssignmentMapper;
 import com.sealhackathon.api.mentors.repository.MentorAssignmentRepository;
 import com.sealhackathon.api.mentors.service.MentorAssignmentService;
 import com.sealhackathon.api.notifications.service.NotificationService;
+import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.tracks.support.TrackRoundRules;
@@ -43,7 +44,8 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * FR-05b Mentor assignment — user MENTOR hoặc JUDGE; cấm Mentor+Judge cùng track (§14 cross-track OK).
+ * FR-05b Mentor assignment — user MENTOR hoặc JUDGE;
+ * mỗi người chỉ Mentor 1 bảng / vòng; được làm Judge bảng khác; cấm Mentor+Judge cùng track.
  */
 @Service
 @Slf4j
@@ -101,6 +103,7 @@ public class MentorAssignmentServiceImpl implements MentorAssignmentService {
         }
 
         validateJudgeConflicts(mentor.getId(), track.getId());
+        assertOneMentorTrackPerRound(mentor.getId(), track);
 
         Integer uid = currentUserAccessor.currentUserId();
         MentorAssignment entity = MentorAssignment.builder()
@@ -147,6 +150,23 @@ public class MentorAssignmentServiceImpl implements MentorAssignmentService {
             throw new BusinessRuleException(ErrorCode.FINAL_JUDGE_CANNOT_BE_MENTOR,
                     "User đã là Judge Chung kết — không thể làm Mentor Sơ loại",
                     Map.of("trackId", trackId, "mentorId", mentorId));
+        }
+    }
+
+    /** Mentor chỉ 1 bảng / vòng; vẫn được làm Judge ở bảng khác (cross-track OK). */
+    private void assertOneMentorTrackPerRound(Integer userId, Track track) {
+        Round round = track.getRound();
+        if (round == null || round.getId() == null) {
+            return;
+        }
+        Integer roundId = round.getId();
+        if (mentorAssignmentRepository.existsByMentorIdAndRoundIdExcludingTrack(
+                userId, roundId, track.getId())) {
+            throw new ConflictException(ErrorCode.PERSONNEL_ONE_TRACK_PER_ROUND,
+                    ("User #%d đã là Mentor ở bảng khác trong vòng #%d — "
+                            + "mỗi người chỉ được làm Mentor một bảng trong một vòng")
+                            .formatted(userId, roundId),
+                    Map.of("userId", userId, "roundId", roundId, "trackId", track.getId()));
         }
     }
 

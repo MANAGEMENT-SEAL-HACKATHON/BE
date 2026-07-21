@@ -57,6 +57,13 @@ public class Hackathon {
     @Column(name = "registration_closed_early_at")
     private LocalDateTime registrationClosedEarlyAt;
 
+    /**
+     * Đã dời lịch thi (SL + cascade WS/KO/CK/Awards) đúng 1 lần.
+     * Null = chưa dời; set khi close-reg-early kèm lịch hoặc adjust riêng.
+     */
+    @Column(name = "schedule_adjusted_at")
+    private LocalDateTime scheduleAdjustedAt;
+
     @Column(name = "event_start")
     private LocalDate eventStart;
 

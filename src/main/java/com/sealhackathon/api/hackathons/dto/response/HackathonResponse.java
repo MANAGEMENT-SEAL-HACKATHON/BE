@@ -31,6 +31,8 @@ public class HackathonResponse {
     private final LocalDate registrationStart;
     private final LocalDate registrationEnd;
     private final LocalDateTime registrationClosedEarlyAt;
+    /** Đã dời lịch thi 1 lần (null = chưa). */
+    private final LocalDateTime scheduleAdjustedAt;
     private final LocalDate eventStart;
     private final LocalDate eventEnd;
     private final Boolean wildcardEnabled;

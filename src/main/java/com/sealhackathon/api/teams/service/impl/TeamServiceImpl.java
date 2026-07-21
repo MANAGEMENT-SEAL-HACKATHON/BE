@@ -139,6 +139,26 @@ public class TeamServiceImpl implements TeamService {
         }
     }
 
+    /** Sau khi đăng ký đóng: duyệt đội ACTIVE phải khóa ngay (không chờ cron 1 phút). */
+    private void lockIfRegistrationClosed(Team team) {
+        Hackathon hackathon = team.getHackathon();
+        if (hackathon == null) {
+            return;
+        }
+        if (!HackathonRegistrationSupport.isRegistrationClosed(hackathon)) {
+            return;
+        }
+        if (Boolean.TRUE.equals(team.getIsLocked())) {
+            return;
+        }
+        team.setIsLocked(true);
+        team.setLockedAt(LocalDateTime.now());
+        auditService.log(AuditAction.TEAM_LOCKED, "teams", team.getId(),
+                java.util.Map.of(
+                        "hackathonId", hackathon.getId(),
+                        "reason", "APPROVED_AFTER_REGISTRATION_CLOSED"));
+    }
+
     /** Leader chỉ chỉnh roster khi đội PENDING, chưa xác nhận thành lập và chưa bị khóa. */
     private void assertLeaderCanChangeMembership(Team team) {
         if (Boolean.TRUE.equals(team.getIsLocked())) {
@@ -356,8 +376,11 @@ public class TeamServiceImpl implements TeamService {
                 throw new BusinessRuleException(ErrorCode.HACKATHON_NOT_ONGOING, "Chỉ duyệt đội khi Hackathon đang ONGOING");
             }
             assertCoordinatorCanApproveTeam(team, teamId);
+
             team.setStatus(TeamStatus.ACTIVE);
             team.setRejectionReason(null);
+            team.setFormationGraceDeadlineAt(null);
+            lockIfRegistrationClosed(team);
             auditService.log(com.sealhackathon.api.common.audit.AuditAction.TEAM_APPROVE, "teams", teamId);
 
         } else if (req.getStatus() == TeamStatus.REJECTED) {
@@ -471,6 +494,8 @@ public class TeamServiceImpl implements TeamService {
 
                 team.setStatus(TeamStatus.ACTIVE);
                 team.setRejectionReason(null);
+                team.setFormationGraceDeadlineAt(null);
+                lockIfRegistrationClosed(team);
                 teamRepository.save(team);
                 approvedCount++;
                 approvedIds.add(teamId);
@@ -1212,6 +1237,7 @@ public class TeamServiceImpl implements TeamService {
         // 5. Đánh giá lại Đội Đích (Target Team): đủ tối thiểu thì kích hoạt ACTIVE
         if (totalAfterMerge >= mergeLimits.minTeamSize()) {
             targetTeam.setStatus(TeamStatus.ACTIVE);
+            lockIfRegistrationClosed(targetTeam);
             teamRepository.save(targetTeam);
         }
 

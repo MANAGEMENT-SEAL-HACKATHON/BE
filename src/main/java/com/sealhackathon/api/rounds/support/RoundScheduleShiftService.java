@@ -5,6 +5,10 @@ import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.config.seed.RoundScheduleSeedUtil;
+import com.sealhackathon.api.events.service.MilestoneEventRescheduleService;
+import com.sealhackathon.api.hackathons.entity.Hackathon;
+import com.sealhackathon.api.hackathons.repository.HackathonRepository;
+import com.sealhackathon.api.hackathons.service.HackathonRoundTimelineSyncService;
 import com.sealhackathon.api.notifications.service.NotificationService;
 import com.sealhackathon.api.presentation.service.PresentationSlotCascadeService;
 import com.sealhackathon.api.rounds.entity.Round;
@@ -31,11 +35,13 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
  * Nén / dời lịch Round khi Activate (START_NOW / RESCHEDULE).
- * Round + reminder + presentation slots + audit trong cùng TX; notify fan-out afterCommit.
+ * Sơ loại: cascade CK + sync hackathon dates + (RESCHEDULE) WS/KO + AWARDS + slots.
+ * Chung kết: shift + AWARDS + sync + slots.
  */
 @Service
 @RequiredArgsConstructor
@@ -51,6 +57,9 @@ public class RoundScheduleShiftService {
     private final NotificationService notificationService;
     private final TeamRepository teamRepository;
     private final TeamMemberRepository teamMemberRepository;
+    private final HackathonRoundTimelineSyncService hackathonRoundTimelineSyncService;
+    private final MilestoneEventRescheduleService milestoneEventRescheduleService;
+    private final HackathonRepository hackathonRepository;
 
     public static final int DEFAULT_SETUP_LEAD_MINUTES = 5;
 
@@ -89,7 +98,6 @@ public class RoundScheduleShiftService {
         int leadApplied = DEFAULT_SETUP_LEAD_MINUTES;
         if (effective == ActivateScheduleMode.START_NOW) {
             leadApplied = resolveSetupLeadMinutes(setupLeadMinutes);
-            // Tech Lead: đúng N phút từ now — không ceil (countdown ~N:00)
             examAt = now.plusMinutes(leadApplied);
         } else if (effective == ActivateScheduleMode.RESCHEDULE) {
             scheduleValidator.requireNewExamAtNotInPast(newExamAt, now);
@@ -98,13 +106,18 @@ public class RoundScheduleShiftService {
                 throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
                         "newExamAt phải lớn hơn thời điểm hiện tại sau khi làm tròn phút");
             }
+            if (!Boolean.TRUE.equals(round.getIsFinal())) {
+                scheduleValidator.requireReschedulePrelimWorkshopKickoffGap(round, examAt);
+            }
         } else {
             return false;
         }
 
         LocalDateTime open = RoundScheduleSeedUtil.submissionOpen(examAt, hours);
         LocalDateTime deadline = RoundScheduleSeedUtil.submissionDeadline(examAt, hours);
-        scheduleValidator.validateActivateShift(round, examAt, open, deadline, true);
+        // skip sibling khi dời Sơ loại — cascade CK ngay sau; hoặc dời CK rồi sync eventEnd
+        boolean skipSibling = true;
+        scheduleValidator.validateActivateShift(round, examAt, open, deadline, true, skipSibling);
 
         round.setExamAt(examAt);
         round.setSubmissionOpen(open);
@@ -112,7 +125,12 @@ public class RoundScheduleShiftService {
         round.setDeadlineReminderSentAt(null);
         Round saved = roundRepository.save(round);
 
-        presentationSlotCascadeService.rescheduleForRound(saved.getId());
+        Map<String, Object> cascadeMeta = new LinkedHashMap<>();
+        if (Boolean.TRUE.equals(saved.getIsFinal())) {
+            cascadeAfterFinalShift(saved, cascadeMeta);
+        } else {
+            cascadeAfterPrelimShift(saved, effective, cascadeMeta);
+        }
 
         Map<String, Object> audit = new LinkedHashMap<>();
         audit.put("scheduleMode", effective.name());
@@ -126,10 +144,93 @@ public class RoundScheduleShiftService {
         audit.put("newSubmissionOpen", String.valueOf(saved.getSubmissionOpen()));
         audit.put("newSubmissionDeadline", String.valueOf(saved.getSubmissionDeadline()));
         audit.put("hackathonId", saved.getHackathon() != null ? saved.getHackathon().getId() : null);
+        audit.putAll(cascadeMeta);
         auditService.log(AuditAction.ROUND_SCHEDULE_SHIFTED, "rounds", saved.getId(), audit);
 
         scheduleNotifyAfterCommit(saved);
         return true;
+    }
+
+    /**
+     * Sơ loại đã shift → kéo CK vào [end+1h, end+2h], sync dates, (RESCHEDULE) WS/KO, AWARDS, slots.
+     */
+    private void cascadeAfterPrelimShift(Round prelim, ActivateScheduleMode mode, Map<String, Object> meta) {
+        Integer hackathonId = prelim.getHackathon() != null ? prelim.getHackathon().getId() : null;
+        if (hackathonId == null) {
+            presentationSlotCascadeService.rescheduleForRound(prelim.getId());
+            return;
+        }
+
+        Integer prelimHours = prelim.getCodingDurationHours();
+        Optional<Round> finalOpt = roundRepository.findByHackathon_IdAndIsFinalTrue(hackathonId);
+        Round cascadedFinal = null;
+        if (finalOpt.isPresent() && prelim.getExamAt() != null && prelimHours != null && prelimHours > 0) {
+            Round finalRound = finalOpt.get();
+            Integer finalHours = finalRound.getCodingDurationHours();
+            if (finalHours == null || finalHours <= 0) {
+                finalHours = RoundScheduleSeedUtil.DEFAULT_FINAL_CODING_HOURS;
+            }
+            LocalDateTime finalExam = RoundScheduleSeedUtil.maxFinalExamAt(prelim.getExamAt(), prelimHours);
+            LocalDateTime finalOpen = RoundScheduleSeedUtil.submissionOpen(finalExam, finalHours);
+            LocalDateTime finalDeadline = RoundScheduleSeedUtil.submissionDeadline(finalExam, finalHours);
+            finalRound.setExamAt(finalExam);
+            finalRound.setSubmissionOpen(finalOpen);
+            finalRound.setSubmissionDeadline(finalDeadline);
+            finalRound.setDeadlineReminderSentAt(null);
+            if (finalRound.getCodingDurationHours() == null || finalRound.getCodingDurationHours() <= 0) {
+                finalRound.setCodingDurationHours(finalHours);
+            }
+            cascadedFinal = roundRepository.save(finalRound);
+            meta.put("cascadedFinalRoundId", cascadedFinal.getId());
+            meta.put("cascadedFinalExamAt", String.valueOf(cascadedFinal.getExamAt()));
+        }
+
+        hackathonRoundTimelineSyncService.syncFromRounds(hackathonId);
+        Hackathon h = hackathonRepository.findById(hackathonId).orElse(null);
+        if (h == null) {
+            presentationSlotCascadeService.rescheduleForRound(prelim.getId());
+            if (cascadedFinal != null) {
+                presentationSlotCascadeService.rescheduleForRound(cascadedFinal.getId());
+            }
+            return;
+        }
+
+        int milestones = 0;
+        if (mode == ActivateScheduleMode.RESCHEDULE) {
+            milestones += milestoneEventRescheduleService.repositionWorkshopKickoff(h);
+        }
+        Round finalForAwards = cascadedFinal != null ? cascadedFinal : finalOpt.orElse(null);
+        if (finalForAwards != null) {
+            milestones += milestoneEventRescheduleService.repositionAwardsAfterFinal(h, finalForAwards);
+        }
+        meta.put("milestonesUpdated", milestones);
+        if (h.getEventStart() != null) {
+            meta.put("eventStart", h.getEventStart().toString());
+        }
+        if (h.getEventEnd() != null) {
+            meta.put("eventEnd", h.getEventEnd().toString());
+        }
+
+        presentationSlotCascadeService.rescheduleForRound(prelim.getId());
+        if (cascadedFinal != null) {
+            presentationSlotCascadeService.rescheduleForRound(cascadedFinal.getId());
+        }
+    }
+
+    private void cascadeAfterFinalShift(Round finalRound, Map<String, Object> meta) {
+        Integer hackathonId = finalRound.getHackathon() != null ? finalRound.getHackathon().getId() : null;
+        if (hackathonId != null) {
+            hackathonRoundTimelineSyncService.syncFromRounds(hackathonId);
+            Hackathon h = hackathonRepository.findById(hackathonId).orElse(null);
+            if (h != null) {
+                int awards = milestoneEventRescheduleService.repositionAwardsAfterFinal(h, finalRound);
+                meta.put("milestonesUpdated", awards);
+                if (h.getEventEnd() != null) {
+                    meta.put("eventEnd", h.getEventEnd().toString());
+                }
+            }
+        }
+        presentationSlotCascadeService.rescheduleForRound(finalRound.getId());
     }
 
     static int resolveSetupLeadMinutes(Integer setupLeadMinutes) {

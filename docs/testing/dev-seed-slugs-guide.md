@@ -75,7 +75,7 @@ Chạy tay UI: [manual-ui-playbook-gd1-gd6.md](manual-ui-playbook-gd1-gd6.md).
 | **Status** | `ONGOING` — CK active, submit window mở |
 | **Seeder** | `Gd5FinalRoundDataSeeder` |
 | **Hỗ trợ** | Full GĐ5 — nộp CK → close-early → queue → chấm → lock |
-| **Account** | `student.gd5.leader0N@…` · `guestjudge@`–`guestjudge3@` (FINAL_EXTERNAL) · `judge1@` HEAD CK |
+| **Account** | `student.gd5.leader0N@…` · `guestjudge@` + `guestjudge2@` (FINAL_EXTERNAL ×2) · `judge1@` HEAD CK |
 
 ### 6. `seal-gd6-pending-confirm`
 

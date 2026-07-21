@@ -9,9 +9,11 @@ import com.sealhackathon.api.hackathons.entity.HackathonRegistration;
 import com.sealhackathon.api.hackathons.entity.HackathonRegistrationWithdrawal;
 import com.sealhackathon.api.hackathons.repository.HackathonRegistrationRepository;
 import com.sealhackathon.api.hackathons.repository.HackathonRegistrationWithdrawalRepository;
+import com.sealhackathon.api.hackathons.dto.request.CloseRegistrationEarlyRequest;
 import com.sealhackathon.api.hackathons.dto.response.CloseRegistrationEarlyResponse;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
+import com.sealhackathon.api.hackathons.service.CompetitionScheduleAdjustService;
 import com.sealhackathon.api.hackathons.service.HackathonRegistrationCloseService;
 import com.sealhackathon.api.hackathons.support.HackathonRegistrationSupport;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
@@ -57,10 +59,17 @@ public class HackathonRegistrationCloseServiceImpl implements HackathonRegistrat
     private final NotificationService notificationService;
     private final UserRepository userRepository;
     private final RoundRepository roundRepository;
+    private final CompetitionScheduleAdjustService competitionScheduleAdjustService;
 
     @Override
     @Transactional
-    public CloseRegistrationEarlyResponse closeRegistrationEarly(Integer hackathonId) {
+    public CloseRegistrationEarlyResponse closeRegistrationEarly(Integer hackathonId,
+                                                                 CloseRegistrationEarlyRequest request) {
+        if (request == null || request.getNewPrelimExamAt() == null) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                    "Cần chọn giờ thi Sơ loại (newPrelimExamAt) khi kết thúc đăng ký sớm — hệ thống sẽ cascade Workshop/Kickoff/Chung kết/Awards.");
+        }
+
         Hackathon hackathon = hackathonRepository.findByIdForUpdate(hackathonId)
                 .orElseThrow(() -> new ResourceNotFoundException("Hackathon", hackathonId));
 
@@ -71,6 +80,10 @@ public class HackathonRegistrationCloseServiceImpl implements HackathonRegistrat
         if (HackathonRegistrationSupport.isRegistrationClosed(hackathon)) {
             throw new BusinessRuleException(ErrorCode.REGISTRATION_ALREADY_CLOSED,
                     "Đăng ký đã kết thúc (hết hạn hoặc đã đóng sớm) — không thể kết thúc sớm nữa.");
+        }
+        if (hackathon.getScheduleAdjustedAt() != null) {
+            throw new BusinessRuleException(ErrorCode.SCHEDULE_ALREADY_ADJUSTED,
+                    "Lịch thi đã được dời — không thể đóng ĐK sớm kèm dời lịch lần nữa.");
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -167,13 +180,19 @@ public class HackathonRegistrationCloseServiceImpl implements HackathonRegistrat
             notifyCoordinatorsOfPendingApproval(hackathon, awaitingApproval.size());
         }
 
-        auditService.log(AuditAction.HACKATHON_REGISTRATION_CLOSED_EARLY, "hackathons", hackathonId,
-                Map.of(
-                        "lockedActiveTeams", lockedActiveTeams,
-                        "rejectedIncompleteTeams", rejectedIncompleteTeams,
-                        "withdrawnOrphans", withdrawnOrphans,
-                        "teamsAwaitingApproval", awaitingApproval.size(),
-                        "teamsInFormationGrace", inGracePeriod.size()));
+        // Dời lịch theo ngày Coord chọn + cascade WS/KO/CK/Awards (1 lần); không đụng lottery
+        Map<String, Object> timelineMeta =
+                competitionScheduleAdjustService.apply(
+                        hackathon, request.getNewPrelimExamAt(), true, request.getOverrides());
+
+        Map<String, Object> auditPayload = new java.util.LinkedHashMap<>();
+        auditPayload.put("lockedActiveTeams", lockedActiveTeams);
+        auditPayload.put("rejectedIncompleteTeams", rejectedIncompleteTeams);
+        auditPayload.put("withdrawnOrphans", withdrawnOrphans);
+        auditPayload.put("teamsAwaitingApproval", awaitingApproval.size());
+        auditPayload.put("teamsInFormationGrace", inGracePeriod.size());
+        auditPayload.putAll(timelineMeta);
+        auditService.log(AuditAction.HACKATHON_REGISTRATION_CLOSED_EARLY, "hackathons", hackathonId, auditPayload);
 
         LocalDateTime prelimExamAt = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathonId).stream()
                 .filter(r -> !Boolean.TRUE.equals(r.getIsFinal()))
@@ -186,6 +205,10 @@ public class HackathonRegistrationCloseServiceImpl implements HackathonRegistrat
             hoursUntilPrelimExam = ChronoUnit.HOURS.between(now, prelimExamAt);
         }
 
+        Boolean timelineCompressed = timelineMeta.containsKey("timelineCompressed")
+                ? Boolean.TRUE.equals(timelineMeta.get("timelineCompressed"))
+                : null;
+
         return CloseRegistrationEarlyResponse.builder()
                 .hackathonId(hackathonId)
                 .closedAt(now)
@@ -196,6 +219,7 @@ public class HackathonRegistrationCloseServiceImpl implements HackathonRegistrat
                 .teamsInFormationGracePeriod(inGracePeriod)
                 .prelimExamAt(prelimExamAt)
                 .hoursUntilPrelimExam(hoursUntilPrelimExam)
+                .timelineCompressed(timelineCompressed)
                 .build();
     }
 

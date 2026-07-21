@@ -327,6 +327,9 @@ public class RoundServiceImpl implements RoundService {
                         LocalDateTime requiredFinalExamStart = codingHours > 0
                                 ? RoundScheduleSeedUtil.minFinalExamAt(latestPrelimExam, codingHours)
                                 : latestPrelimExam;
+                        LocalDateTime requiredFinalExamEnd = codingHours > 0
+                                ? RoundScheduleSeedUtil.maxFinalExamAt(latestPrelimExam, codingHours)
+                                : null;
 
                         if (codingHours > 0) {
                             if (!examAt.toLocalDate().equals(latestPrelimExam.toLocalDate())) {
@@ -338,17 +341,17 @@ public class RoundServiceImpl implements RoundService {
                                                 "latestPreliminaryExamAt", latestPrelimExam,
                                                 "latestPreliminaryRoundId", latestPrelim.getId()));
                             }
-                            if (examAt.isBefore(requiredFinalExamStart)) {
+                            if (examAt.isBefore(requiredFinalExamStart) || examAt.isAfter(requiredFinalExamEnd)) {
                                 throw new BusinessRuleException(ErrorCode.ROUND_FINAL_EXAM_ORDER,
-                                        "Round Chung kết: ngày thi phải từ %s trở đi (sau %dh chấm Sơ loại + %dh nghỉ)"
-                                                .formatted(requiredFinalExamStart,
-                                                        RoundScheduleSeedUtil.GRADING_BUFFER_HOURS_AFTER_PRELIM,
-                                                        RoundScheduleSeedUtil.FINAL_EXAM_GAP_AFTER_GRADING_HOURS),
+                                        "Round Chung kết: ngày thi phải trong khoảng %s – %s (cách Sơ loại tối đa %dh)"
+                                                .formatted(requiredFinalExamStart, requiredFinalExamEnd,
+                                                        RoundScheduleSeedUtil.MAX_FINAL_GAP_HOURS_AFTER_PRELIM),
                                         Map.of("hackathonId", hackathonId,
                                                 "examAt", examAt,
                                                 "latestPreliminaryExamAt", latestPrelimExam,
                                                 "latestPreliminaryCodingHours", codingHours,
                                                 "requiredFinalExamStart", requiredFinalExamStart,
+                                                "requiredFinalExamEnd", requiredFinalExamEnd,
                                                 "latestPreliminaryRoundId", latestPrelim.getId()));
                             }
                         } else if (!examAt.isAfter(latestPrelimExam)) {

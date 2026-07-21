@@ -21,4 +21,6 @@ public class PresentationTimerBlock {
     private LocalDateTime pausedAt;
     private Integer pausedAccumulatedSeconds;
     private Integer remainingSeconds;
+    /** true = kết thúc sớm Q&A; false = hết giờ tự nhiên; null = chưa ENDED. */
+    private Boolean qaEndedEarly;
 }

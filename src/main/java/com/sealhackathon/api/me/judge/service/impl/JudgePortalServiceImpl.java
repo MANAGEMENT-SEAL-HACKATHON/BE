@@ -422,11 +422,12 @@ public class JudgePortalServiceImpl implements JudgePortalService {
         boolean myConfirmed = scoringConfirmationRepository.existsBySubmission_IdAndJudge_Id(
                 submission.getId(), judgeId);
         boolean scoringComplete = scoringCompletionHelper.canAdvanceQueue(submission, trackId, roundId);
-        boolean canAdvance = scoringComplete;
+        boolean naturalPartialOk = Boolean.FALSE.equals(presenting.getQaEndedEarly()) && judgesScored > 0;
+        boolean canAdvance = scoringComplete || naturalPartialOk;
         if (Boolean.TRUE.equals(round.getIsFinal())) {
             PresentationTimerPhase phase = presenting.getTimerPhase();
             boolean timerReady = phase == PresentationTimerPhase.QA || phase == PresentationTimerPhase.ENDED;
-            canAdvance = scoringComplete && timerReady;
+            canAdvance = canAdvance && timerReady;
         }
 
         LocalDateTime lastJudgeScoredAt = scoreRepository.findBySubmission_Id(submission.getId()).stream()
@@ -448,6 +449,7 @@ public class JudgePortalServiceImpl implements JudgePortalService {
                 .myScored(myScored)
                 .allJudgesSubmitted(scoringComplete)
                 .canAdvanceQueue(canAdvance)
+                .qaEndedEarly(presenting.getQaEndedEarly())
                 .canControlPresentation(canControl)
                 .lastJudgeScoredAt(lastJudgeScoredAt)
                 .build();

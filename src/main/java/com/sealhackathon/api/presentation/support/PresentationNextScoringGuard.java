@@ -13,7 +13,12 @@ import org.springframework.stereotype.Component;
 import java.util.Map;
 
 /**
- * Kiểm tra trước {@code queue/next} — mỗi judge phân công phải chấm đủ tiêu chí (Chốt điểm).
+ * Kiểm tra trước {@code queue/next} — và trước kết thúc sớm Q&A.
+ * <ul>
+ *   <li>Luôn chặn khi chưa có điểm nào ({@code NO_SCORES}), trừ force-ack.</li>
+ *   <li>Thiếu chốt điểm: chặn khi Q&A kết thúc sớm ({@code requireCompleteScoring=true}),
+ *       trừ force-ack Coord/controller. Hết giờ tự nhiên → ghi nhận tới đâu, thiếu cũng được.</li>
+ * </ul>
  */
 @Component
 @RequiredArgsConstructor
@@ -45,6 +50,19 @@ public class PresentationNextScoringGuard {
 
     public void validateBeforeNext(
             Submission submission, Integer trackId, Round round, boolean acknowledgeIncompleteScoring) {
+        validateBeforeNext(submission, trackId, round, acknowledgeIncompleteScoring, true);
+    }
+
+    /**
+     * @param requireCompleteScoring true = kết thúc sớm Q&A / slot cũ (null qaEndedEarly);
+     *                               false = hết giờ Q&A tự nhiên — cho phép thiếu điểm
+     */
+    public void validateBeforeNext(
+            Submission submission,
+            Integer trackId,
+            Round round,
+            boolean acknowledgeIncompleteScoring,
+            boolean requireCompleteScoring) {
         PresentationQueueNextResponse.ScoringSnapshot snap = snapshot(submission, trackId, round);
         if (snap == null) {
             return;
@@ -57,7 +75,7 @@ public class PresentationNextScoringGuard {
                             "reason", "NO_SCORES",
                             "judgesAssigned", snap.getJudgesAssigned()));
         }
-        if (snap.isIncomplete() && !acknowledgeIncompleteScoring) {
+        if (requireCompleteScoring && snap.isIncomplete() && !acknowledgeIncompleteScoring) {
             throw new BusinessRuleException(ErrorCode.SCORING_INCOMPLETE_BEFORE_NEXT,
                     "Chưa đủ judge Chốt điểm — mỗi judge cần chấm đủ tiêu chí rồi bấm Chốt điểm",
                     Map.of(

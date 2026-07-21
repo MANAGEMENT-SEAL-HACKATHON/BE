@@ -7,13 +7,20 @@ import com.sealhackathon.api.config.OpenApiConfig;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import com.sealhackathon.api.common.exception.ResourceNotFoundException;
+import com.sealhackathon.api.hackathons.dto.request.CloseRegistrationEarlyRequest;
+import com.sealhackathon.api.hackathons.dto.request.CompetitionScheduleAdjustRequest;
 import com.sealhackathon.api.hackathons.dto.request.CreateHackathonRequest;
 import com.sealhackathon.api.hackathons.dto.request.HackathonLotteryRequest;
 import com.sealhackathon.api.hackathons.dto.request.UpdateHackathonRequest;
 import com.sealhackathon.api.hackathons.dto.response.CloseRegistrationEarlyResponse;
+import com.sealhackathon.api.hackathons.dto.response.CompetitionSchedulePreviewResponse;
 import com.sealhackathon.api.hackathons.dto.response.HackathonLotteryResponse;
 import com.sealhackathon.api.hackathons.dto.response.HackathonResponse;
 import com.sealhackathon.api.hackathons.dto.response.HackathonSummaryResponse;
+import com.sealhackathon.api.hackathons.entity.Hackathon;
+import com.sealhackathon.api.hackathons.repository.HackathonRepository;
+import com.sealhackathon.api.hackathons.service.CompetitionScheduleAdjustService;
 import com.sealhackathon.api.hackathons.service.HackathonLotteryService;
 import com.sealhackathon.api.hackathons.service.HackathonRegistrationCloseService;
 import com.sealhackathon.api.hackathons.service.HackathonService;
@@ -48,6 +55,8 @@ public class HackathonController {
     private final HackathonService hackathonService;
     private final HackathonLotteryService hackathonLotteryService;
     private final HackathonRegistrationCloseService hackathonRegistrationCloseService;
+    private final CompetitionScheduleAdjustService competitionScheduleAdjustService;
+    private final HackathonRepository hackathonRepository;
 
     // API MỚI DÀNH RIÊNG CHO FRONTEND SET MẶC ĐỊNH
     @GetMapping("/active")
@@ -136,10 +145,37 @@ public class HackathonController {
 
     @PostMapping("/{id}/close-registration-early")
     @CoordinatorOnly
-    @Operation(summary = "Kết thúc đăng ký sớm — khóa đội ACTIVE, loại đội/thí sinh không đủ điều kiện")
+    @Operation(summary = "Kết thúc đăng ký sớm + chọn giờ thi Sơ loại (cascade WS/KO/CK/Awards, 1 lần)")
     public ResponseEntity<ApiResponse<CloseRegistrationEarlyResponse>> closeRegistrationEarly(
-            @PathVariable Integer id) {
-        return ResponseEntity.ok(ApiResponse.ok(hackathonRegistrationCloseService.closeRegistrationEarly(id)));
+            @PathVariable Integer id,
+            @Valid @RequestBody CloseRegistrationEarlyRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                hackathonRegistrationCloseService.closeRegistrationEarly(id, request)));
+    }
+
+    @PostMapping("/{id}/competition-schedule/preview")
+    @CoordinatorOnly
+    @Operation(summary = "Xem trước thay đổi lịch khi dời giờ thi Sơ loại")
+    public ResponseEntity<ApiResponse<CompetitionSchedulePreviewResponse>> previewCompetitionSchedule(
+            @PathVariable Integer id,
+            @Valid @RequestBody CompetitionScheduleAdjustRequest request,
+            @RequestParam(defaultValue = "false") boolean assumeCloseRegToday) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                competitionScheduleAdjustService.preview(id, request.getNewPrelimExamAt(), assumeCloseRegToday)));
+    }
+
+    @PostMapping("/{id}/competition-schedule/adjust")
+    @CoordinatorOnly
+    @Operation(summary = "Dời lịch thi 1 lần (trước Kickoff ≥ 4 ngày) — cascade WS/KO/CK/Awards + notify")
+    public ResponseEntity<ApiResponse<CompetitionSchedulePreviewResponse>> adjustCompetitionSchedule(
+            @PathVariable Integer id,
+            @Valid @RequestBody CompetitionScheduleAdjustRequest request) {
+        CompetitionSchedulePreviewResponse preview =
+                competitionScheduleAdjustService.preview(id, request.getNewPrelimExamAt());
+        Hackathon h = hackathonRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Hackathon", id));
+        competitionScheduleAdjustService.apply(h, request.getNewPrelimExamAt(), false, request.getOverrides());
+        return ResponseEntity.ok(ApiResponse.ok(preview));
     }
 
     @PostMapping(value = "/{id}/banner", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

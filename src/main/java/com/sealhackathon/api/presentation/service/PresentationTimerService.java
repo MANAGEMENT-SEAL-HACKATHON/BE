@@ -14,6 +14,6 @@ public interface PresentationTimerService {
 
     PresentationTimerActionResponse reset(Integer roundId, Integer trackId);
 
-    /** Kết thúc sớm Q&A (có người) — enforce scoring completeness trừ khi force-ack hợp lệ. */
+    /** Kết thúc Q&A: sớm → bắt đủ Chốt điểm (trừ force-ack); hết giờ tự nhiên → không scoring guard. */
     PresentationTimerActionResponse end(Integer roundId, Integer trackId, boolean acknowledgeIncompleteScoring);
 }

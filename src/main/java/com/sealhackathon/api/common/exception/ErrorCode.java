@@ -130,6 +130,8 @@ public final class ErrorCode {
     public static final String NEW_PASSWORD_SAME_AS_CURRENT = "NEW_PASSWORD_SAME_AS_CURRENT";
     public static final String MENTOR_ASSIGN_DUPLICATE  = "MENTOR_ASSIGN_DUPLICATE";
     public static final String JUDGE_ASSIGN_DUPLICATE   = "JUDGE_ASSIGN_DUPLICATE";
+    /** Một người (Mentor hoặc Judge) chỉ được gán 1 bảng trong cùng vòng Sơ loại. */
+    public static final String PERSONNEL_ONE_TRACK_PER_ROUND = "PERSONNEL_ONE_TRACK_PER_ROUND";
 
     // ---------- FR-06 STATUS ----------
     public static final String STATUS_TRANSITION_INVALID = "STATUS_TRANSITION_INVALID";
@@ -187,6 +189,12 @@ public final class ErrorCode {
     public static final String REGISTRATION_ALREADY_CLOSED              = "REGISTRATION_ALREADY_CLOSED";
     public static final String REGISTRATION_WITHDRAWN                   = "REGISTRATION_WITHDRAWN";
     public static final String REGISTRATION_ALREADY_ACTIVE_ELSEWHERE    = "REGISTRATION_ALREADY_ACTIVE_ELSEWHERE";
+    /** Đã dời lịch thi 1 lần — không cho dời lại. */
+    public static final String SCHEDULE_ALREADY_ADJUSTED                = "SCHEDULE_ALREADY_ADJUSTED";
+    /** Còn dưới 4 ngày trước Kickoff — quá muộn để dời lịch. */
+    public static final String SCHEDULE_ADJUST_TOO_LATE                 = "SCHEDULE_ADJUST_TOO_LATE";
+    /** Ngày thi SL quá sớm — không đủ chỗ Workshop + Khai mạc. */
+    public static final String SCHEDULE_ADJUST_PRELIM_TOO_SOON          = "SCHEDULE_ADJUST_PRELIM_TOO_SOON";
     public static final String TEAM_LEADER_NOT_APPROVED                 = "TEAM_LEADER_NOT_APPROVED";
     public static final String TEAM_LEADER_INVALID_ROLE                 = "TEAM_LEADER_INVALID_ROLE";
     public static final String USER_IN_ANOTHER_TEAM                     = "USER_IN_ANOTHER_TEAM";
@@ -305,4 +313,6 @@ public final class ErrorCode {
     public static final String TEAMS_PENDING_APPROVAL                       = "TEAMS_PENDING_APPROVAL";
     public static final String PRIZE_REVOKE_REASON_REQUIRED                 = "PRIZE_REVOKE_REASON_REQUIRED";
     public static final String PRIZE_REVOKE_CATEGORY_INVALID                = "PRIZE_REVOKE_CATEGORY_INVALID";
+    /** Trao giải chỉ cho đội vào Chung kết (có TRP trên vòng final). */
+    public static final String PRIZE_TEAM_NOT_FINALIST                      = "PRIZE_TEAM_NOT_FINALIST";
 }

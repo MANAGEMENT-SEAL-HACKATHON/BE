@@ -28,6 +28,11 @@ public class JudgePresentationScoringStatusResponse {
     private boolean allJudgesSubmitted;
     /** true khi scoring complete (+ timer ready phía BE nếu final). Server gate queue/next. */
     private boolean canAdvanceQueue;
+    /**
+     * true = Q&A kết thúc sớm; false = hết giờ tự nhiên; null = chưa ENDED / slot cũ.
+     * FE: early-end button + Next sau natural incomplete.
+     */
+    private Boolean qaEndedEarly;
     /** true khi judge hiện tại được phép điều khiển timer/hàng đợi (theo controller grant hoặc mặc định). */
     private boolean canControlPresentation;
     /** G5-G: thời điểm chấm gần nhất trên submission đang PRESENTING (null nếu chưa ai chấm). */

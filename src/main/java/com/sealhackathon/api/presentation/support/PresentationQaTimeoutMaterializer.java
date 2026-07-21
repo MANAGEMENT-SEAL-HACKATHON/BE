@@ -31,6 +31,7 @@ public final class PresentationQaTimeoutMaterializer {
             return false;
         }
         slot.setTimerPhase(PresentationTimerPhase.ENDED);
+        slot.setQaEndedEarly(false);
         slotRepository.save(slot);
         return true;
     }

@@ -309,7 +309,7 @@ class RoundServiceImplExamValidationTest {
     }
 
     @Test
-    void createFinal_allowsAfterGradingBufferWhenCodingDurationProvided() {
+    void createFinal_allowsWithinTwoHourWindowWhenCodingDurationProvided() {
         mockHackathon();
         LocalDateTime prelimExam = LocalDateTime.of(2026, 6, 21, 8, 0);
         Round prelim = Round.builder()
@@ -323,10 +323,11 @@ class RoundServiceImplExamValidationTest {
         when(roundRepository.save(any())).thenReturn(Round.builder().id(99).build());
         when(roundMapper.toResponse(any())).thenReturn(RoundResponse.builder().id(99).name("Chung kết").build());
 
+        // prelim ends 16:00 → CK window 17:00–18:00
         CreateRoundRequest req = CreateRoundRequest.builder()
                 .name("Chung kết")
-                .examAt(LocalDateTime.of(2026, 6, 21, 19, 0))
-                .submissionOpen(LocalDateTime.of(2026, 6, 21, 19, 30))
+                .examAt(LocalDateTime.of(2026, 6, 21, 18, 0))
+                .submissionOpen(LocalDateTime.of(2026, 6, 21, 18, 30))
                 .submissionDeadline(LocalDateTime.now().plusDays(30))
                 .isFinal(true)
                 .roundType(RoundType.FINAL)
@@ -336,7 +337,7 @@ class RoundServiceImplExamValidationTest {
     }
 
     @Test
-    void createFinal_blocksBeforeGradingBufferEndsWhenCodingDurationProvided() {
+    void createFinal_blocksOutsideTwoHourWindowWhenCodingDurationProvided() {
         mockHackathon();
         LocalDateTime prelimExam = LocalDateTime.of(2026, 6, 21, 8, 0);
         Round prelim = Round.builder()
@@ -347,10 +348,11 @@ class RoundServiceImplExamValidationTest {
         when(roundRepository.findPreliminaryLikeByHackathonId(1)).thenReturn(List.of(prelim));
         when(roundRepository.countByHackathon_IdAndIsFinalTrue(1)).thenReturn(0L);
 
+        // prelim ends 16:00 → 18:01 is after max (+2h)
         CreateRoundRequest req = CreateRoundRequest.builder()
                 .name("Chung kết")
-                .examAt(LocalDateTime.of(2026, 6, 21, 18, 59))
-                .submissionOpen(LocalDateTime.of(2026, 6, 21, 19, 30))
+                .examAt(LocalDateTime.of(2026, 6, 21, 18, 1))
+                .submissionOpen(LocalDateTime.of(2026, 6, 21, 18, 30))
                 .submissionDeadline(LocalDateTime.now().plusDays(30))
                 .isFinal(true)
                 .roundType(RoundType.FINAL)

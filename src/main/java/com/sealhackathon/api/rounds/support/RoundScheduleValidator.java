@@ -59,6 +59,15 @@ public class RoundScheduleValidator {
      */
     public void validateActivateShift(Round round, LocalDateTime examAt, LocalDateTime submissionOpen,
                                       LocalDateTime submissionDeadline, boolean allowEarlyExamAt) {
+        validateActivateShift(round, examAt, submissionOpen, submissionDeadline, allowEarlyExamAt, false);
+    }
+
+    /**
+     * @param skipSiblingExamOrder true khi sắp cascade sibling (vd. dời Sơ loại rồi kéo CK theo) — tránh reject tạm thời
+     */
+    public void validateActivateShift(Round round, LocalDateTime examAt, LocalDateTime submissionOpen,
+                                      LocalDateTime submissionDeadline, boolean allowEarlyExamAt,
+                                      boolean skipSiblingExamOrder) {
         Integer hours = round.getCodingDurationHours();
         validateWindowConsistency(examAt, hours, submissionOpen, submissionDeadline);
 
@@ -72,16 +81,18 @@ public class RoundScheduleValidator {
             validatePreliminaryEarliestExamDate(hackathon, round.getIsFinal(), examAt);
             hackathonTimelineService.validateRoundExamAt(hackathonId, Boolean.TRUE.equals(round.getIsFinal()), examAt);
         } else {
-            // Vẫn không vượt eventEnd
+            // Vẫn không vượt eventEnd (RESCHEDULE có thể bump eventEnd sau cascade — cho phép vượt tạm thời bỏ check nếu cascade)
             LocalDate eventEnd = hackathon.getEventEnd();
-            if (eventEnd != null && examAt.toLocalDate().isAfter(eventEnd)) {
+            if (eventEnd != null && examAt.toLocalDate().isAfter(eventEnd) && !skipSiblingExamOrder) {
                 throw new BusinessRuleException(ErrorCode.EVENT_OUT_OF_HACKATHON,
                         "Ngày thi (%s) sau eventEnd (%s)".formatted(examAt.toLocalDate(), eventEnd),
                         Map.of("hackathonId", hackathonId, "examAt", examAt, "eventEnd", eventEnd));
             }
         }
 
-        validateSiblingExamOrder(hackathonId, round, examAt);
+        if (!skipSiblingExamOrder) {
+            validateSiblingExamOrder(hackathonId, round, examAt);
+        }
     }
 
     public void requireNewExamAtNotInPast(LocalDateTime newExamAt, LocalDateTime now) {
@@ -93,6 +104,32 @@ public class RoundScheduleValidator {
             throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
                     "newExamAt phải lớn hơn thời điểm hiện tại",
                     Map.of("newExamAt", newExamAt, "now", now));
+        }
+    }
+
+    /**
+     * RESCHEDULE Sơ loại: ngày thi ≥ registrationEnd + {@link RoundScheduleSeedUtil#DAYS_REG_END_TO_EVENT_START}
+     * để còn chỗ WORKSHOP + KICKOFF trước ngày thi.
+     */
+    public void requireReschedulePrelimWorkshopKickoffGap(Round round, LocalDateTime examAt) {
+        if (round == null || examAt == null || Boolean.TRUE.equals(round.getIsFinal())) {
+            return;
+        }
+        Hackathon hackathon = round.getHackathon();
+        if (hackathon == null || hackathon.getRegistrationEnd() == null) {
+            return;
+        }
+        LocalDate minExamDate = hackathon.getRegistrationEnd()
+                .plusDays(RoundScheduleSeedUtil.DAYS_REG_END_TO_EVENT_START);
+        if (examAt.toLocalDate().isBefore(minExamDate)) {
+            throw new BusinessRuleException(ErrorCode.ROUND_PRELIM_EXAM_ORDER,
+                    "Dời lịch Sơ loại: ngày thi phải từ %s trở đi (registrationEnd %s + %d ngày) để còn Workshop và Khai mạc"
+                            .formatted(minExamDate, hackathon.getRegistrationEnd(),
+                                    RoundScheduleSeedUtil.DAYS_REG_END_TO_EVENT_START),
+                    Map.of("hackathonId", hackathon.getId(),
+                            "registrationEnd", hackathon.getRegistrationEnd(),
+                            "minPreliminaryExamDate", minExamDate,
+                            "examAt", examAt));
         }
     }
 

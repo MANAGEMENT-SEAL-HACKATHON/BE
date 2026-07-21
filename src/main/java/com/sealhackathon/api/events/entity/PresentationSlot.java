@@ -65,6 +65,14 @@ public class PresentationSlot {
     @Column(name = "paused_accumulated_seconds", nullable = false)
     private Integer pausedAccumulatedSeconds = 0;
 
+    /**
+     * true = Q&A kết thúc sớm (cần đủ GK chốt trước khi next, trừ force-ack).
+     * false = hết giờ tự nhiên (next ghi nhận điểm tới đâu, thiếu cũng được).
+     * null = chưa kết thúc Q&A / slot mới.
+     */
+    @Column(name = "qa_ended_early")
+    private Boolean qaEndedEarly;
+
     @Column(name = "starts_at", nullable = false)
     private LocalDateTime startsAt;
 

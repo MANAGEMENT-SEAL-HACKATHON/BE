@@ -2,11 +2,14 @@ package com.sealhackathon.api.personnel;
 
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
+import com.sealhackathon.api.common.exception.ConflictException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
+import com.sealhackathon.api.config.AppProperties;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
+import com.sealhackathon.api.invitations.service.EmailService;
 import com.sealhackathon.api.judge_assignments.dto.request.CreateJudgeAssignmentRequest;
 import com.sealhackathon.api.judge_assignments.mapper.JudgeAssignmentMapper;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
@@ -42,10 +45,14 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 /**
- * MF-02 §14 — cùng user: Judge track A + Mentor track B (cùng round); cấm cùng track.
+ * Rule chuẩn:
+ * - Cùng track: Mentor + Judge = cấm
+ * - Cùng vai: Mentor chỉ 1 bảng / vòng; Judge chỉ 1 bảng / vòng
+ * - Cross-track: Mentor A + Judge B = được phép (và ngược lại)
  */
 @ExtendWith(MockitoExtension.class)
 class PersonnelAssignmentCrossTrackTest {
@@ -62,40 +69,44 @@ class PersonnelAssignmentCrossTrackTest {
     @Mock private AuditService auditService;
     @Mock private CurrentUserAccessor currentUserAccessor;
     @Mock private NotificationService notificationService;
+    @Mock private EmailService emailService;
+    @Mock private AppProperties appProperties;
     @Spy private HackathonArchiveGuard archiveGuard = new HackathonArchiveGuard();
 
     @InjectMocks private JudgeAssignmentServiceImpl judgeAssignmentService;
     @InjectMocks private MentorAssignmentServiceImpl mentorAssignmentService;
 
     @Test
-    void judgeAssign_acceptsUserWithRoleMentor_onDifferentTrack() {
-        User mentorAccount = approvedUser(10, UserRole.MENTOR);
+    void judgeAssign_allowsWhenAlreadyMentorOnOtherTrack() {
+        User user = approvedUser(10, UserRole.MENTOR);
         Round round = prelimRound();
-        Track trackA = track(1, round, "A");
         Track trackB = track(2, round, "B");
 
-        when(userRepository.findById(10)).thenReturn(Optional.of(mentorAccount));
-        when(trackRepository.findById(1)).thenReturn(Optional.of(trackA));
-        when(mentorAssignmentRepository.existsByMentorIdAndTrackId(10, 1)).thenReturn(false);
-        when(judgeAssignmentRepository.existsByJudgeIdAndTrackId(10, 1)).thenReturn(false);
+        when(userRepository.findById(10)).thenReturn(Optional.of(user));
+        when(trackRepository.findById(2)).thenReturn(Optional.of(trackB));
+        when(mentorAssignmentRepository.existsByMentorIdAndTrackId(10, 2)).thenReturn(false);
+        when(judgeAssignmentRepository.existsByJudgeIdAndTrackId(10, 2)).thenReturn(false);
+        when(judgeAssignmentRepository.existsByJudgeIdAndRoundScope(10, 100)).thenReturn(false);
         when(judgeAssignmentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(judgeAssignmentMapper.toResponse(any())).thenReturn(null);
 
         assertDoesNotThrow(() -> judgeAssignmentService.assign(
-                CreateJudgeAssignmentRequest.builder().judgeId(10).trackId(1).build()));
+                CreateJudgeAssignmentRequest.builder().judgeId(10).trackId(2).build()));
     }
 
     @Test
-    void mentorAssign_acceptsUserWithRoleJudge_onDifferentTrack() {
-        User judgeAccount = approvedUser(20, UserRole.JUDGE);
+    void mentorAssign_allowsWhenAlreadyJudgeOnOtherTrack() {
+        User user = approvedUser(20, UserRole.JUDGE);
         Round round = prelimRound();
         Track trackB = track(2, round, "B");
 
-        when(userRepository.findById(20)).thenReturn(Optional.of(judgeAccount));
+        when(userRepository.findById(20)).thenReturn(Optional.of(user));
         when(trackRepository.findById(2)).thenReturn(Optional.of(trackB));
         when(mentorAssignmentRepository.existsByMentorIdAndTrackId(20, 2)).thenReturn(false);
         when(judgeAssignmentRepository.existsByJudgeIdAndTrackId(20, 2)).thenReturn(false);
         when(judgeAssignmentRepository.existsFinalExternalJudgeInHackathonOfTrack(any(), any(), any()))
+                .thenReturn(false);
+        when(mentorAssignmentRepository.existsByMentorIdAndRoundIdExcludingTrack(20, 100, 2))
                 .thenReturn(false);
         when(mentorAssignmentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(mentorAssignmentMapper.toResponse(any()))
@@ -119,6 +130,27 @@ class PersonnelAssignmentCrossTrackTest {
                 judgeAssignmentService.assign(
                         CreateJudgeAssignmentRequest.builder().judgeId(10).trackId(1).build()));
         assertEquals(ErrorCode.CONFLICT_SAME_TRACK, ex.getCode());
+    }
+
+    @Test
+    void mentorAssign_blocksSecondMentorTrackInSameRound() {
+        User user = approvedUser(11, UserRole.MENTOR);
+        Round round = prelimRound();
+        Track trackB = track(2, round, "B");
+
+        when(userRepository.findById(11)).thenReturn(Optional.of(user));
+        when(trackRepository.findById(2)).thenReturn(Optional.of(trackB));
+        when(mentorAssignmentRepository.existsByMentorIdAndTrackId(11, 2)).thenReturn(false);
+        when(judgeAssignmentRepository.existsByJudgeIdAndTrackId(11, 2)).thenReturn(false);
+        when(judgeAssignmentRepository.existsFinalExternalJudgeInHackathonOfTrack(any(), any(), any()))
+                .thenReturn(false);
+        when(mentorAssignmentRepository.existsByMentorIdAndRoundIdExcludingTrack(eq(11), eq(100), eq(2)))
+                .thenReturn(true);
+
+        ConflictException ex = assertThrows(ConflictException.class, () ->
+                mentorAssignmentService.assign(
+                        CreateMentorAssignmentRequest.builder().mentorId(11).trackId(2).build()));
+        assertEquals(ErrorCode.PERSONNEL_ONE_TRACK_PER_ROUND, ex.getCode());
     }
 
     private static User approvedUser(int id, UserRole role) {

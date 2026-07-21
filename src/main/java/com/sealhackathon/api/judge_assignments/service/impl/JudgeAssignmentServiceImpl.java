@@ -46,7 +46,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * FR-05c — user MENTOR hoặc JUDGE có thể là Judge track; cấm Judge+Mentor cùng track.
+ * FR-05c — user MENTOR hoặc JUDGE có thể là Judge track;
+ * mỗi người chỉ Judge 1 bảng / vòng; được làm Mentor bảng khác; cấm Judge+Mentor cùng track.
  */
 @Service
 @Slf4j

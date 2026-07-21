@@ -212,7 +212,7 @@ public class HackathonDevSeedHelper {
         LocalDateTime prelimExamAt = eventStart.atTime(8, 0);
         LocalDateTime prelimOpen = RoundScheduleSeedUtil.submissionOpen(prelimExamAt, prelimHours);
         LocalDateTime prelimDeadline = RoundScheduleSeedUtil.submissionDeadline(prelimExamAt, prelimHours);
-        LocalDateTime finalExamAt = RoundScheduleSeedUtil.minFinalExamAt(prelimExamAt, prelimHours);
+        LocalDateTime finalExamAt = RoundScheduleSeedUtil.maxFinalExamAt(prelimExamAt, prelimHours);
         LocalDateTime finalOpen = RoundScheduleSeedUtil.finalSubmissionOpen(finalExamAt);
         LocalDateTime finalDeadline = RoundScheduleSeedUtil.finalSubmissionDeadline(finalExamAt);
         return new SeedDates(
@@ -241,7 +241,7 @@ public class HackathonDevSeedHelper {
         LocalDateTime prelimExamAt = eventStart.atTime(8, 0);
         LocalDateTime prelimOpen = RoundScheduleSeedUtil.submissionOpen(prelimExamAt, prelimHours);
         LocalDateTime prelimDeadline = RoundScheduleSeedUtil.submissionDeadline(prelimExamAt, prelimHours);
-        LocalDateTime finalExamAt = RoundScheduleSeedUtil.minFinalExamAt(prelimExamAt, prelimHours);
+        LocalDateTime finalExamAt = RoundScheduleSeedUtil.maxFinalExamAt(prelimExamAt, prelimHours);
         LocalDateTime finalOpen = RoundScheduleSeedUtil.finalSubmissionOpen(finalExamAt);
         LocalDateTime finalDeadline = RoundScheduleSeedUtil.finalSubmissionDeadline(finalExamAt);
         return new SeedDates(
@@ -301,7 +301,7 @@ public class HackathonDevSeedHelper {
         LocalDateTime prelimExamAt = eventStart.atTime(8, 0);
         LocalDateTime prelimOpen = RoundScheduleSeedUtil.submissionOpen(prelimExamAt, prelimHours);
         LocalDateTime prelimDeadline = RoundScheduleSeedUtil.submissionDeadline(prelimExamAt, prelimHours);
-        LocalDateTime finalExamAt = RoundScheduleSeedUtil.minFinalExamAt(prelimExamAt, prelimHours);
+        LocalDateTime finalExamAt = RoundScheduleSeedUtil.maxFinalExamAt(prelimExamAt, prelimHours);
         LocalDateTime finalOpen = RoundScheduleSeedUtil.finalSubmissionOpen(finalExamAt);
         LocalDateTime finalDeadline = RoundScheduleSeedUtil.finalSubmissionDeadline(finalExamAt);
         return new SeedDates(
@@ -333,7 +333,7 @@ public class HackathonDevSeedHelper {
         LocalDateTime prelimDeadline = now.plusHours(8);
         long openOffsetMinutes = (prelimHours * 60L * 2L) / 3L;
         LocalDateTime prelimExamAt = prelimOpen.minusMinutes(openOffsetMinutes);
-        LocalDateTime finalExamAt = RoundScheduleSeedUtil.minFinalExamAt(prelimExamAt, prelimHours);
+        LocalDateTime finalExamAt = RoundScheduleSeedUtil.maxFinalExamAt(prelimExamAt, prelimHours);
         if (!finalExamAt.isAfter(prelimDeadline)) {
             finalExamAt = eventStart.atTime(8, 0);
         }
@@ -702,9 +702,12 @@ public class HackathonDevSeedHelper {
                 ? prelim.getCodingDurationHours()
                 : RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS;
         LocalDateTime minExam = RoundScheduleSeedUtil.minFinalExamAt(prelim.getExamAt(), prelimHours);
+        LocalDateTime maxExam = RoundScheduleSeedUtil.maxFinalExamAt(prelim.getExamAt(), prelimHours);
         boolean changed = false;
-        if (finalRound.getExamAt() == null || finalRound.getExamAt().isBefore(minExam)) {
-            finalRound.setExamAt(minExam);
+        if (finalRound.getExamAt() == null
+                || finalRound.getExamAt().isBefore(minExam)
+                || finalRound.getExamAt().isAfter(maxExam)) {
+            finalRound.setExamAt(maxExam);
             changed = true;
         }
         LocalDateTime exam = finalRound.getExamAt();
@@ -915,7 +918,6 @@ public class HackathonDevSeedHelper {
         User judge4 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_JUDGE4).orElse(judge2);
         User guestJudge = requireGuestJudge();
         User guestJudge2 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_GUEST_JUDGE2).orElse(guestJudge);
-        User guestJudge3 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_GUEST_JUDGE3).orElse(guestJudge);
         User mentor = requireMentor();
         User mentor2 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_MENTOR2).orElse(mentor);
         User mentor3 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_MENTOR3).orElse(mentor);
@@ -978,7 +980,7 @@ public class HackathonDevSeedHelper {
         ensureJudgeMentorAssignments(
                 track1, track2, finalRound,
                 List.of(judge1, judge2, judge3, judge4),
-                List.of(guestJudge, guestJudge2, guestJudge3),
+                List.of(guestJudge, guestJudge2),
                 List.of(mentor, mentor2, mentor3),
                 coordinator);
 
@@ -1080,6 +1082,16 @@ public class HackathonDevSeedHelper {
                         .round(finalRound)
                         .hackathon(hackathon)
                         .build()));
+    }
+
+    /** Đội tham dự Sơ loại nhưng không vào CK — TRT=ELIMINATED, gỡ TRP CK nếu có. */
+    public void markEliminatedFromPrelim(Team team, Round prelim, Round finalRound) {
+        TeamRoundTrack trt = teamRoundTrackRepository.findByTeam_IdAndTrack_Round_Id(team.getId(), prelim.getId())
+                .orElseThrow();
+        trt.setParticipationStatus(ParticipationStatus.ELIMINATED);
+        teamRoundTrackRepository.save(trt);
+        teamRoundParticipationRepository.findByTeam_IdAndRound_Id(team.getId(), finalRound.getId())
+                .ifPresent(teamRoundParticipationRepository::delete);
     }
 
     public Criteria firstCriterionForTrack(Track track) {
@@ -1261,11 +1273,41 @@ public class HackathonDevSeedHelper {
         if (!criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(track.getId()).isEmpty()) {
             return;
         }
+        // name, type, weight, order, description — không đổi weight/order so với seed cũ
         List<String[]> rows = List.of(
-                new String[] {"Domain Accuracy", "TECHNICAL", "0.30", "1"},
-                new String[] {"Kiến trúc", "TECHNICAL", "0.30", "2"},
-                new String[] {"Thuyết trình", "SOFT_SKILL", "0.20", "3"},
-                new String[] {"Thực thi", "TECHNICAL", "0.20", "4"});
+                new String[] {
+                    "Domain Accuracy",
+                    "TECHNICAL",
+                    "0.30",
+                    "1",
+                    "Độ chính xác nghiệp vụ / domain so với đề bài và dữ liệu thực tế.\n"
+                            + "Gợi ý (thang 0–10): 9–10 rất chính xác, ít lỗi domain; 7–8 tốt, còn thiếu cạnh; "
+                            + "5–6 đạt cơ bản; ≤4 lệch domain hoặc nhiều sai sót."
+                },
+                new String[] {
+                    "Kiến trúc",
+                    "TECHNICAL",
+                    "0.30",
+                    "2",
+                    "Thiết kế hệ thống, module hóa, lựa chọn công nghệ và khả năng mở rộng.\n"
+                            + "Gợi ý (thang 0–10): 9–10 rõ ràng, vững; 7–8 ổn định; 5–6 chạy được nhưng mỏng; ≤4 rối / khó bảo trì."
+                },
+                new String[] {
+                    "Thuyết trình",
+                    "SOFT_SKILL",
+                    "0.20",
+                    "3",
+                    "Khả năng truyền đạt ý tưởng, cấu trúc bài nói và trả lời câu hỏi.\n"
+                            + "Gợi ý (thang 0–10): 9–10 mạch lạc, thuyết phục; 7–8 rõ ràng; 5–6 hiểu được ý chính; ≤4 khó theo dõi."
+                },
+                new String[] {
+                    "Thực thi",
+                    "TECHNICAL",
+                    "0.20",
+                    "4",
+                    "Mức độ hoàn thiện demo, tính năng chạy được và chất lượng triển khai thực tế.\n"
+                            + "Gợi ý (thang 0–10): 9–10 demo đầy đủ, ổn định; 7–8 phần lớn chạy tốt; 5–6 demo cơ bản; ≤4 gần như không chạy."
+                });
         for (String[] row : rows) {
             criteriaRepository.save(Criteria.builder()
                     .track(track)
@@ -1274,6 +1316,7 @@ public class HackathonDevSeedHelper {
                     .weight(Float.parseFloat(row[2]))
                     .maxScore(10)
                     .displayOrder(Integer.parseInt(row[3]))
+                    .description(row[4])
                     .build());
         }
     }
@@ -1289,6 +1332,11 @@ public class HackathonDevSeedHelper {
                 .weight(1.0f)
                 .maxScore(10)
                 .displayOrder(1)
+                .description(
+                        "Đánh giá tổng thể phần trình bày và sản phẩm ở vòng Chung kết "
+                                + "(nội dung, demo, trả lời giám khảo).\n"
+                                + "Gợi ý (thang 0–10): 9–10 xuất sắc toàn diện; 7–8 tốt, còn điểm cần cải thiện; "
+                                + "5–6 đạt mức trung bình; ≤4 chưa sẵn sàng cho chung kết.")
                 .build());
     }
 
@@ -1980,14 +2028,13 @@ public class HackathonDevSeedHelper {
         hackathonRepository.save(hackathon);
     }
 
-    /** Đảm bảo guest judges FINAL_EXTERNAL + INTERNAL HEAD trên CK + invitation còn hiệu lực. */
+    /** Đảm bảo đúng 2 guest FINAL_EXTERNAL (+ INTERNAL HEAD) trên CK + invitation. */
     public void ensureFinalGuestJudgeAssignment(Hackathon hackathon, Round finalRound) {
         User coordinator = requireCoordinator();
         User headJudge = requireJudge1();
         List<User> guests = new java.util.ArrayList<>();
         guests.add(requireGuestJudge());
         userRepository.findByEmail(Gd1SeedConstants.EMAIL_GUEST_JUDGE2).ifPresent(guests::add);
-        userRepository.findByEmail(Gd1SeedConstants.EMAIL_GUEST_JUDGE3).ifPresent(guests::add);
         for (User guest : guests) {
             ensureGuestJudgeInvitation(hackathon, guest, coordinator);
         }

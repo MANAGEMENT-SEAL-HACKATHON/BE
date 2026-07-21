@@ -11,15 +11,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class RoundScheduleSeedUtilTest {
 
     @Test
-    void minFinalExamAt_isAfterPrelimDeadlinePlusGradingBuffer() {
+    void minAndMaxFinalExamAt_areOneToTwoHoursAfterPrelimEnd() {
         LocalDateTime prelimExam = LocalDateTime.of(2026, 7, 29, 8, 0);
         LocalDateTime prelimDeadline = RoundScheduleSeedUtil.submissionDeadline(
                 prelimExam, RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS);
-        LocalDateTime finalExam = RoundScheduleSeedUtil.minFinalExamAt(
+        LocalDateTime minFinal = RoundScheduleSeedUtil.minFinalExamAt(
+                prelimExam, RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS);
+        LocalDateTime maxFinal = RoundScheduleSeedUtil.maxFinalExamAt(
                 prelimExam, RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS);
 
+        // 08:00 + 7h coding = 15:00 end → CK window 16:00–17:00
         assertEquals(LocalDateTime.of(2026, 7, 29, 15, 0), prelimDeadline);
-        assertEquals(LocalDateTime.of(2026, 7, 29, 18, 0), finalExam);
+        assertEquals(LocalDateTime.of(2026, 7, 29, 16, 0), minFinal);
+        assertEquals(LocalDateTime.of(2026, 7, 29, 17, 0), maxFinal);
+    }
+
+    @Test
+    void userExample_prelimEndsAtNoon_allowsFinalAtTwoPm() {
+        LocalDateTime prelimExam = LocalDateTime.of(2026, 8, 8, 8, 0);
+        int codingHours = 4; // ends 12:00
+        assertEquals(LocalDateTime.of(2026, 8, 8, 13, 0),
+                RoundScheduleSeedUtil.minFinalExamAt(prelimExam, codingHours));
+        assertEquals(LocalDateTime.of(2026, 8, 8, 14, 0),
+                RoundScheduleSeedUtil.maxFinalExamAt(prelimExam, codingHours));
     }
 
     @Test

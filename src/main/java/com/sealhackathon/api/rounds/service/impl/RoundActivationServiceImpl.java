@@ -70,9 +70,10 @@ public class RoundActivationServiceImpl implements RoundActivationService {
                 ? body.getScheduleMode()
                 : ActivateScheduleMode.KEEP;
 
-        // RESCHEDULE-only: shift lịch, giữ inactive — không notifyRoundStarted
+        // RESCHEDULE không còn trên Activate — dùng POST .../competition-schedule/adjust hoặc close-reg-early
         if (scheduleMode == ActivateScheduleMode.RESCHEDULE) {
-            return rescheduleOnly(round, body);
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                    "Dời lịch thi không còn gắn với Kích hoạt vòng. Dùng «Dời lịch thi» (1 lần, trước Kickoff ≥ 4 ngày) hoặc chọn lịch khi «Kết thúc đăng ký sớm».");
         }
 
         if (Boolean.TRUE.equals(round.getIsActive())) {

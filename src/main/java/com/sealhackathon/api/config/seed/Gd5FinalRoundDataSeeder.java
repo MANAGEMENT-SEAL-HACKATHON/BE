@@ -25,8 +25,12 @@ import java.util.List;
 /**
  * Seed GĐ5 — hackathon {@link Gd5SeedConstants#SLUG_GD5_FINAL_ACTIVE}.
  *
- * <p>CK active, 4 đội ADVANCED, submit window mở, chưa nộp CK.
- * Prelim: published scores + STT queues (để student test điểm GD3 + đề track).
+ * <p>CK active, <b>3 đội ADVANCED</b> (+ 1 đội bị loại sơ loại còn ACTIVE), submit window mở.
+ * <ul>
+ *   <li>GD5-01, GD5-02: đã nộp CK (SUBMITTED)</li>
+ *   <li>GD5-03: chưa nộp — login {@code student.gd5.leader03@fpt.edu.vn} để test nộp</li>
+ * </ul>
+ * Prelim: published scores + STT queues.
  *
  * <p>Doc: {@code docs/testing/gd5-full-test-matrix-and-seeds.md} § Profile 0
  */
@@ -57,7 +61,7 @@ public class Gd5FinalRoundDataSeeder {
                 Gd5SeedConstants.SLUG_GD5_FINAL_ACTIVE,
                 "SEAL GĐ5 — Chung kết active",
                 HackathonStatus.ONGOING,
-                "Seed E2E GĐ5 — CK active, prelim published+queue, 4 đội ADVANCED",
+                "Seed E2E GĐ5 — CK active, 3 ADVANCED (2 đã nộp + 1 trống test nộp)",
                 new HackathonDevSeedHelper.PrelimState(false, true, true, true, 1, 2),
                 new HackathonDevSeedHelper.FinalState(true, false),
                 seedHelper.computeGd5FinalActiveDates());
@@ -105,7 +109,7 @@ public class Gd5FinalRoundDataSeeder {
                     Gd5SeedConstants.studentDisplayName(idx),
                     chapter);
             seedHelper.registerStudent(hackathon, leader);
-            Team team = seedHelper.ensureActiveTeam(hackathon, teamNames[i], leader, chapter, now);
+            Team team = seedHelper.ensureActiveTeamForLeader(hackathon, teamNames[i], leader, chapter, now);
             seedHelper.ensureTeamLocked(team, now);
             Track track = (idx % 2 == 1) ? track1 : track2;
             User judge = (idx % 2 == 1) ? judge1 : judge2;
@@ -117,7 +121,12 @@ public class Gd5FinalRoundDataSeeder {
                     false,
                     submittedAt.minusMinutes(i));
             seedHelper.scoreAllTrackCriteria(prelimSub, track, judge, PRELIM_SCORES[i], true);
-            seedHelper.markAdvanced(team, prelim, finalRound, hackathon);
+            // Top-N thực tế: 3 đội vào CK; đội 4 bị loại (vẫn ACTIVE) — test roster CK không lẫn đội loại
+            if (idx <= 3) {
+                seedHelper.markAdvanced(team, prelim, finalRound, hackathon);
+            } else {
+                seedHelper.markEliminatedFromPrelim(team, prelim, finalRound);
+            }
             teams.add(team);
             if (idx % 2 == 1) {
                 track1Subs.add(prelimSub);
@@ -129,11 +138,13 @@ public class Gd5FinalRoundDataSeeder {
         seedHelper.seedPresentationQueue(prelim, track1, track1Subs, -1);
         seedHelper.seedPresentationQueue(prelim, track2, track2Subs, -1);
 
+        // 2 đội đã nộp CK; đội 03 để trống — test nộp tay
+        seedCkPartialSubmissions(hackathon, finalRound, teams);
+
         log.info("""
                 [Gd5FinalRoundDataSeeder] slug={} hackathonId={} prelimRoundId={} finalRoundId={}
-                  teams: {} | {} | {} | {} (ADVANCED + prelim scored/published + STT)
-                  0 CK submission — nộp → close-early → queue → chấm → lock
-                  students: {} … {} password={}
+                  ADVANCED: {} (đã nộp) | {} (đã nộp) | {} (CHƯA nộp — test) | loại: {}
+                  Test nộp CK: {} / {}
                   guestJudge={} (FINAL_EXTERNAL on CK)
                 """,
                 Gd5SeedConstants.SLUG_GD5_FINAL_ACTIVE,
@@ -144,13 +155,32 @@ public class Gd5FinalRoundDataSeeder {
                 teams.get(1).getId(),
                 teams.get(2).getId(),
                 teams.get(3).getId(),
-                Gd5SeedConstants.studentEmail(1),
-                Gd5SeedConstants.studentEmail(4),
+                Gd5SeedConstants.studentEmail(Gd5SeedConstants.TEAM_INDEX_PENDING_SUBMIT),
                 DevSeedCatalog.DEV_STUDENT_PASSWORD,
                 Gd1SeedConstants.EMAIL_GUEST_JUDGE);
     }
 
-    /** Đồng bộ lịch CK đang mở theo giờ máy — không xóa prelim artifacts. */
+    /**
+     * GD5-01 + GD5-02 → SUBMITTED CK; GD5-03 không tạo submission.
+     * Gọi sau {@code clearFinalRoundArtifacts} để không bị xóa.
+     */
+    private void seedCkPartialSubmissions(Hackathon hackathon, Round finalRound, List<Team> teams) {
+        if (teams.size() < 3) {
+            return;
+        }
+        seedHelper.ensureFinalSubmission(
+                hackathon,
+                finalRound,
+                teams.get(0),
+                "https://github.com/seal-warriors/gd5-team01");
+        seedHelper.ensureFinalSubmission(
+                hackathon,
+                finalRound,
+                teams.get(1),
+                "https://github.com/seal-warriors/gd5-team02");
+    }
+
+    /** Đồng bộ lịch CK đang mở theo giờ máy — giữ 2 bài nộp CK mẫu + 1 slot trống. */
     @Transactional
     public void repairForFeTesting() {
         if (!enabled) {
@@ -176,10 +206,26 @@ public class Gd5FinalRoundDataSeeder {
         seedHelper.repairGd5FeTestingScheduleAndState(hackathon, prelim, finalRound);
         int locked = seedHelper.ensureAllActiveTeamsLocked(hackathon.getId(), LocalDateTime.now());
         finalRound = roundRepository.findById(finalRound.getId()).orElse(finalRound);
+
+        Chapter chapter = seedHelper.requireChapter(Gd1SeedConstants.CHAPTER_FPT_HCM);
+        LocalDateTime now = LocalDateTime.now();
+        List<Team> advanced = new ArrayList<>();
+        for (int idx = 1; idx <= 3; idx++) {
+            User leader = seedHelper.upsertStudent(
+                    Gd5SeedConstants.studentEmail(idx),
+                    Gd5SeedConstants.studentDisplayName(idx),
+                    chapter);
+            String name = idx == 1 ? Gd5SeedConstants.TEAM_01
+                    : idx == 2 ? Gd5SeedConstants.TEAM_02
+                    : Gd5SeedConstants.TEAM_03;
+            advanced.add(seedHelper.ensureActiveTeamForLeader(hackathon, name, leader, chapter, now));
+        }
+        seedCkPartialSubmissions(hackathon, finalRound, advanced);
+
         log.info(
-                "[Gd5FinalRoundDataSeeder] FE repair — submit-open (prelim kept), final deadline={} slug={} lockedTeams={}",
+                "[Gd5FinalRoundDataSeeder] FE repair — 2/3 CK submitted, pending={} deadline={} lockedTeams={}",
+                Gd5SeedConstants.studentEmail(Gd5SeedConstants.TEAM_INDEX_PENDING_SUBMIT),
                 finalRound.getSubmissionDeadline(),
-                Gd5SeedConstants.SLUG_GD5_FINAL_ACTIVE,
                 locked);
     }
 
