@@ -94,6 +94,19 @@ public class Track {
     @JoinColumn(name = "controller_judge_id")
     private User controllerJudge;
 
+    @Column(name = "problem_statement_url", columnDefinition = "TEXT")
+    private String problemStatementUrl;
+
+    @Column(name = "problem_statement_storage_key", length = 512)
+    private String problemStatementStorageKey;
+
+    @Column(name = "problem_statement_original_filename", length = 255)
+    private String problemStatementOriginalFilename;
+
+    /** Thời điểm phát đề riêng cho bảng đấu (Sơ loại). Null = chưa phát theo track. */
+    @Column(name = "problem_released_at")
+    private java.time.LocalDateTime problemReleasedAt;
+
     @Builder.Default
     @Column(name = "presentation_shuffled", nullable = false)
     private Boolean presentationShuffled = false;

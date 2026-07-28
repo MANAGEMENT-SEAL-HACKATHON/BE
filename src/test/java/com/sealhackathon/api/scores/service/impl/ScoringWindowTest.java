@@ -1,6 +1,5 @@
 package com.sealhackathon.api.scores.service.impl;
 
-import com.sealhackathon.api.calibration_sessions.repository.CalibrationSessionRepository;
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ErrorCode;
@@ -9,6 +8,7 @@ import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.criteria.entity.Criteria;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.events.entity.PresentationSlot;
+import com.sealhackathon.api.events.repository.JudgeSubmissionScoringConfirmationRepository;
 import com.sealhackathon.api.events.repository.PresentationSlotRepository;
 import com.sealhackathon.api.presentation.support.RoundPhaseResolver;
 import com.sealhackathon.api.presentation.value_object.PresentationQueueStatus;
@@ -23,7 +23,7 @@ import com.sealhackathon.api.submissions.entity.Submission;
 import com.sealhackathon.api.submissions.repository.SubmissionRepository;
 import com.sealhackathon.api.submissions.value_object.SubmissionStatus;
 import com.sealhackathon.api.teams.entity.Team;
-import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
+import com.sealhackathon.api.teams.repository.TeamRoundTrackRepository;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
@@ -61,7 +61,7 @@ class ScoringWindowTest {
     @Mock private PresentationSlotRepository presentationSlotRepository;
     @Mock private AuditService auditService;
     @Mock private ApplicationEventPublisher eventPublisher;
-    @Mock private CalibrationSessionRepository calibrationSessionRepository;
+    @Mock private JudgeSubmissionScoringConfirmationRepository scoringConfirmationRepository;
     @Spy private RoundPhaseResolver roundPhaseResolver = new RoundPhaseResolver();
 
     @InjectMocks
@@ -143,12 +143,31 @@ class ScoringWindowTest {
     }
 
     @Test
+    void finalRoundScore_blockedWhenSlotWaiting() {
+        mockHappyPath(SubmissionStatus.SUBMITTED, true);
+        when(presentationSlotRepository.findByRound_IdAndSubmission_Id(5, 42))
+                .thenReturn(Optional.of(PresentationSlot.builder()
+                        .queueStatus(PresentationQueueStatus.WAITING)
+                        .build()));
+
+        assertThatThrownBy(() -> scoreService.submitScore(SubmitScoreRequest.builder()
+                        .submissionId(42)
+                        .criterionId(1)
+                        .scoreValue(8f)
+                        .build()))
+                .isInstanceOf(BusinessRuleException.class)
+                .extracting(ex -> ((BusinessRuleException) ex).getCode())
+                .isEqualTo(ErrorCode.SCORING_NOT_OPEN);
+    }
+
+    @Test
     void normalScore_blockedWhenScoringLocked() {
         mockHappyPath(SubmissionStatus.SUBMITTED);
         Round locked = Round.builder()
                 .id(5)
                 .isActive(true)
-                .examAt(LocalDateTime.now().minusHours(1))
+                .examAt(LocalDateTime.now().minusHours(4))
+                .submissionDeadline(LocalDateTime.now().minusMinutes(10))
                 .scoringLocked(true)
                 .build();
         when(roundRepository.findByIdForUpdate(5)).thenReturn(Optional.of(locked));
@@ -162,11 +181,17 @@ class ScoringWindowTest {
     }
 
     private void mockHappyPath(SubmissionStatus status) {
+        mockHappyPath(status, false);
+    }
+
+    private void mockHappyPath(SubmissionStatus status, boolean isFinal) {
         Track track = Track.builder().id(3).build();
         Round round = Round.builder()
                 .id(5)
                 .isActive(true)
-                .examAt(LocalDateTime.now().minusHours(1))
+                .isFinal(isFinal)
+                .examAt(LocalDateTime.now().minusHours(4))
+                .submissionDeadline(LocalDateTime.now().minusMinutes(10))
                 .scoringLocked(false)
                 .build();
         track.setRound(round);

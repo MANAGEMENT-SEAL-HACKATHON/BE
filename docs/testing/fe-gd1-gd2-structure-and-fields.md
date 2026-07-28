@@ -106,6 +106,8 @@ BE ranking/advance (GĐ4) luôn tính **top N mỗi bảng** (`assigned_group`),
 
 **Không tạo Track** dưới round CK.
 
+**Optional — thời lượng timer (GĐ5):** set qua `PUT /api/v1/rounds/{finalRoundId}` với `defaultPresentationMinutes`, `defaultQaMinutes` (≥1). Default DB: **10** phút thuyết trình + **5** phút Q&A.
+
 ---
 
 ### 2.4 Tạo Track — `POST /api/v1/rounds/{prelimRoundId}/tracks`
@@ -127,6 +129,8 @@ BE ranking/advance (GĐ4) luôn tính **top N mỗi bảng** (`assigned_group`),
 - `maxTeamsPerGroup <= maxTeams` (nếu cả hai có giá trị)
 
 **Không có trên Track:** `topNAdvance`, `minTeamsFinal`, `wildcardEnabled` (round/hackathon).
+
+**Optional — thời lượng timer (GĐ3):** có thể set sớm qua `PUT /api/v1/tracks/{id}` với `presentationMinutes`, `qaMinutes` (≥1). Không gửi → dùng `defaultPresentationMinutes` / `defaultQaMinutes` của round SL.
 
 **Mẫu Spring 2026 (1 bảng ≈ 1 track):**
 
@@ -211,9 +215,9 @@ Auto lottery: chỉ gửi `roundId` — BE chia track round-robin + tạo `assig
 
 ### Wizard GĐ1 (Coordinator)
 
-- [ ] Step **Round SL**: có `topNAdvance`, `minTeamsFinal`, `wildcardEnabled`, `examAt`, `codingDurationHours`
-- [ ] Step **Round CK**: `isFinal: true` — **không** field advance, **không** tạo track
-- [ ] Step **Track**: chỉ field §2.4 — **không** copy `topNAdvance` / `minTeamsFinal` vào đây
+- [ ] Step **Round SL**: có `topNAdvance`, `minTeamsFinal`, `wildcardEnabled`, `examAt`, `codingDurationHours` — **không** expose timer thuyết trình (fallback nội bộ 10/5)
+- [ ] Step **Round CK**: `isFinal: true` — **không** field advance, **không** tạo track; có `defaultPresentationMinutes`, `defaultQaMinutes` (optional)
+- [ ] Step **Track**: field §2.4 + optional `presentationMinutes`, `qaMinutes` (override theo bảng đấu)
 - [ ] Hiển thị help text: *Track = chủ đề; Bảng = `assignedGroup` sau lottery*
 
 ### Màn GĐ2 (Student / Coordinator)
@@ -231,6 +235,12 @@ Auto lottery: chỉ gửi `roundId` — BE chia track round-robin + tạo `assig
 | `maxTeams` | Số đội tối đa **trên track** |
 | `maxTeamsPerGroup` | Số đội tối đa **mỗi bảng** trong track |
 | `minTeamSize` / `maxTeamSize` | Số thành viên / đội (áp dụng sau khi vào track) |
+| **`defaultPresentationMinutes`** | **Round CK** (GĐ1 UI) — thời lượng thuyết trình (phút); Round SL chỉ fallback API 10 |
+| **`defaultQaMinutes`** | **Round CK** (GĐ1 UI) — thời lượng Q&A (phút); Round SL chỉ fallback API 5 |
+| **`presentationMinutes`** | **Track SL** (optional) — override thuyết trình theo track; `null` = dùng default round |
+| **`qaMinutes`** | **Track SL** (optional) — override Q&A theo track |
+
+**Timer GĐ3/GĐ5:** Round CK dùng `defaultPresentationMinutes` / `defaultQaMinutes`. Round SL: default fallback; mỗi track có thể override. Coordinator chỉnh nhanh lúc vận hành qua `PUT /api/v1/presentation/duration` (xem [fe-gd3-api-mapping.md](fe-gd3-api-mapping.md) §9.4.1).
 
 ---
 
@@ -248,7 +258,22 @@ Auto lottery: chỉ gửi `roundId` — BE chia track round-robin + tạo `assig
   "minTeamsFinal": 6,
   "wildcardEnabled": true,
   "examAt": "2026-06-10T08:00:00",
-  "codingDurationHours": 7
+  "codingDurationHours": 7,
+  "defaultPresentationMinutes": 10,
+  "defaultQaMinutes": 5
+}
+```
+
+**Round CK** — `GET /api/v1/rounds/{finalRoundId}` (tương tự; thường chỉ cần `defaultPresentationMinutes` / `defaultQaMinutes` cho timer chung kết):
+
+```json
+{
+  "id": 13,
+  "hackathonId": 2,
+  "name": "Vòng Chung kết",
+  "isFinal": true,
+  "defaultPresentationMinutes": 10,
+  "defaultQaMinutes": 5
 }
 ```
 
@@ -265,10 +290,14 @@ Auto lottery: chỉ gửi `roundId` — BE chia track round-robin + tạo `assig
   "minTeamSize": 3,
   "maxTeamSize": 5,
   "status": "OPEN",
-  "sequenceOrder": 1
+  "sequenceOrder": 1,
+  "presentationMinutes": null,
+  "qaMinutes": null
 }
 ```
 
+`presentationMinutes` / `qaMinutes` = `null` → timer dùng default của round SL.
+
 ---
 
-*Revision: 2026-06-07 — xác nhận cấu trúc 1 SL + 1 CK; Track vs Bảng; map field đúng layer.*
+*Revision: 2026-06-24 — thêm field thời lượng timer (`defaultPresentationMinutes`, `defaultQaMinutes`, `presentationMinutes`, `qaMinutes`).*

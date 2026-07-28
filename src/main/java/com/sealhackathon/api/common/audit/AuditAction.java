@@ -12,10 +12,12 @@ public final class AuditAction {
 
     // ---------- FR-01 / FR-06 HACKATHON ----------
     public static final String HACKATHON_CREATE         = "HACKATHON_CREATE";
+    public static final String HACKATHON_CLONE          = "HACKATHON_CLONE";
     public static final String HACKATHON_UPDATE         = "HACKATHON_UPDATE";
     public static final String HACKATHON_DELETE         = "HACKATHON_DELETE";
     public static final String HACKATHON_STATUS_CHANGE  = "HACKATHON_STATUS_CHANGE";
     public static final String HACKATHON_READINESS_CHECK = "HACKATHON_READINESS_CHECK";
+    public static final String HACKATHON_REGISTRATION_CLOSED_EARLY = "HACKATHON_REGISTRATION_CLOSED_EARLY";
 
     // ---------- FR-02 TRACK ----------
     public static final String TRACK_CREATE             = "TRACK_CREATE";
@@ -31,6 +33,8 @@ public final class AuditAction {
     public static final String ROUND_DEACTIVATE         = "ROUND_DEACTIVATE";
     public static final String ROUND_LOCK               = "ROUND_LOCK";
     public static final String ROUND_FORCE_LOCK         = "ROUND_FORCE_LOCK";
+    public static final String ROUND_CLOSE_SUBMISSION_EARLY = "ROUND_CLOSE_SUBMISSION_EARLY";
+    public static final String ROUND_SCHEDULE_SHIFTED = "ROUND_SCHEDULE_SHIFTED";
 
 
     // ---------- FR-04 CRITERIA ----------
@@ -50,6 +54,8 @@ public final class AuditAction {
     public static final String ACCOUNT_PASSWORD_CHANGED   = "ACCOUNT_PASSWORD_CHANGED";
     public static final String ACCOUNT_PASSWORD_RESET_REQUESTED = "ACCOUNT_PASSWORD_RESET_REQUESTED";
     public static final String ACCOUNT_PASSWORD_RESET     = "ACCOUNT_PASSWORD_RESET";
+    public static final String ACCOUNT_EMAIL_VERIFIED   = "ACCOUNT_EMAIL_VERIFIED";
+    public static final String ACCOUNT_EMAIL_VERIFICATION_RESENT = "ACCOUNT_EMAIL_VERIFICATION_RESENT";
     public static final String ACCOUNT_OAUTH_LINKED       = "ACCOUNT_OAUTH_LINKED";
     public static final String ACCOUNT_OAUTH_UNLINKED     = "ACCOUNT_OAUTH_UNLINKED";
 
@@ -57,11 +63,14 @@ public final class AuditAction {
     public static final String TEMP_ACCOUNT_CREATE      = "TEMP_ACCOUNT_CREATE";
     public static final String INVITATION_RESEND        = "INVITATION_RESEND";
     public static final String INVITATION_CREATE        = "INVITATION_CREATE";
+    public static final String INVITATION_REVOKE        = "INVITATION_REVOKE";
     public static final String USER_DEPT_HEAD_SET       = "USER_DEPT_HEAD_SET";
     public static final String MENTOR_ASSIGNED          = "MENTOR_ASSIGNED";
     public static final String MENTOR_UNASSIGNED        = "MENTOR_UNASSIGNED";
     public static final String JUDGE_ASSIGNED           = "JUDGE_ASSIGNED";
     public static final String JUDGE_UNASSIGNED         = "JUDGE_UNASSIGNED";
+    /** Tạo/đổi/gỡ assignment_type HEAD — tra cứu thẩm quyền tiebreak/force-ack. */
+    public static final String JUDGE_HEAD_CHANGED       = "JUDGE_HEAD_CHANGED";
 
     // ---------- FR-06A EVENTS ----------
     public static final String EVENT_CREATE             = "EVENT_CREATE";
@@ -71,9 +80,11 @@ public final class AuditAction {
     // ---------- MF-02 GĐ2 TEAMS ----------
     public static final String TEAM_CREATE              = "TEAM_CREATE";
     public static final String TEAM_UPDATE              = "TEAM_UPDATE";
+    public static final String TEAM_FORMATION_CONFIRMED = "TEAM_FORMATION_CONFIRMED";
     public static final String TEAM_APPROVE             = "TEAM_APPROVE";
     public static final String TEAM_REJECT              = "TEAM_REJECT";
     public static final String TEAM_DISBAND             = "TEAM_DISBAND";
+    public static final String TEAM_MEMBERS_RELEASED    = "TEAM_MEMBERS_RELEASED";
     public static final String TEAM_LOCKED              = "TEAM_LOCKED";
     public static final String LEADER_TRANSFERRED       = "LEADER_TRANSFERRED";
     public static final String MEMBER_INVITED           = "MEMBER_INVITED";
@@ -90,15 +101,38 @@ public final class AuditAction {
     public static final String SUBMISSION_CREATE            = "SUBMISSION_CREATE";
     public static final String SUBMISSION_UPDATE            = "SUBMISSION_UPDATE";
     public static final String SUBMISSION_LATE_REVIEW       = "SUBMISSION_LATE_REVIEW";
+    public static final String SUBMISSION_LATE_QUEUE_APPEND_FAILED = "SUBMISSION_LATE_QUEUE_APPEND_FAILED";
     public static final String PRESENTATION_QUEUE_SHUFFLE = "PRESENTATION_QUEUE_SHUFFLE";
     public static final String PRESENTATION_CONTROLLER_GRANTED = "PRESENTATION_CONTROLLER_GRANTED";
     public static final String PRESENTATION_CONTROLLER_REVOKED = "PRESENTATION_CONTROLLER_REVOKED";
+    public static final String PRESENTATION_NO_SHOW_SKIPPED = "PRESENTATION_NO_SHOW_SKIPPED";
+    public static final String PRESENTATION_FORCE_ADVANCE_ACK = "PRESENTATION_FORCE_ADVANCE_ACK";
+    public static final String PRESENTATION_DURATION_UPDATED = "PRESENTATION_DURATION_UPDATED";
+    public static final String ROUND_SCORING_UNLOCKED = "ROUND_SCORING_UNLOCKED";
+    public static final String ANNOUNCEMENT_PUBLISHED = "ANNOUNCEMENT_PUBLISHED";
+    public static final String ANNOUNCEMENT_SOFT_HIDE = "ANNOUNCEMENT_SOFT_HIDE";
+    public static final String INVARIANT_VIOLATION_HARD_LOCK_LATE = "INVARIANT_VIOLATION_HARD_LOCK_LATE";
+    public static final String PRIZE_AWARD_UPDATED = "PRIZE_AWARD_UPDATED";
     public static final String SCORE_UPSERT                 = "SCORE_UPSERT";
+    public static final String TRACK_RELEASE_PROBLEM       = "TRACK_RELEASE_PROBLEM";
     public static final String ROUND_RELEASE_PROBLEM        = "ROUND_RELEASE_PROBLEM";
+    /** CK migration: backup + clear legacy round-level problem PDF. */
+    public static final String ROUND_FINAL_PROBLEM_PDF_CLEARED = "ROUND_FINAL_PROBLEM_PDF_CLEARED";
+    public static final String ROUND_FINAL_PROBLEM_MIGRATION_BANNER_DISMISSED =
+            "ROUND_FINAL_PROBLEM_MIGRATION_BANNER_DISMISSED";
     public static final String ROUND_PUBLISH                = "ROUND_PUBLISH";
     public static final String ROUND_ADVANCE_TEAMS          = "ROUND_ADVANCE_TEAMS";
     public static final String ROUND_TIEBREAK_RESOLVED      = "ROUND_TIEBREAK_RESOLVED";
+    public static final String WILDCARD_PROPOSAL_CONFIRMED  = "WILDCARD_PROPOSAL_CONFIRMED";
+    public static final String WILDCARD_OVERRIDE            = "WILDCARD_OVERRIDE";
     public static final String TEAM_ELIMINATE_MANUAL        = "TEAM_ELIMINATE_MANUAL";
+    public static final String TEAM_ELIMINATE_DQ            = "TEAM_ELIMINATE_DQ";
+    public static final String TOP_N_BACKFILL               = "TOP_N_BACKFILL";
+    public static final String WILDCARD_BACKFILL            = "WILDCARD_BACKFILL";
+    public static final String DQ_NO_BACKFILL_BENCH_EMPTY   = "DQ_NO_BACKFILL_BENCH_EMPTY";
+    public static final String DQ_REJECTED_CK_ACTIVE        = "DQ_REJECTED_CK_ACTIVE";
+    public static final String DQ_AFTER_FINISHED_LOG_ONLY   = "DQ_AFTER_FINISHED_LOG_ONLY";
+    public static final String DQ_WILDCARD_NO_CANDIDATE     = "DQ_WILDCARD_NO_CANDIDATE";
 
     // ---------- MF-03 GĐ6 PRIZES ----------
     public static final String PRIZE_AWARDED              = "PRIZE_AWARDED";
@@ -107,10 +141,6 @@ public final class AuditAction {
     // ---------- MF-03 GĐ6 EXPORT ----------
     public static final String EXPORT_JOB_CREATED         = "EXPORT_JOB_CREATED";
     public static final String EXPORT_FILE_DOWNLOADED     = "EXPORT_FILE_DOWNLOADED";
-
-    // ---------- MF-03 GĐ5 CALIBRATION ----------
-    public static final String CALIBRATION_SESSION_CREATED  = "CALIBRATION_SESSION_CREATED";
-    public static final String CALIBRATION_SESSION_UPDATED  = "CALIBRATION_SESSION_UPDATED";
 
     // ---------- WARNINGS ----------
     public static final String WARNING_CONFLICT_CHECK_SKIPPED = "WARNING_CONFLICT_CHECK_SKIPPED";

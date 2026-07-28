@@ -6,10 +6,12 @@ import com.sealhackathon.api.hackathons.value_object.Season;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import jakarta.persistence.LockModeType;
 import java.util.Optional;
 
 @Repository
@@ -36,4 +38,11 @@ public interface HackathonRepository extends JpaRepository<Hackathon, Integer> {
             @Param("q") String q,
             Pageable pageable
     );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT h FROM Hackathon h WHERE h.id = :id")
+    Optional<Hackathon> findByIdForUpdate(@Param("id") Integer id);
+
+    /** DRAFT hackathons that have not yet received the coordinator setup reminder. */
+    java.util.List<Hackathon> findByStatusAndDraftReminderSentAtIsNull(HackathonStatus status);
 }

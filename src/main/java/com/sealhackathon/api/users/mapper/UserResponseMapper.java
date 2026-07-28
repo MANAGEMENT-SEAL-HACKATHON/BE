@@ -1,15 +1,22 @@
 package com.sealhackathon.api.users.mapper;
 
+import com.sealhackathon.api.judge_assignments.dto.response.JudgeAssignmentResponse;
 import com.sealhackathon.api.users.dto.response.UserDetailResponse;
 import com.sealhackathon.api.users.dto.response.UserResponse;
 import com.sealhackathon.api.users.dto.response.UserSummaryResponse;
 import com.sealhackathon.api.users.entity.User;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 @Component
 public class UserResponseMapper {
 
     public UserResponse toResponse(User u) {
+        return toResponse(u, null);
+    }
+
+    public UserResponse toResponse(User u, List<JudgeAssignmentResponse> assignments) {
         return UserResponse.builder()
                 .id(u.getId())
                 .fullName(u.getFullName())
@@ -21,6 +28,7 @@ public class UserResponseMapper {
                 .status(u.getStatus())
                 .institution(u.getInstitution())
                 .studentCardImagePath(u.getStudentCardImagePath())
+                .assignments(assignments)
                 .build();
     }
 
@@ -33,7 +41,9 @@ public class UserResponseMapper {
                 .status(u.getStatus())
                 .userType(u.getUserType())
                 .isTempAccount(u.getIsTempAccount())
+                .isDeptHead(u.getIsDeptHead())
                 .institution(u.getInstitution())
+                .avatarUrl(u.getAvatarUrl())
                 .build();
     }
 

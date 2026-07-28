@@ -1,8 +1,9 @@
-# Ma trận regression — Gate BTC & workflow GĐ1→GĐ6
+﻿# Ma trận regression — Gate BTC & workflow GĐ1→GĐ6
 
 > **Mục đích:** Test đủ 6 giai đoạn sau refactor readiness / event order / timeline sync.  
 > **Chạy sau:** `spring.profiles.active=dev` + seed xong.  
-> **Playbook E2E:** [full-workflow-api-test-gd1-gd6.md](full-workflow-api-test-gd1-gd6.md) · **FE mapping:** [fe-gd1-gd2-gd3-workflow-mapping.md](fe-gd1-gd2-gd3-workflow-mapping.md)
+> **Playbook E2E:** [full-workflow-api-test-gd1-gd6.md](full-workflow-api-test-gd1-gd6.md) · **FE mapping:** [fe-gd1-gd2-gd3-workflow-mapping.md](fe-gd1-gd2-gd3-workflow-mapping.md)  
+> **Ma trận chi tiết:** [gd1-full-test-matrix-and-seeds.md](gd1-full-test-matrix-and-seeds.md) · [gd2-full-test-matrix-and-seeds.md](gd2-full-test-matrix-and-seeds.md)
 
 ---
 
@@ -53,11 +54,11 @@ Lịch:     WS (sớm hơn) → KO → AWARDS
 
 | Slug | Dùng test |
 |------|-----------|
-| `seal-gd1-ready` | GĐ1 bước 1.11–1.12 (đủ G1–G5) |
+| `seal-e2e-2026` | GĐ1 bước 1.11–1.12 (đủ G1–G5) |
 | `seal-gd1-incomplete` | TC-G1-N08 readiness fail |
-| `seal-spring-2026` | GĐ2 teams |
+| `seal-e2e-2026` | GĐ2 teams |
 | `seal-gd3-prelim-open` | GĐ3 portal + submit |
-| `seal-gd4-tiebreak-wildcard` | GĐ4 (cần `app.seed.gd4.enabled=true`) |
+| `seal-gd4-tiebreak-gate` | GĐ4 (cần `app.seed.gd4.enabled=true`) |
 | `seal-gd5-final-active` | GĐ5 CK |
 | `seal-gd6-pending-confirm` | GĐ6 trao giải |
 
@@ -179,4 +180,31 @@ GĐ6  POST AWARDS (nếu thiếu) → readiness AWARDS → prizes → confirm �
 
 ---
 
-**Phiên bản:** 2026-06-07 · POST KICKOFF→WORKSHOP; lịch WS→KO→AWARDS; readiness phased.
+## 11. Test case — Lifecycle button gate + SUPERADMIN unlock
+
+Ref: [gate-button-matrix-gd2-gd6.md](gate-button-matrix-gd2-gd6.md). Kiểm "nút nào hiện lúc nào" + quyền unlock.
+
+| ID | Mô tả | Các bước | Kỳ vọng |
+|----|-------|----------|---------|
+| **GATE-01** | SL chưa phát đề → không có Close early | Round SL active, chưa release → mở Round Management | **Không** hiện nút Kết thúc thời gian thi sớm (cả icon lẫn Submission panel); chỉ có Phát đề + nút safe |
+| **GATE-02** | CK activate = release ngay | Activate CK ở Cấu hình Chung kết → mở Round Management | CK ở state "đã release" ngay, **không** có nút Phát đề, **không** có state "chưa release" |
+| **GATE-03** | Sau lock chỉ Ranking + Trophy | Lock scoring 1 vòng | Action column chỉ còn Ranking + Trophy (SL→results / CK→hackathon results) + "Đã đóng sổ"; **không** còn Queue/Release/People/Lock |
+| **GATE-04** | Close early đồng bộ 2 chỗ | So icon Round Management vs nút Submission panel | Cùng visible/enable gate (`canCloseEarly` + đã release), cùng label "Kết thúc thời gian thi sớm", cùng modal, cùng API `closeSubmissionEarly` |
+| **SA-01** | SUPERADMIN thấy Unlock | Login `superadmin@fpt.edu.vn` → Round Management, vòng locked | Thấy nút **Mở lại khóa chấm**; nav/menu kiểu Coord hiển thị |
+| **SA-02** | Coord bị chặn unlock | Coord gọi `PATCH /rounds/{id}/unlock-scoring` | HTTP 403 (`@SuperAdminOnly`); Coord UI không có nút |
+| **SA-03** | SUPERADMIN unlock có audit | SUPERADMIN nhập lý do → confirm | 200; `scoringLocked=false`; audit log ghi actor + reason |
+| **CLEAN-01** | Không còn role ma ADMIN trên FE | `rg "'ADMIN'\|\"ADMIN\"" seal-hackathon-fe/src` | 0 match role `ADMIN`; API path `admin-create` không phải role |
+| **CLEAN-02** | BE không emit ADMIN | `rg "UserRole\.ADMIN|\"ADMIN\"|ROLE_ADMIN" BE/src/main/java` | 0 match; enum role chỉ có `SUPERADMIN`, `COORDINATOR`, `JUDGE`, `MENTOR`, `STUDENT` |
+| **CLEAN-03** | Regression SUPERADMIN sau cleanup | Chạy lại SA-01/SA-02/SA-03 | Không đổi hành vi unlock/nav/403 |
+| **SA-API-01** | SUPERADMIN resolve roundId như Coord | Login SUPERADMIN → gọi flow dùng Person B active round resolve | Có `roundId` hợp lệ của hackathon ONGOING; không null do thiếu nhánh role |
+| **ROUTE-01** | SUPERADMIN vào GĐ6 results | SA → `/hackathons/{id}/results` | Vào được nhờ inherit COORDINATOR |
+| **ROUTE-02** | SUPERADMIN vào Final Config | SA → `/coordinator/final-config` | Vào được |
+| **ROUTE-03** | SUPERADMIN vào GĐ4 round results | SA → `/hackathons/{id}/rounds/{roundId}/results` | Vào được |
+| **ROUTE-04** | SUPERADMIN vào Presentation Queue | SA → `/presentation/queue` | Vào được |
+
+**Seed:** SUPERADMIN `superadmin@fpt.edu.vn` / `SuperAdmin@dev1` (seed sau Coord — coord vẫn id=1).
+**Role model:** FE không còn role `ADMIN`. Platform: **SUPERADMIN**; vận hành sự kiện: **COORDINATOR**.
+
+---
+
+**Phiên bản:** 2026-07-17 · thêm §11 lifecycle button gate + SUPERADMIN unlock + dọn role ma ADMIN trên FE · 2026-06-07 · POST KICKOFF→WORKSHOP; lịch WS→KO→AWARDS; readiness phased.

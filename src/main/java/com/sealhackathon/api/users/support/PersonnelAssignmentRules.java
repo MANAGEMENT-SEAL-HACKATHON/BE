@@ -11,12 +11,24 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * MF-02 §14 — Cross-track personnel.
+ * Personnel assignment rules (FR-05).
  *
- * <p><b>users.role</b> (1 cột): vai trò tài khoản đăng nhập — MENTOR <b>hoặc</b> JUDGE, không lưu 2 role.
- * <p><b>Phân công thực tế</b> lưu ở {@code mentor_assignments} / {@code judge_assignments}
- * (cùng {@code user_id}, khác {@code track_id}). Mọi track sơ loại có {@code tracks.round_id} →
- * cùng round + khác track được phép; cấm chỉ khi trùng {@code track_id}.
+ * <p><b>users.role</b>: tài khoản MENTOR hoặc JUDGE — có thể được gán vai chéo
+ * (MENTOR account làm Judge, JUDGE account làm Mentor).
+ *
+ * <p><b>Cùng vai trò — 1 bảng / vòng:</b>
+ * <ul>
+ *   <li>Mentor track A → không Mentor track B cùng vòng</li>
+ *   <li>Judge track A → không Judge track B cùng vòng</li>
+ * </ul>
+ *
+ * <p><b>Cross-track (vai khác) — được phép:</b>
+ * <ul>
+ *   <li>Mentor track A → được Judge track B (không phải A)</li>
+ *   <li>Judge track A → được Mentor track B (không phải A)</li>
+ * </ul>
+ *
+ * <p><b>Cùng track — cấm:</b> Mentor + Judge cùng {@code track_id} → {@code CONFLICT_SAME_TRACK}.
  */
 public final class PersonnelAssignmentRules {
 

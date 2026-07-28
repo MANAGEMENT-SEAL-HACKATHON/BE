@@ -5,7 +5,6 @@ import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
-import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.users.value_object.UserRole;
@@ -13,6 +12,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
+import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Component
@@ -66,20 +68,34 @@ public class PresentationControllerGuard {
         if (track.getControllerJudge() != null) {
             return track.getControllerJudge().getId();
         }
-        return findHeadJudgeId(track.getId()).orElse(null);
+        return findDefaultControllerJudgeId(judgeAssignmentRepository.findByTrackId(track.getId()))
+                .orElse(null);
     }
 
     public Integer resolveRoundControllerId(Round round) {
         if (round.getControllerJudge() != null) {
             return round.getControllerJudge().getId();
         }
-        return null;
+        return findDefaultControllerJudgeId(judgeAssignmentRepository.findByRoundId(round.getId()))
+                .orElse(null);
     }
 
-    private Optional<Integer> findHeadJudgeId(Integer trackId) {
-        return judgeAssignmentRepository.findByTrackId(trackId).stream()
-                .filter(ja -> ja.getAssignmentType() == JudgeAssignmentType.HEAD)
-                .map(ja -> ja.getJudge().getId())
+    /**
+     * Mặc định: judge được gán sớm nhất (assignedAt).
+     * Không dùng assignment_type HEAD hay is_dept_head — timer override qua coordinator grant.
+     */
+    static Optional<Integer> findDefaultControllerJudgeId(List<JudgeAssignment> assignments) {
+        if (assignments == null || assignments.isEmpty()) {
+            return Optional.empty();
+        }
+        Comparator<JudgeAssignment> byAssignedAt = Comparator.comparing(
+                JudgeAssignment::getAssignedAt,
+                Comparator.nullsLast(Comparator.naturalOrder()));
+
+        return assignments.stream()
+                .sorted(byAssignedAt)
+                .map(ja -> ja.getJudge() != null ? ja.getJudge().getId() : null)
+                .filter(Objects::nonNull)
                 .findFirst();
     }
 
@@ -97,7 +113,7 @@ public class PresentationControllerGuard {
     }
 
     private static AuthException forbidden(Integer id, String scope) {
-        return new AuthException(ErrorCode.FORBIDDEN,
+        return new AuthException(ErrorCode.NOT_TRACK_CONTROLLER,
                 "Không có quyền điều khiển presentation " + scope + " " + id,
                 HttpStatus.FORBIDDEN);
     }

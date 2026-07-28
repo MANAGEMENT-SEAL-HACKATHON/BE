@@ -1,10 +1,14 @@
 package com.sealhackathon.api.config;
 
+import com.sealhackathon.api.config.seed.AccountStatesDataSeeder;
+import com.sealhackathon.api.config.seed.DevSeedCatalog;
+import com.sealhackathon.api.config.seed.DevSeedCleanup;
+import com.sealhackathon.api.config.seed.E2eWorkflowDataSeeder;
 import com.sealhackathon.api.config.seed.Gd1DataSeeder;
 import com.sealhackathon.api.config.seed.Gd1SeedConstants;
-import com.sealhackathon.api.config.seed.Gd2DataSeeder;
-import com.sealhackathon.api.config.seed.Gd4AdvanceDataSeeder;
-import com.sealhackathon.api.config.seed.Gd3DataSeeder;
+import com.sealhackathon.api.config.seed.Gd3PrelimOpenDataSeeder;
+import com.sealhackathon.api.config.seed.Gd4AdvanceReadyDataSeeder;
+import com.sealhackathon.api.config.seed.Gd4TiebreakWildcardDataSeeder;
 import com.sealhackathon.api.config.seed.Gd5FinalRoundDataSeeder;
 import com.sealhackathon.api.config.seed.Gd6PendingConfirmDataSeeder;
 import com.sealhackathon.api.config.seed.HackathonDevSeedHelper;
@@ -16,17 +20,9 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
- * Dev profile: seed MF-01 Giai đoạn 1 (chapters → users → hackathons → …).
+ * Dev profile: 6 happy-path hackathon slugs + account states.
  *
- * <p>Thứ tự startup: {@link Gd03V41SchemaMigration} (0) → {@link CriteriaCloneSourceUnlinkMigration} (1)
- * → DataInitializer (2).
- *
- * <p>Mỗi lần start: repair timeline theo ngày hiện tại (đăng ký ~14 ngày tới, thi sau ~15 ngày),
- * repair/bổ sung hackathon {@link Gd1SeedConstants#SLUG_FINISHED} (dataset archive đầy đủ),
- * repair criteria/track seed (gỡ {@code source_criteria_id} cũ, bổ sung Track 3 trống để test clone 2→3).
- *
- * <p>Tham chiếu: {@code docs/mf01/02-functional-requirements.md} §11.1, {@code docs/api/fe-round-exam-at-migration.md},
- * {@code docs/api/fe-criteria-clone.md}.
+ * <p>Doc: {@code docs/testing/dev-seed-guide.md} · {@code docs/testing/dev-seed-slugs-guide.md}
  */
 @Slf4j
 @Component
@@ -35,35 +31,79 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class DataInitializer implements CommandLineRunner {
 
+    private final DevSeedCleanup devSeedCleanup;
     private final Gd1DataSeeder gd1DataSeeder;
-    private final Gd2DataSeeder gd2DataSeeder;
-    private final Gd3DataSeeder gd3DataSeeder;
-    private final Gd4AdvanceDataSeeder gd4AdvanceDataSeeder;
+    private final E2eWorkflowDataSeeder e2eWorkflowDataSeeder;
+    private final Gd3PrelimOpenDataSeeder gd3PrelimOpenDataSeeder;
+    private final Gd4AdvanceReadyDataSeeder gd4AdvanceReadyDataSeeder;
+    private final Gd4TiebreakWildcardDataSeeder gd4TiebreakWildcardDataSeeder;
     private final Gd5FinalRoundDataSeeder gd5FinalRoundDataSeeder;
     private final Gd6PendingConfirmDataSeeder gd6PendingConfirmDataSeeder;
+    private final AccountStatesDataSeeder accountStatesDataSeeder;
     private final HackathonDevSeedHelper hackathonDevSeedHelper;
 
     @Override
     public void run(String... args) {
+        // 1. Purge deprecated / mid-stage / bad slugs
+        devSeedCleanup.purgeDeprecatedHackathons();
+
+        // 2. Base GĐ1 structure (e2e + finished archive)
+        gd1DataSeeder.ensureSeedUsers();
         gd1DataSeeder.repairSeededTimeline();
         gd1DataSeeder.repairSeededFinishedHackathon();
+        hackathonDevSeedHelper.repairFinishedArchiveAwardsSeed();
+        hackathonDevSeedHelper.deepenFinishedArchiveIfShallow();
         gd1DataSeeder.repairSeededCriteriaAndTracks();
         gd1DataSeeder.repairDevUserPasswords();
 
         if (gd1DataSeeder.isAlreadySeeded()) {
-            log.info("[DataInitializer] Seed GĐ1 đã có (slug={}), bỏ qua tạo mới GĐ1.",
+            log.info("[DataInitializer] Seed GĐ1 đã có (slug={}), bỏ qua tạo mới.",
                     Gd1SeedConstants.SLUG_ONGOING);
         } else {
             gd1DataSeeder.seedAll();
         }
-        gd2DataSeeder.ensureSeed();
-        gd2DataSeeder.repairForFeTesting();
-        gd3DataSeeder.ensureSeed();
-        gd3DataSeeder.repairForFeTesting();
-        gd4AdvanceDataSeeder.ensureSeed();
+
+        // Purge EXTERNAL guests mistakenly assigned to prelim tracks (legacy seed)
+        hackathonDevSeedHelper.repairRemoveGuestJudgeFromAllDevPrelimTracks();
+
+        e2eWorkflowDataSeeder.ensureSeed();
+
+        // 3. Happy GĐ3–GĐ6
+        gd3PrelimOpenDataSeeder.ensureSeed();
+        gd4AdvanceReadyDataSeeder.ensureSeed();
+        gd4TiebreakWildcardDataSeeder.ensureSeed();
         gd5FinalRoundDataSeeder.ensureSeed();
+        gd6PendingConfirmDataSeeder.repairForFullChainRetest();
         gd6PendingConfirmDataSeeder.ensureSeed();
+        gd6PendingConfirmDataSeeder.repairForApiMatrixReadiness();
+
+        // 4. Account states (non-hackathon)
+        accountStatesDataSeeder.ensureSeed();
+
+        // 5. Repair / sync lịch theo giờ máy
         hackathonDevSeedHelper.repairAllDevHackathonRoundSchedules();
+        // If a prior full-chain left seal-e2e-2026 in PENDING_CONFIRM, restore ONGOING first
+        // so repairForGd2Testing can reset to registration-open / prelim inactive.
+        e2eWorkflowDataSeeder.repairForGd5FullChainRetest();
+        e2eWorkflowDataSeeder.repairForGd2Testing();
+        gd3PrelimOpenDataSeeder.repairForFeTesting();
+        gd4AdvanceReadyDataSeeder.repairForFeTesting();
+        gd4TiebreakWildcardDataSeeder.repairForFeTesting();
+        gd5FinalRoundDataSeeder.repairForFeTesting();
+        gd6PendingConfirmDataSeeder.repairForFeTesting();
+        gd6PendingConfirmDataSeeder.repairForApiMatrixReadiness();
+
+        hackathonDevSeedHelper.backfillReleasedPrelimTrackProblems();
+        hackathonDevSeedHelper.backfillReleasedFinalRoundProblems();
+        hackathonDevSeedHelper.backfillSetupProblemPdfs();
         hackathonDevSeedHelper.repairAllDevHackathonMilestoneEvents();
+        hackathonDevSeedHelper.repairAllHackathonBanners();
+        hackathonDevSeedHelper.repairFinishedArchiveAwardsSeed();
+        hackathonDevSeedHelper.deepenFinishedArchiveIfShallow();
+        accountStatesDataSeeder.repairForFeTesting();
+
+        log.info("[DataInitializer] Dev seed sẵn sàng — {} happy slugs: {}",
+                DevSeedCatalog.ALL_DEV_HACKATHON_SLUGS.length,
+                String.join(", ", DevSeedCatalog.ALL_DEV_HACKATHON_SLUGS));
     }
 }

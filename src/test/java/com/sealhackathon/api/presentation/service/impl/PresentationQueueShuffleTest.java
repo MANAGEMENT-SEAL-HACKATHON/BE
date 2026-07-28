@@ -2,6 +2,8 @@ package com.sealhackathon.api.presentation.service.impl;
 
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
+import com.sealhackathon.api.hackathons.repository.HackathonRegistrationRepository;
+import com.sealhackathon.api.events.repository.JudgeSubmissionScoringConfirmationRepository;
 import com.sealhackathon.api.events.entity.PresentationSlot;
 import com.sealhackathon.api.events.repository.PresentationSlotRepository;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
@@ -10,14 +12,18 @@ import com.sealhackathon.api.live_scoring.PresentationQueuePublisher;
 import com.sealhackathon.api.presentation.dto.request.PresentationShuffleRequest;
 import com.sealhackathon.api.presentation.dto.response.PresentationShuffleResponse;
 import com.sealhackathon.api.presentation.guard.PresentationControllerGuard;
+import com.sealhackathon.api.presentation.guard.PresentationForceAdvanceAckGuard;
 import com.sealhackathon.api.presentation.support.PresentationDurationResolver;
+import com.sealhackathon.api.presentation.support.PresentationNextScoringGuard;
+import com.sealhackathon.api.presentation.support.RoundPhaseResolver;
 import com.sealhackathon.api.presentation.value_object.PresentationQueueStatus;
+import com.sealhackathon.api.presentation.value_object.RoundPhase;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.submissions.entity.Submission;
 import com.sealhackathon.api.submissions.repository.SubmissionRepository;
 import com.sealhackathon.api.submissions.value_object.SubmissionStatus;
-import com.sealhackathon.api.team_round_participation.repository.TeamRoundParticipationRepository;
+import com.sealhackathon.api.teams.repository.TeamRoundParticipationRepository;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
@@ -55,17 +61,57 @@ class PresentationQueueShuffleTest {
     @Mock private AuditService auditService;
     @Mock private PresentationQueuePublisher queuePublisher;
     @Mock private CurrentUserAccessor currentUserAccessor;
-    @Mock private com.sealhackathon.api.presentation.support.PresentationNextScoringGuard nextScoringGuard;
+    @Mock private PresentationNextScoringGuard nextScoringGuard;
+    @Mock private JudgeSubmissionScoringConfirmationRepository scoringConfirmationRepository;
+    @Mock private RoundPhaseResolver roundPhaseResolver;
+    @Mock private PresentationForceAdvanceAckGuard forceAdvanceAckGuard;
+    @Mock private HackathonRegistrationRepository hackathonRegistrationRepository;
 
     @InjectMocks
     private PresentationQueueServiceImpl queueService;
+
+    /** TC-SYNC-05 / TC-SYNC-03 — Final shuffle (0 slots) still persists presentationShuffled. */
+    @Test
+    void shuffle_finalEmptyQueue_setsPresentationShuffledTrue() {
+        Round round = Round.builder()
+                .id(20)
+                .isFinal(true)
+                .isActive(true)
+                .presentationShuffled(false)
+                .examAt(LocalDateTime.now().minusHours(2))
+                .submissionDeadline(LocalDateTime.now().minusMinutes(5))
+                .hackathon(Hackathon.builder().id(1).build())
+                .build();
+
+        when(roundRepository.findById(20)).thenReturn(Optional.of(round));
+        when(hackathonRepository.findById(1)).thenReturn(Optional.of(round.getHackathon()));
+        when(teamRoundParticipationRepository.findByRound_Id(20)).thenReturn(List.of());
+        when(presentationSlotRepository.findByRound_IdAndTrackIsNullOrderBySequenceOrderAsc(20))
+                .thenReturn(List.of());
+        when(roundPhaseResolver.resolve(round)).thenReturn(RoundPhase.JUDGING);
+        when(currentUserAccessor.currentUser()).thenReturn(null);
+        doNothing().when(controllerGuard).requireControllerForRound(any(), any());
+        when(roundRepository.save(any(Round.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        PresentationShuffleResponse response = queueService.shuffle(
+                PresentationShuffleRequest.builder().roundId(20).build());
+
+        assertThat(response.getTracks()).hasSize(1);
+        assertThat(response.getTracks().get(0).getSlotCount()).isZero();
+        assertThat(response.getTracks().get(0).isShuffled()).isTrue();
+        assertThat(round.getPresentationShuffled()).isTrue();
+        verify(roundRepository).save(round);
+        verify(scoringConfirmationRepository).deleteByFinalRoundScope(20);
+    }
 
     @Test
     void shuffle_createsSlotsFromGradableSubmissions() {
         Round round = Round.builder()
                 .id(5)
                 .isFinal(false)
-                .examAt(LocalDateTime.now().plusDays(1))
+                .isActive(true)
+                .examAt(LocalDateTime.now().minusHours(2))
+                .submissionDeadline(LocalDateTime.now().minusMinutes(5))
                 .hackathon(Hackathon.builder().id(1).build())
                 .build();
         Track track = Track.builder().id(10).name("AI").round(round).build();
@@ -81,6 +127,7 @@ class PresentationQueueShuffleTest {
         when(durationResolver.qaMinutes(track, round)).thenReturn(5);
         when(presentationSlotRepository.findByRound_IdAndTrack_IdOrderBySequenceOrderAsc(5, 10))
                 .thenReturn(List.of());
+        when(roundPhaseResolver.resolve(round)).thenReturn(RoundPhase.JUDGING);
         doNothing().when(controllerGuard).requireControllerForTrack(any(), any(), any());
 
         PresentationShuffleResponse response = queueService.shuffle(
@@ -91,6 +138,7 @@ class PresentationQueueShuffleTest {
 
         ArgumentCaptor<PresentationSlot> captor = ArgumentCaptor.forClass(PresentationSlot.class);
         verify(presentationSlotRepository, org.mockito.Mockito.atLeast(2)).save(captor.capture());
+        verify(scoringConfirmationRepository).deleteByTrackScope(5, 10);
         assertThat(captor.getAllValues())
                 .extracting(PresentationSlot::getSubmission)
                 .extracting(Submission::getId)

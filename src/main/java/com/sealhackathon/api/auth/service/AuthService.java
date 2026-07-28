@@ -17,6 +17,7 @@ import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
 import com.sealhackathon.api.users.value_object.UserRole;
 import com.sealhackathon.api.users.value_object.UserStatus;
+import com.sealhackathon.api.users.value_object.UserType;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -54,6 +55,7 @@ public class AuthService {
         }
 
         assertApproved(user);
+        assertEmailVerified(user);
         assertGuestJudgeInvitationValid(user);
         guestJudgeLifecycleService.assertHackathonNotEndedForTempJudge(user);
 
@@ -99,6 +101,12 @@ public class AuthService {
         LocalDateTime now = LocalDateTime.now();
         user.setPasswordHash(passwordEncoder.encode(req.getNewPassword()));
         user.setMustChangePassword(false);
+        if (Boolean.TRUE.equals(user.getIsTempAccount())
+                && user.getUserType() == UserType.EXTERNAL
+                && user.getRole() == UserRole.JUDGE
+                && user.getStatus() == UserStatus.PENDING) {
+            user.setStatus(UserStatus.APPROVED);
+        }
         user.setUpdatedAt(now);
         userRepository.save(user);
 
@@ -124,6 +132,7 @@ public class AuthService {
                 httpRequest.getHeader("User-Agent"));
         User user = rotated.session().getUser();
         assertApproved(user);
+        assertEmailVerified(user);
         guestJudgeLifecycleService.assertHackathonNotEndedForTempJudge(user);
         String access = jwtTokenService.createAccessToken(user);
         return AuthTokenResponse.builder()
@@ -148,6 +157,22 @@ public class AuthService {
         auditService.log(AuditAction.ACCOUNT_LOGOUT_ALL, "users", userId, Map.of());
     }
 
+    private void assertEmailVerified(User user) {
+        if (Boolean.TRUE.equals(user.getIsTempAccount())) {
+            return;
+        }
+        if (user.getEmailVerifiedAt() != null) {
+            return;
+        }
+        if (user.getPasswordHash() == null) {
+            return;
+        }
+        throw new AuthException(ErrorCode.EMAIL_NOT_VERIFIED,
+                "Email chưa được xác thực. Vui lòng kiểm tra hộp thư hoặc gửi lại email xác thực.",
+                HttpStatus.UNAUTHORIZED,
+                Map.of("email", user.getEmail()));
+    }
+
     private void assertGuestJudgeInvitationValid(User user) {
         if (!Boolean.TRUE.equals(user.getIsTempAccount())) {
             return;
@@ -169,6 +194,14 @@ public class AuthService {
 
     private void assertApproved(User user) {
         if (user.getRole() == UserRole.STUDENT && user.getStatus() == UserStatus.PENDING) {
+            return;
+        }
+        // Guest judge onboard: cho login PENDING chỉ khi bắt buộc đổi MK lần đầu
+        if (Boolean.TRUE.equals(user.getIsTempAccount())
+                && user.getUserType() == UserType.EXTERNAL
+                && user.getRole() == UserRole.JUDGE
+                && user.getStatus() == UserStatus.PENDING
+                && Boolean.TRUE.equals(user.getMustChangePassword())) {
             return;
         }
         if (user.getStatus() == UserStatus.PENDING) {

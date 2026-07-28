@@ -1,4 +1,4 @@
-# MF-01 GĐ1 — Test data (happy path)
+﻿# MF-01 GĐ1 — Test data (happy path)
 
 **Mục đích:** JSON copy-paste, biến Postman, map seed dev theo mainflow GĐ1.
 
@@ -25,8 +25,8 @@ Sau khi start app, tìm log:
   Coordinator: id=1 email=coord@fpt.edu.vn
   Hackathons:
     - seal-gd1-incomplete (id=...) DRAFT — readiness FAIL
-    - seal-gd1-ready (id=...) DRAFT — readiness PASS → PATCH ONGOING
-    - seal-spring-2026 (id=...) ONGOING — prelim round id=... isActive=...
+    - seal-e2e-2026 (id=...) DRAFT — readiness PASS → PATCH ONGOING
+    - seal-e2e-2026 (id=...) ONGOING — prelim round id=... isActive=...
   Tracks (ready): id=... / id=...
   Users: judge1=..., guest=..., mentor=..., pending=...
 ```
@@ -75,11 +75,11 @@ Thay `2026-05-20` trong JSON mẫu bằng ngày bạn tính.
 | Luồng | Khi dùng | Hackathon |
 |-------|----------|-----------|
 | **A — Greenfield** | Test đủ 7 bước từ đầu | Slug unique: `seal-test-20260520` (đổi mỗi lần) |
-| **B — Seed** | Smoke GET + gate nhanh | `seal-gd1-ready`, `seal-gd1-incomplete`, `seal-spring-2026` |
+| **B — Seed** | Smoke GET + gate nhanh | `seal-e2e-2026`, `seal-gd1-incomplete`, `seal-e2e-2026` |
 
 **Luồng B — lấy ID:**
 
-1. `GET {{baseUrl}}/api/v1/hackathons?q=seal-gd1-ready`
+1. `GET {{baseUrl}}/api/v1/hackathons?q=seal-e2e-2026`
 2. `GET {{baseUrl}}/api/v1/hackathons/{{hackathonId}}`
 3. `GET {{baseUrl}}/api/v1/hackathons/{{hackathonId}}/rounds` → `prelimRoundId` (sequenceOrder=1), `finalRoundId` (isFinal=true)
 4. `GET {{baseUrl}}/api/v1/rounds/{{prelimRoundId}}/tracks` → `track1Id`, `track2Id`
@@ -412,12 +412,12 @@ Gate G1–G5 tóm tắt: có prelim + track; 1 FINAL; criteria weight=1 mọi tr
 | Slug | Status | Mục đích |
 |------|--------|----------|
 | `seal-gd1-incomplete` | DRAFT | `GET readiness` → **fail** (thiếu round/track) |
-| `seal-gd1-ready` | DRAFT | `GET readiness` → **pass**; chỉ cần PATCH ONGOING |
-| `seal-spring-2026` | ONGOING | Test GET read-only; PATCH ONGOING → lỗi state |
+| `seal-e2e-2026` | DRAFT | `GET readiness` → **pass**; chỉ cần PATCH ONGOING |
+| `seal-e2e-2026` | ONGOING | Test GET read-only; PATCH ONGOING → lỗi state |
 
-**Tra ID:** `GET /api/v1/hackathons?q=seal-gd1-ready` → lấy phần tử đầu `data.items[].id`.
+**Tra ID:** `GET /api/v1/hackathons?q=seal-e2e-2026` → lấy phần tử đầu `data.items[].id`.
 
-### 4.2 Checklist API phụ (data đã có — slug `seal-gd1-ready`)
+### 4.2 Checklist API phụ (data đã có — slug `seal-e2e-2026`)
 
 Sau khi có `hackathonId`, `prelimRoundId`, `track1Id`, `track2Id` từ GET:
 
@@ -440,7 +440,7 @@ Sau khi có `hackathonId`, `prelimRoundId`, `track1Id`, `track2Id` từ GET:
 - [ ] `GET /api/v1/hackathons?q=seal-gd1-incomplete` → `hackathonId`
 - [ ] `GET /api/v1/hackathons/{{hackathonId}}/readiness?target=ONGOING` → `ready: false`, `blockers` không rỗng (G1)
 
-### 4.4 `seal-spring-2026` — đã ONGOING
+### 4.4 `seal-e2e-2026` — đã ONGOING
 
 - [ ] GET list rounds, tracks, events — **200**
 - [ ] `PATCH .../status` `{ "status": "ONGOING" }` → lỗi state (đã ONGOING)

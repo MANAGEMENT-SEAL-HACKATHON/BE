@@ -30,6 +30,9 @@ public class HackathonResponse {
     private final String bannerUrl;
     private final LocalDate registrationStart;
     private final LocalDate registrationEnd;
+    private final LocalDateTime registrationClosedEarlyAt;
+    /** Đã dời lịch thi 1 lần (null = chưa). */
+    private final LocalDateTime scheduleAdjustedAt;
     private final LocalDate eventStart;
     private final LocalDate eventEnd;
     private final Boolean wildcardEnabled;
@@ -39,4 +42,7 @@ public class HackathonResponse {
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;
     private final Integer maxParticipants;
+    private final Integer clonedFromHackathonId;
+    private final String clonedFromHackathonName;
+    private final LocalDateTime clonedAt;
 }

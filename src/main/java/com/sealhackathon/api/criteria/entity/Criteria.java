@@ -73,5 +73,5 @@ public class Criteria {
 
     @Builder.Default
     @Column(name = "display_order", nullable = false)
-    private Integer displayOrder = 0;
+    private Integer displayOrder = 1;
 }

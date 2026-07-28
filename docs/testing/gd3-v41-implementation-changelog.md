@@ -1,4 +1,4 @@
-# GĐ3 v4.1 — Nhật ký thay đổi triển khai (BE)
+﻿# GĐ3 v4.1 — Nhật ký thay đổi triển khai (BE)
 
 > **Phạm vi:** Lưu bài nộp (PDF + GitHub), mã bài chấm ẩn danh, random thuyết trình theo track, đồng hồ presentation, WebSocket đồng bộ, gate chấm điểm.  
 > **Cập nhật:** 2026-06-09  
@@ -20,7 +20,7 @@
 9. [WebSocket presentation-queue](#9-websocket-presentation-queue)
 10. [Gate chấm điểm (SCORING_NOT_OPEN)](#10-gate-chấm-điểm-scoring_not_open)
 11. [Schema DB & migration](#11-schema-db--migration)
-12. [Seed dev (Gd3DataSeeder)](#12-seed-dev-gd3dataseeder)
+12. [Seed dev (Gd3PrelimOpenDataSeeder)](#12-seed-dev-gd3dataseeder)
 13. [Error codes & audit mới](#13-error-codes--audit-mới)
 14. [Hướng dẫn test](#14-hướng-dẫn-test)
 15. [Breaking changes & tương thích](#15-breaking-changes--tương-thích)
@@ -163,7 +163,7 @@ activate round (GĐ2 gate)
 
 | File | Thay đổi |
 |------|----------|
-| `config/seed/Gd3DataSeeder.java` | Slot `PRESENTING` cho test chấm; gắn `submission`/`track` trên slot |
+| `config/seed/Gd3PrelimOpenDataSeeder.java` | Slot `PRESENTING` cho test chấm; gắn `submission`/`track` trên slot |
 | `docs/testing/fe-gd3-api-mapping.md` | Multipart, shuffle, timer, judge ẩn danh, error codes |
 | `docs/testing/full-workflow-api-test-gd1-gd6.md` | Cập nhật kịch bản GĐ3 |
 
@@ -472,6 +472,28 @@ IDLE → PRESENTING → QA → ENDED
 - Server trả `remainingSeconds`, `presentationStartedAt`, `pausedAt` trong `timer` block
 - Client tự đếm; khi PAUSED dừng đếm (không spam tick từ server)
 
+### 7.5 API cấu hình thời lượng (Coordinator — GĐ3/GĐ5)
+
+| Method | Path | Hành vi |
+|--------|------|---------|
+| GET | `/api/v1/presentation/duration?roundId=&trackId=` | Đọc cấu hình + `effective*` sau resolve |
+| PUT | `/api/v1/presentation/duration` | Ghi `rounds.default_*` hoặc `tracks.presentation_*` / `qa_*` |
+| DELETE | `/api/v1/presentation/duration?roundId=&trackId=` | Gỡ override track (GĐ3) |
+
+**Body PUT:** `{ roundId, trackId?, presentationMinutes, qaMinutes }` — `@Min(1)` cả hai phút.
+
+**Guard (`PresentationDurationMutationGuard`):**
+
+- Round `scoringLocked` → `422`
+- Slot `DONE` hoặc timer phase `PRESENTING`/`QA`/`PAUSED`/`ENDED` trong phạm vi → `422` *"Buổi thuyết trình đã bắt đầu"*
+- Cho phép sau shuffle nếu timer chưa start (`SETUP`/`IDLE`)
+
+**Cascade:** sau PUT/DELETE thành công → `PresentationSlotCascadeService.rescheduleForRound` cập nhật `startsAt`/`endsAt`.
+
+**GĐ1 (thiết lập sớm):** cùng field trên `GET/PUT /rounds/{id}` (`defaultPresentationMinutes`, `defaultQaMinutes`) và `GET/PUT /tracks/{id}` (`presentationMinutes`, `qaMinutes`).
+
+**Audit:** `PRESENTATION_DURATION_UPDATED`.
+
 ---
 
 ## 8. Phân quyền presentation controller
@@ -594,7 +616,7 @@ Body grant: `{ "judgeId": 12 }`
 
 ---
 
-## 12. Seed dev (Gd3DataSeeder)
+## 12. Seed dev (Gd3PrelimOpenDataSeeder)
 
 **Hackathon slug:** `seal-gd3-prelim-open`
 
@@ -604,7 +626,7 @@ Body grant: `{ "judgeId": 12 }`
 | Gắn `submission` + `track` trên slot | Queue API trả `submissionId` / `displayCode` |
 | Round active, deadline đã qua | Phase `JUDGING` |
 
-**Bootstrap IDs:** log `[Gd3DataSeeder]` khi start `profile=dev`.
+**Bootstrap IDs:** log `[Gd3PrelimOpenDataSeeder]` khi start `profile=dev`.
 
 ---
 

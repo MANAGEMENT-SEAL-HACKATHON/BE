@@ -11,4 +11,7 @@ public class RegisterResponse {
     private final String email;
     private final String status;
     private final String message;
+    /** Chỉ khi profile dev — token xác thực email. */
+    private final String devVerificationToken;
+    private final String devVerificationUrl;
 }

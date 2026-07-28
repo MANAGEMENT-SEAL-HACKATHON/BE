@@ -22,4 +22,12 @@ public class TrackResponse {
     private final Integer maxTeamSize;
     private final TrackStatus status;
     private final Integer sequenceOrder;
+    private final String problemStatementUrl;
+    private final String problemStatementFilename;
+    /** Override thời lượng thuyết trình (phút) — GĐ3; null = dùng default của round. */
+    private final Integer presentationMinutes;
+    /** Override thời lượng Q&A (phút) — GĐ3; null = dùng default của round. */
+    private final Integer qaMinutes;
+    /** Thời điểm phát đề riêng cho bảng đấu (Sơ loại). */
+    private final java.time.LocalDateTime problemReleasedAt;
 }

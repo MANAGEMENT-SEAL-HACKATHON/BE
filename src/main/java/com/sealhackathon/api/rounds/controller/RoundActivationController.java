@@ -39,7 +39,7 @@ public class RoundActivationController {
             @PathVariable Integer id,
             @Valid @RequestBody(required = false) ActivateRoundRequest req
     ) {
-        String note = req == null ? null : req.getNote();
-        return ResponseEntity.ok(ApiResponse.ok(activationService.activate(id, note), "Round activated"));
+        return ResponseEntity.ok(ApiResponse.ok(
+                activationService.activate(id, req), "Round activated"));
     }
 }

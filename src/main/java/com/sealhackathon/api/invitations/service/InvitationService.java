@@ -8,4 +8,6 @@ import com.sealhackathon.api.users.dto.response.TempJudgeResponse;
 public interface InvitationService {
 
     TempJudgeResponse.InvitationInfo resend(Integer invitationId);
+
+    TempJudgeResponse.InvitationInfo revoke(Integer invitationId);
 }

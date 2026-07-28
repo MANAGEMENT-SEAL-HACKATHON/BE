@@ -1,4 +1,4 @@
-# MF-03 GĐ3–GĐ6 — API Reference (GD03 v4.1)
+﻿# MF-03 GĐ3–GĐ6 — API Reference (GD03 v4.1)
 
 **Nguồn:** `GD03_05_SEAL_MF_v4_1.docx` · **Base:** `http://localhost:8080/api/v1`  
 **Auth:** `Authorization: Bearer {{accessToken}}` — [mf02/01-auth-users.md](../mf02/01-auth-users.md)  
@@ -53,10 +53,17 @@
 | `GET /export-jobs/{id}/download` | FR-34/35 | ⏳ GĐ6 stub |
 | `PATCH /hackathons/{id}/status` | GĐ1 FR-06 | ✅ (generic; GĐ6 ưu tiên `/confirm`) |
 | `GET /teams/{teamId}/journey` | — | ⏳ |
+| `GET /presentation/duration` | GĐ3/GĐ5 timer config | ✅ |
+| `PUT /presentation/duration` | GĐ3/GĐ5 timer config | ✅ |
+| `DELETE /presentation/duration` | Gỡ override track GĐ3 | ✅ |
+| `POST /presentation/queue/shuffle` | FR-23 | ✅ |
+| `POST /presentation/timer/*` | FR-23 | ✅ |
 
 **Deprecated alias (1 sprint):** `/review`, `/resubmit`, `/advance-teams`, `/wildcard/candidates`, `/wildcard/approve|reject`.
 
-**Swagger tags:** Submissions, Scores, Round Progression, Wildcard Reviews, Calibration Sessions, RBL Dashboard, **Hackathon Closure (GĐ6)**, **Prizes (GĐ6)**, **Export Jobs (GĐ6)**, Status, Teams Journey.
+**Swagger tags:** Submissions, Scores, Round Progression, **Presentation Duration (GĐ3/GĐ5)**, Wildcard Reviews, Calibration Sessions, RBL Dashboard, **Hackathon Closure (GĐ6)**, **Prizes (GĐ6)**, **Export Jobs (GĐ6)**, Status, Teams Journey.
+
+**GĐ1 — field timer:** `defaultPresentationMinutes` / `defaultQaMinutes` trên Round; `presentationMinutes` / `qaMinutes` trên Track (GET/PUT CRUD). Chi tiết: [fe-gd1-gd2-structure-and-fields.md](../testing/fe-gd1-gd2-structure-and-fields.md).
 
 **GĐ6 chi tiết:** §6 · Luồng FE: [10-fe-api-flow-gd6.md](10-fe-api-flow-gd6.md) · Business rules: [01-business-rules-gd6.md](01-business-rules-gd6.md) · Backlog: [09-be-backlog-gd4-gd5.md](09-be-backlog-gd4-gd5.md).
 
@@ -398,7 +405,7 @@ Authorization: Bearer <coordinator>
   "prizeName": "Giải Nhất",
   "prizeRank": "FIRST",
   "prizeValue": "7000000",
-  "description": "SEAL Spring 2026"
+  "description": "SEAL E2E 2026"
 }
 ```
 
@@ -421,7 +428,7 @@ Authorization: Bearer <coordinator>
   "prizeName": "Giải Nhất",
   "prizeRank": "FIRST",
   "prizeValue": "7000000",
-  "description": "SEAL Spring 2026",
+  "description": "SEAL E2E 2026",
   "awardedAt": "2026-05-29T14:00:00",
   "awardedById": 5
 }
@@ -461,7 +468,7 @@ Authorization: Bearer <coordinator>
 ```json
 {
   "confirm": true,
-  "note": "BTC xác nhận kết quả SEAL Spring 2026"
+  "note": "BTC xác nhận kết quả SEAL E2E 2026"
 }
 ```
 

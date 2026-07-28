@@ -3,13 +3,17 @@ package com.sealhackathon.api.presentation.service.impl;
 import com.sealhackathon.api.common.audit.AuditAction;
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
+import com.sealhackathon.api.common.exception.ConflictException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
+import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
+import com.sealhackathon.api.live_scoring.PresentationQueuePublisher;
 import com.sealhackathon.api.presentation.dto.request.PresentationControllerGrantRequest;
 import com.sealhackathon.api.presentation.dto.response.PresentationControllerResponse;
 import com.sealhackathon.api.presentation.guard.PresentationControllerGuard;
 import com.sealhackathon.api.presentation.service.PresentationControllerService;
+import com.sealhackathon.api.presentation.support.JudgePresenceRegistry;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.tracks.entity.Track;
@@ -20,6 +24,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
 
 @Service
@@ -27,31 +33,53 @@ import java.util.Map;
 @Transactional
 public class PresentationControllerServiceImpl implements PresentationControllerService {
 
+    private static final long ONLINE_STATUS_SECONDS = 90;
+
     private final TrackRepository trackRepository;
     private final RoundRepository roundRepository;
     private final UserRepository userRepository;
     private final JudgeAssignmentRepository judgeAssignmentRepository;
     private final PresentationControllerGuard controllerGuard;
     private final AuditService auditService;
+    private final JudgePresenceRegistry presenceRegistry;
+    private final PresentationQueuePublisher queuePublisher;
+    private final CurrentUserAccessor currentUserAccessor;
 
     @Override
     @Transactional(readOnly = true)
     public PresentationControllerResponse getTrackController(Integer trackId) {
         Track track = loadTrack(trackId);
-        return toResponse(controllerGuard.resolveTrackControllerId(track), track.getControllerJudge() != null
-                ? "OVERRIDE"
-                : "HEAD_DEFAULT");
+        Integer controllerId = controllerGuard.resolveTrackControllerId(track);
+        String source;
+        if (track.getControllerJudge() != null) {
+            source = "OVERRIDE";
+        } else if (controllerId != null) {
+            source = "AUTO_DEFAULT";
+        } else {
+            source = "UNASSIGNED";
+        }
+        return toResponse(controllerId, source);
     }
 
     @Override
     public PresentationControllerResponse grantTrackController(Integer trackId, PresentationControllerGrantRequest request) {
         Track track = loadTrack(trackId);
+        Round round = track.getRound();
         User judge = loadJudge(request.getJudgeId());
         ensureJudgeOnTrack(judge.getId(), trackId);
+        Integer previousId = track.getControllerJudge() != null ? track.getControllerJudge().getId() : null;
+        assertExpectedController(previousId, request.getExpectedControllerJudgeId());
+
         track.setControllerJudge(judge);
         trackRepository.save(track);
-        auditService.log(AuditAction.PRESENTATION_CONTROLLER_GRANTED, "tracks", trackId,
-                Map.of("judgeId", judge.getId()));
+
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("judgeId", judge.getId());
+        detail.put("previousJudgeId", previousId);
+        detail.put("mode", "TRANSFER");
+        auditService.log(AuditAction.PRESENTATION_CONTROLLER_GRANTED, "tracks", trackId, detail);
+
+        queuePublisher.publishControllerChanged(round.getId(), trackId, judge.getId(), previousId);
         return toResponse(judge.getId(), "OVERRIDE");
     }
 
@@ -66,6 +94,7 @@ public class PresentationControllerServiceImpl implements PresentationController
         trackRepository.save(track);
         auditService.log(AuditAction.PRESENTATION_CONTROLLER_REVOKED, "tracks", trackId,
                 Map.of("judgeId", previous));
+        queuePublisher.publishControllerChanged(track.getRound().getId(), trackId, null, previous);
     }
 
     @Override
@@ -89,10 +118,19 @@ public class PresentationControllerServiceImpl implements PresentationController
         }
         User judge = loadJudge(request.getJudgeId());
         ensureJudgeOnRound(judge.getId(), roundId);
+        Integer previousId = round.getControllerJudge() != null ? round.getControllerJudge().getId() : null;
+        assertExpectedController(previousId, request.getExpectedControllerJudgeId());
+
         round.setControllerJudge(judge);
         roundRepository.save(round);
-        auditService.log(AuditAction.PRESENTATION_CONTROLLER_GRANTED, "rounds", roundId,
-                Map.of("judgeId", judge.getId()));
+
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("judgeId", judge.getId());
+        detail.put("previousJudgeId", previousId);
+        detail.put("mode", "TRANSFER");
+        auditService.log(AuditAction.PRESENTATION_CONTROLLER_GRANTED, "rounds", roundId, detail);
+
+        queuePublisher.publishControllerChanged(roundId, null, judge.getId(), previousId);
         return toResponse(judge.getId(), "OVERRIDE");
     }
 
@@ -107,6 +145,33 @@ public class PresentationControllerServiceImpl implements PresentationController
         roundRepository.save(round);
         auditService.log(AuditAction.PRESENTATION_CONTROLLER_REVOKED, "rounds", roundId,
                 Map.of("judgeId", previous));
+        queuePublisher.publishControllerChanged(roundId, null, null, previous);
+    }
+
+    @Override
+    public void heartbeat(Integer roundId, Integer trackId) {
+        Integer userId = currentUserAccessor.currentUserId();
+        presenceRegistry.heartbeat(userId);
+    }
+
+    private void assertExpectedController(Integer currentId, Integer expectedId) {
+        if (expectedId == null) {
+            return;
+        }
+        // expectedId == 0 means expect no assigned override controller
+        if (expectedId == 0) {
+            if (currentId != null) {
+                throw new ConflictException(ErrorCode.CONTROLLER_CONFLICT,
+                        "Controller đã được chuyển bởi người khác",
+                        Map.of("currentControllerJudgeId", currentId));
+            }
+            return;
+        }
+        if (!java.util.Objects.equals(currentId, expectedId)) {
+            throw new ConflictException(ErrorCode.CONTROLLER_CONFLICT,
+                    "Controller đã được chuyển bởi người khác",
+                    Map.of("currentControllerJudgeId", currentId, "expectedControllerJudgeId", expectedId));
+        }
     }
 
     private Track loadTrack(Integer trackId) {
@@ -127,26 +192,35 @@ public class PresentationControllerServiceImpl implements PresentationController
     private void ensureJudgeOnTrack(Integer judgeId, Integer trackId) {
         if (!judgeAssignmentRepository.existsByJudgeIdAndTrackId(judgeId, trackId)) {
             throw new BusinessRuleException(ErrorCode.JUDGE_NOT_ASSIGNED_TO_TRACK,
-                    "Judge chưa được phân công cho track");
+                    "Giám khảo chưa được phân công vào bảng đấu này — không thể trao quyền điều khiển",
+                    Map.of("judgeId", judgeId, "trackId", trackId));
         }
     }
 
     private void ensureJudgeOnRound(Integer judgeId, Integer roundId) {
         if (!judgeAssignmentRepository.existsByJudgeIdAndRoundId(judgeId, roundId)) {
             throw new BusinessRuleException(ErrorCode.JUDGE_NOT_ASSIGNED,
-                    "Judge chưa được phân công cho round chung kết");
+                    "Giám khảo chưa được phân công vào vòng Chung kết này — không thể trao quyền điều khiển",
+                    Map.of("judgeId", judgeId, "roundId", roundId));
         }
     }
 
     private PresentationControllerResponse toResponse(Integer judgeId, String source) {
         if (judgeId == null) {
-            return PresentationControllerResponse.builder().source(source).build();
+            return PresentationControllerResponse.builder().source(source).online(false).build();
         }
         User judge = userRepository.findById(judgeId).orElse(null);
+        String fullName = judge != null ? judge.getFullName() : null;
+        Instant lastSeen = presenceRegistry.lastSeenAt(judgeId);
+        boolean online = presenceRegistry.isOnline(judgeId, ONLINE_STATUS_SECONDS);
         return PresentationControllerResponse.builder()
                 .judgeId(judgeId)
-                .judgeName(judge != null ? judge.getFullName() : null)
+                .judgeName(fullName)
+                .judgeFullName(fullName)
+                .isDeptHead(judge != null && Boolean.TRUE.equals(judge.getIsDeptHead()))
                 .source(source)
+                .lastSeenAt(lastSeen != null ? lastSeen.toString() : null)
+                .online(online)
                 .build();
     }
 }

@@ -1,7 +1,7 @@
 package com.sealhackathon.api.hackathons.controller;
 
-import com.sealhackathon.api.chapter_rankings.dto.response.ChapterRankingItemResponse;
-import com.sealhackathon.api.chapter_rankings.service.ChapterRankingService;
+import com.sealhackathon.api.chapters.dto.response.ChapterRankingItemResponse;
+import com.sealhackathon.api.chapters.service.ChapterRankingService;
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
@@ -70,6 +70,12 @@ public class HackathonClosureController {
     public ResponseEntity<ApiResponse<List<IndividualRankingItemResponse>>> individualRankings(
             @PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.ok(individualRankingService.listByHackathon(id)));
+    }
+
+    @GetMapping("/{id}/export-jobs")
+    @Operation(summary = "FR-34 — Danh sách job xuất báo cáo (mới nhất trước)")
+    public ResponseEntity<ApiResponse<List<ExportJobResponse>>> listExportJobs(@PathVariable Integer id) {
+        return ResponseEntity.ok(ApiResponse.ok(exportJobService.listByHackathon(id)));
     }
 
     @PostMapping("/{id}/export-jobs")

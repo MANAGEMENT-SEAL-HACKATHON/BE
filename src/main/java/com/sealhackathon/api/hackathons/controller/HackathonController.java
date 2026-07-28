@@ -7,13 +7,22 @@ import com.sealhackathon.api.config.OpenApiConfig;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import com.sealhackathon.api.common.exception.ResourceNotFoundException;
+import com.sealhackathon.api.hackathons.dto.request.CloseRegistrationEarlyRequest;
+import com.sealhackathon.api.hackathons.dto.request.CompetitionScheduleAdjustRequest;
 import com.sealhackathon.api.hackathons.dto.request.CreateHackathonRequest;
 import com.sealhackathon.api.hackathons.dto.request.HackathonLotteryRequest;
 import com.sealhackathon.api.hackathons.dto.request.UpdateHackathonRequest;
+import com.sealhackathon.api.hackathons.dto.response.CloseRegistrationEarlyResponse;
+import com.sealhackathon.api.hackathons.dto.response.CompetitionSchedulePreviewResponse;
 import com.sealhackathon.api.hackathons.dto.response.HackathonLotteryResponse;
 import com.sealhackathon.api.hackathons.dto.response.HackathonResponse;
 import com.sealhackathon.api.hackathons.dto.response.HackathonSummaryResponse;
+import com.sealhackathon.api.hackathons.entity.Hackathon;
+import com.sealhackathon.api.hackathons.repository.HackathonRepository;
+import com.sealhackathon.api.hackathons.service.CompetitionScheduleAdjustService;
 import com.sealhackathon.api.hackathons.service.HackathonLotteryService;
+import com.sealhackathon.api.hackathons.service.HackathonRegistrationCloseService;
 import com.sealhackathon.api.hackathons.service.HackathonService;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.hackathons.value_object.Season;
@@ -22,9 +31,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import org.springframework.core.io.Resource;
 
 import java.net.URI;
 import java.util.Map;
@@ -42,6 +54,9 @@ public class HackathonController {
 
     private final HackathonService hackathonService;
     private final HackathonLotteryService hackathonLotteryService;
+    private final HackathonRegistrationCloseService hackathonRegistrationCloseService;
+    private final CompetitionScheduleAdjustService competitionScheduleAdjustService;
+    private final HackathonRepository hackathonRepository;
 
     // API MỚI DÀNH RIÊNG CHO FRONTEND SET MẶC ĐỊNH
     @GetMapping("/active")
@@ -62,6 +77,20 @@ public class HackathonController {
         HackathonResponse data = hackathonService.create(req);
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}")
+                .buildAndExpand(data.getId())
+                .toUri();
+        return ResponseEntity.created(location).body(ApiResponse.created(data));
+    }
+
+    @PostMapping("/{id}/clone")
+    @CoordinatorOnly
+    @Operation(summary = "Nhân bản hackathon", description = "Sao chép rounds/tracks/criteria từ sự kiện nguồn. Không copy teams/judges/events.")
+    public ResponseEntity<ApiResponse<HackathonResponse>> clone(
+            @PathVariable Integer id,
+            @Valid @RequestBody CreateHackathonRequest req) {
+        HackathonResponse data = hackathonService.cloneFrom(id, req);
+        URI location = ServletUriComponentsBuilder.fromCurrentRequest()
+                .replacePath("/api/v1/hackathons/{id}")
                 .buildAndExpand(data.getId())
                 .toUri();
         return ResponseEntity.created(location).body(ApiResponse.created(data));
@@ -112,5 +141,58 @@ public class HackathonController {
             @Valid @RequestBody HackathonLotteryRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(
                 hackathonLotteryService.runLottery(hackathonId, req)));
+    }
+
+    @PostMapping("/{id}/close-registration-early")
+    @CoordinatorOnly
+    @Operation(summary = "Kết thúc đăng ký sớm + chọn giờ thi Sơ loại (cascade WS/KO/CK/Awards, 1 lần)")
+    public ResponseEntity<ApiResponse<CloseRegistrationEarlyResponse>> closeRegistrationEarly(
+            @PathVariable Integer id,
+            @Valid @RequestBody CloseRegistrationEarlyRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                hackathonRegistrationCloseService.closeRegistrationEarly(id, request)));
+    }
+
+    @PostMapping("/{id}/competition-schedule/preview")
+    @CoordinatorOnly
+    @Operation(summary = "Xem trước thay đổi lịch khi dời giờ thi Sơ loại")
+    public ResponseEntity<ApiResponse<CompetitionSchedulePreviewResponse>> previewCompetitionSchedule(
+            @PathVariable Integer id,
+            @Valid @RequestBody CompetitionScheduleAdjustRequest request,
+            @RequestParam(defaultValue = "false") boolean assumeCloseRegToday) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                competitionScheduleAdjustService.preview(id, request.getNewPrelimExamAt(), assumeCloseRegToday)));
+    }
+
+    @PostMapping("/{id}/competition-schedule/adjust")
+    @CoordinatorOnly
+    @Operation(summary = "Dời lịch thi 1 lần (trước Kickoff ≥ 4 ngày) — cascade WS/KO/CK/Awards + notify")
+    public ResponseEntity<ApiResponse<CompetitionSchedulePreviewResponse>> adjustCompetitionSchedule(
+            @PathVariable Integer id,
+            @Valid @RequestBody CompetitionScheduleAdjustRequest request) {
+        CompetitionSchedulePreviewResponse preview =
+                competitionScheduleAdjustService.preview(id, request.getNewPrelimExamAt());
+        Hackathon h = hackathonRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Hackathon", id));
+        competitionScheduleAdjustService.apply(h, request.getNewPrelimExamAt(), false, request.getOverrides());
+        return ResponseEntity.ok(ApiResponse.ok(preview));
+    }
+
+    @PostMapping(value = "/{id}/banner", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @CoordinatorOnly
+    @Operation(summary = "Upload ảnh banner hackathon (DRAFT hoặc ONGOING)")
+    public ResponseEntity<ApiResponse<HackathonResponse>> uploadBanner(
+            @PathVariable Integer id,
+            @RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(ApiResponse.ok(hackathonService.uploadBanner(id, file)));
+    }
+
+    @GetMapping("/{id}/banner")
+    @Operation(summary = "Tải ảnh banner hackathon")
+    public ResponseEntity<Resource> getBanner(@PathVariable Integer id) {
+        Resource resource = hackathonService.getBannerResource(id);
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"banner\"")
+                .body(resource);
     }
 }

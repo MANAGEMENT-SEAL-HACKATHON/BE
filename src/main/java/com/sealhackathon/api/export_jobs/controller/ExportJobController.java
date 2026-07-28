@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
+
 @Tag(name = "Export Jobs (GĐ6)", description = "MF-06 FR-34/35 — Xuất CSV/RBL")
 @RestController
 @RequestMapping("/api/v1/export-jobs")
@@ -36,15 +38,11 @@ public class ExportJobController {
 
     @GetMapping("/{id}/download")
     @Operation(summary = "FR-34/35 — Tải file CSV export (attachment)")
-    public ResponseEntity<byte[]> download(@PathVariable Integer id) throws java.io.IOException {
+    public ResponseEntity<byte[]> download(@PathVariable Integer id) throws IOException {
         ExportFileDownload file = exportJobService.downloadFile(id);
-        String contentType = file.content().contentType() != null
-                ? file.content().contentType()
-                : "text/csv";
-        byte[] bytes;
-        try (var stream = file.content().stream()) {
-            bytes = stream.readAllBytes();
-        }
+        String contentType = file.content().contentType();
+        byte[] bytes = file.content().stream().readAllBytes();
+        file.content().stream().close();
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"" + file.filename() + "\"")

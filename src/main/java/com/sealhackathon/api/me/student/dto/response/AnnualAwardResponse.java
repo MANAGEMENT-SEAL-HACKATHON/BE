@@ -11,7 +11,10 @@ import lombok.NoArgsConstructor;
 @Builder
 public class AnnualAwardResponse {
 
+    private Integer hackathonId;
+    private String hackathonName;
     private Integer year;
+    private Integer rank;
     private String awardName;
     private String category;
 }

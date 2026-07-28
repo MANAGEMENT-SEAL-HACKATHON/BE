@@ -10,12 +10,17 @@ import com.sealhackathon.api.presentation.dto.response.PresentationQueueResponse
 import com.sealhackathon.api.presentation.dto.response.PresentationTimerActionResponse;
 import com.sealhackathon.api.presentation.dto.response.PresentationTimerBlock;
 import com.sealhackathon.api.presentation.guard.PresentationControllerGuard;
+import com.sealhackathon.api.presentation.guard.PresentationForceAdvanceAckGuard;
 import com.sealhackathon.api.presentation.service.PresentationQueueService;
 import com.sealhackathon.api.presentation.service.PresentationTimerService;
 import com.sealhackathon.api.presentation.support.PresentationDurationResolver;
+import com.sealhackathon.api.presentation.support.PresentationNextScoringGuard;
+import com.sealhackathon.api.presentation.support.PresentationQaTimeoutMaterializer;
 import com.sealhackathon.api.presentation.support.PresentationTimerCalculator;
+import com.sealhackathon.api.presentation.support.RoundPhaseResolver;
 import com.sealhackathon.api.presentation.value_object.PresentationQueueStatus;
 import com.sealhackathon.api.presentation.value_object.PresentationTimerPhase;
+import com.sealhackathon.api.presentation.value_object.RoundPhase;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.tracks.entity.Track;
@@ -36,9 +41,12 @@ public class PresentationTimerServiceImpl implements PresentationTimerService {
     private final TrackRepository trackRepository;
     private final PresentationSlotRepository presentationSlotRepository;
     private final PresentationControllerGuard controllerGuard;
+    private final PresentationForceAdvanceAckGuard forceAdvanceAckGuard;
+    private final PresentationNextScoringGuard nextScoringGuard;
     private final PresentationDurationResolver durationResolver;
     private final PresentationQueueService presentationQueueService;
     private final PresentationQueuePublisher queuePublisher;
+    private final RoundPhaseResolver roundPhaseResolver;
 
     @Override
     public PresentationTimerActionResponse start(Integer roundId, Integer trackId) {
@@ -105,6 +113,49 @@ public class PresentationTimerServiceImpl implements PresentationTimerService {
         }
         slot.setTimerPhase(PresentationTimerPhase.QA);
         slot.setQaStartedAt(LocalDateTime.now());
+        slot.setPausedAt(null);
+        slot.setPausedAccumulatedSeconds(0);
+        presentationSlotRepository.save(slot);
+        return publishAndRespond(ctx, slot);
+    }
+
+    @Override
+    public PresentationTimerActionResponse end(Integer roundId, Integer trackId, boolean acknowledgeIncompleteScoring) {
+        TimerContext ctx = resolveContext(roundId, trackId);
+        PresentationSlot slot = requirePresentingSlot(ctx);
+
+        boolean inQa = slot.getTimerPhase() == PresentationTimerPhase.QA
+                || (slot.getTimerPhase() == PresentationTimerPhase.PAUSED
+                && slot.getTimerPhaseBeforePause() == PresentationTimerPhase.QA
+                && slot.getQaStartedAt() != null);
+        if (!inQa) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Chỉ kết thúc sớm Q&A khi đang ở pha QA (hoặc tạm dừng sau QA)");
+        }
+
+        int remaining = PresentationTimerCalculator.remainingSeconds(
+                slot, ctx.track(), ctx.round(), durationResolver);
+
+        // Hết giờ tự nhiên → ENDED, ghi nhận điểm tới đâu (không bắt đủ chốt)
+        if (remaining <= 0 && slot.getTimerPhase() == PresentationTimerPhase.QA) {
+            slot.setTimerPhase(PresentationTimerPhase.ENDED);
+            slot.setQaEndedEarly(false);
+            presentationSlotRepository.save(slot);
+            return publishAndRespond(ctx, slot);
+        }
+
+        // Kết thúc sớm: mọi GK phải Chốt điểm (trừ Coord/controller force-ack)
+        if (slot.getSubmission() != null) {
+            boolean ack = forceAdvanceAckGuard.resolveAcknowledge(
+                    acknowledgeIncompleteScoring, ctx.trackId(), ctx.round());
+            nextScoringGuard.validateBeforeNext(
+                    slot.getSubmission(), ctx.trackId(), ctx.round(), ack, true);
+        }
+
+        slot.setTimerPhase(PresentationTimerPhase.ENDED);
+        slot.setQaEndedEarly(true);
+        slot.setPausedAt(null);
+        slot.setTimerPhaseBeforePause(null);
         presentationSlotRepository.save(slot);
         return publishAndRespond(ctx, slot);
     }
@@ -119,39 +170,35 @@ public class PresentationTimerServiceImpl implements PresentationTimerService {
         slot.setQaStartedAt(null);
         slot.setPausedAt(null);
         slot.setPausedAccumulatedSeconds(0);
+        slot.setQaEndedEarly(null);
         presentationSlotRepository.save(slot);
         return publishAndRespond(ctx, slot);
-    }
-
-    @Override
-    public PresentationTimerActionResponse next(
-            Integer roundId,
-            Integer trackId,
-            Integer currentSubmissionId,
-            Integer currentTeamId,
-            boolean acknowledgeIncompleteScoring) {
-        presentationQueueService.advanceNext(
-                roundId, trackId, currentSubmissionId, currentTeamId, acknowledgeIncompleteScoring);
-        TimerContext ctx = resolveContext(roundId, trackId);
-        PresentationSlot slot = findPresentingSlot(ctx).orElse(null);
-        return slot == null
-                ? PresentationTimerActionResponse.builder().roundId(roundId).trackId(trackId).build()
-                : publishAndRespond(ctx, slot);
     }
 
     private PresentationTimerActionResponse publishAndRespond(TimerContext ctx, PresentationSlot slot) {
         PresentationQueueResponse payload = presentationQueueService.getQueue(ctx.round().getId(), ctx.trackId());
         queuePublisher.publish(ctx.round().getId(), ctx.trackId(), payload);
         Integer submissionId = slot.getSubmission() != null ? slot.getSubmission().getId() : null;
+        PresentationTimerBlock timer = buildTimerBlock(slot, ctx.track(), ctx.round());
+        if (submissionId != null && timer.getPhase() != null) {
+            queuePublisher.publishTimerPhase(
+                    ctx.round().getId(),
+                    ctx.trackId(),
+                    submissionId,
+                    timer.getPhase(),
+                    timer.getRemainingSeconds());
+        }
         return PresentationTimerActionResponse.builder()
                 .roundId(ctx.round().getId())
                 .trackId(ctx.trackId())
                 .submissionId(submissionId)
-                .timer(buildTimerBlock(slot, ctx.track(), ctx.round()))
+                .timer(timer)
                 .build();
     }
 
     private PresentationTimerBlock buildTimerBlock(PresentationSlot slot, Track track, Round round) {
+        PresentationQaTimeoutMaterializer.materializeIfExpired(
+                slot, track, round, durationResolver, presentationSlotRepository);
         PresentationTimerPhase phase = slot.getTimerPhase() != null ? slot.getTimerPhase() : PresentationTimerPhase.IDLE;
         return PresentationTimerBlock.builder()
                 .phase(phase.name())
@@ -162,11 +209,16 @@ public class PresentationTimerServiceImpl implements PresentationTimerService {
                 .pausedAt(slot.getPausedAt())
                 .pausedAccumulatedSeconds(slot.getPausedAccumulatedSeconds())
                 .remainingSeconds(PresentationTimerCalculator.remainingSeconds(slot, track, round, durationResolver))
+                .qaEndedEarly(slot.getQaEndedEarly())
                 .build();
     }
 
     private PresentationSlot requirePresentingSlot(TimerContext ctx) {
-        return findPresentingSlot(ctx)
+        PresentationSlot found = findPresentingSlot(ctx)
+                .orElseThrow(() -> new BusinessRuleException(ErrorCode.INVALID_STATE,
+                        "Không có đội đang PRESENTING trong queue"));
+        // Atomic race guard: re-load with PESSIMISTIC_WRITE trước khi mutate phase
+        return presentationSlotRepository.findByIdForUpdate(found.getId())
                 .orElseThrow(() -> new BusinessRuleException(ErrorCode.INVALID_STATE,
                         "Không có đội đang PRESENTING trong queue"));
     }
@@ -183,6 +235,10 @@ public class PresentationTimerServiceImpl implements PresentationTimerService {
     private TimerContext resolveContext(Integer roundId, Integer trackId) {
         Round round = roundRepository.findById(roundId)
                 .orElseThrow(() -> new ResourceNotFoundException("Round", roundId));
+        if (roundPhaseResolver.resolve(round) != RoundPhase.JUDGING) {
+            throw new BusinessRuleException(ErrorCode.SCORING_NOT_OPEN,
+                    "Chưa hết giờ nộp / chưa kết thúc sớm — không điều khiển timer thuyết trình");
+        }
         if (Boolean.TRUE.equals(round.getIsFinal())) {
             controllerGuard.requireControllerForRound(roundId, round);
             return new TimerContext(round, null, null);

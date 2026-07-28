@@ -58,23 +58,19 @@ public final class PresentationTimerCalculator {
             int paused,
             LocalDateTime now) {
         PresentationTimerPhase before = slot.getTimerPhaseBeforePause();
+
         if (before == PresentationTimerPhase.QA && slot.getQaStartedAt() != null) {
-            int extra = slot.getPausedAt() != null
-                    ? (int) Duration.between(slot.getPausedAt(), now).getSeconds()
-                    : 0;
-            long elapsed = Duration.between(slot.getQaStartedAt(), slot.getPausedAt() != null ? slot.getPausedAt() : now)
-                    .getSeconds() - paused;
-            return Math.max(0, qaSeconds - (int) elapsed - extra);
+            // FIX LỖI BÓNG MA: Bỏ hoàn toàn việc tính thêm biến "extra"
+            // Khi đã Pause, thời gian trôi qua chốt cứng tại thời điểm pausedAt.
+            long elapsed = Duration.between(slot.getQaStartedAt(), slot.getPausedAt() != null ? slot.getPausedAt() : now).getSeconds() - paused;
+            return Math.max(0, qaSeconds - (int) elapsed);
         }
         if (slot.getPresentationStartedAt() != null) {
-            int extra = slot.getPausedAt() != null
-                    ? (int) Duration.between(slot.getPausedAt(), now).getSeconds()
-                    : 0;
-            long elapsed = Duration.between(slot.getPresentationStartedAt(),
-                            slot.getPausedAt() != null ? slot.getPausedAt() : now)
-                    .getSeconds() - paused;
-            return Math.max(0, presentationSeconds - (int) elapsed - extra);
+            // Đóng băng thời gian đối với pha PRESENTING
+            long elapsed = Duration.between(slot.getPresentationStartedAt(), slot.getPausedAt() != null ? slot.getPausedAt() : now).getSeconds() - paused;
+            return Math.max(0, presentationSeconds - (int) elapsed);
         }
+
         return before == PresentationTimerPhase.QA ? qaSeconds : presentationSeconds;
     }
 }

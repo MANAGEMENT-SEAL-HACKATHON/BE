@@ -1,6 +1,7 @@
 package com.sealhackathon.api.rounds.dto.request;
 
 import com.sealhackathon.api.rounds.value_object.TiebreakRule;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -38,8 +39,6 @@ public class UpdateRoundRequest {
     @Min(0)
     private Integer codingDurationHours;
 
-    private String problemStatementUrl;
-
     private LocalDateTime problemReleasedAt;
 
     @Min(1)
@@ -57,4 +56,14 @@ public class UpdateRoundRequest {
     private Boolean forceLocked;
 
     private String forceLockReason;
+
+    /** Thời lượng thuyết trình mặc định (phút) — GĐ5 chung kết; GĐ3 fallback khi track không override. */
+    @Min(1)
+    @Max(60)
+    private Integer defaultPresentationMinutes;
+
+    /** Thời lượng Q&A mặc định (phút) — GĐ5 chung kết; GĐ3 fallback khi track không override. */
+    @Min(1)
+    @Max(60)
+    private Integer defaultQaMinutes;
 }

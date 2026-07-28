@@ -4,7 +4,7 @@ import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.CoordinatorOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
 import com.sealhackathon.api.rbl.dto.response.RblScoringProgressResponse;
-import com.sealhackathon.api.rbl.dto.response.RblVarianceItemResponse;
+import com.sealhackathon.api.rbl.dto.response.RblVarianceResponse;
 import com.sealhackathon.api.rbl.service.RblDashboardService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -15,8 +15,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 @Tag(name = "RBL Dashboard (GĐ5)", description = "FR-30 — Độ tin cậy chấm điểm")
 @RestController
@@ -29,8 +27,8 @@ public class RblDashboardController {
     @GetMapping("/{id}/rbl/variance")
     @CoordinatorOnly
     @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
-    @Operation(summary = "FR-30 — Phương sai chấm điểm theo judge/criterion")
-    public ResponseEntity<ApiResponse<List<RblVarianceItemResponse>>> variance(@PathVariable Integer id) {
+    @Operation(summary = "FR-30 — Phương sai chấm điểm (per-judge + inter-rater by criterion)")
+    public ResponseEntity<ApiResponse<RblVarianceResponse>> variance(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.ok(rblDashboardService.varianceByRound(id)));
     }
 

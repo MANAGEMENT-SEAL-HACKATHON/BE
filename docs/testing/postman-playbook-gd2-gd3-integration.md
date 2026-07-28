@@ -30,7 +30,7 @@ mvn spring-boot:run -Dspring-boot.run.profiles=dev
 | Kiểm tra | Kỳ vọng |
 |----------|---------|
 | Swagger | `http://localhost:8080/swagger-ui.html` |
-| Log `[Gd3DataSeeder]` | In `hackathonId`, `prelimRoundId`, `track1Id`, … |
+| Log `[Gd3PrelimOpenDataSeeder]` | In `hackathonId`, `prelimRoundId`, `track1Id`, … |
 | `mvn test` (tuỳ chọn) | 167/167 pass |
 
 ### 0.2 Environment variables
@@ -44,7 +44,7 @@ mvn spring-boot:run -Dspring-boot.run.profiles=dev
 | `controllerToken` | `eyJ…` | **Một trong các judge** trên track giữ quyền điều khiển tạm thời (HEAD mặc định hoặc `PUT …/controller` grant) — **cùng người** vừa `timer/*` + `next` vừa chấm; HEAD có thể set `judgeToken` = `controllerToken` |
 | `mentorToken` | `eyJ…` | Mentor (tuỳ test) |
 | `gd3HackathonSlug` | `seal-gd3-prelim-open` | Seed GĐ3 |
-| `gd2HackathonSlug` | `seal-spring-2026` | Seed GĐ2 |
+| `gd2HackathonSlug` | `seal-e2e-2026` | Seed GĐ2 |
 | `hackathonId` | `3` | GET hackathons?q=slug |
 | `prelimRoundId` | `5` | GET hackathons/{id}/rounds → `isFinal=false` |
 | `track1Id` | `10` | GET rounds/{prelimId}/tracks |
@@ -73,7 +73,7 @@ Content-Type: application/json
 | Đường | Slug | Dùng cho |
 |-------|------|----------|
 | **A — GĐ3 seed** | `seal-gd3-prelim-open` | IT-03→07, unit GĐ3 (đã active, đã lottery) |
-| **B — GĐ2→GĐ3 full** | `seal-spring-2026` + lock/lottery | IT-01, IT-02 (lottery gate + submit mới) |
+| **B — GĐ2→GĐ3 full** | `seal-e2e-2026` + lock/lottery | IT-01, IT-02 (lottery gate + submit mới) |
 
 ### 0.5 Quy trình Presentation & Timer — **FE đọc trước IT-04 → IT-07**
 
@@ -140,8 +140,6 @@ Content-Type: application/json
 }
 ```
 
-Alias tương đương: `POST /api/v1/presentation/timer/next` (cùng query + body, **không** auto-start timer).
-
 **Response `data`:**
 
 | Field | Ý nghĩa |
@@ -171,7 +169,7 @@ FE **không bấm mù**: luôn hiển thị `displayCode` từ `GET queue` hoặ
 | API | Cần `submissionId`? | Ghi chú |
 |-----|---------------------|---------|
 | `timer/start`, `pause`, `resume`, `qa`, `reset` | **Không** (query) | Response có `data.submissionId` để UI đối chiếu |
-| `queue/next`, `timer/next` | **Nên có** (body `currentSubmissionId`) | Xác nhận đang kết thúc đúng bài trước khi chuyển |
+| `queue/next` | **Nên có** (body `currentSubmissionId`) | Xác nhận đang kết thúc đúng bài trước khi chuyển |
 | `POST /scores` | **Bắt buộc** (body) | Queue `PRESENTING` + timer **không** IDLE/SETUP |
 
 #### `timer.phase` — khi nào chấm được?
@@ -224,12 +222,12 @@ Mã Java tự động: `Gd2Gd3FlowIntegrationTest` (IT-01→09). IT-06/07/08 dù
 
 **Mục tiêu:** Lottery assignment tường minh khi `is_locked=false` → `TEAM_NOT_LOCKED`.
 
-**Tiên quyết:** Team `ACTIVE`, `is_locked=false` (vd. team mới trên `seal-spring-2026` hoặc `GD3-04` trước khi lock).
+**Tiên quyết:** Team `ACTIVE`, `is_locked=false` (vd. team mới trên `seal-e2e-2026` hoặc `GD3-04` trước khi lock).
 
 | Bước | Method | Path | Token | Body | Kỳ vọng |
 |------|--------|------|-------|------|---------|
 | 1 | `POST` | `/api/v1/auth/login` | — | `{"email":"coord@fpt.edu.vn","password":"Coordinator@dev1"}` | `200` → `coordToken` |
-| 2 | `GET` | `/api/v1/hackathons?q=seal-spring-2026` | `coordToken` | — | `hackathonId`, `prelimRoundId` |
+| 2 | `GET` | `/api/v1/hackathons?q=seal-e2e-2026` | `coordToken` | — | `hackathonId`, `prelimRoundId` |
 | 3 | `GET` | `/api/v1/teams?hackathonId={{hackathonId}}` | `coordToken` | — | Chọn team `isLocked: false` → `teamId` |
 | 4 | `GET` | `/api/v1/rounds/{{prelimRoundId}}/tracks` | `coordToken` | — | `track1Id` |
 | 5 | `PATCH` | `/api/v1/hackathons/{{hackathonId}}/lottery` | `coordToken` | Xem dưới | **`422`** `error.code` = `TEAM_NOT_LOCKED` |
@@ -518,10 +516,10 @@ Mã Java tự động: `Gd2Gd3FlowIntegrationTest` (IT-01→09). IT-06/07/08 dù
 | `POST /scores` đội kế (chưa start) | **`422`** `SCORING_NOT_OPEN` |
 | `POST /timer/start` | `timer.phase` = `PRESENTING` → sau đó chấm được |
 
-**Alias (cùng hành vi):**
+**Chuyển đội (canonical):**
 
 ```http
-POST {{baseUrl}}/api/v1/presentation/timer/next?roundId={{prelimRoundId}}&trackId={{track1Id}}
+PATCH {{baseUrl}}/api/v1/presentation/queue/next?roundId={{prelimRoundId}}&trackId={{track1Id}}
 Authorization: Bearer {{controllerToken}}
 Content-Type: application/json
 
@@ -739,6 +737,39 @@ Authorization: Bearer {{coordToken}}
 
 | ☐ | Track có `presentationMinutes` / `qaMinutes` |
 | ☐ | Timer `data.timer.presentationMinutes` khớp |
+
+---
+
+### U3-12 — `PresentationDurationServiceImplTest` / API duration
+
+| Unit case | Postman | Kỳ vọng |
+|-----------|---------|---------|
+| `updateDuration_roundScope` | `PUT /presentation/duration` CK — không `trackId` | `scope=ROUND`, cascade schedule |
+| `updateDuration_trackScope` | `PUT` + `trackId` sau shuffle, trước start | `scope=TRACK`, `effective*` khớp |
+| `updateDuration_whenTimerAlreadyStarted` | `PUT` sau `timer/start` | `422 INVALID_STATE` |
+| `clearTrackOverride` | `DELETE /presentation/duration?roundId=&trackId=` | Track dùng default round |
+
+```http
+PUT {{baseUrl}}/api/v1/presentation/duration
+Authorization: Bearer {{coordToken}}
+Content-Type: application/json
+
+{
+  "roundId": {{prelimRoundId}},
+  "trackId": {{track1Id}},
+  "presentationMinutes": 12,
+  "qaMinutes": 8
+}
+```
+
+```http
+GET {{baseUrl}}/api/v1/presentation/duration?roundId={{prelimRoundId}}&trackId={{track1Id}}
+Authorization: Bearer {{coordToken}}
+```
+
+| ☐ | PUT sau shuffle, trước start → 200 |
+| ☐ | GET queue → `presentationSchedule` đổi theo phút mới |
+| ☐ | PUT sau timer start → 422 |
 
 ---
 

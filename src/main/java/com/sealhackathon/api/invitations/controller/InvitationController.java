@@ -34,4 +34,11 @@ public class InvitationController {
     public ResponseEntity<ApiResponse<TempJudgeResponse.InvitationInfo>> resend(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.ok(invitationService.resend(id), "Invitation resent"));
     }
+
+    @PostMapping("/{id}/revoke")
+    @Operation(summary = "Thu hồi lời mời judge khách mời",
+            description = "Chỉ thu hồi lời mời PENDING chưa activate. Giữ nguyên tài khoản temp để tránh tái sử dụng email qua UI.")
+    public ResponseEntity<ApiResponse<TempJudgeResponse.InvitationInfo>> revoke(@PathVariable Integer id) {
+        return ResponseEntity.ok(ApiResponse.ok(invitationService.revoke(id), "Invitation revoked"));
+    }
 }

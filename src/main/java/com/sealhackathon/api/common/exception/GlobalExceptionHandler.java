@@ -10,12 +10,15 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -161,6 +164,19 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(body);
     }
 
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> handleOptimisticLock(
+            ObjectOptimisticLockingFailureException ex, HttpServletRequest req) {
+        String traceId = traceId();
+        log.warn("[{}] {} {} -> 409 optimistic lock: {}",
+                traceId, req.getMethod(), req.getRequestURI(), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                ErrorResponse.of(
+                        ErrorCode.CONCURRENT_MODIFICATION,
+                        "Dữ liệu đã được cập nhật bởi thao tác khác — vui lòng thử lại",
+                        HttpStatus.CONFLICT.value()));
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataIntegrity(
             DataIntegrityViolationException ex, HttpServletRequest req) {
@@ -194,6 +210,7 @@ public class GlobalExceptionHandler {
         String[] known = {
                 ErrorCode.CONFLICT_SAME_TRACK,
                 ErrorCode.INTERNAL_JUDGE_NOT_ALLOWED_IN_FINAL,
+                ErrorCode.EXTERNAL_JUDGE_NOT_ALLOWED_IN_PRELIM,
                 ErrorCode.INTERNAL_MENTOR_NOT_ALLOWED_IN_FINAL,
                 ErrorCode.INVALID_ASSIGNMENT_TYPE,
                 ErrorCode.INVALID_FINAL_ROUND,
@@ -213,6 +230,8 @@ public class GlobalExceptionHandler {
         return switch (code) {
             case ErrorCode.CONFLICT_SAME_TRACK -> "Không được vừa Mentor vừa Judge cùng Track";
             case ErrorCode.INTERNAL_JUDGE_NOT_ALLOWED_IN_FINAL -> "Judge INTERNAL không được phân công Chung kết";
+            case ErrorCode.EXTERNAL_JUDGE_NOT_ALLOWED_IN_PRELIM ->
+                    "Judge EXTERNAL không được phân công Track sơ loại";
             case ErrorCode.INTERNAL_MENTOR_NOT_ALLOWED_IN_FINAL -> "Mentor không được làm Judge Chung kết";
             case ErrorCode.INVALID_ASSIGNMENT_TYPE -> "assignment_type không hợp lệ cho ngữ cảnh";
             case ErrorCode.INVALID_FINAL_ROUND -> "round_id phải trỏ Round Chung kết";
@@ -221,7 +240,6 @@ public class GlobalExceptionHandler {
             case ErrorCode.FINAL_JUDGE_CANNOT_BE_MENTOR -> "Judge Chung kết không được làm Mentor Sơ loại";
             case ErrorCode.RESULT_NOT_PUBLISHED -> "Chưa công bố kết quả Sơ loại";
             case ErrorCode.CRITERION_WRONG_ROUND -> "Tiêu chí không thuộc round của bài nộp";
-            case ErrorCode.CALIBRATION_SESSION_CLOSED -> "Phiên hiệu chuẩn đã đóng";
             default -> "Vi phạm ràng buộc nghiệp vụ tại cơ sở dữ liệu";
         };
     }
@@ -244,6 +262,34 @@ public class GlobalExceptionHandler {
         log.warn("[{}] {} {} -> 400 malformed: {}", traceId, req.getMethod(), req.getRequestURI(), ex.getMessage());
         return ResponseEntity.badRequest().body(
                 ErrorResponse.of("MALFORMED_REQUEST", "Body/Param không đọc được", HttpStatus.BAD_REQUEST.value())
+        );
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSize(
+            MaxUploadSizeExceededException ex, HttpServletRequest req) {
+        String traceId = traceId();
+        log.warn("[{}] {} {} -> 413 MAX_UPLOAD_SIZE_EXCEEDED: {}",
+                traceId, req.getMethod(), req.getRequestURI(), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(
+                ErrorResponse.of(
+                        ErrorCode.INVALID_SLIDE_FILE,
+                        "slideFile vượt quá dung lượng cho phép (tối đa 25MB)",
+                        HttpStatus.PAYLOAD_TOO_LARGE.value())
+        );
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResource(
+            NoResourceFoundException ex, HttpServletRequest req) {
+        String traceId = traceId();
+        log.warn("[{}] {} {} -> 404 RESOURCE_NOT_FOUND: {}",
+                traceId, req.getMethod(), req.getRequestURI(), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                ErrorResponse.of(
+                        ErrorCode.RESOURCE_NOT_FOUND,
+                        "Endpoint hoặc tài nguyên không tồn tại",
+                        HttpStatus.NOT_FOUND.value())
         );
     }
 

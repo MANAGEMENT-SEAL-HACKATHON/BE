@@ -4,6 +4,7 @@ import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ConflictException;
 import com.sealhackathon.api.common.exception.ErrorCode;
+import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.criteria.service.WeightSummaryService;
 import com.sealhackathon.api.events.repository.EventRepository;
@@ -66,6 +67,7 @@ class RoundServiceImplExamValidationTest {
     @Mock private EventRepository eventRepository;
     @Spy private HackathonArchiveGuard archiveGuard = new HackathonArchiveGuard();
     @Mock private HackathonRoundTimelineSyncService hackathonRoundTimelineSyncService;
+    @Mock private CurrentUserAccessor currentUserAccessor;
     @Mock private com.sealhackathon.api.presentation.service.PresentationSlotCascadeService presentationSlotCascadeService;
 
     @InjectMocks
@@ -207,7 +209,7 @@ class RoundServiceImplExamValidationTest {
     @Test
     void createFinal_blocksWhenAwardsStartsBeforeSubmissionDeadline() {
         mockHackathon();
-        LocalDateTime day = LocalDateTime.of(2026, 6, 10, 0, 0);
+        LocalDateTime day = LocalDateTime.now().plusDays(40).withHour(0).withMinute(0).withSecond(0).withNano(0);
         when(roundRepository.findPreliminaryLikeByHackathonId(1))
                 .thenReturn(List.of(Round.builder().id(10).build()));
         when(roundRepository.countByHackathon_IdAndIsFinalTrue(1)).thenReturn(0L);
@@ -307,7 +309,7 @@ class RoundServiceImplExamValidationTest {
     }
 
     @Test
-    void createFinal_allowsAtPreliminaryEndWhenCodingDurationProvided() {
+    void createFinal_allowsWithinTwoHourWindowWhenCodingDurationProvided() {
         mockHackathon();
         LocalDateTime prelimExam = LocalDateTime.of(2026, 6, 21, 8, 0);
         Round prelim = Round.builder()
@@ -321,16 +323,44 @@ class RoundServiceImplExamValidationTest {
         when(roundRepository.save(any())).thenReturn(Round.builder().id(99).build());
         when(roundMapper.toResponse(any())).thenReturn(RoundResponse.builder().id(99).name("Chung kết").build());
 
+        // prelim ends 16:00 → CK window 17:00–18:00
         CreateRoundRequest req = CreateRoundRequest.builder()
                 .name("Chung kết")
-                .examAt(LocalDateTime.of(2026, 6, 21, 16, 0))
-                .submissionOpen(LocalDateTime.of(2026, 6, 21, 16, 30))
+                .examAt(LocalDateTime.of(2026, 6, 21, 18, 0))
+                .submissionOpen(LocalDateTime.of(2026, 6, 21, 18, 30))
                 .submissionDeadline(LocalDateTime.now().plusDays(30))
                 .isFinal(true)
                 .roundType(RoundType.FINAL)
                 .build();
 
         assertDoesNotThrow(() -> roundService.createByHackathon(1, req));
+    }
+
+    @Test
+    void createFinal_blocksOutsideTwoHourWindowWhenCodingDurationProvided() {
+        mockHackathon();
+        LocalDateTime prelimExam = LocalDateTime.of(2026, 6, 21, 8, 0);
+        Round prelim = Round.builder()
+                .id(10)
+                .examAt(prelimExam)
+                .codingDurationHours(8)
+                .build();
+        when(roundRepository.findPreliminaryLikeByHackathonId(1)).thenReturn(List.of(prelim));
+        when(roundRepository.countByHackathon_IdAndIsFinalTrue(1)).thenReturn(0L);
+
+        // prelim ends 16:00 → 18:01 is after max (+2h)
+        CreateRoundRequest req = CreateRoundRequest.builder()
+                .name("Chung kết")
+                .examAt(LocalDateTime.of(2026, 6, 21, 18, 1))
+                .submissionOpen(LocalDateTime.of(2026, 6, 21, 18, 30))
+                .submissionDeadline(LocalDateTime.now().plusDays(30))
+                .isFinal(true)
+                .roundType(RoundType.FINAL)
+                .build();
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class,
+                () -> roundService.createByHackathon(1, req));
+        assertEquals(ErrorCode.ROUND_FINAL_EXAM_ORDER, ex.getCode());
     }
 
     @Test
@@ -347,7 +377,7 @@ class RoundServiceImplExamValidationTest {
 
         CreateRoundRequest req = CreateRoundRequest.builder()
                 .name("Chung kết")
-                .examAt(LocalDateTime.of(2026, 6, 21, 15, 59))
+                .examAt(LocalDateTime.of(2026, 6, 21, 16, 0))
                 .submissionOpen(LocalDateTime.of(2026, 6, 21, 16, 30))
                 .submissionDeadline(LocalDateTime.now().plusDays(30))
                 .isFinal(true)
@@ -417,21 +447,53 @@ class RoundServiceImplExamValidationTest {
         when(roundRepository.save(any())).thenReturn(Round.builder().id(12).hackathon(h).build());
         when(roundMapper.toResponse(any())).thenReturn(RoundResponse.builder().id(12).name("test").build());
 
+        LocalDateTime examAt = LocalDateTime.now().plusDays(10).withHour(8).withMinute(0).withSecond(0).withNano(0);
+
         CreateRoundRequest req = CreateRoundRequest.builder()
                 .name("test")
-                .examAt(LocalDateTime.of(2026, 6, 9, 8, 0))
+                .examAt(examAt)
                 .isFinal(false)
                 .roundType(RoundType.PRELIMINARY)
                 .codingDurationHours(5)
                 .lateSubmissionPolicy(com.sealhackathon.api.rounds.value_object.LateSubmissionPolicy.HARD_LOCK)
-                .problemReleasedAt(LocalDateTime.of(2026, 6, 9, 8, 0))
-                .submissionOpen(LocalDateTime.of(2026, 6, 9, 11, 20))
-                .submissionDeadline(LocalDateTime.of(2026, 6, 9, 13, 0))
+                .problemReleasedAt(examAt)
+                .submissionOpen(examAt.plusHours(3).plusMinutes(20))
+                .submissionDeadline(examAt.plusHours(5))
                 .wildcardEnabled(false)
                 .tiebreakRule(com.sealhackathon.api.rounds.value_object.TiebreakRule.PENALTY_SCORE)
                 .build();
 
         assertDoesNotThrow(() -> roundService.createByHackathon(1, req));
+    }
+
+    @Test
+    void update_activeRound_rejectsScheduleChange() {
+        Hackathon h = Hackathon.builder().id(1).status(HackathonStatus.ONGOING).build();
+        LocalDateTime examAt = LocalDateTime.now().plusDays(1).withHour(8).withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime open = examAt.plusHours(3);
+        LocalDateTime deadline = examAt.plusHours(5);
+        Round active = Round.builder()
+                .id(10)
+                .hackathon(h)
+                .name("Sơ loại")
+                .isActive(true)
+                .examAt(examAt)
+                .submissionOpen(open)
+                .submissionDeadline(deadline)
+                .build();
+        when(roundRepository.findById(10)).thenReturn(Optional.of(active));
+
+        UpdateRoundRequest req = UpdateRoundRequest.builder()
+                .name("Sơ loại")
+                .examAt(examAt.plusHours(2))
+                .submissionOpen(open.plusHours(2))
+                .submissionDeadline(deadline.plusHours(2))
+                .build();
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class,
+                () -> roundService.update(10, req));
+        assertEquals(ErrorCode.INVALID_STATE, ex.getCode());
+        verify(roundRepository, never()).save(any());
     }
 
     private void mockHackathon() {

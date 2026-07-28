@@ -30,5 +30,6 @@ public class TempJudgeResponse {
         private final LocalDateTime expiresAt;
         private final Boolean tokenSent;
         private final LocalDateTime acceptedAt;
+        private final LocalDateTime revokedAt;
     }
 }

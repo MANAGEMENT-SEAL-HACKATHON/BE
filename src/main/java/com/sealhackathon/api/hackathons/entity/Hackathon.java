@@ -54,6 +54,16 @@ public class Hackathon {
     @Column(name = "registration_end")
     private LocalDate registrationEnd;
 
+    @Column(name = "registration_closed_early_at")
+    private LocalDateTime registrationClosedEarlyAt;
+
+    /**
+     * Đã dời lịch thi (SL + cascade WS/KO/CK/Awards) đúng 1 lần.
+     * Null = chưa dời; set khi close-reg-early kèm lịch hoặc adjust riêng.
+     */
+    @Column(name = "schedule_adjusted_at")
+    private LocalDateTime scheduleAdjustedAt;
+
     @Column(name = "event_start")
     private LocalDate eventStart;
 
@@ -72,9 +82,21 @@ public class Hackathon {
     @Column(name = "max_participants")
     private Integer maxParticipants;
 
+    /** Set when the coordinator DRAFT-setup reminder was sent (idempotent scheduler). */
+    @Column(name = "draft_reminder_sent_at")
+    private LocalDateTime draftReminderSentAt;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
     private User createdBy;
+
+    /** Provenance — hackathon được nhân bản từ sự kiện nguồn (nullable). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cloned_from_hackathon_id")
+    private Hackathon clonedFromHackathon;
+
+    @Column(name = "cloned_at")
+    private LocalDateTime clonedAt;
 
     @Builder.Default
     @Column(name = "created_at", nullable = false)

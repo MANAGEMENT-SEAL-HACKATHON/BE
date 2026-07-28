@@ -16,17 +16,17 @@ import com.sealhackathon.api.hackathons.value_object.Season;
 import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
-import com.sealhackathon.api.mentor_assignments.entity.MentorAssignment;
-import com.sealhackathon.api.mentor_assignments.repository.MentorAssignmentRepository;
+import com.sealhackathon.api.mentors.entity.MentorAssignment;
+import com.sealhackathon.api.mentors.repository.MentorAssignmentRepository;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.value_object.LateSubmissionPolicy;
 import com.sealhackathon.api.rounds.value_object.RoundType;
-import com.sealhackathon.api.team_members.entity.TeamMember;
-import com.sealhackathon.api.team_members.entity.TeamMemberId;
-import com.sealhackathon.api.team_members.repository.TeamMemberRepository;
-import com.sealhackathon.api.team_members.value_object.TeamMemberRole;
-import com.sealhackathon.api.team_members.value_object.TeamMemberStatus;
+import com.sealhackathon.api.teams.entity.TeamMember;
+import com.sealhackathon.api.teams.entity.TeamMemberId;
+import com.sealhackathon.api.teams.repository.TeamMemberRepository;
+import com.sealhackathon.api.teams.value_object.TeamMemberRole;
+import com.sealhackathon.api.teams.value_object.TeamMemberStatus;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.repository.TeamRepository;
 import com.sealhackathon.api.teams.value_object.TeamStatus;
@@ -170,6 +170,8 @@ class Gd2Gd3FlowIntegrationTest {
                 .status(TrackStatus.OPEN)
                 .sequenceOrder(1)
                 .maxTeamsPerGroup(8)
+                .problemStatementStorageKey("tracks/test-problem-" + suffix + ".pdf")
+                .problemStatementOriginalFilename("test-problem.pdf")
                 .build());
 
         criterion = criteriaRepository.save(Criteria.builder()
@@ -255,13 +257,12 @@ class Gd2Gd3FlowIntegrationTest {
                 .andReturn();
 
         assertThat(readJson(result).path("error").path("code").asText())
-                .isEqualTo("TEAM_NOT_LOCKED");
+                .isEqualTo("ACTIVE_TEAMS_NOT_LOCKED");
     }
 
     @Test
     void gd2ToGd3_lotteryActivateMultipartSubmitAndSlide() throws Exception {
-        team.setIsLocked(true);
-        teamRepository.save(team);
+        lockAllActiveTeams();
 
         String coordToken = login(coordinator.getEmail(), "Coordinator@dev1");
         String studentToken = login(student.getEmail(), "Student@dev1");
@@ -276,7 +277,7 @@ class Gd2Gd3FlowIntegrationTest {
                         .content(lotteryBody))
                 .andExpect(status().isOk())
                 .andReturn();
-        assertThat(readJson(lotteryResult).path("data").path("assignedCount").asInt()).isEqualTo(1);
+        assertThat(readJson(lotteryResult).path("data").path("assignedCount").asInt()).isEqualTo(2);
 
         // GĐ3 — activate prelim
         mockMvc.perform(patch("/api/v1/rounds/{id}/activate", prelimRound.getId())
@@ -325,8 +326,7 @@ class Gd2Gd3FlowIntegrationTest {
 
     @Test
     void judgeSubmissions_areAnonymous() throws Exception {
-        team.setIsLocked(true);
-        teamRepository.save(team);
+        lockAllActiveTeams();
         runLotteryAndActivateAndSubmit();
 
         String judgeToken = login(judge.getEmail(), "Judge@dev1");
@@ -346,8 +346,7 @@ class Gd2Gd3FlowIntegrationTest {
 
     @Test
     void scoring_rejectsWhenNoPresentingSlot() throws Exception {
-        team.setIsLocked(true);
-        teamRepository.save(team);
+        lockAllActiveTeams();
         int submissionId = runLotteryAndActivateAndSubmit();
 
         String judgeToken = login(judge.getEmail(), "Judge@dev1");
@@ -374,6 +373,8 @@ class Gd2Gd3FlowIntegrationTest {
     void shuffle_createsSlotsWithFirstPresenting() throws Exception {
         lockTeamAndSubmit();
         String coordToken = login(coordinator.getEmail(), "Coordinator@dev1");
+
+        releaseProblemThenCloseEarly(coordToken, prelimRound.getId());
 
         MvcResult shuffleResult = mockMvc.perform(post("/api/v1/presentation/queue/shuffle")
                         .header("Authorization", "Bearer " + coordToken)
@@ -474,6 +475,8 @@ class Gd2Gd3FlowIntegrationTest {
                         .header("Authorization", "Bearer " + ctx.controllerToken()))
                 .andExpect(status().isOk());
 
+        advancePresentingSlotToEnded(ctx.controllerToken());
+
         String nextBody = """
                 {"currentSubmissionId": %d}
                 """.formatted(ctx.firstSubmissionId());
@@ -514,6 +517,8 @@ class Gd2Gd3FlowIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(scoreBody))
                 .andExpect(status().isCreated());
+
+        advancePresentingSlotToEnded(ctx.controllerToken());
 
         String nextBody = """
                 {"currentSubmissionId": %d}
@@ -610,6 +615,8 @@ class Gd2Gd3FlowIntegrationTest {
                         .content(scoreBody))
                 .andExpect(status().isCreated());
 
+        advancePresentingSlotToEnded(ctx.controllerToken());
+
         String nextBody = """
                 {"currentSubmissionId": %d}
                 """.formatted(ctx.submissionId());
@@ -629,7 +636,8 @@ class Gd2Gd3FlowIntegrationTest {
         String acknowledgeBody = """
                 {
                   "currentSubmissionId": %d,
-                  "acknowledgeIncompleteScoring": true
+                  "acknowledgeIncompleteScoring": true,
+                  "forceAckReason": "integration test — judge chưa chốt điểm"
                 }
                 """.formatted(ctx.submissionId());
 
@@ -658,13 +666,28 @@ class Gd2Gd3FlowIntegrationTest {
                 .build());
     }
 
+    /** Next chỉ cho phép khi phase ENDED (sau Q&A). */
+    private void advancePresentingSlotToEnded(String controllerToken) throws Exception {
+        mockMvc.perform(post("/api/v1/presentation/timer/qa")
+                        .param("roundId", prelimRound.getId().toString())
+                        .param("trackId", track.getId().toString())
+                        .header("Authorization", "Bearer " + controllerToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/presentation/timer/end")
+                        .param("roundId", prelimRound.getId().toString())
+                        .param("trackId", track.getId().toString())
+                        .header("Authorization", "Bearer " + controllerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"acknowledgeIncompleteScoring\":true}"))
+                .andExpect(status().isOk());
+    }
+
     private record PresentationCtx(int submissionId, String controllerToken, String judgeToken) {}
 
     private record TwoTeamCtx(int firstSubmissionId, int secondSubmissionId, String controllerToken, String judgeToken) {}
 
     private void lockTeamAndSubmit() throws Exception {
-        team.setIsLocked(true);
-        teamRepository.save(team);
+        lockAllActiveTeams();
         runLotteryAndActivateAndSubmit();
     }
 
@@ -672,6 +695,8 @@ class Gd2Gd3FlowIntegrationTest {
         int submissionId = lockTeamAndSubmitReturnId();
         String coordToken = login(coordinator.getEmail(), "Coordinator@dev1");
         String judgeToken = login(judge.getEmail(), "Judge@dev1");
+
+        releaseProblemThenCloseEarly(coordToken, prelimRound.getId());
 
         mockMvc.perform(post("/api/v1/presentation/queue/shuffle")
                         .header("Authorization", "Bearer " + coordToken)
@@ -686,6 +711,8 @@ class Gd2Gd3FlowIntegrationTest {
         int[] submissionIds = lockBothTeamsSubmitAndReturnIds();
         String coordToken = login(coordinator.getEmail(), "Coordinator@dev1");
         String judgeToken = login(judge.getEmail(), "Judge@dev1");
+
+        releaseProblemThenCloseEarly(coordToken, prelimRound.getId());
 
         mockMvc.perform(post("/api/v1/presentation/queue/shuffle")
                         .header("Authorization", "Bearer " + coordToken)
@@ -776,10 +803,26 @@ class Gd2Gd3FlowIntegrationTest {
                 """.formatted(prelimRound.getId(), track.getId());
     }
 
+    private void releaseProblemThenCloseEarly(String coordToken, Integer roundId) throws Exception {
+        mockMvc.perform(patch("/api/v1/rounds/{id}/release-problem", roundId)
+                        .header("Authorization", "Bearer " + coordToken)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/rounds/{id}/close-submission-early", roundId)
+                        .header("Authorization", "Bearer " + coordToken))
+                .andExpect(status().isOk());
+    }
+
     private int lockTeamAndSubmitReturnId() throws Exception {
-        team.setIsLocked(true);
-        teamRepository.save(team);
+        lockAllActiveTeams();
         return runLotteryAndActivateAndSubmit();
+    }
+
+    private void lockAllActiveTeams() {
+        team.setIsLocked(true);
+        team2.setIsLocked(true);
+        teamRepository.save(team);
+        teamRepository.save(team2);
     }
 
     private int runLotteryAndActivateAndSubmit() throws Exception {

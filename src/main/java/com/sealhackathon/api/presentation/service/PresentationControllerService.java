@@ -16,4 +16,6 @@ public interface PresentationControllerService {
     PresentationControllerResponse grantRoundController(Integer roundId, PresentationControllerGrantRequest request);
 
     void revokeRoundController(Integer roundId);
+
+    void heartbeat(Integer roundId, Integer trackId);
 }

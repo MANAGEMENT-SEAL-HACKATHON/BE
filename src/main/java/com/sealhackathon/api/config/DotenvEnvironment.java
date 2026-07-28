@@ -38,6 +38,12 @@ public final class DotenvEnvironment {
         mapIfPresent(dotenv, "DB_HOST", "db.host");
         mapIfPresent(dotenv, "SECURITY_JWT_ENABLED", "security.jwt.enabled");
         mapIfPresent(dotenv, "APP_FRONTEND_URL", "app.frontend-url");
+        mapIfPresent(dotenv, "APP_MAIL_ENABLED", "app.mail.enabled");
+        mapIfPresent(dotenv, "APP_MAIL_FROM", "app.mail.from");
+        mapIfPresent(dotenv, "SPRING_MAIL_HOST", "spring.mail.host");
+        mapIfPresent(dotenv, "SPRING_MAIL_PORT", "spring.mail.port");
+        mapIfPresent(dotenv, "SPRING_MAIL_USERNAME", "spring.mail.username");
+        mapIfPresent(dotenv, "SPRING_MAIL_PASSWORD", "spring.mail.password");
     }
 
     private static void mapIfPresent(Dotenv dotenv, String envKey, String systemPropertyKey) {

@@ -14,10 +14,6 @@ public interface PresentationTimerService {
 
     PresentationTimerActionResponse reset(Integer roundId, Integer trackId);
 
-    PresentationTimerActionResponse next(
-            Integer roundId,
-            Integer trackId,
-            Integer currentSubmissionId,
-            Integer currentTeamId,
-            boolean acknowledgeIncompleteScoring);
+    /** Kết thúc Q&A: sớm → bắt đủ Chốt điểm (trừ force-ack); hết giờ tự nhiên → không scoring guard. */
+    PresentationTimerActionResponse end(Integer roundId, Integer trackId, boolean acknowledgeIncompleteScoring);
 }

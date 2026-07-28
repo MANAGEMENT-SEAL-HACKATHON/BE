@@ -10,6 +10,7 @@ import com.sealhackathon.api.chapters.repository.ChapterRepository;
 import com.sealhackathon.api.chapters.value_object.ChapterStatus;
 import com.sealhackathon.api.common.response.PageResponse;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
+import com.sealhackathon.api.judge_assignments.dto.response.JudgeAssignmentResponse;
 import com.sealhackathon.api.users.dto.request.PatchMeRequest;
 import com.sealhackathon.api.users.dto.request.PatchUserRequest;
 import com.sealhackathon.api.users.dto.request.PatchUserStatusRequest;
@@ -26,6 +27,7 @@ import com.sealhackathon.api.users.value_object.UserRole;
 import com.sealhackathon.api.users.value_object.UserStatus;
 import com.sealhackathon.api.users.value_object.UserType;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -34,17 +36,14 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
-import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 @Transactional
 public class UserAdminServiceImpl implements UserAdminService {
-
-    private static final Set<UserRole> DEPT_HEAD_ELIGIBLE =
-            EnumSet.of(UserRole.JUDGE, UserRole.MENTOR);
 
     private final UserRepository userRepository;
     private final ChapterRepository chapterRepository;
@@ -167,24 +166,16 @@ public class UserAdminServiceImpl implements UserAdminService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
 
+        List<JudgeAssignmentResponse> syncedAssignments = null;
         if (req.getIsDeptHead() != null) {
-            if (!DEPT_HEAD_ELIGIBLE.contains(user.getRole())) {
-                throw new BusinessRuleException(ErrorCode.USER_INVALID_ROLE,
-                        "is_dept_head chỉ áp dụng cho JUDGE hoặc MENTOR",
-                        Map.of("userId", userId, "role", user.getRole()));
-            }
-            Boolean previous = user.getIsDeptHead();
-            user.setIsDeptHead(req.getIsDeptHead());
-            user.setUpdatedAt(LocalDateTime.now());
-            if (Boolean.TRUE.equals(req.getIsDeptHead()) && !Boolean.TRUE.equals(previous)) {
-                auditService.log(AuditAction.USER_DEPT_HEAD_SET, "users", userId, Map.of(
-                        "setBy", currentUserAccessor.currentUserId(),
-                        "isDeptHead", true));
-            }
+            log.warn("Deprecated PATCH isDeptHead for user #{} — ignored", userId);
+            throw new BusinessRuleException(ErrorCode.INVALID_ASSIGNMENT_TYPE,
+                    "is_dept_head đã ngừng sử dụng — chọn HEAD khi gán giám khảo Sơ loại hoặc Chung kết",
+                    Map.of("userId", userId));
         }
 
         User saved = userRepository.save(user);
-        return userResponseMapper.toResponse(saved);
+        return userResponseMapper.toResponse(saved, syncedAssignments);
     }
 
     @Override

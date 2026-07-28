@@ -1,4 +1,4 @@
-# MF-02 GĐ2 — API Reference (Teams & Lottery) — cho FE
+﻿# MF-02 GĐ2 — API Reference (Teams & Lottery) — cho FE
 
 **Mục đích:** FE thiết kế UX/UI trước khi BE hoàn thiện logic. Mọi endpoint teams/lottery hiện trả **`501 NOT_IMPLEMENTED`** (khung + TODO) trừ khi ghi chú khác.
 
@@ -136,7 +136,7 @@ GET /teams/{teamId}
 {
   "id": 10,
   "hackathonId": 1,
-  "hackathonName": "SEAL Spring 2026",
+  "hackathonName": "SEAL E2E 2026",
   "teamName": "Seal Warriors",
   "leaderId": 42,
   "leaderName": "Nguyen Van A",

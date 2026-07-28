@@ -28,6 +28,8 @@ public interface ScoreRepository extends JpaRepository<Score, Integer> {
 
     List<Score> findBySubmission_IdAndScoreType(Integer submissionId, ScoreType scoreType);
 
+    List<Score> findBySubmission_IdInAndScoreType(java.util.Collection<Integer> submissionIds, ScoreType scoreType);
+
     List<Score> findBySubmission_Track_Round_Id(Integer roundId);
 
     List<Score> findBySubmission_Round_Id(Integer roundId);
@@ -38,12 +40,8 @@ public interface ScoreRepository extends JpaRepository<Score, Integer> {
         return countByCriterion_Id(criteriaId);
     }
 
-    @Query("""
-            SELECT COUNT(s)
-              FROM Score s
-             WHERE (s.submission.round IS NOT NULL AND s.submission.round.id = :roundId)
-                OR (s.submission.track IS NOT NULL AND s.submission.track.round.id = :roundId)
-            """)
+    /** Đếm theo submission.round_id — tránh OR+track join loại bài CK. */
+    @Query("SELECT COUNT(s) FROM Score s WHERE s.submission.round.id = :roundId")
     long countByRoundId(@Param("roundId") Integer roundId);
 
     @Query("""

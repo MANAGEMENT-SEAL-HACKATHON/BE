@@ -30,8 +30,16 @@ public class TeamDetailResponse {
     private LocalDateTime createdAt;
     private int acceptedMemberCount;
     private int pendingInviteCount;
+    private LocalDateTime formationSubmittedAt;
+    private LocalDateTime formationGraceDeadlineAt;
     private List<TeamMemberResponse> members;
     private Integer trackId;
     private String trackName;
     private String assignedGroup;
+    /** TRT participationStatus (PARTICIPATING | ADVANCED | ELIMINATED) — alias lotteryStatus for FE. */
+    private String lotteryStatus;
+    private Integer minTeamSize;
+    private Integer maxTeamSize;
+    /** True when team has an active mentor assignment — FE gates disband on this. */
+    private Boolean hasMentor;
 }

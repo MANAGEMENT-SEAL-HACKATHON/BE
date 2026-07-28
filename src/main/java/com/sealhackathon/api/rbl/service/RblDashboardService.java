@@ -1,13 +1,11 @@
 package com.sealhackathon.api.rbl.service;
 
 import com.sealhackathon.api.rbl.dto.response.RblScoringProgressResponse;
-import com.sealhackathon.api.rbl.dto.response.RblVarianceItemResponse;
-
-import java.util.List;
+import com.sealhackathon.api.rbl.dto.response.RblVarianceResponse;
 
 public interface RblDashboardService {
 
-    List<RblVarianceItemResponse> varianceByRound(Integer roundId);
+    RblVarianceResponse varianceByRound(Integer roundId);
 
     RblScoringProgressResponse scoringProgress(Integer roundId);
 }

@@ -70,6 +70,22 @@ public class JudgeMeController {
         return ResponseEntity.ok(ApiResponse.ok(judgePortalService.listSubmissions(roundId, trackId)));
     }
 
+    @PostMapping("/judge/submissions/{submissionId}/confirm-scoring")
+    @Operation(summary = "GĐ3 — Judge xác nhận đã chấm xong bài đang PRESENTING")
+    public ResponseEntity<ApiResponse<Void>> confirmSubmissionScoring(@PathVariable Integer submissionId) {
+        judgePortalService.confirmSubmissionScoring(submissionId);
+        return ResponseEntity.ok(ApiResponse.ok(null, "Đã xác nhận chấm xong"));
+    }
+
+    @GetMapping("/judge/presentation-scoring-status")
+    @Operation(summary = "GĐ3 — Tiến độ xác nhận chấm của track (multi-judge)")
+    public ResponseEntity<ApiResponse<JudgePresentationScoringStatusResponse>> presentationScoringStatus(
+            @RequestParam Integer roundId,
+            @RequestParam(required = false) Integer trackId) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                judgePortalService.getPresentationScoringStatus(roundId, trackId)));
+    }
+
     @PatchMapping("/scores/{id}/comment")
     @Operation(summary = "FR-J-15 — Sửa comment điểm")
     public ResponseEntity<ApiResponse<JudgeScoreSummaryResponse>> updateComment(

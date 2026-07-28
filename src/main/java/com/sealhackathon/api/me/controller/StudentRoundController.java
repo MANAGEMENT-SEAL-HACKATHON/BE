@@ -4,6 +4,7 @@ import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.StudentOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
 import com.sealhackathon.api.me.student.dto.response.StudentLeaderboardItemResponse;
+import com.sealhackathon.api.me.student.dto.response.StudentPresentationSlotResponse;
 import com.sealhackathon.api.me.student.dto.response.StudentProblemResponse;
 import com.sealhackathon.api.me.student.dto.response.StudentRoundDeadlineResponse;
 import com.sealhackathon.api.me.student.service.StudentPortalService;
@@ -11,6 +12,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,8 +32,9 @@ public class StudentRoundController {
 
     @GetMapping("/current/deadline")
     @Operation(summary = "GĐ3 — Deadline nộp bài vòng đang active")
-    public ResponseEntity<ApiResponse<StudentRoundDeadlineResponse>> currentDeadline() {
-        return ResponseEntity.ok(ApiResponse.ok(studentPortalService.getCurrentDeadline()));
+    public ResponseEntity<ApiResponse<StudentRoundDeadlineResponse>> currentDeadline(
+            @RequestParam(required = false) Integer hackathonId) {
+        return ResponseEntity.ok(ApiResponse.ok(studentPortalService.getCurrentDeadline(hackathonId)));
     }
 
     @GetMapping("/{roundId}/problem")
@@ -38,10 +43,27 @@ public class StudentRoundController {
         return ResponseEntity.ok(ApiResponse.ok(studentPortalService.getRoundProblem(roundId)));
     }
 
+    @GetMapping("/{roundId}/problem-statement")
+    @Operation(summary = "Tải PDF đề bài (theo bảng đấu nếu Sơ loại)")
+    public ResponseEntity<Resource> downloadProblemStatement(@PathVariable Integer roundId) {
+        Resource resource = studentPortalService.downloadRoundProblemStatement(roundId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"de-bai.pdf\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(resource);
+    }
+
     @GetMapping("/{roundId}/leaderboard")
     @Operation(summary = "FR-U-21 — Bảng xếp hạng vòng (đã publish)")
     public ResponseEntity<ApiResponse<List<StudentLeaderboardItemResponse>>> getLeaderboard(
             @PathVariable Integer roundId) {
         return ResponseEntity.ok(ApiResponse.ok(studentPortalService.getRoundLeaderboard(roundId)));
+    }
+
+    @GetMapping("/{roundId}/presentation-slot")
+    @Operation(summary = "STT — Slot thuyết trình của đội (ẩn danh, poll-friendly)")
+    public ResponseEntity<ApiResponse<StudentPresentationSlotResponse>> getPresentationSlot(
+            @PathVariable Integer roundId) {
+        return ResponseEntity.ok(ApiResponse.ok(studentPortalService.getPresentationSlot(roundId)));
     }
 }

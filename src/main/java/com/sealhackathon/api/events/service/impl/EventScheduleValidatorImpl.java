@@ -142,17 +142,36 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
             return;
         }
         roundRepository.findByHackathon_IdAndIsFinalTrue(h.getId()).ifPresent(finalRound -> {
-            LocalDateTime finalDeadline = finalRound.getSubmissionDeadline();
-            if (finalDeadline != null && !awardsStartsAt.isAfter(finalDeadline)) {
+            LocalDateTime minMoment = resolveAwardsMinMoment(finalRound);
+            if (minMoment != null && !awardsStartsAt.isAfter(minMoment)) {
                 throw new BusinessRuleException(ErrorCode.AWARDS_BEFORE_FINAL_DEADLINE,
-                        "Lễ trao giải (%s) phải bắt đầu sau hạn nộp Chung kết (%s)"
-                                .formatted(awardsStartsAt, finalDeadline),
+                        "Lễ trao giải (%s) phải bắt đầu sau khi vòng Chung kết công bố kết quả (%s)"
+                                .formatted(awardsStartsAt, minMoment),
                         Map.of("hackathonId", h.getId(),
                                 "awardsStartsAt", awardsStartsAt,
-                                "finalSubmissionDeadline", finalDeadline,
+                                "minMoment", minMoment,
                                 "finalRoundId", finalRound.getId()));
             }
         });
+    }
+
+    private static LocalDateTime resolveAwardsMinMoment(Round finalRound) {
+        if (finalRound.getPublishedAt() != null) {
+            return finalRound.getPublishedAt();
+        }
+        if (finalRound.getScoringLockedAt() != null) {
+            return finalRound.getScoringLockedAt();
+        }
+        if (finalRound.getExamAt() == null) {
+            return null;
+        }
+        int codingHours = finalRound.getCodingDurationHours() != null
+                ? finalRound.getCodingDurationHours().intValue() : 0;
+        int pres = finalRound.getDefaultPresentationMinutes() != null
+                ? finalRound.getDefaultPresentationMinutes() : 10;
+        int qa = finalRound.getDefaultQaMinutes() != null ? finalRound.getDefaultQaMinutes() : 5;
+        int bufferMinutes = (pres + qa) * 4;
+        return finalRound.getExamAt().plusHours(codingHours).plusMinutes(bufferMinutes);
     }
 
     /**

@@ -7,7 +7,6 @@ import com.sealhackathon.api.common.security.SubmissionListAccess;
 import com.sealhackathon.api.config.OpenApiConfig;
 import com.sealhackathon.api.submissions.dto.request.RejectLateSubmissionRequest;
 import com.sealhackathon.api.submissions.dto.request.ReviewLateSubmissionRequest;
-import com.sealhackathon.api.submissions.dto.request.SubmitSubmissionRequest;
 import com.sealhackathon.api.submissions.dto.response.SubmissionResponse;
 import com.sealhackathon.api.submissions.service.SubmissionService;
 import com.sealhackathon.api.submissions.value_object.LateReviewDecision;
@@ -44,23 +43,20 @@ public class SubmissionController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @StudentOnly
-    @Operation(summary = "FR-16/26 — Nộp bài multipart (repoUrl + slide PDF)")
+    @Operation(summary = "FR-16/26 — Nộp bài multipart (repoUrl + demoUrl + slide PDF)",
+            description = "Sơ loại (GĐ3): gửi `trackId`, bỏ `roundId`. Chung kết (GĐ5): gửi `roundId`, bỏ `trackId`. "
+                    + "Service từ chối nếu thiếu cả hai hoặc routing sai vòng.")
     public ResponseEntity<ApiResponse<SubmissionResponse>> submitMultipart(
             @RequestParam Integer teamId,
             @RequestParam(required = false) Integer trackId,
             @RequestParam(required = false) Integer roundId,
             @RequestParam String repoUrl,
+            @RequestParam(required = false) String demoUrl,
             @RequestParam(required = false) String lateReason,
             @RequestPart(required = false) MultipartFile slideFile) {
-        return ResponseEntity.status(201).body(ApiResponse.created(
-                submissionService.submitMultipart(teamId, trackId, roundId, repoUrl, lateReason, slideFile)));
-    }
 
-    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    @StudentOnly
-    @Operation(summary = "FR-16/26 — Nộp bài JSON (legacy)")
-    public ResponseEntity<ApiResponse<SubmissionResponse>> submit(@Valid @RequestBody SubmitSubmissionRequest req) {
-        return ResponseEntity.status(201).body(ApiResponse.created(submissionService.submit(req)));
+        return ResponseEntity.status(201).body(ApiResponse.created(
+                submissionService.submitMultipart(teamId, trackId, roundId, repoUrl, demoUrl, lateReason, slideFile)));
     }
 
     @GetMapping("/{id}/slide")

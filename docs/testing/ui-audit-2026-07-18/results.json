@@ -1,0 +1,20 @@
+[
+  {
+    "id": "GD1-ACTIVATE",
+    "status": "FAIL",
+    "note": "Activate control present or already ONGOING",
+    "evidence": "GD1-setup.png"
+  },
+  {
+    "id": "GD5-BTNS",
+    "status": "PASS",
+    "note": "statusBtns=1 closeBtns=1",
+    "evidence": "GD5-rounds.png"
+  },
+  {
+    "id": "GD6-FINISHED-RO",
+    "status": "PASS",
+    "note": "Finished results page loads",
+    "evidence": "GD6-finished.png"
+  }
+]

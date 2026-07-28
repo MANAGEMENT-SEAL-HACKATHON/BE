@@ -90,13 +90,50 @@ class GuestJudgeLifecycleServiceImplTest {
                 .role(UserRole.JUDGE)
                 .hackathon(ended)
                 .build();
-        when(invitationRepository.findFirstByEmailAndRoleOrderByCreatedAtDesc(
-                user.getEmail(), UserRole.JUDGE))
-                .thenReturn(Optional.of(inv));
+        when(invitationRepository.findByEmail(user.getEmail()))
+                .thenReturn(List.of(inv));
+        when(judgeAssignmentRepository.findByJudgeId(user.getId()))
+                .thenReturn(List.of());
 
         AuthException ex = assertThrows(AuthException.class,
                 () -> lifecycleService.assertHackathonNotEndedForTempJudge(user));
         assertEquals(ErrorCode.TEMP_JUDGE_HACKATHON_ENDED, ex.getCode());
+    }
+
+    @Test
+    void assertHackathonNotEndedForTempJudge_whenAnyOngoingAssignment_allows() {
+        User user = User.builder()
+                .id(1)
+                .email("g@test.com")
+                .isTempAccount(true)
+                .role(UserRole.JUDGE)
+                .userType(UserType.EXTERNAL)
+                .status(UserStatus.APPROVED)
+                .build();
+        Hackathon ended = Hackathon.builder()
+                .id(2)
+                .eventEnd(LocalDate.now().minusDays(1))
+                .build();
+        Hackathon ongoing = Hackathon.builder()
+                .id(3)
+                .eventEnd(LocalDate.now().plusDays(30))
+                .build();
+        Invitation endedInv = Invitation.builder()
+                .email(user.getEmail())
+                .role(UserRole.JUDGE)
+                .hackathon(ended)
+                .build();
+        Invitation liveInv = Invitation.builder()
+                .email(user.getEmail())
+                .role(UserRole.JUDGE)
+                .hackathon(ongoing)
+                .build();
+        when(invitationRepository.findByEmail(user.getEmail()))
+                .thenReturn(List.of(endedInv, liveInv));
+        when(judgeAssignmentRepository.findByJudgeId(user.getId()))
+                .thenReturn(List.of());
+
+        lifecycleService.assertHackathonNotEndedForTempJudge(user);
     }
 
     @Test

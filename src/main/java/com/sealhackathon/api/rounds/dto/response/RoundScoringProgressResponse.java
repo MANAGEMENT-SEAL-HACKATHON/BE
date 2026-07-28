@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
@@ -16,4 +18,6 @@ public class RoundScoringProgressResponse {
     private Integer scoredSubmissions;
     private Integer pendingSubmissions;
     private Boolean scoringLocked;
+    /** Track → team scoring rows (gradable submissions only). */
+    private List<ScoringProgressItemResponse> items;
 }

@@ -16,7 +16,7 @@ Xem phân quyền MF-01/MF-02 trong tài liệu tương ứng. Bảng dưới ch
 | GET | `/calibration-sessions?roundId=` | ✅ | COORDINATOR | ✅ | — | — | — | — |
 | GET | `/rounds/{id}/rbl/variance` | ✅ | COORDINATOR | ✅ | — | — | — | — |
 | GET | `/rounds/{id}/rbl/progress` | ✅ | COORDINATOR | ✅ | — | — | — | — |
-| POST | `/submissions` | ✅ | STUDENT | — | — | — | ✅ | — |
+| POST | `/submissions` (multipart) | ✅ | STUDENT | — | — | — | ✅ | — |
 | POST | `/scores` | ✅ | JUDGE+APPROVED | — | ✅ | — | — | — |
 | POST | `/scores/calibration` | ✅ | JUDGE+APPROVED | — | ✅ | — | — | — |
 | GET | `/rounds/{id}/scoreboard` | — | permitAll | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -28,6 +28,10 @@ Xem phân quyền MF-01/MF-02 trong tài liệu tương ứng. Bảng dưới ch
 | `/topic/rounds/{id}/leaderboard-preview` | ✅ Bearer | ✅ | ✅ |
 | `/topic/rounds/{id}/scoring-progress` | ✅ Bearer | ✅ | ✅ |
 | `/topic/tracks/{id}/score-saved` | ✅ Bearer | ✅ | ✅ |
+| `/topic/rounds/{id}/presentation-queue` | ✅ Bearer | ✅ | ✅* |
+| `/topic/rounds/{id}/tracks/{trackId}/presentation-queue` | ✅ Bearer | ✅ | ✅* |
+
+\* Judge assigned track; Coordinator bypass.
 
 Handshake: `GET /ws/**` permitAll — auth tại STOMP CONNECT. Chi tiết: [mf03/06-live-scoring-websocket.md](mf03/06-live-scoring-websocket.md).
 
@@ -43,6 +47,7 @@ Chi tiết JSON: [user-role/README.md](user-role/README.md). Endpoint Coordinato
 | GET | `/me/hackathons/browse` | ✅ | STUDENT | — | — | — | ✅ |
 | POST/DELETE | `/me/hackathons/{id}/register` | ✅ | STUDENT | — | — | — | ✅ |
 | GET | `/me/teams`, `/me/teams/{id}/submissions`, … | ✅ | STUDENT | — | — | — | ✅ |
+| POST | `/me/teams` | ✅ | STUDENT | — | — | — | ✅ |
 | GET | `/me/rounds/{id}/problem`, `.../leaderboard` | ✅ | STUDENT | — | — | — | ✅ |
 | POST | `/me/appeals` | ✅ | STUDENT | — | — | — | ✅ |
 | GET | `/me/judge-track-assignments`, `/me/scoring-schedule`, … | ✅ | JUDGE | — | ✅ | — | — |

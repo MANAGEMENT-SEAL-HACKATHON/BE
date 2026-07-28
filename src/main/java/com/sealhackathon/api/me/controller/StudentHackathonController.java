@@ -3,7 +3,7 @@ package com.sealhackathon.api.me.controller;
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.StudentOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
-import com.sealhackathon.api.hackathon_registrations.service.HackathonRegistrationService;
+import com.sealhackathon.api.hackathons.service.HackathonRegistrationService;
 import com.sealhackathon.api.me.student.dto.response.StudentHackathonBrowseItemResponse;
 import com.sealhackathon.api.me.student.service.StudentPortalService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -52,5 +52,12 @@ public class StudentHackathonController {
     public ResponseEntity<ApiResponse<com.sealhackathon.api.me.student.dto.response.StudentRankingResponse>> rankings(
             @PathVariable Integer hackathonId) {
         return ResponseEntity.ok(ApiResponse.ok(studentPortalService.getHackathonRankings(hackathonId)));
+    }
+
+    @GetMapping("/{hackathonId}/final-round")
+    @Operation(summary = "GĐ5 — Thông tin vòng Chung kết (student, đội ADVANCED)")
+    public ResponseEntity<ApiResponse<com.sealhackathon.api.me.student.dto.response.StudentFinalRoundResponse>> finalRound(
+            @PathVariable Integer hackathonId) {
+        return ResponseEntity.ok(ApiResponse.ok(studentPortalService.getFinalRoundForHackathon(hackathonId)));
     }
 }

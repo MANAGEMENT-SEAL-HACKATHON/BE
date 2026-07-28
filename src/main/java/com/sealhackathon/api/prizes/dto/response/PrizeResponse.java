@@ -19,6 +19,7 @@ public class PrizeResponse {
     private final Integer roundId;
     private final Integer trackId;
     private final Integer teamId;
+    private final String teamName;
     private final String prizeName;
     private final PrizeRank prizeRank;
     private final String prizeValue;

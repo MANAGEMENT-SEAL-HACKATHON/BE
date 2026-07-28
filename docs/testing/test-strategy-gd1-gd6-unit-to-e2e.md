@@ -1,4 +1,4 @@
-# Chiến lược kiểm thử GĐ1 → GĐ6 — Unit → Integration → E2E
+﻿# Chiến lược kiểm thử GĐ1 → GĐ6 — Unit → Integration → E2E
 
 > **Mục đích:** Hướng dẫn test **từ cục bộ đến toàn cục**, **từ tổng thể đến chi tiết** — kiểm tra logic nghiệp vụ và workflow 6 giai đoạn hackathon.  
 > **Đối tượng:** Dev / QA / reviewer trước merge hoặc demo.  
@@ -37,7 +37,7 @@
             │  Tầng 2 — Integration (@SpringBootTest)│  Context + HTTP slice (hiện: 1 flow)
             └───────────────────┬───────────────────┘
         ┌───────────────────────┴───────────────────────┐
-        │  Tầng 1 — Unit (Mockito, pure logic)          │  160 tests — chạy ~50s
+        │  Tầng 1 — Unit (Mockito, pure logic)          │  ~231 tests — chạy ~3 phút
         └───────────────────────────────────────────────┘
 ```
 
@@ -125,14 +125,14 @@ mvn spring-boot:run -Dspring-boot.run.profiles=dev
 | GĐ | Gate / đầu ra | Unit (auto) | Integration (auto) | Manual E2E | Seed slug |
 |----|---------------|-------------|--------------------|------------|-----------|
 | **GĐ0** | Auth, onboarding | ✅ Mạnh (~40 tests) | ✅ 1 flow | Login Postman | Users trong Gd1 seeder |
-| **GĐ1** | Events, readiness, ONGOING | ✅ Mạnh (~55 tests) | ❌ | G1-E*, G1-N* | `seal-gd1-ready`, `seal-gd1-incomplete` |
-| **GĐ2** | Teams, lock, lottery | ⚠️ Mỏng (3 tests) | ❌ | G2-H*, G2-N* | `seal-spring-2026` |
+| **GĐ1** | Events, readiness, ONGOING | ✅ Mạnh (~55 tests) | ❌ | G1-E*, G1-N* | `seal-e2e-2026`, `seal-gd1-incomplete` |
+| **GĐ2** | Teams, lock, lottery | ⚠️ Mỏng (3 tests) | ❌ | G2-H*, G2-N* | `seal-e2e-2026` |
 | **GĐ3** | Submit, score, queue, timer | ✅ Khá (~25 tests) | ❌ | [e2e-gd2-gd3-v41](e2e-gd2-gd3-v41-manual-test.md) | `seal-gd3-prelim-open` |
-| **GĐ4** | Publish, advance, activate CK | ⚠️ Rất mỏng | ❌ | G4-H*, G4-N* | `seal-gd4-advance-ready` / `seal-gd4-tiebreak-wildcard`* |
+| **GĐ4** | Publish, advance, activate CK | ⚠️ Rất mỏng | ❌ | G4-H*, G4-N* | `seal-gd4-advance-ready` / `seal-gd4-tiebreak-gate`* |
 | **GĐ5** | CK submit/score, lock → PENDING_CONFIRM | ⚠️ Mỏng (criteria CK) | ❌ | G5-H* | `seal-gd5-final-active` |
 | **GĐ6** | AWARDS, prizes, FINISHED | ❌ Không có unit | ❌ | G6-H* | `seal-gd6-pending-confirm` |
 
-\* `seal-gd4-tiebreak-wildcard` cần `app.seed.gd4.enabled=true`.
+\* `seal-gd4-tiebreak-gate` cần `app.seed.gd4.enabled=true`.
 
 **Tóm tắt:** Automated coverage **mạnh ở GĐ0, GĐ1, GĐ3**; **GĐ2, GĐ4, GĐ5, GĐ6** chủ yếu dựa **manual + seed** — cần bổ sung integration theo §8.
 
@@ -222,7 +222,7 @@ Tạo hackathon DRAFT → rounds (prelim + final shell) → tracks → criteria
 
 - Happy: **G1-E01 → G1-E03** ([gate-regression](gate-regression-test-matrix-gd1-gd6.md) §3).
 - Negative: **G1-N01 → G1-N08**, readiness **G1-R01, G1-R02**.
-- Seed: `seal-gd1-ready` (pass), `seal-gd1-incomplete` (fail readiness).
+- Seed: `seal-e2e-2026` (pass), `seal-gd1-incomplete` (fail readiness).
 
 **Integration gap:** Chưa có test `PATCH ONGOING` end-to-end với readiness.
 
@@ -253,7 +253,7 @@ Hackathon ONGOING → POST /teams → duyệt member → registrationEnd qua
 
 **Manual**
 
-- **G2-H01, G2-H02, G2-N01, G2-N02** — seed `seal-spring-2026`, teams `GD2-*`.
+- **G2-H01, G2-H02, G2-N01, G2-N02** — seed `seal-e2e-2026`, teams `E2E-T*`.
 - Doc teams: [mf02/05-test-data-gd2-teams.md](../mf02/05-test-data-gd2-teams.md).
 
 **Integration gap:** Cần test `POST /teams` + `POST lottery` với mockMvc.
@@ -338,7 +338,7 @@ lock + scores SL xong → PATCH publish prelim → ranking/wildcard
 | Seed | Khi nào |
 |------|---------|
 | `seal-gd4-advance-ready` | Happy advance (trong full-workflow) |
-| `seal-gd4-tiebreak-wildcard` | Tiebreak — `APP_SEED_GD4_ENABLED=true` |
+| `seal-gd4-tiebreak-gate` | Tiebreak — `APP_SEED_GD4_ENABLED=true` |
 
 ---
 
@@ -457,7 +457,7 @@ mvn test
 
 ## 8. Gap & đề xuất integration tiếp theo
 
-Hiện chỉ có **1** integration test thực sự (`AuthOnboardingFlowIntegrationTest`). `BeApplicationTests` trỏ MySQL local — **không** chạy trên CI mặc định.
+Hiện có **8** integration test classes (`*IntegrationTest`) gồm gate tests GĐ1–GĐ4 + `StudentPortalParityIntegrationTest` + flow tests. CI: [.github/workflows/ci-test-matrix.yml](../../.github/workflows/ci-test-matrix.yml). Ma trận slug: [master-slug-test-matrix.md](master-slug-test-matrix.md).
 
 **Đề xuất thứ tự bổ sung** (`@SpringBootTest` + H2 + `MockMvc`):
 

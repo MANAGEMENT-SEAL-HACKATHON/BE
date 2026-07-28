@@ -6,6 +6,9 @@ import com.sealhackathon.api.config.OpenApiConfig;
 import com.sealhackathon.api.me.student.dto.request.CreateAppealRequest;
 import com.sealhackathon.api.me.student.dto.response.*;
 import com.sealhackathon.api.me.student.service.StudentPortalService;
+import com.sealhackathon.api.teams.dto.request.CreateTeamRequest;
+import com.sealhackathon.api.teams.dto.response.TeamResponse;
+import com.sealhackathon.api.teams.service.TeamService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -15,7 +18,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.net.URI;
 import java.util.List;
 
 @Tag(name = "Student Portal", description = "FR-U — Portal sinh viên /api/v1/me/*")
@@ -27,11 +32,25 @@ import java.util.List;
 public class StudentMeController {
 
     private final StudentPortalService studentPortalService;
+    private final TeamService teamService;
 
     @GetMapping("/teams")
-    @Operation(summary = "FR-U-15 — Đội của tôi")
-    public ResponseEntity<ApiResponse<List<MeTeamSummaryResponse>>> listMyTeams() {
-        return ResponseEntity.ok(ApiResponse.ok(studentPortalService.listMyTeams()));
+    @Operation(summary = "FR-U-15 — Đội của tôi",
+            description = "Mặc định chỉ PENDING/ACTIVE. `includeEliminated=true` thêm đội ELIMINATED (trang kết quả).")
+    public ResponseEntity<ApiResponse<List<MeTeamSummaryResponse>>> listMyTeams(
+            @RequestParam(defaultValue = "false") boolean includeEliminated) {
+        return ResponseEntity.ok(ApiResponse.ok(studentPortalService.listMyTeams(includeEliminated)));
+    }
+
+    @PostMapping("/teams")
+    @Operation(summary = "FR-U-07 — Leader tạo đội (portal alias của POST /teams)")
+    public ResponseEntity<ApiResponse<TeamResponse>> createMyTeam(@Valid @RequestBody CreateTeamRequest req) {
+        TeamResponse data = teamService.createTeam(req);
+        URI location = ServletUriComponentsBuilder.fromCurrentRequest()
+                .path("/{id}")
+                .buildAndExpand(data.getId())
+                .toUri();
+        return ResponseEntity.created(location).body(ApiResponse.created(data));
     }
 
     @GetMapping("/prizes")

@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayInputStream;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -83,6 +84,17 @@ public class ExportJobServiceImpl implements ExportJobService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<ExportJobResponse> listByHackathon(Integer hackathonId) {
+        if (!hackathonRepository.existsById(hackathonId)) {
+            throw new ResourceNotFoundException("Hackathon", hackathonId);
+        }
+        return exportJobRepository.findByHackathonIdOrderByCreatedAtDesc(hackathonId).stream()
+                .map(ExportJobServiceImpl::toResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public ExportJobResponse getById(Integer jobId) {
         ExportJob job = exportJobRepository.findById(jobId)
                 .orElseThrow(() -> new ResourceNotFoundException("ExportJob", jobId));
@@ -90,9 +102,9 @@ public class ExportJobServiceImpl implements ExportJobService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public ExportFileDownload downloadFile(Integer jobId) {
-        ExportJob job = exportJobRepository.findById(jobId)
+        ExportJob job = exportJobRepository.findByIdWithHackathon(jobId)
                 .orElseThrow(() -> new ResourceNotFoundException("ExportJob", jobId));
 
         if (job.getStatus() != ExportJobStatus.DONE) {

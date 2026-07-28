@@ -22,7 +22,6 @@ public class ScoreResponse {
     private String comment;
     private ScoreType scoreType;
     private Boolean isFinal;
-    private Integer calibrationSessionId;
     private LocalDateTime scoredAt;
     private LocalDateTime updatedAt;
 }

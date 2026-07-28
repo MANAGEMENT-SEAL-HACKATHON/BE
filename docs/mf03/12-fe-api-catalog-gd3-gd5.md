@@ -1,4 +1,4 @@
-# Hướng dẫn tích hợp API MF-03 (GĐ3 → GĐ5) cho Frontend
+﻿# Hướng dẫn tích hợp API MF-03 (GĐ3 → GĐ5) cho Frontend
 
 Tài liệu này mô tả **những gì FE cần gọi** khi tích hợp Thi & chấm (GĐ3), Chuyển vòng (GĐ4), Chung kết (GĐ5). Mỗi API có **request/response JSON mẫu** — FE không cần đọc code Java.
 
@@ -93,10 +93,16 @@ Theo dõi khi BE cập nhật: [09-be-backlog-gd4-gd5-gd6.md](09-be-backlog-gd4-
 | 25 | GET | `/rounds/{id}/rbl/progress` | Coord | ⏳ | Tiến độ chấm CK/RBL (§6.3) |
 | 26 | GET | `/teams/{teamId}/journey` | Auth | ⏳ | Timeline đội (§4.8) |
 | 27 | WS | `/ws` + 3 topic | Auth | ✅ GĐ3 | Payload JSON (§7) |
+| 28 | GET | `/presentation/queue?roundId=&trackId=` | Auth | ✅ GĐ3/GĐ5 | Queue + timer block (§4.9) |
+| 29 | POST | `/presentation/queue/shuffle` | Coord/Judge | ✅ | Shuffle slots (§4.9) |
+| 30 | GET/PUT/DELETE | `/presentation/duration` | Coord | ✅ | Cấu hình phút thuyết trình/Q&A (§4.9) |
+| 31 | POST | `/presentation/timer/{action}` | Judge/Coord | ✅ | Start/pause/resume/qa/reset/next (§4.9) |
 
 \* Student: bắt buộc `?teamId=`; Judge: bắt buộc `?roundId=` + assigned.
 
 **Deprecated (không dùng):** `PATCH /submissions/{id}/resubmit` → `POST /submissions`; `PATCH /submissions/{id}/review` → `review-late`; `POST .../wildcard/approve|reject` → `PATCH /wildcard-reviews/{id}`; `POST .../advance-teams` → `POST .../advance`.
+
+**GĐ1 — field timer trên CRUD (thiết lập sớm):** `GET/PUT /rounds/{id}` (`defaultPresentationMinutes`, `defaultQaMinutes`); `GET/PUT /tracks/{id}` (`presentationMinutes`, `qaMinutes`). Xem [fe-gd1-gd2-structure-and-fields.md](../testing/fe-gd1-gd2-structure-and-fields.md).
 
 ---
 
@@ -383,7 +389,7 @@ Sau lock scoring: `isFinal: true`.
 {
   "id": 6,
   "hackathonId": 1,
-  "teamName": "GD2-06 Dropped",
+  "teamName": "E2E-T06 Dropped",
   "leaderId": 106,
   "chapterId": 1,
   "status": "ELIMINATED",
@@ -601,7 +607,7 @@ Response `data`: shape §4.2 với `trackId: null`, `roundId: 2`.
 **Lock CK** `PATCH /rounds/2/lock-scoring` — response §4.4; side effect 🔶: `GET /hackathons/1` → `status: "PENDING_CONFIRM"`.
 
 ```json
-{ "id": 1, "name": "SEAL Spring 2026", "status": "PENDING_CONFIRM" }
+{ "id": 1, "name": "SEAL E2E 2026", "status": "PENDING_CONFIRM" }
 ```
 
 ---

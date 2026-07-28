@@ -3,7 +3,7 @@ package com.sealhackathon.api.presentation.controller;
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.ApprovedOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
-import com.sealhackathon.api.presentation.dto.request.PresentationQueueNextRequest;
+import com.sealhackathon.api.presentation.dto.request.PresentationTimerEndRequest;
 import com.sealhackathon.api.presentation.dto.response.PresentationTimerActionResponse;
 import com.sealhackathon.api.presentation.service.PresentationTimerService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -62,6 +62,17 @@ public class PresentationTimerController {
         return ResponseEntity.ok(ApiResponse.ok(presentationTimerService.qa(roundId, trackId)));
     }
 
+    @PostMapping("/end")
+    @ApprovedOnly
+    @Operation(summary = "Kết thúc sớm Q&A — yêu cầu đủ judge Chốt điểm (trừ Coord/HEAD force-ack)")
+    public ResponseEntity<ApiResponse<PresentationTimerActionResponse>> end(
+            @RequestParam Integer roundId,
+            @RequestParam(required = false) Integer trackId,
+            @RequestBody(required = false) PresentationTimerEndRequest request) {
+        boolean ack = request != null && Boolean.TRUE.equals(request.getAcknowledgeIncompleteScoring());
+        return ResponseEntity.ok(ApiResponse.ok(presentationTimerService.end(roundId, trackId, ack)));
+    }
+
     @PostMapping("/reset")
     @ApprovedOnly
     @Operation(summary = "Reset timer slot hiện tại")
@@ -69,21 +80,5 @@ public class PresentationTimerController {
             @RequestParam Integer roundId,
             @RequestParam(required = false) Integer trackId) {
         return ResponseEntity.ok(ApiResponse.ok(presentationTimerService.reset(roundId, trackId)));
-    }
-
-    @PostMapping("/next")
-    @ApprovedOnly
-    @Operation(summary = "Chuyển đội tiếp theo (alias queue/next — không auto-start timer)")
-    public ResponseEntity<ApiResponse<PresentationTimerActionResponse>> next(
-            @RequestParam Integer roundId,
-            @RequestParam(required = false) Integer trackId,
-            @RequestBody(required = false) PresentationQueueNextRequest request) {
-        Integer currentSubmissionId = request != null ? request.getCurrentSubmissionId() : null;
-        Integer currentTeamId = request != null ? request.getCurrentTeamId() : null;
-        boolean acknowledge = request != null
-                && Boolean.TRUE.equals(request.getAcknowledgeIncompleteScoring());
-        return ResponseEntity.ok(ApiResponse.ok(
-                presentationTimerService.next(
-                        roundId, trackId, currentSubmissionId, currentTeamId, acknowledge)));
     }
 }

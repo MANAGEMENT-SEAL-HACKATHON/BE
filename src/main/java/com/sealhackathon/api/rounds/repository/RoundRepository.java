@@ -70,6 +70,19 @@ public interface RoundRepository extends JpaRepository<Round, Integer> {
     int deactivateOtherActiveRoundsInHackathon(@Param("hackathonId") Integer hackathonId,
                                                @Param("keepRoundId") Integer keepRoundId);
 
+    /** Active, unlocked rounds whose submission deadline falls within the lead window and have no reminder yet. */
+    @Query("""
+            SELECT r FROM Round r
+             WHERE r.isActive = TRUE
+               AND r.scoringLocked = FALSE
+               AND r.deadlineReminderSentAt IS NULL
+               AND r.submissionDeadline IS NOT NULL
+               AND r.submissionDeadline > :now
+               AND r.submissionDeadline <= :deadline
+            """)
+    List<Round> findActiveWithUpcomingDeadlineWithoutReminder(@Param("now") LocalDateTime now,
+                                                              @Param("deadline") LocalDateTime deadline);
+
     /** @deprecated use {@link #deactivateOtherActiveRoundsInHackathon} */
     @Deprecated
     default int deactivateOtherRoundsInTrack(Integer trackId, Integer keepRoundId) {

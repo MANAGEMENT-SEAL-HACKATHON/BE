@@ -16,8 +16,8 @@ import com.sealhackathon.api.hackathons.value_object.Season;
 import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
-import com.sealhackathon.api.mentor_assignments.entity.MentorAssignment;
-import com.sealhackathon.api.mentor_assignments.repository.MentorAssignmentRepository;
+import com.sealhackathon.api.mentors.entity.MentorAssignment;
+import com.sealhackathon.api.mentors.repository.MentorAssignmentRepository;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.value_object.LateSubmissionPolicy;
@@ -70,8 +70,6 @@ public class Gd1DataSeeder {
     }
 
     private static final List<String> SEED_HACKATHON_SLUGS = List.of(
-            Gd1SeedConstants.SLUG_INCOMPLETE,
-            Gd1SeedConstants.SLUG_READY,
             Gd1SeedConstants.SLUG_ONGOING,
             Gd1SeedConstants.SLUG_FINISHED);
 
@@ -95,7 +93,7 @@ public class Gd1DataSeeder {
             if (repairHackathonCalendar(h, dates)) {
                 hackathons++;
             }
-            if (!Gd1SeedConstants.SLUG_INCOMPLETE.equals(slug)) {
+            if (!Gd1SeedConstants.SLUG_FINISHED.equals(slug)) {
                 events += ensureOrRepairEvents(h, dates);
                 rounds += repairRoundsForHackathon(h, dates);
             }
@@ -141,7 +139,7 @@ public class Gd1DataSeeder {
     }
 
     /**
-     * Repair criteria/track sau đổi clone (không FK chéo track) và bổ sung Track 3 demo trên ONGOING.
+     * Repair criteria/track sau đổi clone (không FK chéo track) và bổ sung Track 3 trên E2E ONGOING.
      */
     @Transactional
     public void repairSeededCriteriaAndTracks() {
@@ -151,7 +149,7 @@ public class Gd1DataSeeder {
         }
         int criteriaFilled = 0;
         int track3Added = 0;
-        for (String slug : List.of(Gd1SeedConstants.SLUG_READY, Gd1SeedConstants.SLUG_ONGOING)) {
+        for (String slug : List.of(Gd1SeedConstants.SLUG_ONGOING)) {
             Optional<Hackathon> hackathon = hackathonRepository.findBySlug(slug);
             if (hackathon.isEmpty()) {
                 continue;
@@ -165,8 +163,16 @@ public class Gd1DataSeeder {
             log.info("[Gd1DataSeeder] Đã bổ sung criteria thiếu cho {} track", criteriaFilled);
         }
         if (track3Added > 0) {
-            log.info("[Gd1DataSeeder] Đã thêm Track 3 (clone demo) trên {}", Gd1SeedConstants.SLUG_ONGOING);
+            log.info("[Gd1DataSeeder] Đã thêm Track 3 trên {}", Gd1SeedConstants.SLUG_ONGOING);
         }
+        tryLoadSeedUsers().ifPresent(users -> hackathonRepository.findBySlug(Gd1SeedConstants.SLUG_ONGOING)
+                .ifPresent(h -> {
+                    int track3Staff = ensureTrack3JudgeAndMentor(h, users);
+                    if (track3Staff > 0) {
+                        log.info("[Gd1DataSeeder] Đã bổ sung mentor/giám khảo Track 3 trên {} ({} mục)",
+                                Gd1SeedConstants.SLUG_ONGOING, track3Staff);
+                    }
+                }));
     }
 
     @Transactional
@@ -177,32 +183,34 @@ public class Gd1DataSeeder {
         logDevLoginCredentials();
         verifyCoordinatorId(users.coordinator());
 
-        Hackathon incomplete = seedIncompleteHackathon(users.coordinator(), dates);
-        FullHackathonSeed ready = seedFullHackathon(
-                Gd1SeedConstants.SLUG_READY,
-                "SEAL GĐ1 Ready (DRAFT)",
-                HackathonStatus.DRAFT,
-                Season.Spring,
-                false,
-                false,
-                users,
-                dates,
-                "Cuộc thi lập trình SEAL — seed MF-01 GĐ1 (readiness PASS)");
         FullHackathonSeed ongoing = seedFullHackathon(
                 Gd1SeedConstants.SLUG_ONGOING,
-                "SEAL Spring 2026",
+                "SEAL E2E 2026",
                 HackathonStatus.ONGOING,
                 Season.Spring,
                 false,
                 true,
                 users,
                 dates,
-                "Cuộc thi lập trình SEAL — seed MF-01 GĐ1");
+                "Hackathon E2E — GĐ1 sẵn sàng, 7 đội + 3 SV chưa có nhóm (test GĐ2→GĐ6)");
         FullHackathonSeed finished = seedFinishedHackathon(users);
+        seedIncompleteHackathon(users.coordinator(), dates);
 
-        SeedSummary summary = new SeedSummary(users, incomplete, ready, ongoing, finished);
+        SeedSummary summary = new SeedSummary(users, ongoing, finished);
         logSummary(summary);
         return summary;
+    }
+
+    /**
+     * Idempotent — tạo thêm judge3–4 / guest2 / mentor2–3 trên DB đã seed trước đó.
+     * Gọi mỗi lần start {@code dev} trước các repair phụ thuộc user pool.
+     */
+    @Transactional
+    public SeedUsers ensureSeedUsers() {
+        SeedChapters chapters = seedChapters();
+        SeedUsers users = seedUsers(chapters);
+        logDevLoginCredentials();
+        return users;
     }
 
     private int ensureFinishedHackathonFullSeed() {
@@ -241,19 +249,32 @@ public class Gd1DataSeeder {
         Optional<User> coordinator = userRepository.findByEmail(Gd1SeedConstants.EMAIL_COORDINATOR);
         Optional<User> judge1 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_JUDGE1);
         Optional<User> judge2 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_JUDGE2);
+        Optional<User> judge3 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_JUDGE3);
+        Optional<User> judge4 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_JUDGE4);
         Optional<User> guestJudge = userRepository.findByEmail(Gd1SeedConstants.EMAIL_GUEST_JUDGE);
+        Optional<User> guestJudge2 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_GUEST_JUDGE2);
         Optional<User> mentor = userRepository.findByEmail(Gd1SeedConstants.EMAIL_MENTOR);
+        Optional<User> mentor2 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_MENTOR2);
+        Optional<User> mentor3 = userRepository.findByEmail(Gd1SeedConstants.EMAIL_MENTOR3);
         Optional<User> pendingJudge = userRepository.findByEmail(Gd1SeedConstants.EMAIL_PENDING_JUDGE);
         if (coordinator.isEmpty() || judge1.isEmpty() || judge2.isEmpty()
-                || guestJudge.isEmpty() || mentor.isEmpty() || pendingJudge.isEmpty()) {
+                || judge3.isEmpty() || judge4.isEmpty()
+                || guestJudge.isEmpty() || guestJudge2.isEmpty()
+                || mentor.isEmpty() || mentor2.isEmpty() || mentor3.isEmpty()
+                || pendingJudge.isEmpty()) {
             return Optional.empty();
         }
         return Optional.of(new SeedUsers(
                 coordinator.get(),
                 judge1.get(),
                 judge2.get(),
+                judge3.get(),
+                judge4.get(),
                 guestJudge.get(),
+                guestJudge2.get(),
                 mentor.get(),
+                mentor2.get(),
+                mentor3.get(),
                 pendingJudge.get()));
     }
 
@@ -272,14 +293,10 @@ public class Gd1DataSeeder {
         LocalDate today = LocalDate.now();
         LocalDate regStart = today.minusDays(14);
         LocalDate regEnd = today.plusDays(14);
-        LocalDate eventStart = today.plusDays(15);
-        LocalDate eventEnd = eventStart;
+        LocalDate eventStart = regEnd.plusDays(RoundScheduleSeedUtil.DAYS_REG_END_TO_EVENT_START);
+        LocalDate eventEnd = eventStart.plusDays(30);
         LocalDate wsDay = regEnd.plusDays(1);
         LocalDate koDay = regEnd.plusDays(2);
-        if (!koDay.isBefore(eventStart)) {
-            koDay = eventStart.minusDays(1);
-            wsDay = koDay.minusDays(1);
-        }
         LocalDateTime workshopStart = wsDay.atTime(20, 0);
         LocalDateTime workshopEnd = wsDay.atTime(21, 30);
         LocalDateTime kickoffStart = koDay.atTime(14, 0);
@@ -289,7 +306,8 @@ public class Gd1DataSeeder {
         LocalDateTime prelimExamAt = eventStart.atTime(8, 0);
         int prelimHours = RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS;
         LocalDateTime prelimDeadline = RoundScheduleSeedUtil.submissionDeadline(prelimExamAt, prelimHours);
-        LocalDateTime finalDeadline = eventStart.atTime(16, 30);
+        LocalDateTime finalDeadline = RoundScheduleSeedUtil.finalSubmissionDeadline(
+                RoundScheduleSeedUtil.maxFinalExamAt(prelimExamAt, prelimHours));
         return new SeedDates(
                 regStart,
                 regEnd,
@@ -312,7 +330,7 @@ public class Gd1DataSeeder {
         LocalDate regStart = LocalDate.of(2025, 10, 1);
         LocalDate regEnd = LocalDate.of(2025, 10, 20);
         LocalDate eventStart = LocalDate.of(2025, 10, 25);
-        LocalDate eventEnd = eventStart;
+        LocalDate eventEnd = LocalDate.of(2025, 11, 24);
         LocalDateTime workshopStart = LocalDate.of(2025, 10, 22).atTime(19, 30);
         LocalDateTime workshopEnd = LocalDate.of(2025, 10, 22).atTime(21, 0);
         LocalDateTime kickoffStart = LocalDate.of(2025, 10, 23).atTime(14, 0);
@@ -322,7 +340,8 @@ public class Gd1DataSeeder {
         LocalDateTime prelimExamAt = eventStart.atTime(8, 0);
         int prelimHours = RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS;
         LocalDateTime prelimDeadline = RoundScheduleSeedUtil.submissionDeadline(prelimExamAt, prelimHours);
-        LocalDateTime finalDeadline = eventStart.atTime(16, 30);
+        LocalDateTime finalDeadline = RoundScheduleSeedUtil.finalSubmissionDeadline(
+                RoundScheduleSeedUtil.maxFinalExamAt(prelimExamAt, prelimHours));
         return new SeedDates(
                 regStart,
                 regEnd,
@@ -381,9 +400,48 @@ public class Gd1DataSeeder {
                 chapters.hcm(),
                 false,
                 false);
+        // SUPERADMIN dev — seed SAU coordinator để giữ invariant coordinator id=1
+        // (StubCurrentUserAccessor giả định userId=1). Không thuộc SeedUsers record;
+        // chỉ dùng login UI + unlock-scoring (@SuperAdminOnly).
+        upsertUser(
+                Gd1SeedConstants.EMAIL_SUPERADMIN,
+                "Nguyễn Văn SuperAdmin",
+                UserRole.SUPERADMIN,
+                UserType.INTERNAL,
+                UserStatus.APPROVED,
+                chapters.hcm(),
+                false,
+                false);
         User judge1 = upsertUser(
                 Gd1SeedConstants.EMAIL_JUDGE1,
                 "Trần Thị Judge Internal",
+                UserRole.JUDGE,
+                UserType.INTERNAL,
+                UserStatus.APPROVED,
+                chapters.hcm(),
+                false,
+                false);
+        User judge2 = upsertUser(
+                Gd1SeedConstants.EMAIL_JUDGE2,
+                "Hoàng Judge Two",
+                UserRole.JUDGE,
+                UserType.INTERNAL,
+                UserStatus.APPROVED,
+                chapters.hcm(),
+                false,
+                false);
+        User judge3 = upsertUser(
+                Gd1SeedConstants.EMAIL_JUDGE3,
+                "Lý Judge Three",
+                UserRole.JUDGE,
+                UserType.INTERNAL,
+                UserStatus.APPROVED,
+                chapters.hcm(),
+                false,
+                false);
+        User judge4 = upsertUser(
+                Gd1SeedConstants.EMAIL_JUDGE4,
+                "Võ Judge Four",
                 UserRole.JUDGE,
                 UserType.INTERNAL,
                 UserStatus.APPROVED,
@@ -399,6 +457,15 @@ public class Gd1DataSeeder {
                 chapters.ext(),
                 true,
                 false);
+        User guestJudge2 = upsertUser(
+                Gd1SeedConstants.EMAIL_GUEST_JUDGE2,
+                "Guest Judge Two",
+                UserRole.JUDGE,
+                UserType.EXTERNAL,
+                UserStatus.APPROVED,
+                chapters.ext(),
+                true,
+                false);
         User mentor = upsertUser(
                 Gd1SeedConstants.EMAIL_MENTOR,
                 "Phạm Minh Mentor",
@@ -408,10 +475,19 @@ public class Gd1DataSeeder {
                 chapters.hcm(),
                 false,
                 false);
-        User judge2 = upsertUser(
-                Gd1SeedConstants.EMAIL_JUDGE2,
-                "Hoàng Judge Two",
-                UserRole.JUDGE,
+        User mentor2 = upsertUser(
+                Gd1SeedConstants.EMAIL_MENTOR2,
+                "Mentor Two",
+                UserRole.MENTOR,
+                UserType.INTERNAL,
+                UserStatus.APPROVED,
+                chapters.hcm(),
+                false,
+                false);
+        User mentor3 = upsertUser(
+                Gd1SeedConstants.EMAIL_MENTOR3,
+                "Mentor Three",
+                UserRole.MENTOR,
                 UserType.INTERNAL,
                 UserStatus.APPROVED,
                 chapters.hcm(),
@@ -426,7 +502,10 @@ public class Gd1DataSeeder {
                 chapters.hcm(),
                 false,
                 false);
-        return new SeedUsers(coordinator, judge1, judge2, guestJudge, mentor, pendingJudge);
+        return new SeedUsers(
+                coordinator, judge1, judge2, judge3, judge4,
+                guestJudge, guestJudge2,
+                mentor, mentor2, mentor3, pendingJudge);
     }
 
     /**
@@ -516,20 +595,35 @@ public class Gd1DataSeeder {
     private void logDevLoginCredentials() {
         log.info("""
                 [Gd1DataSeeder] ========== Dev login (MF-02, profile dev) ==========
+                  {}  Password: {}  (SUPERADMIN — unlock-scoring)
                   {}  Password: {}
-                  {}  Password: {}
-                  {}  Password: {}
-                  {}  Password: {}
-                  {}  Password: {}
+                  {} / {} / {} / {}  Password: {}
+                  {} / {}  Password: {}
+                  {} / {} / {}  Password: {}
                   {}  Password: {}  (status PENDING — login 401 cho đến khi duyệt)
                 ================================================================
                 """,
+                Gd1SeedConstants.EMAIL_SUPERADMIN, Gd1SeedConstants.DEV_SUPERADMIN_PASSWORD,
                 Gd1SeedConstants.EMAIL_COORDINATOR, Gd1SeedConstants.DEV_COORDINATOR_PASSWORD,
-                Gd1SeedConstants.EMAIL_JUDGE1, Gd1SeedConstants.DEV_JUDGE_PASSWORD,
-                Gd1SeedConstants.EMAIL_JUDGE2, Gd1SeedConstants.DEV_JUDGE_PASSWORD,
-                Gd1SeedConstants.EMAIL_GUEST_JUDGE, Gd1SeedConstants.DEV_GUEST_JUDGE_PASSWORD,
-                Gd1SeedConstants.EMAIL_MENTOR, Gd1SeedConstants.DEV_MENTOR_PASSWORD,
+                Gd1SeedConstants.EMAIL_JUDGE1, Gd1SeedConstants.EMAIL_JUDGE2,
+                Gd1SeedConstants.EMAIL_JUDGE3, Gd1SeedConstants.EMAIL_JUDGE4,
+                Gd1SeedConstants.DEV_JUDGE_PASSWORD,
+                Gd1SeedConstants.EMAIL_GUEST_JUDGE, Gd1SeedConstants.EMAIL_GUEST_JUDGE2,
+                Gd1SeedConstants.DEV_GUEST_JUDGE_PASSWORD,
+                Gd1SeedConstants.EMAIL_MENTOR, Gd1SeedConstants.EMAIL_MENTOR2,
+                Gd1SeedConstants.EMAIL_MENTOR3, Gd1SeedConstants.DEV_MENTOR_PASSWORD,
                 Gd1SeedConstants.EMAIL_PENDING_JUDGE, Gd1SeedConstants.DEV_PENDING_JUDGE_PASSWORD);
+    }
+
+    @Transactional
+    public void ensureIncompleteSeed() {
+        tryLoadSeedUsers().ifPresent(users -> {
+            if (!hackathonRepository.existsBySlug(Gd1SeedConstants.SLUG_INCOMPLETE)) {
+                seedIncompleteHackathon(users.coordinator(), computeDates());
+                log.info("[Gd1DataSeeder] Ensured slug={} (readiness FAIL negative)",
+                        Gd1SeedConstants.SLUG_INCOMPLETE);
+            }
+        });
     }
 
     private Hackathon seedIncompleteHackathon(User coordinator, SeedDates dates) {
@@ -537,12 +631,12 @@ public class Gd1DataSeeder {
             return hackathonRepository.findBySlug(Gd1SeedConstants.SLUG_INCOMPLETE).orElseThrow();
         }
         return hackathonRepository.save(Hackathon.builder()
-                .name("SEAL GĐ1 Incomplete")
+                .name("[Dev] GĐ1 Readiness FAIL")
                 .slug(Gd1SeedConstants.SLUG_INCOMPLETE)
-                .season(Season.Spring)
+                .season(Season.Summer)
                 .year(dates.eventStart().getYear())
                 .status(HackathonStatus.DRAFT)
-                .description("Hackathon DRAFT không có round — test readiness blockers")
+                .description("DRAFT không có round — test GET readiness → blockers (negative case)")
                 .registrationStart(dates.regStart())
                 .registrationEnd(dates.regEnd())
                 .eventStart(dates.eventStart())
@@ -649,6 +743,7 @@ public class Gd1DataSeeder {
                 .roundType(RoundType.FINAL)
                 .submissionOpen(dates.finalSubmissionOpen())
                 .submissionDeadline(dates.finalDeadline())
+                .codingDurationHours(RoundScheduleSeedUtil.DEFAULT_FINAL_CODING_HOURS)
                 .lateSubmissionPolicy(LateSubmissionPolicy.HARD_LOCK)
                 .wildcardEnabled(false)
                 .tiebreakRule(TiebreakRule.PENALTY_SCORE)
@@ -688,7 +783,7 @@ public class Gd1DataSeeder {
             track3 = trackRepository.save(Track.builder()
                     .round(prelim)
                     .name(Gd1SeedConstants.TRACK3_CLONE_DEMO_NAME)
-                    .description("Bảng trống criteria — test POST clone từ Track 2")
+                    .description("EV Charging & Integration — tiêu chí đánh giá và nhân sự đã seed sẵn")
                     .topic("EV Charging & Integration")
                     .maxTeams(8)
                     .maxTeamsPerGroup(8)
@@ -697,6 +792,7 @@ public class Gd1DataSeeder {
                     .sequenceOrder(3)
                     .status(TrackStatus.OPEN)
                     .build());
+            seedTrack3Criteria(track3);
         }
         seedFinalCriteria(finalRound);
 
@@ -712,20 +808,58 @@ public class Gd1DataSeeder {
         }
         if (mentorAssignmentRepository.findByTrackId(track2.getId()).isEmpty()) {
             mentorAssignmentRepository.save(MentorAssignment.builder()
-                    .mentor(users.mentor())
+                    .mentor(users.mentor2())
                     .track(track2)
                     .assignedBy(coord)
                     .assignedAt(assignedAt)
                     .build());
         }
 
+        // Prelim: INTERNAL — 1 HEAD / track + NORMAL; EXTERNAL chỉ trên CK
         if (judgeAssignmentRepository.findByTrackId(track1.getId()).isEmpty()) {
-            saveJudgeAssignment(users.judge1(), track1, coord, assignedAt);
-            saveJudgeAssignment(users.guestJudge(), track1, coord, assignedAt);
+            saveJudgeAssignment(users.judge1(), track1, coord, assignedAt, JudgeAssignmentType.HEAD);
+            saveJudgeAssignment(users.judge2(), track1, coord, assignedAt, JudgeAssignmentType.NORMAL);
         }
         if (judgeAssignmentRepository.findByTrackId(track2.getId()).isEmpty()) {
-            saveJudgeAssignment(users.judge1(), track2, coord, assignedAt);
-            saveJudgeAssignment(users.judge2(), track2, coord, assignedAt);
+            saveJudgeAssignment(users.judge3(), track2, coord, assignedAt, JudgeAssignmentType.HEAD);
+        }
+        if (track3 != null) {
+            if (mentorAssignmentRepository.findByTrackId(track3.getId()).isEmpty()) {
+                mentorAssignmentRepository.save(MentorAssignment.builder()
+                        .mentor(users.mentor3())
+                        .track(track3)
+                        .assignedBy(coord)
+                        .assignedAt(assignedAt)
+                        .build());
+            }
+            if (judgeAssignmentRepository.findByTrackId(track3.getId()).isEmpty()) {
+                saveJudgeAssignment(users.judge4(), track3, coord, assignedAt, JudgeAssignmentType.HEAD);
+            }
+        }
+
+        // CK: EXTERNAL FINAL_EXTERNAL + INTERNAL HEAD (trưởng ban) — sẵn sàng trước kích hoạt
+        if (judgeAssignmentRepository.findByRoundId(finalRound.getId()).isEmpty()) {
+            judgeAssignmentRepository.save(JudgeAssignment.builder()
+                    .judge(users.judge1())
+                    .round(finalRound)
+                    .assignmentType(JudgeAssignmentType.HEAD)
+                    .assignedBy(coord)
+                    .assignedAt(assignedAt)
+                    .build());
+            judgeAssignmentRepository.save(JudgeAssignment.builder()
+                    .judge(users.guestJudge())
+                    .round(finalRound)
+                    .assignmentType(JudgeAssignmentType.FINAL_EXTERNAL)
+                    .assignedBy(coord)
+                    .assignedAt(assignedAt)
+                    .build());
+            judgeAssignmentRepository.save(JudgeAssignment.builder()
+                    .judge(users.guestJudge2())
+                    .round(finalRound)
+                    .assignmentType(JudgeAssignmentType.FINAL_EXTERNAL)
+                    .assignedBy(coord)
+                    .assignedAt(assignedAt)
+                    .build());
         }
 
         if (status == HackathonStatus.FINISHED) {
@@ -758,6 +892,7 @@ public class Gd1DataSeeder {
         prelim.setIsActive(false);
         prelim.setScoringLocked(true);
         prelim.setScoringLockedAt(lockedAt);
+        prelim.setIsPublished(true);
         finalRound.setIsActive(false);
         finalRound.setScoringLocked(true);
         finalRound.setScoringLockedAt(lockedAt);
@@ -765,24 +900,54 @@ public class Gd1DataSeeder {
         roundRepository.save(finalRound);
     }
 
-    private void saveJudgeAssignment(User judge, Track track, User assignedBy, LocalDateTime assignedAt) {
+    private void saveJudgeAssignment(User judge, Track track, User assignedBy, LocalDateTime assignedAt,
+                                     JudgeAssignmentType assignmentType) {
         judgeAssignmentRepository.save(JudgeAssignment.builder()
                 .judge(judge)
                 .track(track)
                 .round(null)
-                .assignmentType(JudgeAssignmentType.NORMAL)
+                .assignmentType(assignmentType)
                 .assignedBy(assignedBy)
                 .assignedAt(assignedAt)
                 .build());
     }
 
     private void seedTrackCriteria(Track track) {
-        List<CriteriaSeed> rows = List.of(
-                new CriteriaSeed("Domain Accuracy", CriteriaType.TECHNICAL, 0.30f, 1),
-                new CriteriaSeed("Kiến trúc RAG", CriteriaType.TECHNICAL, 0.30f, 2),
-                new CriteriaSeed("Ý tưởng & Thuyết trình", CriteriaType.SOFT_SKILL, 0.15f, 3),
-                new CriteriaSeed("Thực thi & Sáng tạo", CriteriaType.TECHNICAL, 0.15f, 4),
-                new CriteriaSeed("UX & Giao diện", CriteriaType.SOFT_SKILL, 0.10f, 5));
+        seedCriteriaRows(track, List.of(
+                new CriteriaSeed("Domain Accuracy", CriteriaType.TECHNICAL, 0.30f, 1,
+                        "Độ chính xác nghiệp vụ / domain so với đề bài và dữ liệu thực tế.\n"
+                                + "Gợi ý (thang 0–10): 9–10 rất chính xác; 7–8 tốt; 5–6 đạt cơ bản; ≤4 lệch domain."),
+                new CriteriaSeed("Kiến trúc RAG", CriteriaType.TECHNICAL, 0.30f, 2,
+                        "Thiết kế pipeline RAG (retrieve–augment–generate), chất lượng index và grounding.\n"
+                                + "Gợi ý (thang 0–10): 9–10 pipeline rõ, grounding tốt; 7–8 ổn; 5–6 chạy được nhưng mỏng; ≤4 rối / ảo giác cao."),
+                new CriteriaSeed("Ý tưởng & Thuyết trình", CriteriaType.SOFT_SKILL, 0.15f, 3,
+                        "Độ rõ của ý tưởng sản phẩm và khả năng truyền đạt trước giám khảo.\n"
+                                + "Gợi ý (thang 0–10): 9–10 ý tưởng sắc, trình bày thuyết phục; 7–8 rõ ràng; 5–6 hiểu được ý chính; ≤4 khó theo dõi."),
+                new CriteriaSeed("Thực thi & Sáng tạo", CriteriaType.TECHNICAL, 0.15f, 4,
+                        "Mức hoàn thiện demo, tính năng chạy được và điểm sáng tạo so với baseline.\n"
+                                + "Gợi ý (thang 0–10): 9–10 demo đầy đủ + sáng tạo; 7–8 tốt; 5–6 cơ bản; ≤4 gần như không chạy."),
+                new CriteriaSeed("UX & Giao diện", CriteriaType.SOFT_SKILL, 0.10f, 5,
+                        "Trải nghiệm người dùng, bố cục và tính dễ dùng của giao diện.\n"
+                                + "Gợi ý (thang 0–10): 9–10 mượt, trực quan; 7–8 dễ dùng; 5–6 chấp nhận được; ≤4 gây khó chịu / khó thao tác.")));
+    }
+
+    private void seedTrack3Criteria(Track track) {
+        seedCriteriaRows(track, List.of(
+                new CriteriaSeed("Domain EV & Sạc", CriteriaType.TECHNICAL, 0.30f, 1,
+                        "Hiểu biết domain xe điện / hạ tầng sạc và độ chính xác nghiệp vụ trong giải pháp.\n"
+                                + "Gợi ý (thang 0–10): 9–10 sâu, sát thực tế; 7–8 tốt; 5–6 đạt cơ bản; ≤4 lệch domain."),
+                new CriteriaSeed("Kiến trúc tích hợp", CriteriaType.TECHNICAL, 0.30f, 2,
+                        "Thiết kế tích hợp hệ thống (API, dữ liệu, dịch vụ bên thứ ba) và độ vững của kiến trúc.\n"
+                                + "Gợi ý (thang 0–10): 9–10 tích hợp rõ, vững; 7–8 ổn; 5–6 chạy được nhưng mỏng; ≤4 rối / khó bảo trì."),
+                new CriteriaSeed("Thuyết trình", CriteriaType.SOFT_SKILL, 0.20f, 3,
+                        "Khả năng truyền đạt ý tưởng, cấu trúc bài nói và trả lời câu hỏi.\n"
+                                + "Gợi ý (thang 0–10): 9–10 mạch lạc, thuyết phục; 7–8 rõ ràng; 5–6 hiểu được ý chính; ≤4 khó theo dõi."),
+                new CriteriaSeed("Thực thi & Demo", CriteriaType.TECHNICAL, 0.20f, 4,
+                        "Mức hoàn thiện demo và tính năng chạy được trên kịch bản EV / sạc.\n"
+                                + "Gợi ý (thang 0–10): 9–10 demo đầy đủ, ổn định; 7–8 phần lớn chạy tốt; 5–6 demo cơ bản; ≤4 gần như không chạy.")));
+    }
+
+    private void seedCriteriaRows(Track track, List<CriteriaSeed> rows) {
         for (CriteriaSeed row : rows) {
             criteriaRepository.save(Criteria.builder()
                     .track(track)
@@ -793,17 +958,28 @@ public class Gd1DataSeeder {
                     .weight(row.weight())
                     .maxScore(10)
                     .displayOrder(row.order())
+                    .description(row.description())
                     .build());
         }
     }
 
     private void seedFinalCriteria(Round finalRound) {
         List<CriteriaSeed> rows = List.of(
-                new CriteriaSeed("Xử lý & Truy xuất", CriteriaType.TECHNICAL, 0.30f, 1),
-                new CriteriaSeed("Độ tin cậy", CriteriaType.TECHNICAL, 0.20f, 2),
-                new CriteriaSeed("Tư duy Agent", CriteriaType.TECHNICAL, 0.20f, 3),
-                new CriteriaSeed("Thực tế & Triển khai", CriteriaType.TECHNICAL, 0.20f, 4),
-                new CriteriaSeed("Mở rộng & Scale", CriteriaType.SOFT_SKILL, 0.10f, 5));
+                new CriteriaSeed("Xử lý & Truy xuất", CriteriaType.TECHNICAL, 0.30f, 1,
+                        "Chất lượng xử lý dữ liệu và truy xuất thông tin (retrieve / ranking) trong giải pháp Chung kết.\n"
+                                + "Gợi ý (thang 0–10): 9–10 chính xác, nhanh; 7–8 tốt; 5–6 đạt cơ bản; ≤4 yếu / nhiều nhiễu."),
+                new CriteriaSeed("Độ tin cậy", CriteriaType.TECHNICAL, 0.20f, 2,
+                        "Độ ổn định, kiểm soát lỗi và khả năng tin cậy kết quả hệ thống.\n"
+                                + "Gợi ý (thang 0–10): 9–10 rất tin cậy; 7–8 ổn định; 5–6 còn lỗi nhỏ; ≤4 dễ sập / kết quả khó tin."),
+                new CriteriaSeed("Tư duy Agent", CriteriaType.TECHNICAL, 0.20f, 3,
+                        "Khả năng lập kế hoạch, tool-use và hành vi agent hợp lý với bài toán.\n"
+                                + "Gợi ý (thang 0–10): 9–10 agent rõ ràng, hiệu quả; 7–8 tốt; 5–6 còn cứng nhắc; ≤4 gần như không có tư duy agent."),
+                new CriteriaSeed("Thực tế & Triển khai", CriteriaType.TECHNICAL, 0.20f, 4,
+                        "Tính khả thi triển khai thực tế (chi phí, vận hành, tích hợp môi trường thật).\n"
+                                + "Gợi ý (thang 0–10): 9–10 sẵn sàng triển khai; 7–8 gần sẵn sàng; 5–6 còn khoảng cách lớn; ≤4 khó đưa vào thực tế."),
+                new CriteriaSeed("Mở rộng & Scale", CriteriaType.SOFT_SKILL, 0.10f, 5,
+                        "Khả năng mở rộng quy mô người dùng / dữ liệu và tầm nhìn phát triển sản phẩm.\n"
+                                + "Gợi ý (thang 0–10): 9–10 lộ trình scale rõ; 7–8 có hướng mở rộng; 5–6 mới ở mức ý tưởng; ≤4 khó scale."));
         for (CriteriaSeed row : rows) {
             criteriaRepository.save(Criteria.builder()
                     .track(null)
@@ -814,6 +990,7 @@ public class Gd1DataSeeder {
                     .weight(row.weight())
                     .maxScore(10)
                     .displayOrder(row.order())
+                    .description(row.description())
                     .build());
         }
     }
@@ -858,7 +1035,11 @@ public class Gd1DataSeeder {
             }
             for (Track track : trackRepository.findByRoundIdOrderBySequenceOrderAsc(round.getId())) {
                 if (criteriaRepository.countByTrackId(track.getId()) == 0) {
-                    seedTrackCriteria(track);
+                    if (Gd1SeedConstants.TRACK3_CLONE_DEMO_NAME.equals(track.getName())) {
+                        seedTrack3Criteria(track);
+                    } else {
+                        seedTrackCriteria(track);
+                    }
                     filled++;
                 }
             }
@@ -866,9 +1047,7 @@ public class Gd1DataSeeder {
         return filled;
     }
 
-    /**
-     * Track 3 không criteria — test {@code GET clone-sources} + {@code POST clone} từ Track 2.
-     */
+    /** Bổ sung Track 3 trên hackathon E2E ONGOING nếu chưa có. */
     private int ensureCloneDemoTrack3(Hackathon hackathon) {
         Round prelim = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathon.getId()).stream()
                 .filter(r -> !Boolean.TRUE.equals(r.getIsFinal()))
@@ -886,10 +1065,10 @@ public class Gd1DataSeeder {
                 .mapToInt(Track::getSequenceOrder)
                 .max()
                 .orElse(0) + 1;
-        trackRepository.save(Track.builder()
+        Track track3 = trackRepository.save(Track.builder()
                 .round(prelim)
                 .name(Gd1SeedConstants.TRACK3_CLONE_DEMO_NAME)
-                .description("Bảng trống criteria — test POST clone từ Track 2")
+                .description("EV Charging & Integration — tiêu chí đánh giá và nhân sự seed qua repair")
                 .topic("EV Charging & Integration")
                 .maxTeams(8)
                 .maxTeamsPerGroup(8)
@@ -898,7 +1077,48 @@ public class Gd1DataSeeder {
                 .sequenceOrder(nextOrder)
                 .status(TrackStatus.OPEN)
                 .build());
+        seedTrack3Criteria(track3);
         return 1;
+    }
+
+    /** Idempotent — bổ sung mentor + giám khảo cho Track 3 E2E nếu DB cũ thiếu. */
+    private int ensureTrack3JudgeAndMentor(Hackathon hackathon, SeedUsers users) {
+        Track track3 = findTrack3(prelimRound(hackathon)).orElse(null);
+        if (track3 == null) {
+            return 0;
+        }
+        int filled = 0;
+        User coord = users.coordinator();
+        LocalDateTime assignedAt = LocalDateTime.now();
+        if (mentorAssignmentRepository.findByTrackId(track3.getId()).isEmpty()) {
+            mentorAssignmentRepository.save(MentorAssignment.builder()
+                    .mentor(users.mentor3())
+                    .track(track3)
+                    .assignedBy(coord)
+                    .assignedAt(assignedAt)
+                    .build());
+            filled++;
+        }
+        if (judgeAssignmentRepository.findByTrackId(track3.getId()).isEmpty()) {
+            saveJudgeAssignment(users.judge4(), track3, coord, assignedAt, JudgeAssignmentType.NORMAL);
+            filled += 1;
+        }
+        return filled;
+    }
+
+    private Optional<Round> prelimRound(Hackathon hackathon) {
+        return roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathon.getId()).stream()
+                .filter(r -> !Boolean.TRUE.equals(r.getIsFinal()))
+                .findFirst();
+    }
+
+    private Optional<Track> findTrack3(Optional<Round> prelim) {
+        if (prelim.isEmpty()) {
+            return Optional.empty();
+        }
+        return trackRepository.findByRoundIdOrderBySequenceOrderAsc(prelim.get().getId()).stream()
+                .filter(t -> Gd1SeedConstants.TRACK3_CLONE_DEMO_NAME.equals(t.getName()))
+                .findFirst();
     }
 
     private boolean repairHackathonCalendar(Hackathon hackathon, SeedDates dates) {
@@ -1019,6 +1239,11 @@ public class Gd1DataSeeder {
                     round.setExamAt(dates.finalExamAt());
                     changed = true;
                 }
+                if (round.getCodingDurationHours() == null
+                        || round.getCodingDurationHours() != RoundScheduleSeedUtil.DEFAULT_FINAL_CODING_HOURS) {
+                    round.setCodingDurationHours(RoundScheduleSeedUtil.DEFAULT_FINAL_CODING_HOURS);
+                    changed = true;
+                }
                 if (round.getSubmissionOpen() == null
                         || !round.getSubmissionOpen().equals(dates.finalSubmissionOpen())) {
                     round.setSubmissionOpen(dates.finalSubmissionOpen());
@@ -1072,39 +1297,18 @@ public class Gd1DataSeeder {
                 [Gd1DataSeeder] Seed MF-01 GĐ1 hoàn tất.
                   Coordinator: id={} email={}
                   Hackathons:
-                    - {} (id={}) DRAFT — readiness FAIL
-                    - {} (id={}) DRAFT — readiness PASS → PATCH ONGOING
-                    - {} (id={}) ONGOING — prelim id={} active={} examAt={}
-                    - final examAt={}
-                    - {} (id={}) FINISHED — archive (prelim={}, final={})
-                  Tracks ready: t1={} t2={}
-                  Track 3 clone demo (ongoing): id={}
-                  Users: judge1={}, guest={}, mentor={}, pending={}
+                    - {} (id={}) ONGOING — E2E GĐ1, prelim id={} active={}
+                    - {} (id={}) FINISHED — archive
+                  Track 3 EV (ongoing): id={}
                 """,
                 coord.getId(), coord.getEmail(),
-                Gd1SeedConstants.SLUG_INCOMPLETE, summary.incomplete().getId(),
-                Gd1SeedConstants.SLUG_READY, summary.ready().hackathon().getId(),
                 Gd1SeedConstants.SLUG_ONGOING, summary.ongoing().hackathon().getId(),
                 summary.ongoing().prelimRound() != null
                         ? summary.ongoing().prelimRound().getId() : "n/a",
                 summary.ongoing().prelimRound() != null
                         ? summary.ongoing().prelimRound().getIsActive() : false,
-                summary.ongoing().prelimRound() != null
-                        ? summary.ongoing().prelimRound().getExamAt() : "n/a",
-                summary.ongoing().finalRound() != null
-                        ? summary.ongoing().finalRound().getExamAt() : "n/a",
                 Gd1SeedConstants.SLUG_FINISHED, summary.finished().hackathon().getId(),
-                summary.finished().prelimRound() != null
-                        ? summary.finished().prelimRound().getId() : "n/a",
-                summary.finished().finalRound() != null
-                        ? summary.finished().finalRound().getId() : "n/a",
-                summary.ready().track1() != null ? summary.ready().track1().getId() : "n/a",
-                summary.ready().track2() != null ? summary.ready().track2().getId() : "n/a",
-                summary.ongoing().track3() != null ? summary.ongoing().track3().getId() : "n/a",
-                summary.users().judge1().getId(),
-                summary.users().guestJudge().getId(),
-                summary.users().mentor().getId(),
-                summary.users().pendingJudge().getId());
+                summary.ongoing().track3() != null ? summary.ongoing().track3().getId() : "n/a");
     }
 
     private record SeedDates(
@@ -1128,7 +1332,7 @@ public class Gd1DataSeeder {
 
         /** Ngày giờ thi chung kết — sau khi Sơ loại kết thúc (examAt + codingDurationHours). */
         LocalDateTime finalExamAt() {
-            return RoundScheduleSeedUtil.minFinalExamAt(
+            return RoundScheduleSeedUtil.maxFinalExamAt(
                     prelimExamAt(), RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS);
         }
 
@@ -1139,7 +1343,7 @@ public class Gd1DataSeeder {
         }
 
         LocalDateTime finalSubmissionOpen() {
-            return finalExamAt();
+            return RoundScheduleSeedUtil.finalSubmissionOpen(finalExamAt());
         }
     }
 
@@ -1150,8 +1354,13 @@ public class Gd1DataSeeder {
             User coordinator,
             User judge1,
             User judge2,
+            User judge3,
+            User judge4,
             User guestJudge,
+            User guestJudge2,
             User mentor,
+            User mentor2,
+            User mentor3,
             User pendingJudge) {
     }
 
@@ -1170,8 +1379,6 @@ public class Gd1DataSeeder {
 
     public record SeedSummary(
             SeedUsers users,
-            Hackathon incomplete,
-            FullHackathonSeed ready,
             FullHackathonSeed ongoing,
             FullHackathonSeed finished) {
     }
@@ -1184,6 +1391,6 @@ public class Gd1DataSeeder {
             Track track3) {
     }
 
-    private record CriteriaSeed(String name, CriteriaType type, float weight, int order) {
+    private record CriteriaSeed(String name, CriteriaType type, float weight, int order, String description) {
     }
 }

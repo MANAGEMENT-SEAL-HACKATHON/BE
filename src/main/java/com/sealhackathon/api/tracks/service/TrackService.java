@@ -6,6 +6,8 @@ import com.sealhackathon.api.tracks.dto.request.UpdateTrackRequest;
 import com.sealhackathon.api.tracks.dto.response.TrackResponse;
 import com.sealhackathon.api.tracks.dto.response.TrackSummaryResponse;
 import com.sealhackathon.api.tracks.value_object.TrackStatus;
+import org.springframework.core.io.Resource;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -25,6 +27,13 @@ public interface TrackService {
     UpdateResult update(Integer id, UpdateTrackRequest req);
 
     Integer delete(Integer id);
+
+    TrackResponse uploadProblemStatement(Integer id, MultipartFile file);
+
+    Resource downloadProblemStatement(Integer id);
+
+    /** Phát đề cho một bảng đấu (Sơ loại) — one-way, không cần các track khác sẵn sàng. */
+    TrackResponse releaseProblem(Integer trackId);
 
     record UpdateResult(TrackResponse track, java.util.List<Warning> warnings) {}
 }

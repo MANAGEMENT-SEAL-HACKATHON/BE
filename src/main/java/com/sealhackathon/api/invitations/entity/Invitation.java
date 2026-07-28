@@ -53,6 +53,16 @@ public class Invitation {
     @Column(name = "accepted_at")
     private LocalDateTime acceptedAt;
 
+    @Column(name = "revoked_at")
+    private LocalDateTime revokedAt;
+
+    /**
+     * Kết quả lần gửi email gần nhất. {@code false} = SMTP fail → cho phép resend ngay
+     * dù token còn hạn. {@code null} coi như đã gửi thành công (row cũ).
+     */
+    @Column(name = "last_token_sent")
+    private Boolean lastTokenSent;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 }

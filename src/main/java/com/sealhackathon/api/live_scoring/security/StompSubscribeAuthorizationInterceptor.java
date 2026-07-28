@@ -29,13 +29,15 @@ import java.util.regex.Pattern;
 public class StompSubscribeAuthorizationInterceptor implements ChannelInterceptor {
 
     private static final Pattern ROUND_TOPIC =
-            Pattern.compile("^/topic/rounds/(\\d+)/(leaderboard-preview|scoring-progress)$");
+            Pattern.compile("^/topic/rounds/(\\d+)/(leaderboard-preview|scoring-progress|scoring|presentation-queue)$");
     private static final Pattern TRACK_TOPIC =
             Pattern.compile("^/topic/tracks/(\\d+)/score-saved$");
     private static final Pattern PRESENTATION_TRACK_TOPIC =
-            Pattern.compile("^/topic/rounds/(\\d+)/tracks/(\\d+)/presentation-queue$");
+            Pattern.compile("^/topic/rounds/(\\d+)/tracks/(\\d+)/(presentation-queue|scoring)$");
     private static final Pattern PRESENTATION_ROUND_TOPIC =
             Pattern.compile("^/topic/rounds/(\\d+)/presentation-queue$");
+    private static final Pattern ANNOUNCEMENT_TOPIC =
+            Pattern.compile("^/topic/hackathons/(\\d+)/announcements$");
 
     private final JudgeAssignmentGuard judgeAssignmentGuard;
     private final PresentationControllerGuard presentationControllerGuard;
@@ -94,6 +96,13 @@ public class StompSubscribeAuthorizationInterceptor implements ChannelIntercepto
             if (!canAccessPresentationRoundQueue(stub, coordinator, roundId)) {
                 throw new AccessDeniedException("Không có quyền subscribe presentation queue round " + roundId);
             }
+            return message;
+        }
+
+        Matcher announcementMatcher = ANNOUNCEMENT_TOPIC.matcher(dest);
+        if (announcementMatcher.matches()) {
+            // Any authenticated approved user may subscribe; content is hackathon-scoped feed
+            return message;
         }
         return message;
     }

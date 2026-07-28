@@ -7,6 +7,9 @@ import com.sealhackathon.api.rounds.dto.response.RoundSummaryResponse;
 
 import java.util.List;
 
+import org.springframework.core.io.Resource;
+import org.springframework.web.multipart.MultipartFile;
+
 /**
  * FR-02 — CRUD Round dưới Hackathon. Activate xem {@link RoundActivationService} (FR-07B).
  */
@@ -21,4 +24,11 @@ public interface RoundService {
     RoundResponse update(Integer id, UpdateRoundRequest req);
 
     Integer delete(Integer id);
+
+    RoundResponse uploadProblemStatement(Integer id, MultipartFile file);
+
+    Resource downloadProblemStatement(Integer id);
+
+    /** CK-05 — coordinator dismiss one-time migration banner (round-level). */
+    RoundResponse dismissFinalProblemMigrationBanner(Integer id);
 }

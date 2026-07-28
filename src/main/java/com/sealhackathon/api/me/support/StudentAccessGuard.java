@@ -3,12 +3,12 @@ package com.sealhackathon.api.me.support;
 import com.sealhackathon.api.common.exception.AuthException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
-import com.sealhackathon.api.hackathon_registrations.repository.HackathonRegistrationRepository;
-import com.sealhackathon.api.team_members.entity.TeamMember;
-import com.sealhackathon.api.team_members.entity.TeamMemberId;
-import com.sealhackathon.api.team_members.repository.TeamMemberRepository;
-import com.sealhackathon.api.team_members.value_object.TeamMemberRole;
-import com.sealhackathon.api.team_members.value_object.TeamMemberStatus;
+import com.sealhackathon.api.hackathons.repository.HackathonRegistrationRepository;
+import com.sealhackathon.api.teams.entity.TeamMember;
+import com.sealhackathon.api.teams.entity.TeamMemberId;
+import com.sealhackathon.api.teams.repository.TeamMemberRepository;
+import com.sealhackathon.api.teams.value_object.TeamMemberRole;
+import com.sealhackathon.api.teams.value_object.TeamMemberStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -37,6 +37,23 @@ public class StudentAccessGuard {
                     "Truy cập bị từ chối: Bạn chưa đăng ký tham gia kỳ Hackathon này.",
                     HttpStatus.FORBIDDEN);
         }
+    }
+
+    /**
+     * GATE 1b: Student đã đăng ký HOẶC từng/đang là member ACCEPTED của đội trong hackathon
+     * (kể cả team ELIMINATED) — dùng cho leaderboard/rankings.
+     */
+    public void assertParticipatedInHackathon(Integer hackathonId) {
+        Integer userId = currentUserAccessor.currentUserId();
+        if (hackathonRegistrationRepository.existsByHackathon_IdAndUser_Id(hackathonId, userId)) {
+            return;
+        }
+        if (teamMemberRepository.existsAcceptedMembershipInHackathon(userId, hackathonId)) {
+            return;
+        }
+        throw new AuthException(ErrorCode.FORBIDDEN,
+                "Truy cập bị từ chối: Bạn không thuộc kỳ Hackathon này.",
+                HttpStatus.FORBIDDEN);
     }
 
     /**

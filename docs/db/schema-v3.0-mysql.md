@@ -1,4 +1,4 @@
-# SEAL Hackathon — Database Schema v3.0 (MySQL 8)
+﻿# SEAL Hackathon — Database Schema v3.0 (MySQL 8)
 
 > **Source of truth** cho toàn bộ tầng dữ liệu của SEAL Hackathon Management System.
 > File này được port 1-1 từ PostgreSQL v3.0 (kiến trúc `Hackathon → Round → Track`) sang **MySQL 8**.
@@ -449,6 +449,7 @@ CREATE TABLE submissions (
 CREATE TABLE calibration_sessions (
     id                   INT         NOT NULL AUTO_INCREMENT PRIMARY KEY,
     round_id             INT         NOT NULL,
+    track_id             INT         NULL COMMENT 'GĐ3 per-track; NULL = GĐ5 round-scoped',
     sample_submission_id INT,
     status               VARCHAR(20) NOT NULL DEFAULT 'OPEN',
     target_score         FLOAT,
@@ -458,6 +459,7 @@ CREATE TABLE calibration_sessions (
     created_by           INT,
     CONSTRAINT chk_cs_status CHECK (status IN ('OPEN','CLOSED')),
     CONSTRAINT fk_cs_round         FOREIGN KEY (round_id)             REFERENCES rounds(id) ON DELETE CASCADE,
+    CONSTRAINT fk_cs_track         FOREIGN KEY (track_id)             REFERENCES tracks(id),
     CONSTRAINT fk_cs_sample        FOREIGN KEY (sample_submission_id) REFERENCES submissions(id),
     CONSTRAINT fk_cs_creator       FOREIGN KEY (created_by)           REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -1243,7 +1245,7 @@ DELIMITER ;
 
 ---
 
-## 6. Sample Data — SEAL Spring 2026 (minimal)
+## 6. Sample Data — SEAL E2E 2026 (minimal)
 
 > Demo flow: 2 đội → 2 Track → 1 Round Sơ loại → 1 Round Chung kết.
 > Mật khẩu plain `password` ở dòng dưới — production phải hash BCrypt.
@@ -1271,7 +1273,7 @@ INSERT INTO hackathons
   (name, slug, season, `year`, status, description,
    registration_start, registration_end, event_start, event_end,
    wildcard_enabled, individual_ranking_enabled, created_by) VALUES
-  ('SEAL Spring 2026', 'seal-spring-2026', 'Spring', 2026, 'ONGOING',
+  ('SEAL E2E 2026', 'seal-e2e-2026', 'Spring', 2026, 'ONGOING',
    'Cuộc thi lập trình SEAL — Kỳ Spring 2026',
    '2026-01-01', '2026-01-20', '2026-02-01', '2026-03-15',
    TRUE, FALSE, 1);

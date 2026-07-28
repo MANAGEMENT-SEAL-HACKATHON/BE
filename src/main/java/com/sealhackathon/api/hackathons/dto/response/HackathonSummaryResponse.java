@@ -29,4 +29,8 @@ public class HackathonSummaryResponse {
     private final LocalDate eventStart;
     private final LocalDate eventEnd;
     private final Integer maxParticipants;
+    private final String bannerUrl;
+    private final Integer clonedFromHackathonId;
+    private final String clonedFromHackathonName;
+    private final java.time.LocalDateTime clonedAt;
 }

@@ -1,4 +1,4 @@
-# MF-03 — Mock data & UI preview (GĐ3 → GĐ5) cho FE
+﻿# MF-03 — Mock data & UI preview (GĐ3 → GĐ5) cho FE
 
 **Mục đích:** BE đã có **khung API** (route + JSON shape); một số endpoint còn stub (`data: []`). FE dùng file này để **dựng UI trước** bằng MSW/fixture; khi BE xong → tắt mock, gọi API thật.
 
@@ -111,7 +111,7 @@ Toàn bộ shape: [12-fe-api-catalog-gd3-gd5.md](12-fe-api-catalog-gd3-gd5.md).
 
 | Entity | ID | Ghi chú |
 |--------|-----|---------|
-| Hackathon | 1 | `seal-spring-2026` ONGOING |
+| Hackathon | 1 | `seal-e2e-2026` ONGOING |
 | Round Sơ loại | 1 | `isFinal=false` |
 | Round CK | 2 | `isFinal=true` |
 | Track 1 | 1 | Sau lottery GĐ2 |

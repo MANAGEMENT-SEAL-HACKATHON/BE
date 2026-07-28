@@ -62,7 +62,14 @@ public class InvitationServiceImpl implements InvitationService {
                     "Invitation đã được accept tại " + inv.getAcceptedAt(),
                     Map.of("invitationId", invitationId, "acceptedAt", inv.getAcceptedAt()));
         }
-        if (inv.getExpiresAt() != null && inv.getExpiresAt().isAfter(LocalDateTime.now())) {
+        if (inv.getRevokedAt() != null) {
+            throw new ConflictException(ErrorCode.INVITATION_ALREADY_REVOKED,
+                    "Invitation đã bị thu hồi tại " + inv.getRevokedAt(),
+                    Map.of("invitationId", invitationId, "revokedAt", inv.getRevokedAt()));
+        }
+        boolean stillValid = inv.getExpiresAt() != null && inv.getExpiresAt().isAfter(LocalDateTime.now());
+        boolean lastSendFailed = Boolean.FALSE.equals(inv.getLastTokenSent());
+        if (stillValid && !lastSendFailed) {
             throw new BusinessRuleException(ErrorCode.INVITATION_STILL_VALID,
                     "Token còn hiệu lực — chỉ resend sau khi hết hạn",
                     Map.of("invitationId", invitationId, "expiresAt", inv.getExpiresAt()));
@@ -93,6 +100,8 @@ public class InvitationServiceImpl implements InvitationService {
             log.warn("[Invitation] resend failed for {}: {}", saved.getEmail(), ex.getMessage());
             tokenSent = false;
         }
+        saved.setLastTokenSent(tokenSent);
+        saved = invitationRepository.save(saved);
 
         auditService.log(AuditAction.INVITATION_RESEND, "invitations", saved.getId(), Map.of(
                 "email", saved.getEmail(),
@@ -103,6 +112,50 @@ public class InvitationServiceImpl implements InvitationService {
                 .expiresAt(saved.getExpiresAt())
                 .tokenSent(tokenSent)
                 .acceptedAt(saved.getAcceptedAt())
+                .revokedAt(saved.getRevokedAt())
+                .build();
+    }
+
+    @Override
+    public TempJudgeResponse.InvitationInfo revoke(Integer invitationId) {
+        Invitation inv = invitationRepository.findById(invitationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Invitation", invitationId));
+        if (inv.getRole() != UserRole.JUDGE) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                    "Thu hồi chỉ dành cho invitation judge khách mời",
+                    Map.of("invitationId", invitationId, "role", inv.getRole().name()));
+        }
+        if (inv.getAcceptedAt() != null) {
+            throw new ConflictException(ErrorCode.INVITATION_ALREADY_ACCEPTED,
+                    "Giám khảo đã activate tài khoản — không thu hồi lời mời này",
+                    Map.of("invitationId", invitationId, "acceptedAt", inv.getAcceptedAt()));
+        }
+        User user = userRepository.findByEmail(inv.getEmail()).orElse(null);
+        if (user != null && !Boolean.TRUE.equals(user.getMustChangePassword())) {
+            throw new ConflictException(ErrorCode.INVITATION_ALREADY_ACCEPTED,
+                    "Giám khảo đã activate tài khoản — không thu hồi lời mời này",
+                    Map.of("invitationId", invitationId, "email", inv.getEmail()));
+        }
+        if (inv.getRevokedAt() != null) {
+            throw new ConflictException(ErrorCode.INVITATION_ALREADY_REVOKED,
+                    "Invitation đã bị thu hồi tại " + inv.getRevokedAt(),
+                    Map.of("invitationId", invitationId, "revokedAt", inv.getRevokedAt()));
+        }
+        inv.setRevokedAt(LocalDateTime.now());
+        Invitation saved = invitationRepository.save(inv);
+        java.util.HashMap<String, Object> auditDetails = new java.util.HashMap<>();
+        auditDetails.put("email", saved.getEmail());
+        if (saved.getHackathon() != null) {
+            auditDetails.put("hackathonId", saved.getHackathon().getId());
+        }
+        auditDetails.put("revokedAt", saved.getRevokedAt().toString());
+        auditService.log(AuditAction.INVITATION_REVOKE, "invitations", saved.getId(), auditDetails);
+        return TempJudgeResponse.InvitationInfo.builder()
+                .id(saved.getId())
+                .expiresAt(saved.getExpiresAt())
+                .tokenSent(saved.getLastTokenSent())
+                .acceptedAt(saved.getAcceptedAt())
+                .revokedAt(saved.getRevokedAt())
                 .build();
     }
 

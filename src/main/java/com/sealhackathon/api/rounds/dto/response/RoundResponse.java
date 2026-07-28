@@ -30,7 +30,12 @@ public class RoundResponse {
     private final LocalDateTime submissionDeadline;
     private final Integer codingDurationHours;
     private final String problemStatementUrl;
+    private final String problemStatementFilename;
     private final LocalDateTime problemReleasedAt;
+    /** Non-null khi migration đã xóa PDF đề CK legacy trên round. */
+    private final LocalDateTime finalProblemMigrationClearedAt;
+    /** Non-null khi coordinator đã dismiss banner migration. */
+    private final LocalDateTime finalProblemMigrationBannerDismissedAt;
     private final Integer topNAdvance;
     private final Boolean wildcardEnabled;
     private final Integer minTeamsFinal;
@@ -45,5 +50,14 @@ public class RoundResponse {
     private final Boolean isPublished;
     private final LocalDateTime publishedAt;
     private final Integer publishedById;
+    private final LocalDateTime submissionClosedEarlyAt;
     private final LocalDateTime createdAt;
+    /** Thời lượng thuyết trình mặc định (phút) — dùng cho GĐ5; fallback GĐ3 khi track không override. */
+    private final Integer defaultPresentationMinutes;
+    /** Thời lượng Q&A mặc định (phút) — dùng cho GĐ5; fallback GĐ3 khi track không override. */
+    private final Integer defaultQaMinutes;
+    /** Gate 2 — đã xáo hàng đợi thuyết trình. */
+    private final Boolean isPresentationShuffled;
+    /** Gate 3 — thuyết trình đã hoàn tất (hoặc 0 slot sau shuffle). */
+    private final Boolean isPresentationsComplete;
 }

@@ -52,6 +52,9 @@ public interface UserRepository extends JpaRepository<User, Integer> {
      */
     java.util.List<User> findAllByStatus(UserStatus status);
 
+    /** All users of a given role + status — used for role-targeted notification fan-out (e.g. coordinators). */
+    java.util.List<User> findAllByRoleAndStatus(UserRole role, UserStatus status);
+
     java.util.List<User> findByStatusAndUserTypeAndEmailVerifiedAtIsNotNull(
             UserStatus status, com.sealhackathon.api.users.value_object.UserType userType);
 
@@ -72,4 +75,30 @@ public interface UserRepository extends JpaRepository<User, Integer> {
                            @Param("userType") UserType userType,
                            @Param("q") String q,
                            Pageable pageable);
+
+    @Query("""
+            SELECT u FROM User u
+            WHERE u.role = com.sealhackathon.api.users.value_object.UserRole.STUDENT
+              AND u.status = com.sealhackathon.api.users.value_object.UserStatus.APPROVED
+              AND u.id <> :excludeUserId
+              AND (LOWER(u.email) LIKE LOWER(CONCAT('%', :q, '%'))
+                   OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :q, '%'))
+                   OR LOWER(COALESCE(u.studentCode, '')) LIKE LOWER(CONCAT('%', :q, '%')))
+            ORDER BY u.fullName ASC
+            """)
+    org.springframework.data.domain.Page<User> searchApprovedStudentsForInvite(
+            @Param("q") String q,
+            @Param("excludeUserId") Integer excludeUserId,
+            Pageable pageable);
+
+    @Query("""
+            SELECT u FROM User u
+            WHERE u.status = com.sealhackathon.api.users.value_object.UserStatus.APPROVED
+              AND u.role IN (com.sealhackathon.api.users.value_object.UserRole.JUDGE,
+                             com.sealhackathon.api.users.value_object.UserRole.MENTOR)
+              AND (LOWER(u.email) LIKE LOWER(CONCAT('%', :q, '%'))
+                   OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :q, '%')))
+            ORDER BY u.fullName ASC
+            """)
+    Page<User> searchApprovedPersonnelForCoordinatorInvite(@Param("q") String q, Pageable pageable);
 }

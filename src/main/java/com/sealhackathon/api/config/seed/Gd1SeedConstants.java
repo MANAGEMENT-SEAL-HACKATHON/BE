@@ -9,22 +9,25 @@ package com.sealhackathon.api.config.seed;
  * <ul>
  *   <li>{@link #SLUG_INCOMPLETE} — DRAFT, không round (readiness fail)</li>
  *   <li>{@link #SLUG_READY} — DRAFT, đủ G1–G5 (PATCH ONGOING)</li>
- *   <li>{@link #SLUG_ONGOING} — ONGOING, prelim active; có Track 3 (chưa criteria) để test clone 2→3</li>
+ *   <li>{@link #SLUG_ONGOING} — ONGOING, prelim active; có Track 3 (criteria + mentor/giám khảo)</li>
  *   <li>{@link #SLUG_FINISHED} — FINISHED, full seed (events/rounds/tracks/criteria), read-only archive</li>
  * </ul>
  *
- * <h3>Lịch seed (2026)</h3>
+ * <h3>Lịch seed (relative {@code LocalDate.now()})</h3>
  * <ul>
- *   <li>Đăng ký: 24/05 – 05/06</li>
- *   <li>WORKSHOP: 06/06 · KICKOFF: 07/06 · Thi + AWARDS: 10/06</li>
+ *   <li>Đăng ký còn mở ~14 ngày; {@code eventStart = regEnd + 3} (đủ gap WORKSHOP + KICKOFF)</li>
+ *   <li>WORKSHOP {@code regEnd+1} · KICKOFF {@code regEnd+2} · Thi ngày {@code eventStart} · AWARDS {@code eventEnd}</li>
+ *   <li>CK: {@code codingDurationHours=2}; {@code examAt} ≈ 18:00; open/deadline theo 2/3 và full duration</li>
+ *   <li>PDF đề seed: classpath {@code seed/HistAR_CP3Part2_EXE101.pdf} trên tracks Sơ loại + vòng CK</li>
  * </ul>
  *
  * <h3>Users (email)</h3>
  * <ul>
  *   <li>{@link #EMAIL_COORDINATOR} — id=1 trên DB trống; khớp {@code StubCurrentUserAccessor}</li>
- *   <li>{@link #EMAIL_JUDGE1}, {@link #EMAIL_JUDGE2} — INTERNAL judges</li>
- *   <li>{@link #EMAIL_GUEST_JUDGE} — EXTERNAL temp judge</li>
- *   <li>{@link #EMAIL_MENTOR} — mentor</li>
+ *   <li>{@link #EMAIL_JUDGE1}…{@link #EMAIL_JUDGE4} — INTERNAL judges (pool sơ loại HEAD/NORMAL)</li>
+ *   <li>{@link #EMAIL_GUEST_JUDGE} / {@link #EMAIL_GUEST_JUDGE2} — EXTERNAL temp judges (CK FINAL_EXTERNAL; đúng 2 khách mời)</li>
+ *   <li>{@link #EMAIL_GUEST_JUDGE3} — legacy account (không còn gán CK)</li>
+ *   <li>{@link #EMAIL_MENTOR}…{@link #EMAIL_MENTOR3} — mentors</li>
  *   <li>{@link #EMAIL_PENDING_JUDGE} — PENDING (FR-05 negative)</li>
  * </ul>
  *
@@ -37,6 +40,7 @@ public final class Gd1SeedConstants {
     }
 
     /** Chỉ dev — đăng nhập JWT (profile dev). */
+    public static final String DEV_SUPERADMIN_PASSWORD = "SuperAdmin@dev1";
     public static final String DEV_COORDINATOR_PASSWORD = "Coordinator@dev1";
     public static final String DEV_JUDGE_PASSWORD = "Judge@dev1";
     public static final String DEV_GUEST_JUDGE_PASSWORD = "GuestJudge@dev1";
@@ -48,23 +52,55 @@ public final class Gd1SeedConstants {
 
     public static final String SLUG_INCOMPLETE = "seal-gd1-incomplete";
     public static final String SLUG_READY = "seal-gd1-ready";
-    public static final String SLUG_ONGOING = "seal-spring-2026";
+    /** Hackathon E2E GĐ1→GĐ6 — 7 đội + 3 orphan. */
+    public static final String SLUG_ONGOING = "seal-e2e-2026";
     public static final String SLUG_FINISHED = "seal-fall-2025-finished";
 
+    /** SUPERADMIN dev — dùng cho unlock-scoring (@SuperAdminOnly) + login UI. */
+    public static final String EMAIL_SUPERADMIN = "superadmin@fpt.edu.vn";
     public static final String EMAIL_COORDINATOR = "coord@fpt.edu.vn";
     public static final String EMAIL_JUDGE1 = "judge1@fpt.edu.vn";
     public static final String EMAIL_JUDGE2 = "judge2@fpt.edu.vn";
+    public static final String EMAIL_JUDGE3 = "judge3@fpt.edu.vn";
+    public static final String EMAIL_JUDGE4 = "judge4@fpt.edu.vn";
     public static final String EMAIL_GUEST_JUDGE = "guestjudge@gmail.com";
+    public static final String EMAIL_GUEST_JUDGE2 = "guestjudge2@gmail.com";
+    /** Legacy — vẫn tạo user để password lookup, không gán FINAL_EXTERNAL. */
+    public static final String EMAIL_GUEST_JUDGE3 = "guestjudge3@gmail.com";
     public static final String EMAIL_MENTOR = "mentor@fpt.edu.vn";
+    public static final String EMAIL_MENTOR2 = "mentor2@fpt.edu.vn";
+    public static final String EMAIL_MENTOR3 = "mentor3@fpt.edu.vn";
     public static final String EMAIL_PENDING_JUDGE = "pending.judge@fpt.edu.vn";
 
+    /** Student archive Fall 2025 — FR-U-32 annual awards e2e. */
+    public static final String EMAIL_ARCHIVE_STUDENT = "student.archive.fall2025@fpt.edu.vn";
+
     private static final String[] SEED_EMAILS = {
+            EMAIL_SUPERADMIN,
             EMAIL_COORDINATOR,
             EMAIL_JUDGE1,
             EMAIL_JUDGE2,
+            EMAIL_JUDGE3,
+            EMAIL_JUDGE4,
             EMAIL_GUEST_JUDGE,
+            EMAIL_GUEST_JUDGE2,
             EMAIL_MENTOR,
+            EMAIL_MENTOR2,
+            EMAIL_MENTOR3,
             EMAIL_PENDING_JUDGE
+    };
+
+    private static final String[] INTERNAL_JUDGE_EMAILS = {
+            EMAIL_JUDGE1, EMAIL_JUDGE2, EMAIL_JUDGE3, EMAIL_JUDGE4
+    };
+
+    /** Khách mời CK — đúng 2 FINAL_EXTERNAL (không gồm guestjudge3). */
+    private static final String[] GUEST_JUDGE_EMAILS = {
+            EMAIL_GUEST_JUDGE, EMAIL_GUEST_JUDGE2
+    };
+
+    private static final String[] MENTOR_EMAILS = {
+            EMAIL_MENTOR, EMAIL_MENTOR2, EMAIL_MENTOR3
     };
 
     /** Mật khẩu plaintext dev theo email seed; {@code null} nếu không phải user seed. */
@@ -73,22 +109,47 @@ public final class Gd1SeedConstants {
             return null;
         }
         String normalized = email.trim().toLowerCase();
+        if (EMAIL_SUPERADMIN.equalsIgnoreCase(normalized)) {
+            return DEV_SUPERADMIN_PASSWORD;
+        }
         if (EMAIL_COORDINATOR.equalsIgnoreCase(normalized)) {
             return DEV_COORDINATOR_PASSWORD;
         }
-        if (EMAIL_JUDGE1.equalsIgnoreCase(normalized) || EMAIL_JUDGE2.equalsIgnoreCase(normalized)) {
-            return DEV_JUDGE_PASSWORD;
+        for (String judgeEmail : INTERNAL_JUDGE_EMAILS) {
+            if (judgeEmail.equalsIgnoreCase(normalized)) {
+                return DEV_JUDGE_PASSWORD;
+            }
         }
-        if (EMAIL_GUEST_JUDGE.equalsIgnoreCase(normalized)) {
+        for (String guestEmail : GUEST_JUDGE_EMAILS) {
+            if (guestEmail.equalsIgnoreCase(normalized)) {
+                return DEV_GUEST_JUDGE_PASSWORD;
+            }
+        }
+        // Legacy guestjudge3 (không gán CK) — vẫn trả password nếu còn trong SEED_EMAILS/DB cũ
+        if (EMAIL_GUEST_JUDGE3.equalsIgnoreCase(normalized)) {
             return DEV_GUEST_JUDGE_PASSWORD;
         }
-        if (EMAIL_MENTOR.equalsIgnoreCase(normalized)) {
-            return DEV_MENTOR_PASSWORD;
+        for (String mentorEmail : MENTOR_EMAILS) {
+            if (mentorEmail.equalsIgnoreCase(normalized)) {
+                return DEV_MENTOR_PASSWORD;
+            }
         }
         if (EMAIL_PENDING_JUDGE.equalsIgnoreCase(normalized)) {
             return DEV_PENDING_JUDGE_PASSWORD;
         }
         return null;
+    }
+
+    public static String[] internalJudgeEmails() {
+        return INTERNAL_JUDGE_EMAILS.clone();
+    }
+
+    public static String[] guestJudgeEmails() {
+        return GUEST_JUDGE_EMAILS.clone();
+    }
+
+    public static String[] mentorEmails() {
+        return MENTOR_EMAILS.clone();
     }
 
     public static String[] seedEmails() {
@@ -99,6 +160,6 @@ public final class Gd1SeedConstants {
     public static final String CHAPTER_FPT_HN = "FPT-HN";
     public static final String CHAPTER_EXT = "EXT";
 
-    /** Track 3 trên {@link #SLUG_ONGOING} — không seed criteria (clone từ Track 2 qua API). */
+    /** Track 3 trên {@link #SLUG_ONGOING} — EV & Integration, đủ criteria + mentor/giám khảo. */
     public static final String TRACK3_CLONE_DEMO_NAME = "Track 3 — EV & Integration";
 }

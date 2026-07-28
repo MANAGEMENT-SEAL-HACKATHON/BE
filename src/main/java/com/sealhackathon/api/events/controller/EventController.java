@@ -16,6 +16,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,17 +34,18 @@ import java.util.Map;
 
 /**
  * FR-06A — Event controller. Validate 3 lớp ở {@link EventScheduleValidator}.
+ * GET list/detail: Coordinator hoặc Student (APPROVED). Mutations: Coordinator only.
  */
 @Tag(name = "Events", description = "FR-06 — Lịch sự kiện (WORKSHOP, KICKOFF, …)")
 @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
 @RequiredArgsConstructor
-@CoordinatorOnly
 public class EventController {
 
     private final EventService eventService;
 
     @PostMapping("/api/v1/hackathons/{hackathonId}/events")
+    @CoordinatorOnly
     @Operation(summary = "Tạo event mới cho hackathon", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<EventResponse>> create(
             @PathVariable Integer hackathonId,
@@ -60,7 +62,8 @@ public class EventController {
     }
 
     @GetMapping("/api/v1/hackathons/{hackathonId}/events")
-    @Operation(summary = "Danh sách event của hackathon", description = "Có thể lọc theo type, khoảng thời gian (from-to), và isPublic.")
+    @PreAuthorize("(hasAnyRole('COORDINATOR', 'STUDENT')) and authentication.principal.status.name() == 'APPROVED'")
+    @Operation(summary = "Danh sách event của hackathon", description = "Coordinator hoặc Student APPROVED. Có thể lọc theo type, khoảng thời gian (from-to), và isPublic.")
     public ResponseEntity<ApiResponse<List<EventResponse>>> listByHackathon(
             @PathVariable Integer hackathonId,
             @RequestParam(required = false) EventType type,
@@ -74,12 +77,14 @@ public class EventController {
     }
 
     @GetMapping("/api/v1/events/{id}")
-    @Operation(summary = "Lấy thông tin chi tiết event theo ID", description = "Trả về lỗi 404 nếu không tìm thấy event với ID đã cho.")
+    @PreAuthorize("(hasAnyRole('COORDINATOR', 'STUDENT')) and authentication.principal.status.name() == 'APPROVED'")
+    @Operation(summary = "Lấy thông tin chi tiết event theo ID", description = "Coordinator hoặc Student APPROVED. Trả về lỗi 404 nếu không tìm thấy.")
     public ResponseEntity<ApiResponse<EventResponse>> getById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.ok(eventService.getById(id)));
     }
 
     @PutMapping("/api/v1/events/{id}")
+    @CoordinatorOnly
     @Operation(summary = "Cập nhật thông tin event", description = "Chỉ coordinator mới có quyền thực hiện hành động này. Trả về lỗi 404 nếu không tìm thấy event với ID đã cho.")
     public ResponseEntity<ApiResponse<EventResponse>> update(
             @PathVariable Integer id,
@@ -90,6 +95,7 @@ public class EventController {
     }
 
     @DeleteMapping("/api/v1/events/{id}")
+    @CoordinatorOnly
     @Operation(summary = "Xóa event", description = "Chỉ coordinator mới có quyền thực hiện hành động này. Trả về lỗi 404 nếu không tìm thấy event với ID đã cho.")
     public ResponseEntity<ApiResponse<Map<String, Object>>> delete(@PathVariable Integer id) {
         Integer deletedId = eventService.delete(id);

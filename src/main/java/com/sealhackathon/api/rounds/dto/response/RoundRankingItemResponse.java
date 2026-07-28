@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
@@ -19,4 +21,8 @@ public class RoundRankingItemResponse {
     private Double totalScore;
     private Boolean tiebreakRequired;
     private String participationStatus;
+    private LocalDateTime submittedAt;
+    private String submissionStatus;
+    private Double penaltyScore;
+    private Integer submissionId;
 }

@@ -89,8 +89,27 @@ public class Round {
     @Column(name = "problem_statement_url", columnDefinition = "TEXT")
     private String problemStatementUrl;
 
+    @Column(name = "problem_statement_storage_key", length = 512)
+    private String problemStatementStorageKey;
+
+    @Column(name = "problem_statement_original_filename", length = 255)
+    private String problemStatementOriginalFilename;
+
     @Column(name = "problem_released_at")
     private LocalDateTime problemReleasedAt;
+
+    /**
+     * CK-05: thời điểm migration xóa PDF đề riêng trên vòng Chung kết (null = chưa clear / không áp dụng).
+     * Banner coord hiện khi field này khác null và {@link #finalProblemMigrationBannerDismissedAt} null.
+     */
+    @Column(name = "final_problem_migration_cleared_at")
+    private LocalDateTime finalProblemMigrationClearedAt;
+
+    /**
+     * CK-05: coordinator đã dismiss banner migration đề CK (một lần theo round, không per-user).
+     */
+    @Column(name = "final_problem_migration_banner_dismissed_at")
+    private LocalDateTime finalProblemMigrationBannerDismissedAt;
 
     /**
      * Số đội Top N MỖI BẢNG (assigned_group) vào Round tiếp.
@@ -100,22 +119,29 @@ public class Round {
     private Integer topNAdvance;
 
     /**
-     * [FIX-03] Số đội tối thiểu vào Round tiếp — kích hoạt Wild Card nếu thiếu.
+     * Số đội tối đa dự kiến vào Chung kết — kích hoạt Wild Card nếu thiếu so với thực tế.
      */
     @Column(name = "min_teams_final")
     private Integer minTeamsFinal;
 
     /**
-     * Per-round override. Chỉ có hiệu lực nếu {@code hackathon.wildcardEnabled = TRUE}.
+     * Per-round flag — runtime WC pool chỉ check field này (không AND hackathon).
      */
     @Builder.Default
     @Column(name = "wildcard_enabled", nullable = false)
     private Boolean wildcardEnabled = false;
 
+    /**
+     * Plan C — thời điểm Coordinator xác nhận đề xuất vé vớt (LOCKED).
+     * NULL = chưa xác nhận; sau lock chỉ sửa qua Override.
+     */
+    @Column(name = "wildcard_proposal_confirmed_at")
+    private LocalDateTime wildcardProposalConfirmedAt;
+
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "tiebreak_rule", length = 50)
-    private TiebreakRule tiebreakRule = TiebreakRule.PENALTY_SCORE;
+    private TiebreakRule tiebreakRule = TiebreakRule.COORDINATOR_DECISION;
 
     /**
      * Thời điểm kích hoạt Round lần cuối (FR-15/25). NULL khi chưa từng activate.
@@ -168,6 +194,25 @@ public class Round {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "published_by")
     private User publishedBy;
+
+    /** Set when the submission-deadline reminder (student + judge) was sent (idempotent scheduler). */
+    @Column(name = "deadline_reminder_sent_at")
+    private LocalDateTime deadlineReminderSentAt;
+
+    /**
+     * Set when Coordinator ends exam / closes submission early (idempotent).
+     * Clamps {@code submissionDeadline} and {@code examAt} to that moment so phase becomes JUDGING.
+     */
+    @Column(name = "submission_closed_early_at")
+    private LocalDateTime submissionClosedEarlyAt;
+
+    /**
+     * Chung kết: đã gọi shuffle hàng đợi ít nhất một lần (kể cả 0 slot / 0 gradable).
+     * Sơ loại dùng {@code tracks.presentation_shuffled}.
+     */
+    @Builder.Default
+    @Column(name = "presentation_shuffled", nullable = false)
+    private Boolean presentationShuffled = false;
 
     @Builder.Default
     @Column(name = "created_at", nullable = false)

@@ -3,9 +3,13 @@ package com.sealhackathon.api.presentation.service.impl;
 import com.sealhackathon.api.common.audit.AuditAction;
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
+import com.sealhackathon.api.common.exception.AuthException;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
+import com.sealhackathon.api.common.exception.ConflictException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
+import com.sealhackathon.api.hackathons.repository.HackathonRegistrationRepository;
+import com.sealhackathon.api.events.repository.JudgeSubmissionScoringConfirmationRepository;
 import com.sealhackathon.api.events.entity.PresentationSlot;
 import com.sealhackathon.api.events.repository.PresentationSlotRepository;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
@@ -17,31 +21,39 @@ import com.sealhackathon.api.presentation.dto.response.PresentationQueueResponse
 import com.sealhackathon.api.presentation.dto.response.PresentationShuffleResponse;
 import com.sealhackathon.api.presentation.dto.response.PresentationTimerBlock;
 import com.sealhackathon.api.presentation.guard.PresentationControllerGuard;
+import com.sealhackathon.api.presentation.guard.PresentationForceAdvanceAckGuard;
 import com.sealhackathon.api.presentation.service.PresentationQueueService;
 import com.sealhackathon.api.presentation.support.PresentationDurationResolver;
 import com.sealhackathon.api.presentation.support.PresentationNextScoringGuard;
+import com.sealhackathon.api.presentation.support.PresentationQaTimeoutMaterializer;
 import com.sealhackathon.api.presentation.support.PresentationSlotHelper;
 import com.sealhackathon.api.presentation.support.PresentationTimerCalculator;
+import com.sealhackathon.api.presentation.support.RoundPhaseResolver;
 import com.sealhackathon.api.presentation.value_object.PresentationQueueStatus;
 import com.sealhackathon.api.presentation.value_object.PresentationTimerPhase;
+import com.sealhackathon.api.presentation.value_object.RoundPhase;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.submissions.entity.Submission;
 import com.sealhackathon.api.submissions.policy.SubmissionGradablePolicy;
 import com.sealhackathon.api.submissions.repository.SubmissionRepository;
-import com.sealhackathon.api.team_round_participation.entity.TeamRoundParticipation;
-import com.sealhackathon.api.team_round_participation.repository.TeamRoundParticipationRepository;
+import com.sealhackathon.api.teams.entity.TeamRoundParticipation;
+import com.sealhackathon.api.teams.repository.TeamRoundParticipationRepository;
+import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.users.value_object.UserRole;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -49,6 +61,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class PresentationQueueServiceImpl implements PresentationQueueService {
 
     private final RoundRepository roundRepository;
@@ -59,16 +72,20 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
     private final PresentationSlotRepository presentationSlotRepository;
     private final PresentationDurationResolver durationResolver;
     private final PresentationControllerGuard controllerGuard;
+    private final PresentationForceAdvanceAckGuard forceAdvanceAckGuard;
     private final AuditService auditService;
     private final PresentationQueuePublisher queuePublisher;
     private final CurrentUserAccessor currentUserAccessor;
     private final PresentationNextScoringGuard nextScoringGuard;
+    private final JudgeSubmissionScoringConfirmationRepository scoringConfirmationRepository;
+    private final HackathonRegistrationRepository hackathonRegistrationRepository;
+    private final RoundPhaseResolver roundPhaseResolver;
 
     @Override
-    @Transactional(readOnly = true)
     public PresentationQueueResponse getQueue(Integer roundId, Integer trackIdFilter) {
         boolean anonymous = isJudgeAnonymousView();
         Round round = resolveRound(roundId);
+        assertCanViewQueue(round);
         List<PresentationQueueResponse.TrackQueueItem> trackItems = new ArrayList<>();
 
         if (Boolean.TRUE.equals(round.getIsFinal())) {
@@ -96,7 +113,8 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
                 if (PresentationQueueStatus.DONE.name().equals(item.getStatus())) {
                     done++;
                 }
-                if (PresentationQueueStatus.ELIMINATED.name().equals(item.getStatus())) {
+                if (PresentationQueueStatus.ELIMINATED.name().equals(item.getStatus())
+                        || PresentationQueueStatus.SKIPPED.name().equals(item.getStatus())) {
                     absent++;
                 }
             }
@@ -121,6 +139,7 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
             Integer currentTeamId,
             boolean acknowledgeIncompleteScoring) {
         Round round = resolveRound(roundId);
+        requireJudgingPhase(round);
         if (Boolean.TRUE.equals(round.getIsFinal())) {
             controllerGuard.requireControllerForRound(round.getId(), round);
             PresentationQueueNextResponse response = advanceForScope(
@@ -148,6 +167,7 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
     public PresentationShuffleResponse shuffle(PresentationShuffleRequest request) {
         Integer roundId = request.getRoundId();
         Round round = resolveRound(roundId);
+        requireJudgingPhase(round);
         if (Boolean.TRUE.equals(round.getScoringLocked())) {
             throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Round đã khóa — không thể shuffle queue");
         }
@@ -156,7 +176,20 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
 
         if (Boolean.TRUE.equals(round.getIsFinal())) {
             controllerGuard.requireControllerForRound(round.getId(), round);
+            if (Boolean.TRUE.equals(round.getPresentationShuffled())) {
+                List<PresentationSlot> existing = presentationSlotRepository
+                        .findByRound_IdAndTrackIsNullOrderBySequenceOrderAsc(round.getId());
+                if (!existing.isEmpty()) {
+                    throw new ConflictException(ErrorCode.PRESENTATION_ALREADY_SHUFFLED,
+                            "Hàng đợi chung kết đã được quay số",
+                            Map.of("roundId", roundId, "slotCount", existing.size()));
+                }
+            }
+            assertNoPresentationStarted(round.getId(), null);
+            scoringConfirmationRepository.deleteByFinalRoundScope(round.getId());
             int count = shuffleFinalRound(round);
+            round.setPresentationShuffled(true);
+            roundRepository.save(round);
             results.add(PresentationShuffleResponse.TrackShuffleResult.builder()
                     .trackId(null)
                     .slotCount(count)
@@ -172,6 +205,17 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
         List<Track> tracks = resolveTracksToShuffle(round, request.getTrackIds());
         for (Track track : tracks) {
             controllerGuard.requireControllerForTrack(track.getId(), track, round);
+            if (Boolean.TRUE.equals(track.getPresentationShuffled())) {
+                List<PresentationSlot> existing = presentationSlotRepository
+                        .findByRound_IdAndTrack_IdOrderBySequenceOrderAsc(roundId, track.getId());
+                if (!existing.isEmpty()) {
+                    throw new ConflictException(ErrorCode.PRESENTATION_ALREADY_SHUFFLED,
+                            "Hàng đợi bảng đấu đã được quay số",
+                            Map.of("roundId", roundId, "trackId", track.getId(), "slotCount", existing.size()));
+                }
+            }
+            assertNoPresentationStarted(roundId, track.getId());
+            scoringConfirmationRepository.deleteByTrackScope(roundId, track.getId());
             int count = shuffleTrack(round, track);
             track.setPresentationShuffled(true);
             trackRepository.save(track);
@@ -189,6 +233,135 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
         return PresentationShuffleResponse.builder().roundId(roundId).tracks(results).build();
     }
 
+    @Override
+    public PresentationQueueResponse skipNoShow(Integer roundId, Integer trackId, Integer submissionId) {
+        Round round = resolveRound(roundId);
+        requireJudgingPhase(round);
+        if (submissionId == null) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED, "submissionId bắt buộc");
+        }
+        Integer resolvedTrackId = trackId;
+        if (Boolean.TRUE.equals(round.getIsFinal())) {
+            controllerGuard.requireControllerForRound(round.getId(), round);
+            resolvedTrackId = null;
+        } else {
+            if (resolvedTrackId == null) {
+                throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED, "trackId bắt buộc cho vòng không phải chung kết");
+            }
+            final Integer trackIdForLoad = resolvedTrackId;
+            Track track = trackRepository.findById(trackIdForLoad)
+                    .orElseThrow(() -> new ResourceNotFoundException("Track", trackIdForLoad));
+            if (!track.getRound().getId().equals(round.getId())) {
+                throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Track không thuộc round");
+            }
+            controllerGuard.requireControllerForTrack(trackIdForLoad, track, round);
+        }
+
+        List<PresentationSlot> slots = loadSlots(round.getId(), resolvedTrackId);
+        PresentationSlot slot = slots.stream()
+                .filter(s -> s.getSubmission() != null && s.getSubmission().getId().equals(submissionId))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("PresentationSlot for submission", submissionId));
+        if (slot.getQueueStatus() == PresentationQueueStatus.DONE) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Đội đã thuyết trình xong — không skip no-show");
+        }
+        slot.setQueueStatus(PresentationQueueStatus.SKIPPED);
+        slot.setTimerPhase(PresentationTimerPhase.ENDED);
+        presentationSlotRepository.save(slot);
+        Map<String, Object> skipDetail = new HashMap<>();
+        skipDetail.put("roundId", round.getId());
+        skipDetail.put("trackId", resolvedTrackId);
+        skipDetail.put("submissionId", submissionId);
+        auditService.log(AuditAction.PRESENTATION_NO_SHOW_SKIPPED, "presentation_slots", slot.getId(),
+                skipDetail);
+        PresentationQueueResponse payload = getQueue(round.getId(), resolvedTrackId);
+        queuePublisher.publish(round.getId(), resolvedTrackId, payload);
+        return payload;
+    }
+
+    @Override
+    public boolean appendLateApprovedIfShuffled(Submission submission) {
+        if (submission == null || !SubmissionGradablePolicy.isGradable(submission)) {
+            return false;
+        }
+        Round round = submission.getRound();
+        if (round == null) {
+            return false;
+        }
+        Track track = submission.getTrack();
+        Integer trackId = track != null ? track.getId() : null;
+        boolean shuffled = Boolean.TRUE.equals(round.getIsFinal())
+                ? Boolean.TRUE.equals(round.getPresentationShuffled())
+                : track != null && Boolean.TRUE.equals(track.getPresentationShuffled());
+        if (!shuffled) {
+            return false;
+        }
+        if (Boolean.TRUE.equals(round.getIsFinal())) {
+            if (presentationSlotRepository.findByRound_IdAndSubmission_Id(round.getId(), submission.getId())
+                    .isPresent()) {
+                return false;
+            }
+        } else if (trackId != null) {
+            boolean exists = presentationSlotRepository
+                    .findByRound_IdAndTrack_IdOrderBySequenceOrderAsc(round.getId(), trackId).stream()
+                    .anyMatch(s -> s.getSubmission() != null
+                            && s.getSubmission().getId().equals(submission.getId()));
+            if (exists) {
+                return false;
+            }
+        }
+
+        List<PresentationSlot> existing = trackId == null
+                ? presentationSlotRepository.findByRound_IdAndTrackIsNullOrderBySequenceOrderAsc(round.getId())
+                : presentationSlotRepository.findByRound_IdAndTrack_IdOrderBySequenceOrderAsc(round.getId(), trackId);
+        int nextOrder = existing.stream()
+                .mapToInt(s -> s.getSequenceOrder() != null ? s.getSequenceOrder() : 0)
+                .max()
+                .orElse(0) + 1;
+        int slotMinutes = durationResolver.slotMinutes(track, round);
+        LocalDateTime start = LocalDateTime.now().withSecond(0).withNano(0);
+        if (!existing.isEmpty()) {
+            PresentationSlot last = existing.get(existing.size() - 1);
+            if (last.getEndsAt() != null) {
+                start = last.getEndsAt();
+            }
+        }
+        presentationSlotRepository.save(PresentationSlot.builder()
+                .round(round)
+                .track(track)
+                .submission(submission)
+                .team(submission.getTeam())
+                .startsAt(start)
+                .endsAt(start.plusMinutes(slotMinutes))
+                .location(defaultLocation(submission.getTeam().getId()))
+                .sequenceOrder(nextOrder)
+                .queueStatus(PresentationQueueStatus.WAITING)
+                .timerPhase(PresentationTimerPhase.IDLE)
+                .pausedAccumulatedSeconds(0)
+                .build());
+        auditService.log(AuditAction.PRESENTATION_QUEUE_SHUFFLE, "presentation_slots", submission.getId(),
+                Map.of("action", "late_append", "roundId", round.getId(), "sequenceOrder", nextOrder));
+        PresentationQueueResponse payload = getQueue(round.getId(), trackId);
+        queuePublisher.publish(round.getId(), trackId, payload);
+        return true;
+    }
+
+    /** Cấm shuffle lại nếu đã có slot PRESENTING hoặc DONE. */
+    private void assertNoPresentationStarted(Integer roundId, Integer trackId) {
+        List<PresentationSlot> slots = trackId == null
+                ? presentationSlotRepository.findByRound_IdAndTrackIsNullOrderBySequenceOrderAsc(roundId)
+                : presentationSlotRepository.findByRound_IdAndTrack_IdOrderBySequenceOrderAsc(roundId, trackId);
+        boolean started = slots.stream().anyMatch(s ->
+                s.getQueueStatus() == PresentationQueueStatus.PRESENTING
+                        || s.getQueueStatus() == PresentationQueueStatus.DONE
+                        || s.getQueueStatus() == PresentationQueueStatus.SKIPPED);
+        if (started) {
+            throw new BusinessRuleException(ErrorCode.PRESENTATION_ALREADY_STARTED,
+                    "Đã bắt đầu thuyết trình — không xáo lại hàng đợi",
+                    Map.of("roundId", roundId, "trackId", trackId));
+        }
+    }
+
     private PresentationQueueNextResponse advanceForScope(
             Round round,
             Integer trackId,
@@ -204,6 +377,11 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
                 .filter(s -> s.getQueueStatus() == PresentationQueueStatus.PRESENTING)
                 .findFirst()
                 .orElse(null);
+
+        if (presenting != null) {
+            // Race guard: reload with lock so concurrent Next/Early-QA không ghi đè lẫn nhau
+            presenting = presentationSlotRepository.findByIdForUpdate(presenting.getId()).orElse(presenting);
+        }
 
         if (presenting == null) {
             if (currentSubmissionId != null) {
@@ -227,9 +405,23 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
 
         PresentationQueueNextResponse.ScoringSnapshot scoringSnapshot = null;
         if (presenting != null) {
+            // Lazy auto-timeout trước khi kiểm tra phase
+            Track trackForTimer = presenting.getTrack();
+            PresentationQaTimeoutMaterializer.materializeIfExpired(
+                    presenting, trackForTimer, round, durationResolver, presentationSlotRepository);
             if (presenting.getSubmission() != null) {
+                PresentationTimerPhase phase = presenting.getTimerPhase();
+                if (phase != PresentationTimerPhase.ENDED) {
+                    throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                            "Chỉ chuyển đội tiếp khi phần thuyết trình/Q&A đã kết thúc (ENDED)");
+                }
+                boolean ack = forceAdvanceAckGuard.resolveAcknowledge(
+                        acknowledgeIncompleteScoring, trackId, round);
+                // Kết thúc sớm Q&A → bắt đủ chốt (trừ force-ack). Hết giờ tự nhiên → thiếu điểm OK.
+                // null qaEndedEarly (slot cũ): giữ hành vi cũ = require complete.
+                boolean requireComplete = !Boolean.FALSE.equals(presenting.getQaEndedEarly());
                 nextScoringGuard.validateBeforeNext(
-                        presenting.getSubmission(), trackId, round, acknowledgeIncompleteScoring);
+                        presenting.getSubmission(), trackId, round, ack, requireComplete);
                 scoringSnapshot = nextScoringGuard.snapshot(
                         presenting.getSubmission(), trackId, round);
             }
@@ -244,6 +436,10 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
                 .orElse(null);
 
         if (next != null) {
+            if (next.getSubmission() != null) {
+                // Reset judge confirmations for the new live slot.
+                scoringConfirmationRepository.deleteBySubmission_Id(next.getSubmission().getId());
+            }
             next.setQueueStatus(PresentationQueueStatus.PRESENTING);
             resetTimer(next);
             next.setTimerPhase(PresentationTimerPhase.SETUP);
@@ -324,6 +520,30 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
         return user != null && user.getRole() == UserRole.JUDGE;
     }
 
+    /**
+     * Chống IDOR/snooping cross-hackathon: STUDENT chỉ xem được hàng đợi của hackathon mình
+     * có đăng ký. Coordinator/Judge/Mentor (staff) được xem để điều phối/chấm/theo dõi
+     * (Judge đã bị ẩn danh tên đội qua {@link #isJudgeAnonymousView()}).
+     */
+    private void assertCanViewQueue(Round round) {
+        var user = currentUserAccessor.currentUser();
+        if (user == null) {
+            return;
+        }
+        UserRole role = user.getRole();
+        if (role == UserRole.COORDINATOR || role == UserRole.JUDGE || role == UserRole.MENTOR) {
+            return;
+        }
+        Integer hackathonId = round.getHackathon() != null ? round.getHackathon().getId() : null;
+        if (hackathonId != null
+                && hackathonRegistrationRepository.existsByHackathon_IdAndUser_Id(hackathonId, user.getUserId())) {
+            return;
+        }
+        throw new AuthException(ErrorCode.FORBIDDEN,
+                "Bạn không có quyền xem hàng đợi thuyết trình của hackathon này",
+                HttpStatus.FORBIDDEN);
+    }
+
     private PresentationQueueResponse.TrackQueueItem buildTrackItem(Round round, Track track, boolean anonymous) {
         List<PresentationSlot> slots = presentationSlotRepository
                 .findByRound_IdAndTrack_IdOrderBySequenceOrderAsc(round.getId(), track.getId());
@@ -338,12 +558,69 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
     private PresentationQueueResponse.TrackQueueItem buildFinalTrackItem(Round round, boolean anonymous) {
         List<PresentationSlot> slots = presentationSlotRepository
                 .findByRound_IdAndTrackIsNullOrderBySequenceOrderAsc(round.getId());
+        Integer participatingTeamCount = null;
+        Integer gradableTeamCount = null;
+        List<PresentationQueueResponse.EligibleTeamItem> eligibleTeams = null;
+
+        if (!anonymous) {
+            List<TeamRoundParticipation> participants =
+                    teamRoundParticipationRepository.findByRound_Id(round.getId());
+            participatingTeamCount = participants.size();
+            eligibleTeams = new ArrayList<>();
+            int gradable = 0;
+            for (TeamRoundParticipation participation : participants) {
+                Team team = participation.getTeam();
+                var submissionOpt = submissionRepository.findTopByTeam_IdAndRound_IdOrderBySubmittedAtDesc(
+                        team.getId(), round.getId());
+                boolean isGradable = submissionOpt.filter(SubmissionGradablePolicy::isGradable).isPresent();
+                if (isGradable) {
+                    gradable++;
+                }
+                eligibleTeams.add(PresentationQueueResponse.EligibleTeamItem.builder()
+                        .teamId(team.getId())
+                        .teamName(team.getTeamName())
+                        .gradable(isGradable)
+                        .submissionStatus(submissionOpt.map(s -> s.getStatus().name()).orElse(null))
+                        .build());
+            }
+            gradableTeamCount = gradable;
+            warnHardLockLateInvariant(round, eligibleTeams);
+        }
+
         return PresentationQueueResponse.TrackQueueItem.builder()
                 .trackId(null)
                 .trackName("Chung kết")
-                .shuffled(!slots.isEmpty())
+                .shuffled(Boolean.TRUE.equals(round.getPresentationShuffled()))
                 .items(slots.stream().map(slot -> toQueueItem(slot, null, round, anonymous)).toList())
+                .participatingTeamCount(participatingTeamCount)
+                .gradableTeamCount(gradableTeamCount)
+                .eligibleTeams(eligibleTeams)
                 .build();
+    }
+
+    private void warnHardLockLateInvariant(
+            Round round, List<PresentationQueueResponse.EligibleTeamItem> eligibleTeams) {
+        if (round == null || eligibleTeams == null) {
+            return;
+        }
+        boolean hardLock = Boolean.TRUE.equals(round.getIsFinal())
+                || round.getLateSubmissionPolicy() == com.sealhackathon.api.rounds.value_object.LateSubmissionPolicy.HARD_LOCK;
+        if (!hardLock) {
+            return;
+        }
+        for (PresentationQueueResponse.EligibleTeamItem item : eligibleTeams) {
+            String status = item.getSubmissionStatus();
+            if (status == null) {
+                continue;
+            }
+            String n = status.toUpperCase();
+            if ("LATE_PENDING".equals(n) || "LATE_APPROVED".equals(n)) {
+                log.warn("[INVARIANT_VIOLATION] HARD_LOCK_LATE_STATUS roundId={} teamId={} status={}",
+                        round.getId(), item.getTeamId(), n);
+                auditService.log(AuditAction.INVARIANT_VIOLATION_HARD_LOCK_LATE, "rounds", round.getId(),
+                        Map.of("teamId", item.getTeamId(), "status", n));
+            }
+        }
     }
 
     private PresentationQueueResponse.QueueItem toQueueItem(
@@ -363,6 +640,8 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
     }
 
     private PresentationTimerBlock buildTimerBlock(PresentationSlot slot, Track track, Round round) {
+        PresentationQaTimeoutMaterializer.materializeIfExpired(
+                slot, track, round, durationResolver, presentationSlotRepository);
         PresentationTimerPhase phase = slot.getTimerPhase() != null ? slot.getTimerPhase() : PresentationTimerPhase.IDLE;
         return PresentationTimerBlock.builder()
                 .phase(phase.name())
@@ -414,11 +693,22 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
         slot.setQaStartedAt(null);
         slot.setPausedAt(null);
         slot.setPausedAccumulatedSeconds(0);
+        slot.setQaEndedEarly(null);
     }
 
     private static String defaultLocation(Integer teamId) {
         int room = teamId != null ? (teamId % 3 + 1) : 1;
         return "Online (Teams) - Phòng " + room;
+    }
+
+    private void requireJudgingPhase(Round round) {
+        if (roundPhaseResolver.resolve(round) != RoundPhase.JUDGING) {
+            throw new BusinessRuleException(ErrorCode.SUBMISSION_NOT_CLOSED_FOR_SHUFFLE,
+                    "Chưa hết hạn nộp bài — không xáo hàng đợi thuyết trình",
+                    Map.of("roundId", round.getId(),
+                            "submissionDeadline", round.getSubmissionDeadline(),
+                            "phase", roundPhaseResolver.resolve(round).name()));
+        }
     }
 
     private Round resolveRound(Integer roundId) {

@@ -52,6 +52,12 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
+        <!-- Mail (SMTP) — bật qua app.mail.enabled=true; mặc định tắt (NoOpEmailServiceImpl log) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
@@ -186,6 +192,7 @@
                 <filtering>true</filtering>
                 <excludes>
                     <exclude>application-prod.properties</exclude>
+                    <exclude>seed/**</exclude>
                 </excludes>
             </resource>
             <resource>
@@ -193,6 +200,7 @@
                 <filtering>false</filtering>
                 <includes>
                     <include>application-prod.properties</include>
+                    <include>seed/**</include>
                 </includes>
             </resource>
         </resources>

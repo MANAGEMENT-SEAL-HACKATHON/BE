@@ -21,4 +21,11 @@ public class TrackSummaryResponse {
     private final Integer maxTeamSize;
     private final Integer maxTeams;
     private final Integer maxTeamsPerGroup;
+    private final String problemStatementUrl;
+    private final String problemStatementFilename;
+    /** Override thời lượng thuyết trình (phút) — GĐ3; null = dùng default của round. */
+    private final Integer presentationMinutes;
+    /** Override thời lượng Q&A (phút) — GĐ3; null = dùng default của round. */
+    private final Integer qaMinutes;
+    private final java.time.LocalDateTime problemReleasedAt;
 }

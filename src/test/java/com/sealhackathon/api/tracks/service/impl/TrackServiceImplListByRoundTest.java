@@ -5,7 +5,7 @@ import com.sealhackathon.api.common.exception.ResourceNotFoundException;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.events.repository.EventRepository;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
-import com.sealhackathon.api.mentor_assignments.repository.MentorAssignmentRepository;
+import com.sealhackathon.api.mentors.repository.MentorAssignmentRepository;
 import com.sealhackathon.api.notifications.service.NotificationService;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;

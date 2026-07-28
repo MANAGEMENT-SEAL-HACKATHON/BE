@@ -27,16 +27,39 @@ public class RoundAccessGuard {
         Round round = requireRound(roundId);
         if (!Boolean.TRUE.equals(round.getIsActive())) {
             throw new BusinessRuleException(ErrorCode.ROUND_NOT_ACTIVE,
-                    "Round chưa được kích hoạt",
+                    inactiveRoundMessage(round),
                     Map.of("roundId", roundId));
         }
         return round;
     }
 
+    /**
+     * Active round with {@code PESSIMISTIC_WRITE} — dùng cho close-early / lock-scoring
+     * để tránh Lost Update khi 2 Coord gọi song song.
+     */
+    public Round requireActiveRoundForUpdate(Integer roundId) {
+        Round round = roundRepository.findByIdForUpdate(roundId)
+                .orElseThrow(() -> new ResourceNotFoundException("Round", roundId));
+        if (!Boolean.TRUE.equals(round.getIsActive())) {
+            throw new BusinessRuleException(ErrorCode.ROUND_NOT_ACTIVE,
+                    inactiveRoundMessage(round),
+                    Map.of("roundId", roundId));
+        }
+        return round;
+    }
+
+    private String inactiveRoundMessage(Round round) {
+        return round.getActivatedAt() == null
+                ? "Round chưa được kích hoạt"
+                : "Vòng thi đã kết thúc";
+    }
+
     public Round requireUnlockedRound(Integer roundId) {
         Round round = requireRound(roundId);
         if (Boolean.TRUE.equals(round.getScoringLocked())) {
-            throw new ScoringLockedException("Round đã khóa chấm điểm");
+            throw new ScoringLockedException(round.getActivatedAt() == null
+                    ? "Round đã khóa chấm điểm"
+                    : "Vòng thi đã kết thúc");
         }
         return round;
     }

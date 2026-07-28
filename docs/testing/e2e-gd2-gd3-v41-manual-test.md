@@ -1,4 +1,4 @@
-# E2E Manual Test — GĐ2 → GĐ3 v4.1 (đầu tới cuối)
+﻿# E2E Manual Test — GĐ2 → GĐ3 v4.1 (đầu tới cuối)
 
 > **Mục đích:** Chạy tay từng bước để xác nhận luồng mới (multipart PDF, shuffle, timer, judge ẩn danh, gate chấm) **đúng hay sai**.  
 > **Đối tượng:** QA / dev / coordinator test trên Postman, Thunder Client hoặc `curl`.  
@@ -32,8 +32,8 @@ mvn spring-boot:run -Dspring-boot.run.profiles=dev
 | Kiểm tra | Kỳ vọng | ☐ |
 |----------|---------|---|
 | Port | `http://localhost:8080` | |
-| Log `[Gd2DataSeeder]` | `đăng ký ĐANG MỞ` (hoặc repair timeline) | |
-| Log `[Gd3DataSeeder]` | In `hackathonId`, `prelimRoundId`, `track1Id`, `track2Id`, submission IDs | |
+| Log `[E2eWorkflowDataSeeder]` | `đăng ký ĐANG MỞ` (hoặc repair timeline) | |
+| Log `[Gd3PrelimOpenDataSeeder]` | In `hackathonId`, `prelimRoundId`, `track1Id`, `track2Id`, submission IDs | |
 | `mvn test` (tuỳ chọn) | 160/160 pass | |
 
 ### 1.2 Storage (nộp PDF)
@@ -105,7 +105,7 @@ Content-Type: application/json
 | Student GĐ3-06 (chấm dở) | `student.gd3.leader06@fpt.edu.vn` | `Student@dev1` |
 | Student GĐ2 | `student.gd2.hcm.leader03@fpt.edu.vn` | `Student@dev1` |
 
-### 2.3 Biến lấy từ log `[Gd3DataSeeder]`
+### 2.3 Biến lấy từ log `[Gd3PrelimOpenDataSeeder]`
 
 Sau bước **B.0**, điền:
 
@@ -125,7 +125,7 @@ Sau bước **B.0**, điền:
 
 ## 3. Phần A — GĐ2 (tiên quyết tới GĐ3)
 
-**Hackathon GĐ2:** `seal-spring-2026`  
+**Hackathon GĐ2:** `seal-e2e-2026`  
 **Mục tiêu:** Xác nhận gate GĐ1→2 vẫn hoạt động — **không** test nộp bài sơ loại ở slug này (prelim có thể chưa/khác trạng thái seed).
 
 > GĐ3 v4.1 test chính ở **Phần B** (`seal-gd3-prelim-open`). Phần A đảm bảo workflow GĐ2 không bị phá.
@@ -133,7 +133,7 @@ Sau bước **B.0**, điền:
 ### A.1 Bootstrap GĐ2
 
 ```http
-GET {{baseUrl}}/api/v1/hackathons?q=seal-spring-2026&size=5
+GET {{baseUrl}}/api/v1/hackathons?q=seal-e2e-2026&size=5
 Authorization: Bearer {{coordToken}}
 ```
 
@@ -243,7 +243,18 @@ Authorization: Bearer {{coordToken}}
 | # | Kiểm tra | Pass khi | ☐ |
 |---|----------|----------|---|
 | B.1.1 | `problemReleasedAt` hoặc problem URL | Đã phát đề (seed) | |
-| B.1.2 | `defaultPresentationMinutes` | `10` (hoặc giá trị seed) | |
+| B.1.2 | `defaultPresentationMinutes` / `defaultQaMinutes` | `10` / `5` (hoặc giá trị seed) | |
+| B.1.3 | Track `GET /tracks/{track1Id}` | `presentationMinutes` / `qaMinutes` null hoặc override | |
+
+**Tùy chọn — chỉnh sớm (GĐ1 field trên CRUD):**
+
+```http
+PUT {{baseUrl}}/api/v1/rounds/{{prelimRoundId}}
+Authorization: Bearer {{coordToken}}
+Content-Type: application/json
+```
+
+Thêm vào body round (cùng các field bắt buộc khác): `"defaultPresentationMinutes": 10`, `"defaultQaMinutes": 5`.
 
 ---
 
@@ -350,6 +361,32 @@ POST .../shuffle  body: { "roundId": ..., "trackIds": [{{track2Id}}] }
 | # | Kiểm tra | Pass khi | ☐ |
 |---|----------|----------|---|
 | B.3.8 | Track 2 slotCount | ≥ 1 (team 05, 06 gradable) | |
+
+### B.3b Coordinator — cấu hình thời lượng (trước start timer)
+
+> Chỉ `PUT` **sau shuffle, trước** `timer/start`. Sau start → `422 INVALID_STATE`. BE cascade `presentationSchedule`.
+
+```http
+PUT {{baseUrl}}/api/v1/presentation/duration
+Authorization: Bearer {{coordToken}}
+Content-Type: application/json
+
+{
+  "roundId": {{prelimRoundId}},
+  "trackId": {{track1Id}},
+  "presentationMinutes": 12,
+  "qaMinutes": 8
+}
+```
+
+| # | Kiểm tra | Pass khi | ☐ |
+|---|----------|----------|---|
+| B.3b.1 | HTTP | `200` | |
+| B.3b.2 | `data.effectivePresentationMinutes` | `12` | |
+| B.3b.3 | `GET .../presentation/queue` | `presentationSchedule` khớp khung mới | |
+| B.3b.4 | Sau `timer/start`, gọi lại PUT | `422` | |
+
+**GĐ5:** body `{ "roundId": {{finalRoundId}}, "presentationMinutes", "qaMinutes" }` — không `trackId`.
 
 ---
 
@@ -620,7 +657,7 @@ Người test: _______________
 
 | Phần | Mô tả | Pass | Fail | Ghi chú |
 |------|-------|------|------|---------|
-| **A** | GĐ2 gate (`seal-spring-2026`) | ☐ | ☐ | |
+| **A** | GĐ2 gate (`seal-e2e-2026`) | ☐ | ☐ | |
 | **B.0–B.1** | Bootstrap GĐ3 | ☐ | ☐ | |
 | **B.2** | Multipart submit + GET slide | ☐ | ☐ | |
 | **B.3** | Shuffle + queue `tracks[]` | ☐ | ☐ | |
@@ -651,8 +688,8 @@ Người test: _______________
 | Multipart 415 | Sai Content-Type | Phải `multipart/form-data`, không JSON |
 | GitHub `REPO_NOT_PUBLIC` | Repo private / mạng | Tắt `github-public-check-enabled` hoặc dùng repo public |
 | File slide không thấy trên disk | `app.storage.type=minio` | Kiểm tra MinIO console hoặc đổi `local` |
-| GĐ2 lottery `TEAM_NOT_LOCKED` | Team chưa khóa | Dùng `GD2-05` hoặc đợi `registrationEnd` |
-| Seed deadline khiến mọi bài `LATE_PENDING` | Repair ngày lệch | Restart app dev → xem log `[Gd3DataSeeder] FE repair` |
+| GĐ2 lottery `TEAM_NOT_LOCKED` | Team chưa khóa | Dùng `E2E-T05` hoặc đợi `registrationEnd` |
+| Seed deadline khiến mọi bài `LATE_PENDING` | Repair ngày lệch | Restart app dev → xem log `[Gd3PrelimOpenDataSeeder] FE repair` |
 
 ---
 

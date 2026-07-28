@@ -5,6 +5,7 @@ import com.sealhackathon.api.hackathons.dto.request.UpdateHackathonRequest;
 import com.sealhackathon.api.hackathons.dto.response.HackathonResponse;
 import com.sealhackathon.api.hackathons.dto.response.HackathonSummaryResponse;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
+import com.sealhackathon.api.hackathons.support.HackathonBannerUrls;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import org.springframework.stereotype.Component;
 
@@ -20,7 +21,6 @@ public class HackathonMapper {
                 .status(HackathonStatus.DRAFT)
                 .description(req.getDescription())
                 .rules(req.getRules())
-                .bannerUrl(req.getBannerUrl())
                 .registrationStart(req.getRegistrationStart())
                 .registrationEnd(req.getRegistrationEnd())
                 .eventStart(req.getEventStart())
@@ -39,7 +39,6 @@ public class HackathonMapper {
         entity.setYear(req.getYear());
         entity.setDescription(req.getDescription());
         entity.setRules(req.getRules());
-        entity.setBannerUrl(req.getBannerUrl());
         entity.setRegistrationStart(req.getRegistrationStart());
         entity.setRegistrationEnd(req.getRegistrationEnd());
         entity.setEventStart(req.getEventStart());
@@ -69,9 +68,11 @@ public class HackathonMapper {
                 .status(e.getStatus())
                 .description(e.getDescription())
                 .rules(e.getRules())
-                .bannerUrl(e.getBannerUrl())
+                .bannerUrl(HackathonBannerUrls.resolveForResponse(e))
                 .registrationStart(e.getRegistrationStart())
                 .registrationEnd(e.getRegistrationEnd())
+                .registrationClosedEarlyAt(e.getRegistrationClosedEarlyAt())
+                .scheduleAdjustedAt(e.getScheduleAdjustedAt())
                 .eventStart(e.getEventStart())
                 .eventEnd(e.getEventEnd())
                 .wildcardEnabled(e.getWildcardEnabled())
@@ -81,6 +82,9 @@ public class HackathonMapper {
                 .createdAt(e.getCreatedAt())
                 .updatedAt(e.getUpdatedAt())
                 .maxParticipants(e.getMaxParticipants())
+                .clonedFromHackathonId(e.getClonedFromHackathon() == null ? null : e.getClonedFromHackathon().getId())
+                .clonedFromHackathonName(e.getClonedFromHackathon() == null ? null : e.getClonedFromHackathon().getName())
+                .clonedAt(e.getClonedAt())
                 .build();
     }
 
@@ -100,6 +104,10 @@ public class HackathonMapper {
                 .eventStart(e.getEventStart())
                 .eventEnd(e.getEventEnd())
                 .maxParticipants(e.getMaxParticipants())
+                .bannerUrl(HackathonBannerUrls.resolveForResponse(e))
+                .clonedFromHackathonId(e.getClonedFromHackathon() == null ? null : e.getClonedFromHackathon().getId())
+                .clonedFromHackathonName(e.getClonedFromHackathon() == null ? null : e.getClonedFromHackathon().getName())
+                .clonedAt(e.getClonedAt())
                 .build();
     }
 }

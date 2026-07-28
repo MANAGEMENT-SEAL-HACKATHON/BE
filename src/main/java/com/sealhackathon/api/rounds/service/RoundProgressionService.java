@@ -3,28 +3,39 @@ package com.sealhackathon.api.rounds.service;
 import com.sealhackathon.api.rounds.dto.request.AdvanceTeamsRequest;
 import com.sealhackathon.api.rounds.dto.request.AssignFinalJudgesRequest;
 import com.sealhackathon.api.rounds.dto.request.LockScoringRequest;
-import com.sealhackathon.api.rounds.dto.request.ReleaseProblemRequest;
 import com.sealhackathon.api.rounds.dto.request.ResolveTiebreakRequest;
+import com.sealhackathon.api.rounds.dto.request.UnlockScoringRequest;
+import com.sealhackathon.api.common.response.PageResponse;
+import com.sealhackathon.api.rounds.dto.response.AdvanceRosterItemResponse;
 import com.sealhackathon.api.rounds.dto.response.AdvanceTeamsResponse;
 import com.sealhackathon.api.rounds.dto.response.AssignFinalJudgesResult;
+import com.sealhackathon.api.rounds.dto.response.CloseSubmissionEarlyResponse;
 import com.sealhackathon.api.rounds.dto.response.FinalJudgeAssignmentResponse;
 import com.sealhackathon.api.rounds.dto.response.LockScoringResult;
 import com.sealhackathon.api.rounds.dto.response.RoundRankingItemResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoreboardResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoringProgressResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundSummaryResponse;
+import com.sealhackathon.api.rounds.dto.response.RoundScoreAuditResponse;
+import com.sealhackathon.api.rounds.dto.response.ScoreBreakdownResponse;
 import com.sealhackathon.api.rounds.dto.response.TiebreakItemResponse;
-import com.sealhackathon.api.rounds.dto.response.WildcardCandidateResponse;
+import com.sealhackathon.api.rounds.dto.response.WildcardCandidatesResponse;
 import com.sealhackathon.api.wildcard_reviews.dto.request.WildcardReviewDecisionRequest;
 import com.sealhackathon.api.wildcard_reviews.dto.response.WildcardReviewResponse;
 
 import java.util.List;
 
+import org.springframework.web.multipart.MultipartFile;
+
 public interface RoundProgressionService {
 
-    RoundSummaryResponse releaseProblem(Integer roundId, ReleaseProblemRequest req);
+    RoundSummaryResponse releaseProblem(Integer roundId, MultipartFile file);
+
+    CloseSubmissionEarlyResponse closeSubmissionEarly(Integer roundId);
 
     LockScoringResult lockScoring(Integer roundId, LockScoringRequest req);
+
+    RoundSummaryResponse unlockScoring(Integer roundId, UnlockScoringRequest req);
 
     RoundSummaryResponse publish(Integer roundId);
 
@@ -38,7 +49,14 @@ public interface RoundProgressionService {
 
     List<RoundRankingItemResponse> resolveTiebreak(Integer roundId, ResolveTiebreakRequest req);
 
-    List<WildcardCandidateResponse> wildcardCandidates(Integer roundId);
+    WildcardCandidatesResponse wildcardCandidates(Integer roundId);
+
+    /** Plan C — xác nhận đề xuất hệ thống → LOCK. */
+    WildcardCandidatesResponse confirmWildcardProposal(Integer roundId);
+
+    /** Plan C — lịch sử override công khai. */
+    List<com.sealhackathon.api.wildcard_reviews.dto.response.WildcardOverrideHistoryResponse> listWildcardOverrides(
+            Integer roundId);
 
     AdvanceTeamsResponse advanceTeams(Integer roundId, AdvanceTeamsRequest req);
 
@@ -49,7 +67,28 @@ public interface RoundProgressionService {
 
     WildcardReviewResponse decideWildcardReview(Integer reviewId, WildcardReviewDecisionRequest req);
 
+    /** Plan C — override sau khi proposal LOCKED. */
+    WildcardReviewResponse overrideWildcardReview(
+            Integer reviewId,
+            com.sealhackathon.api.wildcard_reviews.dto.request.WildcardOverrideRequest req);
+
     AssignFinalJudgesResult assignFinalJudges(Integer roundId, AssignFinalJudgesRequest req);
 
     RoundScoreboardResponse scoreboard(Integer roundId);
+
+    /**
+     * Danh sách CK & loại — preview sau publish / outcome sau advance (Bug3).
+     * page 0-based, size mặc định 50.
+     */
+    PageResponse<AdvanceRosterItemResponse> advanceRoster(Integer roundId, Integer page, Integer size);
+
+    /**
+     * Ma trận điểm judges × criteria cho submission (Bug4). COORD only qua controller.
+     */
+    ScoreBreakdownResponse scoreBreakdown(Integer roundId, Integer submissionId);
+
+    /**
+     * A1 — Kiểm tra chấm tổng thể: không trackId = summary; có trackId = ma trận 1 query/track.
+     */
+    RoundScoreAuditResponse scoreBreakdownAll(Integer roundId, Integer trackId);
 }

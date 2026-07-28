@@ -15,4 +15,6 @@ public class StudentRoundDeadlineResponse {
 
     private Integer roundId;
     private LocalDateTime deadline;
+    private Boolean problemReleased;
+    private LocalDateTime closedEarlyAt;
 }

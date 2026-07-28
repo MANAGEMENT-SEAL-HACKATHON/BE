@@ -52,8 +52,6 @@ public class CreateHackathonRequest {
 
     private String rules;
 
-    private String bannerUrl;
-
     private LocalDate registrationStart;
 
     private LocalDate registrationEnd;

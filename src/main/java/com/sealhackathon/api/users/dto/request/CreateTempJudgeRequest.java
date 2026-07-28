@@ -18,7 +18,7 @@ import lombok.Setter;
  *   <li>{@code role = JUDGE}</li>
  *   <li>{@code userType = EXTERNAL}</li>
  *   <li>{@code isTempAccount = TRUE}</li>
- *   <li>{@code status = APPROVED} (Coordinator approve trực tiếp)</li>
+ *   <li>{@code status = PENDING} (APPROVED sau khi guest đổi mật khẩu lần đầu)</li>
  * </ul>
  */
 @Getter

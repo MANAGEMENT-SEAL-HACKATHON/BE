@@ -6,6 +6,8 @@ import com.sealhackathon.api.tracks.dto.request.UpdateTrackRequest;
 import com.sealhackathon.api.tracks.dto.response.TrackResponse;
 import com.sealhackathon.api.tracks.dto.response.TrackSummaryResponse;
 import com.sealhackathon.api.tracks.entity.Track;
+import com.sealhackathon.api.tracks.support.TrackProblemStatementStorage;
+import com.sealhackathon.api.tracks.support.TrackProblemStatementUrls;
 import com.sealhackathon.api.tracks.value_object.TrackStatus;
 import org.springframework.stereotype.Component;
 
@@ -40,6 +42,12 @@ public class TrackMapper {
         if (req.getStatus() != null) {
             entity.setStatus(req.getStatus());
         }
+        if (req.getPresentationMinutes() != null) {
+            entity.setPresentationMinutes(req.getPresentationMinutes());
+        }
+        if (req.getQaMinutes() != null) {
+            entity.setQaMinutes(req.getQaMinutes());
+        }
     }
 
     public TrackResponse toResponse(Track e) {
@@ -67,6 +75,11 @@ public class TrackMapper {
                 .maxTeamSize(e.getMaxTeamSize())
                 .status(e.getStatus())
                 .sequenceOrder(e.getSequenceOrder())
+                .problemStatementUrl(TrackProblemStatementUrls.resolveForResponse(e))
+                .problemStatementFilename(TrackProblemStatementStorage.displayFilename(e))
+                .presentationMinutes(e.getPresentationMinutes())
+                .qaMinutes(e.getQaMinutes())
+                .problemReleasedAt(e.getProblemReleasedAt())
                 .build();
     }
 
@@ -87,6 +100,11 @@ public class TrackMapper {
                 .maxTeamSize(e.getMaxTeamSize())
                 .maxTeams(e.getMaxTeams())
                 .maxTeamsPerGroup(e.getMaxTeamsPerGroup())
+                .problemStatementUrl(TrackProblemStatementUrls.resolveForResponse(e))
+                .problemStatementFilename(TrackProblemStatementStorage.displayFilename(e))
+                .presentationMinutes(e.getPresentationMinutes())
+                .qaMinutes(e.getQaMinutes())
+                .problemReleasedAt(e.getProblemReleasedAt())
                 .build();
     }
 }

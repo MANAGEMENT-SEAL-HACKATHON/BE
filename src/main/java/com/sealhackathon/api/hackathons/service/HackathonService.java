@@ -11,6 +11,8 @@ import com.sealhackathon.api.hackathons.dto.response.HackathonSummaryResponse;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.hackathons.value_object.Season;
 import org.springframework.data.domain.Pageable;
+import org.springframework.core.io.Resource;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * FR-01 — CRUD Hackathon.
@@ -35,6 +37,11 @@ public interface HackathonService {
      * @throws BusinessRuleException date logic invalid
      */
     HackathonResponse create(CreateHackathonRequest req);
+
+    /**
+     * POST /api/v1/hackathons/{id}/clone — nhân bản rounds/tracks/criteria từ nguồn.
+     */
+    HackathonResponse cloneFrom(Integer sourceId, CreateHackathonRequest req);
 
     /**
      * GET /api/v1/hackathons/{id}.
@@ -64,4 +71,8 @@ public interface HackathonService {
      * @throws ConflictException status ≠ DRAFT hoặc còn children
      */
     Integer delete(Integer id);
+
+    HackathonResponse uploadBanner(Integer id, MultipartFile file);
+
+    Resource getBannerResource(Integer id);
 }

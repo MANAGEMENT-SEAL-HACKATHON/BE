@@ -1,4 +1,4 @@
-# MF-01 — Functional Requirements (FR-01 … FR-07B)
+﻿# MF-01 — Functional Requirements (FR-01 … FR-07B)
 
 **Nguồn:** Tách từ spec MF-01 v3.0. Chi tiết API: [api/](api/). Runbook: [04-quy-trinh-van-hanh.md](04-quy-trinh-van-hanh.md).
 
@@ -13,7 +13,7 @@ Workflow v5.0 ref: GĐ1 — Bước 1 | DB v3.0 ref: hackathons
 Trường	Kiểu / Ràng buộc	Ghi chú nghiệp vụ	Thay đổi v3.0
 id	SERIAL PK	Auto-increment	—
 name	VARCHAR(300) NOT NULL	Tên kỳ thi	—
-slug	VARCHAR(150) UNIQUE NOT NULL	URL-friendly: "seal-spring-2026"	—
+slug	VARCHAR(150) UNIQUE NOT NULL	URL-friendly: "seal-e2e-2026"	—
 season	VARCHAR(20) CHECK IN ('Spring','Summer','Fall','Winter')	Mùa thi	—
 year	INT NOT NULL	Năm tổ chức	—
 status	VARCHAR(20) DEFAULT 'DRAFT' CHECK IN ('DRAFT','ONGOING','PENDING_CONFIRM','FINISHED')	State machine một chiều	—

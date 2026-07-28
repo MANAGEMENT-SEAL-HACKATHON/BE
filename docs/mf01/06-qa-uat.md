@@ -1,4 +1,4 @@
-# MF-01 GĐ1 — QA/UAT
+﻿# MF-01 GĐ1 — QA/UAT
 
 **Dự án:** SEAL Hackathon Management System — Backend  
 **Phiên bản tài liệu:** 1.0 · **Ngày:** 2026-05-19  
@@ -80,8 +80,8 @@ Xem [04-quy-trinh-van-hanh.md §0](04-quy-trinh-van-hanh.md#0-tiền-đề-khi-g
 | Biến | Giá trị | Mục đích |
 |------|---------|----------|
 | `slugIncomplete` | `seal-gd1-incomplete` | Readiness fail |
-| `slugReady` | `seal-gd1-ready` | Readiness pass |
-| `slugOngoing` | `seal-spring-2026` | Đã ONGOING |
+| `slugReady` | `seal-e2e-2026` | Readiness pass |
+| `slugOngoing` | `seal-e2e-2026` | Đã ONGOING |
 | `emailCoord` | `coord@fpt.edu.vn` | id=1 |
 | `emailMentor` | `mentor@fpt.edu.vn` | MENTOR APPROVED |
 | `emailJudge1` | `judge1@fpt.edu.vn` | JUDGE APPROVED |
@@ -89,7 +89,7 @@ Xem [04-quy-trinh-van-hanh.md §0](04-quy-trinh-van-hanh.md#0-tiền-đề-khi-g
 | `emailPending` | `pending.judge@fpt.edu.vn` | PENDING |
 | `emailGuest` | `guestjudge@gmail.com` | EXTERNAL seed |
 
-**Lấy ID:** `GET {{baseUrl}}/api/v1/hackathons?q=seal-gd1-ready` → `data.items[0].id`. Tiếp: rounds, tracks theo [05-test-data.md §2](05-test-data.md).
+**Lấy ID:** `GET {{baseUrl}}/api/v1/hackathons?q=seal-e2e-2026` → `data.items[0].id`. Tiếp: rounds, tracks theo [05-test-data.md §2](05-test-data.md).
 
 **Greenfield slug (Luồng A):** `seal-uat-20260519` — đổi suffix mỗi lần chạy.
 
@@ -364,7 +364,7 @@ Expected: **201**; lưu `invitationId` từ `data.invitation.id` (nếu có). In
 
 ## 6. Luồng B — Seed smoke (11 case)
 
-**Pre:** App đã seed; `GET /api/v1/hackathons?q=seal-gd1-ready` → `hackathonId`, lấy `prelimRoundId`, `finalRoundId`, `track1Id`, `track2Id`.
+**Pre:** App đã seed; `GET /api/v1/hackathons?q=seal-e2e-2026` → `hackathonId`, lấy `prelimRoundId`, `finalRoundId`, `track1Id`, `track2Id`.
 
 | TC | Method | Path | Expected |
 |----|--------|------|----------|
@@ -382,7 +382,7 @@ Expected: **201**; lưu `invitationId` từ `data.invitation.id` (nếu có). In
 
 **Incomplete:** `q=seal-gd1-incomplete` → readiness `ready: false` (TC-GD1-N08).
 
-**Ongoing:** `seal-spring-2026` → PATCH ONGOING lại → TC-GD1-N09.
+**Ongoing:** `seal-e2e-2026` → PATCH ONGOING lại → TC-GD1-N09.
 
 ---
 
@@ -491,7 +491,7 @@ Expected: `ready: false`, blockers chứa `MISSING_PRELIMINARY_ROUND` hoặc tư
 
 #### TC-GD1-N09 — PATCH ONGOING khi đã ONGOING
 
-Hackathon `seal-spring-2026`: `PATCH .../status` `{ "status": "ONGOING" }`
+Hackathon `seal-e2e-2026`: `PATCH .../status` `{ "status": "ONGOING" }`
 
 Expected: **409** `STATUS_TRANSITION_INVALID`
 
@@ -749,7 +749,7 @@ Expected: **200** hoặc lỗi weight/conflict nếu thiếu — ghi actual.
 
 ```bash
 # Readiness seed ready (thay HACKATHON_ID)
-curl -s "http://localhost:8080/api/v1/hackathons?q=seal-gd1-ready"
+curl -s "http://localhost:8080/api/v1/hackathons?q=seal-e2e-2026"
 curl -s "http://localhost:8080/api/v1/hackathons/HACKATHON_ID/readiness?target=ONGOING"
 
 # Negative incomplete

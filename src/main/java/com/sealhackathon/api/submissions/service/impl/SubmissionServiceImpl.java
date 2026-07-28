@@ -8,8 +8,11 @@ import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.common.security.CurrentUserStub;
+import com.sealhackathon.api.notifications.service.NotificationService;
+import com.sealhackathon.api.teams.entity.TeamMember;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
+import com.sealhackathon.api.presentation.service.PresentationQueueService;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.guard.RoundAccessGuard;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
@@ -27,11 +30,11 @@ import com.sealhackathon.api.submissions.support.SubmissionSlideStorage;
 import com.sealhackathon.api.storage.StoredObject;
 import com.sealhackathon.api.submissions.value_object.LateReviewDecision;
 import com.sealhackathon.api.submissions.value_object.SubmissionStatus;
-import com.sealhackathon.api.team_members.repository.TeamMemberRepository;
-import com.sealhackathon.api.team_members.value_object.TeamMemberStatus;
-import com.sealhackathon.api.team_round_participation.repository.TeamRoundParticipationRepository;
-import com.sealhackathon.api.team_round_participation.value_object.ParticipationStatus;
-import com.sealhackathon.api.team_round_tracks.repository.TeamRoundTrackRepository;
+import com.sealhackathon.api.teams.repository.TeamMemberRepository;
+import com.sealhackathon.api.teams.value_object.TeamMemberStatus;
+import com.sealhackathon.api.teams.repository.TeamRoundParticipationRepository;
+import com.sealhackathon.api.teams.repository.TeamRoundTrackRepository;
+import com.sealhackathon.api.teams.support.PrelimMutationGuard;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.repository.TeamRepository;
 import com.sealhackathon.api.teams.value_object.TeamStatus;
@@ -42,6 +45,7 @@ import com.sealhackathon.api.users.repository.UserRepository;
 import com.sealhackathon.api.users.value_object.UserRole;
 import com.sealhackathon.api.users.value_object.UserStatus;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,6 +58,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -74,28 +79,26 @@ public class SubmissionServiceImpl implements SubmissionService {
     private final TeamRoundParticipationRepository teamRoundParticipationRepository;
     private final GitHubRepoValidator gitHubRepoValidator;
     private final SubmissionSlideStorage submissionSlideStorage;
+    private final NotificationService notificationService;
+    private final PrelimMutationGuard prelimMutationGuard;
+    private final PresentationQueueService presentationQueueService;
+    private final com.sealhackathon.api.live_scoring.SubmissionRosterPublisher submissionRosterPublisher;
 
     @Override
     public SubmissionResponse submitMultipart(
-            Integer teamId,
-            Integer trackId,
-            Integer roundId,
-            String repoUrl,
-            String lateReason,
+            Integer teamId, Integer trackId, Integer roundId,
+            String repoUrl, String demoUrl, String lateReason,
             MultipartFile slideFile) {
+
         SubmitSubmissionRequest req = SubmitSubmissionRequest.builder()
                 .teamId(teamId)
                 .trackId(trackId)
                 .roundId(roundId)
                 .repoUrl(repoUrl)
+                .demoUrl(demoUrl)
                 .lateReason(lateReason)
                 .build();
         return submitInternal(req, slideFile, true);
-    }
-
-    @Override
-    public SubmissionResponse submit(SubmitSubmissionRequest req) {
-        return submitInternal(req, null, false);
     }
 
     private SubmissionResponse submitInternal(
@@ -114,30 +117,25 @@ public class SubmissionServiceImpl implements SubmissionService {
         if (team.getStatus() != TeamStatus.ACTIVE) {
             throw new BusinessRuleException(ErrorCode.TEAM_NOT_ACTIVE, "Đội chưa ACTIVE");
         }
+        if (team.getHackathon().getStatus() == HackathonStatus.FINISHED) {
+            throw new BusinessRuleException(ErrorCode.EVENT_FINISHED, "Hackathon đã kết thúc — không còn nhận bài");
+        }
+        if (team.getHackathon().getStatus() == HackathonStatus.PENDING_CONFIRM) {
+            throw new BusinessRuleException(ErrorCode.SUBMISSION_CLOSED,
+                    "Hackathon đã đóng sổ chấm — không còn nhận bài");
+        }
+        if (team.getHackathon().getStatus() == HackathonStatus.DRAFT) {
+            throw new BusinessRuleException(ErrorCode.SUBMISSION_NOT_STARTED,
+                    "Sự kiện chưa mở — chưa đến thời gian nộp bài");
+        }
         if (team.getHackathon().getStatus() != HackathonStatus.ONGOING) {
             throw new BusinessRuleException(ErrorCode.HACKATHON_NOT_ONGOING, "Hackathon chưa ONGOING");
         }
 
         // LOGIC PHÂN LUỒNG SƠ LOẠI vs CHUNG KẾT
-        Round round;
-        Track track = null;
-
-        if (req.getTrackId() != null) {
-            track = trackRepository.findById(req.getTrackId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Track", req.getTrackId()));
-            round = track.getRound();
-            if (Boolean.TRUE.equals(round.getIsFinal())) {
-                throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Vòng Chung kết không sử dụng Track, vui lòng bỏ trống trackId");
-            }
-        } else if (req.getRoundId() != null) {
-            round = roundRepository.findById(req.getRoundId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Round", req.getRoundId()));
-            if (!Boolean.TRUE.equals(round.getIsFinal())) {
-                throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Vòng Sơ loại bắt buộc phải gửi kèm trackId");
-            }
-        } else {
-            throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Phải cung cấp trackId hoặc roundId");
-        }
+        var routing = validateSubmissionRouting(req.getTrackId(), req.getRoundId());
+        Round round = routing.round();
+        Track track = routing.track();
 
         if (!team.getHackathon().getId().equals(round.getHackathon().getId())) {
             throw new BusinessRuleException(ErrorCode.CROSS_HACKATHON_VIOLATION, "Round/Track không thuộc hackathon của đội");
@@ -153,9 +151,8 @@ public class SubmissionServiceImpl implements SubmissionService {
                     .orElseThrow(() -> new BusinessRuleException(ErrorCode.TEAM_NOT_IN_TRACK,
                             "Đội chưa được gán track này",
                             Map.of("teamId", team.getId(), "trackId", currentTrackId)));
-            if (teamTrack.getParticipationStatus() == ParticipationStatus.ELIMINATED) {
-                throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Đội đã bị loại khỏi vòng này");
-            }
+            // Sơ loại: chỉ PARTICIPATING được nộp / sửa bài (ADVANCED|ELIMINATED → 403)
+            prelimMutationGuard.assertPrelimMutable(teamTrack);
         } else {
             boolean isParticipating = teamRoundParticipationRepository.findByTeam_IdAndRound_Id(team.getId(), round.getId()).isPresent();
             if (!isParticipating) {
@@ -171,7 +168,16 @@ public class SubmissionServiceImpl implements SubmissionService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        boolean afterDeadline = now.isAfter(round.getSubmissionDeadline());
+        // Closed-early ⇒ mọi lần nộp sau đó đều late (tránh race isAfter(deadline==now) = false)
+        boolean afterDeadline = round.getSubmissionClosedEarlyAt() != null
+                || (round.getSubmissionDeadline() != null && !now.isBefore(round.getSubmissionDeadline()));
+
+        if (afterDeadline
+                && round.getLateSubmissionPolicy() != LateSubmissionPolicy.HARD_LOCK
+                && !StringUtils.hasText(req.getLateReason())) {
+            throw new BusinessRuleException(ErrorCode.LATE_REASON_REQUIRED,
+                    "Bắt buộc nhập lý do khi nộp/sửa bài sau hạn chót");
+        }
 
         Submission submission;
         if (track != null) {
@@ -196,8 +202,8 @@ public class SubmissionServiceImpl implements SubmissionService {
         SubmissionStatus status = resolveStatusOnSubmit(submission, round, afterDeadline);
 
         submission.setRepoUrl(req.getRepoUrl());
+        submission.setDemoUrl(req.getDemoUrl());
         if (!multipartMode) {
-            submission.setDemoUrl(req.getDemoUrl());
             submission.setReportUrl(req.getReportUrl());
             submission.setSlideUrl(req.getSlideUrl());
         }
@@ -207,7 +213,8 @@ public class SubmissionServiceImpl implements SubmissionService {
         submission.setSubmittedAt(now);
 
         if (multipartMode) {
-            boolean slideRequired = isCreate || !StringUtils.hasText(submission.getSlideStorageKey());
+            boolean hadSlideBefore = !isCreate && StringUtils.hasText(submission.getSlideStorageKey());
+            boolean slideRequired = isCreate || !hadSlideBefore;
             submissionSlideStorage.validatePdf(slideFile, slideRequired);
         }
 
@@ -218,11 +225,48 @@ public class SubmissionServiceImpl implements SubmissionService {
             saved = submissionRepository.save(saved);
         }
 
+        if (multipartMode && !StringUtils.hasText(saved.getSlideStorageKey())) {
+            throw new BusinessRuleException(ErrorCode.INVALID_SLIDE_FILE,
+                    "Không lưu được file slide — vui lòng chọn file PDF và nộp lại");
+        }
+
         auditService.log(isCreate ? AuditAction.SUBMISSION_CREATE : AuditAction.SUBMISSION_UPDATE,
                 "submissions", saved.getId(),
                 Map.of("teamId", team.getId(), "roundId", round.getId()));
+        notifySubmissionReceived(team, round, track, saved, isCreate);
         submissionMetadataService.enqueueFetch(saved.getId());
+        submissionRosterPublisher.publishInvalidate(round.getId());
         return toResponse(saved, false);
+    }
+
+    private void notifySubmissionReceived(Team team, Round round, Track track,
+                                          Submission saved, boolean isCreate) {
+        List<User> members = teamMemberRepository.findByTeam_Id(team.getId()).stream()
+                .filter(tm -> tm.getStatus() == TeamMemberStatus.ACCEPTED)
+                .map(TeamMember::getUser)
+                .filter(u -> u != null)
+                .toList();
+        if (members.isEmpty()) {
+            return;
+        }
+        String scope = track != null ? track.getName() : round.getName();
+        String statusNote = switch (saved.getStatus()) {
+            case SUBMITTED -> "Bài đã được ghi nhận đúng hạn.";
+            case LATE_PENDING -> "Bài nộp trễ đang chờ Coordinator duyệt.";
+            case LATE_APPROVED -> "Bài nộp trễ đã được duyệt.";
+            case ACCEPTED -> "Bài đã được chấp nhận.";
+            default -> "Bài đã được ghi nhận.";
+        };
+        notificationService.sendBatch(
+                members,
+                "SUBMISSION_RECEIVED",
+                "%s bài — %s".formatted(isCreate ? "Đã nộp" : "Đã cập nhật", scope),
+                "Đội \"%s\" %s %s".formatted(
+                        team.getTeamName(),
+                        isCreate ? "vừa nộp bài cho" : "vừa cập nhật bài nộp cho",
+                        "\"%s\". %s".formatted(scope, statusNote)),
+                "submissions",
+                saved.getId());
     }
 
     @Override
@@ -273,7 +317,7 @@ public class SubmissionServiceImpl implements SubmissionService {
 
     @Override
     public SubmissionResponse reviewLate(Integer submissionId, ReviewLateSubmissionRequest req) {
-        Submission submission = submissionRepository.findById(submissionId)
+        Submission submission = submissionRepository.findByIdForUpdate(submissionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Submission", submissionId));
 
         if (submission.getStatus() != SubmissionStatus.LATE_PENDING) {
@@ -307,7 +351,57 @@ public class SubmissionServiceImpl implements SubmissionService {
         Submission saved = submissionRepository.save(submission);
         auditService.log(AuditAction.SUBMISSION_LATE_REVIEW, "submissions", saved.getId(),
                 Map.of("decision", req.getDecision().name()));
-        return toResponse(saved, false);
+        boolean queueAppendFailed = false;
+        if (req.getDecision() == LateReviewDecision.APPROVE) {
+            try {
+                presentationQueueService.appendLateApprovedIfShuffled(saved);
+            } catch (Exception ex) {
+                queueAppendFailed = true;
+                log.error("[reviewLate] queue append failed after approve submissionId={} roundId={}: {}",
+                        saved.getId(),
+                        saved.getRound() != null ? saved.getRound().getId() : null,
+                        ex.getMessage(),
+                        ex);
+                auditService.log(AuditAction.SUBMISSION_LATE_QUEUE_APPEND_FAILED, "submissions", saved.getId(),
+                        Map.of(
+                                "roundId", saved.getRound() != null ? saved.getRound().getId() : null,
+                                "error", ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName()));
+                notifyCoordinatorsQueueAppendFailed(saved, ex);
+            }
+        }
+        if (saved.getRound() != null) {
+            submissionRosterPublisher.publishInvalidate(saved.getRound().getId());
+        }
+        SubmissionResponse response = toResponse(saved, false);
+        if (queueAppendFailed) {
+            return response.toBuilder().queueAppendFailed(true).build();
+        }
+        return response;
+    }
+
+    private void notifyCoordinatorsQueueAppendFailed(Submission saved, Exception ex) {
+        try {
+            List<User> coordinators = userRepository.findByRoleAndStatus(
+                    UserRole.COORDINATOR, UserStatus.APPROVED, org.springframework.data.domain.Pageable.unpaged())
+                    .getContent();
+            if (coordinators.isEmpty()) {
+                return;
+            }
+            String teamName = saved.getTeam() != null ? saved.getTeam().getTeamName() : "?";
+            notificationService.sendBatch(
+                    coordinators,
+                    "LATE_QUEUE_APPEND_FAILED",
+                    "Bài duyệt trễ chưa vào hàng đợi thuyết trình",
+                    "Đội " + teamName + " (submission #" + saved.getId()
+                            + ") đã được duyệt trễ nhưng chưa append vào queue sau shuffle. Lỗi: "
+                            + (ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName())
+                            + ". Vui lòng kiểm tra / thử shuffle lại hoặc thêm slot thủ công.",
+                    "submissions",
+                    saved.getId());
+        } catch (Exception notifyEx) {
+            log.error("[reviewLate] failed to notify coordinators about queue append failure: {}",
+                    notifyEx.getMessage(), notifyEx);
+        }
     }
 
     private SubmissionStatus resolveSubmitStatus(Round round, boolean afterDeadline) {
@@ -320,6 +414,31 @@ public class SubmissionServiceImpl implements SubmissionService {
         return SubmissionStatus.LATE_PENDING;
     }
 
+    private record SubmissionRouting(Round round, Track track) {}
+
+    private SubmissionRouting validateSubmissionRouting(Integer trackId, Integer roundId) {
+        if (trackId != null) {
+            Track track = trackRepository.findById(trackId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Track", trackId));
+            Round round = track.getRound();
+            if (Boolean.TRUE.equals(round.getIsFinal())) {
+                throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                        "Vòng Chung kết bắt buộc phải gửi roundId (không dùng trackId)");
+            }
+            return new SubmissionRouting(round, track);
+        }
+        if (roundId != null) {
+            Round round = roundRepository.findById(roundId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Round", roundId));
+            if (!Boolean.TRUE.equals(round.getIsFinal())) {
+                throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                        "Vòng Sơ loại bắt buộc phải gửi kèm trackId");
+            }
+            return new SubmissionRouting(round, null);
+        }
+        throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Phải cung cấp trackId hoặc roundId");
+    }
+
     private SubmissionStatus resolveStatusOnSubmit(Submission existing, Round round, boolean afterDeadline) {
         SubmissionStatus computed = resolveSubmitStatus(round, afterDeadline);
         if (existing == null || existing.getStatus() == null) {
@@ -327,7 +446,8 @@ public class SubmissionServiceImpl implements SubmissionService {
         }
         return switch (existing.getStatus()) {
             case LATE_APPROVED, ACCEPTED -> existing.getStatus();
-            case SUBMITTED -> afterDeadline ? computed : SubmissionStatus.SUBMITTED;
+            // Mọi chỉnh sau deadline/close-early → LATE_PENDING/REJECTED (không giữ SUBMITTED)
+            case SUBMITTED -> afterDeadline ? computed : existing.getStatus();
             case LATE_PENDING -> computed;
             default -> computed;
         };
@@ -428,6 +548,7 @@ public class SubmissionServiceImpl implements SubmissionService {
                 .trackId(s.getTrack() != null ? s.getTrack().getId() : null)
                 .roundId(s.getRound() != null ? s.getRound().getId() : null)
                 .repoUrl(s.getRepoUrl())
+                .demoUrl(s.getDemoUrl())
                 .slideFile(slideFile)
                 .slideDownloadPath(slideDownloadPath)
                 .status(s.getStatus())

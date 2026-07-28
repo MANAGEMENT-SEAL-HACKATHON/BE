@@ -12,7 +12,8 @@ import org.springframework.data.domain.Pageable;
  * <p>Business rules:
  * <ul>
  *   <li>Email phải chưa tồn tại trong {@code users} → 409 {@code USER_EMAIL_TAKEN}.</li>
- *   <li>Tạo User với role=JUDGE, userType=EXTERNAL, isTempAccount=TRUE, status=APPROVED.</li>
+ *   <li>Tạo User với role=JUDGE, userType=EXTERNAL, isTempAccount=TRUE, status=PENDING
+ *       (chuyển APPROVED sau khi đổi mật khẩu bắt buộc lần đầu).</li>
  *   <li>Tạo {@code invitations} kèm token random 64 char, expires_at = NOW + 72h.</li>
  *   <li>Gọi {@code EmailService.sendInvitation(...)} async — KHÔNG trả token cho Coordinator.</li>
  * </ul>

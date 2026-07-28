@@ -4,6 +4,7 @@
 
 | Tài liệu | Mục đích |
 |----------|----------|
+| **[manual-ui-playbook-gd1-gd6.md](manual-ui-playbook-gd1-gd6.md)** | **Playbook UI GĐ1–6** — happy/bad click-by-click, end-early, full chain 7A/7B |
 | **[full-workflow-api-test-gd1-gd6.md](full-workflow-api-test-gd1-gd6.md)** | **File chính** — hướng dẫn tester, E2E GĐ0→6, catalog 166 API (request/response JSON) |
 | **[gate-regression-test-matrix-gd1-gd6.md](gate-regression-test-matrix-gd1-gd6.md)** | **Regression GĐ1–6** — testcase gate, negative, E2E full path |
 | **[fe-gd1-gd2-gd3-workflow-mapping.md](fe-gd1-gd2-gd3-workflow-mapping.md)** | **FE GĐ1–3** — gate BTC, readiness targets, timeline sync |
@@ -12,7 +13,11 @@
 | **[postman-playbook-gd2-gd3-integration.md](postman-playbook-gd2-gd3-integration.md)** | **Postman GĐ2+GĐ3** — 7 integration test + **§0.5 quy trình Presentation/timer cho FE** |
 | **[e2e-gd2-gd3-v41-manual-test.md](e2e-gd2-gd3-v41-manual-test.md)** | E2E manual GĐ2→GĐ3 v4.1 (multipart, shuffle, timer, negative) |
 | **[test-strategy-gd1-gd6-unit-to-e2e.md](test-strategy-gd1-gd6-unit-to-e2e.md)** | Chiến lược unit → integration → E2E GĐ1–6 |
-| **[seed-coverage-audit.md](seed-coverage-audit.md)** | **Seed DB dev** — slug theo GĐ, SQL verify, bật/tắt Gd4 |
+| **[gd1-full-test-matrix-and-seeds.md](gd1-full-test-matrix-and-seeds.md)** | **GĐ1** — ma trận test + seed (events, rounds, tracks, timer defaults) |
+| **[gd2-full-test-matrix-and-seeds.md](gd2-full-test-matrix-and-seeds.md)** | **GĐ2** — ma trận test + seed (teams, lottery, orphan) |
+| **[gd3-full-test-matrix-and-seeds.md](gd3-full-test-matrix-and-seeds.md)** | **GĐ3** — ma trận test + 6 profile seed |
+| **[gd5-full-test-matrix-and-seeds.md](gd5-full-test-matrix-and-seeds.md)** | **GĐ5** — ma trận test + 6 profile seed |
+| **[dev-seed-guide.md](dev-seed-guide.md)** | **Seed dev** — 40 slug (`seal-e2e-2026`, `seal-gd1-incomplete`, `seal-gd2-teams-edge`, `seal-gd3-*`…`seal-gd6-*`) |
 | **[gd4-gd5-e2e-seed-data.md](gd4-gd5-e2e-seed-data.md)** | **GĐ4/GĐ5** — ma trận teams, Postman vars, SQL verify |
 | [api-catalog-with-json.md](api-catalog-with-json.md) | Bản rút Phần III (cùng nội dung) — mở tab riêng khi chỉ tra API |
 
@@ -28,16 +33,18 @@
 
 ## Seed theo giai đoạn (dev)
 
-| Slug | GĐ |
-|------|-----|
-| `seal-spring-2026` | GĐ2 teams (`GD2-*`) |
-| `seal-gd3-prelim-open` | GĐ3 — submit/late/calibration/presentation |
-| `seal-gd4-advance-ready` | **GĐ4** — ranking/wildcard/advance/activate CK |
-| `seal-gd5-final-active` | **GĐ5** — Chung kết active, nộp/chấm, lock CK |
-| `seal-gd6-pending-confirm` | GĐ6 — trao giải, confirm |
-| `seal-gd4-tiebreak-wildcard` | GĐ4 — chỉ khi `app.seed.gd4.enabled=true` |
+| GĐ | Ma trận + seed |
+|----|----------------|
+| GĐ1 | [gd1-full-test-matrix-and-seeds.md](gd1-full-test-matrix-and-seeds.md) — `seal-e2e-2026`, `seal-gd1-incomplete`, `seal-fall-2025-finished` |
+| GĐ2 | [gd2-full-test-matrix-and-seeds.md](gd2-full-test-matrix-and-seeds.md) — 7 đội + 3 orphan trên `seal-e2e-2026` |
+| GĐ3 | [gd3-full-test-matrix-and-seeds.md](gd3-full-test-matrix-and-seeds.md) |
+| GĐ4 | [gd4-full-test-matrix-and-seeds.md](gd4-full-test-matrix-and-seeds.md) |
+| GĐ5 | [gd5-full-test-matrix-and-seeds.md](gd5-full-test-matrix-and-seeds.md) |
+| GĐ6 | [gd6-full-test-matrix-and-seeds.md](gd6-full-test-matrix-and-seeds.md) |
 
-Chi tiết + SQL: **[seed-coverage-audit.md](seed-coverage-audit.md)**.
+Xem thêm **[dev-seed-guide.md](dev-seed-guide.md)** — tóm tắt 40 slug dev.
+
+**Legacy (đã xóa khi start dev):** `seal-spring-2026*`, `seal-gd1-ready`.
 
 ## Cập nhật catalog (dev)
 

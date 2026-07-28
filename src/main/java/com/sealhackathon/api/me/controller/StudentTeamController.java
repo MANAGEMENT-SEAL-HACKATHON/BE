@@ -5,7 +5,9 @@ import com.sealhackathon.api.common.security.StudentOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
 import com.sealhackathon.api.me.student.dto.request.RelotteryTrackRequest;
 import com.sealhackathon.api.me.student.dto.response.StudentSubmissionStatusResponse;
+import com.sealhackathon.api.me.student.dto.response.StudentTeamScoreBreakdownResponse;
 import com.sealhackathon.api.me.student.service.StudentPortalService;
+import com.sealhackathon.api.tracks.dto.response.TrackSummaryResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,6 +36,14 @@ public class StudentTeamController {
         return ResponseEntity.ok(ApiResponse.ok(studentPortalService.listTeamSubmissions(teamId, roundId)));
     }
 
+    @GetMapping("/teams/{teamId}/rounds/{roundId}/score-breakdown")
+    @Operation(summary = "A2-1 — Bảng điểm đội (ẩn danh GK), chỉ sau khi vòng đã công bố")
+    public ResponseEntity<ApiResponse<StudentTeamScoreBreakdownResponse>> teamScoreBreakdown(
+            @PathVariable Integer teamId,
+            @PathVariable Integer roundId) {
+        return ResponseEntity.ok(ApiResponse.ok(studentPortalService.getTeamScoreBreakdown(teamId, roundId)));
+    }
+
     @GetMapping("/submission")
     @Operation(summary = "GĐ3 — Bài nộp mới nhất của đội (student)")
     public ResponseEntity<ApiResponse<StudentSubmissionStatusResponse>> latestSubmission(
@@ -50,6 +60,13 @@ public class StudentTeamController {
             @Valid @RequestBody RelotteryTrackRequest request) {
         studentPortalService.relotteryTrack(teamId, roundId, request);
         return ResponseEntity.ok(ApiResponse.ok(null, "Track updated"));
+    }
+
+    @GetMapping("/hackathons/{hackathonId}/selectable-tracks")
+    @Operation(summary = "FR-U-15-F — Danh sách track Fall leader có thể chọn")
+    public ResponseEntity<ApiResponse<List<TrackSummaryResponse>>> listSelectableFallTracks(
+            @PathVariable Integer hackathonId) {
+        return ResponseEntity.ok(ApiResponse.ok(studentPortalService.listSelectableFallTracks(hackathonId)));
     }
 
     @PostMapping("/tracks/{trackId}/select")

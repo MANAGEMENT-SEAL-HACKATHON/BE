@@ -42,6 +42,7 @@ public class JwtSecurityConfig {
                                 "/v3/api-docs/**"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/rounds/*/scoreboard").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/hackathons/*/banner").permitAll()
                         .requestMatchers("/ws/**").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

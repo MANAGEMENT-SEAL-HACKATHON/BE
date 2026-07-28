@@ -2,7 +2,6 @@ package com.sealhackathon.api.presentation.support;
 
 import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ErrorCode;
-import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.presentation.dto.response.PresentationQueueNextResponse;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.scores.repository.ScoreRepository;
@@ -12,16 +11,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
-import java.util.Objects;
 
 /**
- * Kiểm tra trước {@code queue/next} — không chặn khi đã có điểm và judge đã chấm đủ theo nghiệp vụ thực tế.
- *
- * <p>Quy tắc (không xiết từng criterion):
+ * Kiểm tra trước {@code queue/next} — và trước kết thúc sớm Q&A.
  * <ul>
- *   <li>Chưa có điểm NORMAL nào → chặn (tránh next nhầm khi chưa chấm).</li>
- *   <li>Có điểm nhưng chưa đủ judge trên track chấm ít nhất 1 lần → cần
- *       {@code acknowledgeIncompleteScoring=true} (FE confirm).</li>
+ *   <li>Luôn chặn khi chưa có điểm nào ({@code NO_SCORES}), trừ force-ack.</li>
+ *   <li>Thiếu chốt điểm: chặn khi Q&A kết thúc sớm ({@code requireCompleteScoring=true}),
+ *       trừ force-ack Coord/controller. Hết giờ tự nhiên → ghi nhận tới đâu, thiếu cũng được.</li>
  * </ul>
  */
 @Component
@@ -29,28 +25,24 @@ import java.util.Objects;
 public class PresentationNextScoringGuard {
 
     private final ScoreRepository scoreRepository;
-    private final JudgeAssignmentRepository judgeAssignmentRepository;
+    private final PresentationScoringCompletionHelper scoringCompletionHelper;
 
     public PresentationQueueNextResponse.ScoringSnapshot snapshot(
             Submission submission, Integer trackId, Round round) {
         if (submission == null || submission.getId() == null) {
             return null;
         }
-        int judgesAssigned = countAssignedJudges(trackId, round);
+        int judgesAssigned = Math.max(1, scoringCompletionHelper.countAssignedJudges(trackId, round));
         long scoreCount = scoreRepository.countBySubmission_IdAndScoreType(
                 submission.getId(), ScoreType.NORMAL);
-        int judgesScored = (int) scoreRepository.findBySubmission_IdAndScoreType(
-                        submission.getId(), ScoreType.NORMAL).stream()
-                .map(s -> s.getJudge().getId())
-                .filter(Objects::nonNull)
-                .distinct()
-                .count();
-        boolean incomplete = scoreCount == 0
-                || (judgesAssigned > 1 && judgesScored < judgesAssigned);
+        int judgesScored = scoringCompletionHelper.countDistinctJudgesWithAnyScore(submission.getId());
+        int judgesFullyScored = scoringCompletionHelper.countJudgesFullyScored(submission);
+        boolean incomplete = scoringCompletionHelper.isScoringIncomplete(submission, trackId, round);
         return PresentationQueueNextResponse.ScoringSnapshot.builder()
                 .submissionId(submission.getId())
                 .judgesAssigned(judgesAssigned)
                 .judgesScored(judgesScored)
+                .judgesFullyScored(judgesFullyScored)
                 .scoreCount(scoreCount)
                 .incomplete(incomplete)
                 .build();
@@ -58,6 +50,19 @@ public class PresentationNextScoringGuard {
 
     public void validateBeforeNext(
             Submission submission, Integer trackId, Round round, boolean acknowledgeIncompleteScoring) {
+        validateBeforeNext(submission, trackId, round, acknowledgeIncompleteScoring, true);
+    }
+
+    /**
+     * @param requireCompleteScoring true = kết thúc sớm Q&A / slot cũ (null qaEndedEarly);
+     *                               false = hết giờ Q&A tự nhiên — cho phép thiếu điểm
+     */
+    public void validateBeforeNext(
+            Submission submission,
+            Integer trackId,
+            Round round,
+            boolean acknowledgeIncompleteScoring,
+            boolean requireCompleteScoring) {
         PresentationQueueNextResponse.ScoringSnapshot snap = snapshot(submission, trackId, round);
         if (snap == null) {
             return;
@@ -70,25 +75,16 @@ public class PresentationNextScoringGuard {
                             "reason", "NO_SCORES",
                             "judgesAssigned", snap.getJudgesAssigned()));
         }
-        if (snap.isIncomplete() && !acknowledgeIncompleteScoring) {
+        if (requireCompleteScoring && snap.isIncomplete() && !acknowledgeIncompleteScoring) {
             throw new BusinessRuleException(ErrorCode.SCORING_INCOMPLETE_BEFORE_NEXT,
-                    "Chưa đủ judge chấm cho bài này — gửi acknowledgeIncompleteScoring=true sau khi xác nhận",
+                    "Chưa đủ judge Chốt điểm — mỗi judge cần chấm đủ tiêu chí rồi bấm Chốt điểm",
                     Map.of(
                             "submissionId", snap.getSubmissionId(),
                             "reason", "MISSING_JUDGE_SCORES",
                             "judgesAssigned", snap.getJudgesAssigned(),
                             "judgesScored", snap.getJudgesScored(),
+                            "judgesFullyScored", snap.getJudgesFullyScored(),
                             "scoreCount", snap.getScoreCount()));
         }
-    }
-
-    private int countAssignedJudges(Integer trackId, Round round) {
-        if (trackId != null) {
-            return judgeAssignmentRepository.findByTrackId(trackId).size();
-        }
-        if (round != null && round.getId() != null) {
-            return judgeAssignmentRepository.findByRoundId(round.getId()).size();
-        }
-        return 0;
     }
 }
