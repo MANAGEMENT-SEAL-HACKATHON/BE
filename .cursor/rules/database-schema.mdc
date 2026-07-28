@@ -1,10 +1,10 @@
 ---
 description: SEAL Hackathon DB schema v3.0 (MySQL 8) - single source of truth cho entity JPA, repository, migration. Áp dụng cho mọi file entity, value_object, repository và mapper.
 globs:
-  - "src/main/java/com/se194093/be/**/entity/*.java"
-  - "src/main/java/com/se194093/be/**/value_object/*.java"
-  - "src/main/java/com/se194093/be/**/repository/*.java"
-  - "src/main/java/com/se194093/be/**/mapper/*.java"
+  - "src/main/java/com/sealhackathon/api/**/entity/*.java"
+  - "src/main/java/com/sealhackathon/api/**/value_object/*.java"
+  - "src/main/java/com/sealhackathon/api/**/repository/*.java"
+  - "src/main/java/com/sealhackathon/api/**/mapper/*.java"
 alwaysApply: false
 ---
 

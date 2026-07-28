@@ -342,9 +342,9 @@ class RoundActivationServiceImplTest {
                 eq(round), eq(ActivateScheduleMode.START_NOW), any(), eq(10));
     }
 
-    /** TC-BE-RESCHEDULE — sống còn: inactive, activatedAt không đổi, không notifyRoundStarted */
+    /** TC-BE-RESCHEDULE — RESCHEDULE không còn trên activate; dùng competition-schedule/adjust */
     @Test
-    void reschedule_keepsInactive_doesNotTouchActivatedAt_doesNotNotifyStarted() {
+    void reschedule_onActivate_isRejected() {
         LocalDateTime newExam = LocalDateTime.now().plusDays(3).withSecond(0).withNano(0);
         Round round = Round.builder()
                 .id(5)
@@ -357,41 +357,14 @@ class RoundActivationServiceImplTest {
                 .build();
 
         when(roundRepository.findByIdForUpdate(5)).thenReturn(Optional.of(round));
-        when(roundScheduleShiftService.applyOnActivate(
-                eq(round), eq(ActivateScheduleMode.RESCHEDULE), eq(newExam), any()))
-                .thenAnswer(inv -> {
-                    Round r = inv.getArgument(0);
-                    r.setExamAt(newExam);
-                    return true;
-                });
-        when(roundRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(roundMapper.toResponse(any())).thenAnswer(inv -> {
-            Round r = inv.getArgument(0);
-            return RoundResponse.builder()
-                    .id(r.getId())
-                    .isActive(r.getIsActive())
-                    .examAt(r.getExamAt())
-                    .build();
-        });
 
-        LocalDateTime activatedAtBefore = round.getActivatedAt();
-
-        RoundResponse result = activationService.activate(5, ActivateRoundRequest.builder()
+        assertThrows(BusinessRuleException.class, () -> activationService.activate(5, ActivateRoundRequest.builder()
                 .scheduleMode(ActivateScheduleMode.RESCHEDULE)
                 .newExamAt(newExam)
                 .note("Dời lịch")
-                .build());
+                .build()));
 
-        assertFalse(Boolean.TRUE.equals(result.getIsActive()));
-        assertFalse(Boolean.TRUE.equals(round.getIsActive()));
-        assertNull(round.getActivatedAt());
-        assertEquals(activatedAtBefore, round.getActivatedAt());
-        assertEquals(newExam, round.getExamAt());
-
-        verify(roundScheduleShiftService).applyOnActivate(
-                eq(round), eq(ActivateScheduleMode.RESCHEDULE), eq(newExam), any());
+        verify(roundScheduleShiftService, never()).applyOnActivate(any(), any(), any(), any());
         verifyNoInteractions(notificationService);
-        verify(teamRoundParticipationRepository, never()).countByRound_Id(anyInt());
-        verify(roundRepository, never()).deactivateOtherActiveRoundsInHackathon(anyInt(), anyInt());
     }
 }

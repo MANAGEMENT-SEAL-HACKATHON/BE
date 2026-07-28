@@ -29,10 +29,11 @@ public class OpenApiConfig {
                         .title("SEAL Hackathon API")
                         .version("0.0.1")
                         .description("""
-                                SEAL Hackathon Management System — Backend (MF-01 GĐ1).
+                                SEAL Hackathon Management System — Backend API (GĐ1–GĐ6).
                                 
                                 Kiến trúc: Hackathon → Round → Track.
-                                Runbook: docs/mf01/04-quy-trinh-van-hanh.md
+                                API conventions: docs/architecture/api-conventions.md
+                                E2E playbook: docs/testing/full-workflow-api-test-gd1-gd6.md
                                 """)
                         .contact(new Contact().name("FPT SE Dept").email("coord@fpt.edu.vn"))
                         .license(new License().name("Internal")))

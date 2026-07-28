@@ -67,7 +67,7 @@ public class PresentationNextScoringGuard {
         if (snap == null) {
             return;
         }
-        if (snap.getScoreCount() == 0) {
+        if (snap.getScoreCount() == 0 && !acknowledgeIncompleteScoring) {
             throw new BusinessRuleException(ErrorCode.SCORING_INCOMPLETE_BEFORE_NEXT,
                     "Chưa có điểm nào cho bài đang thuyết trình — không thể chuyển đội",
                     Map.of(

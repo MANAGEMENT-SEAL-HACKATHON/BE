@@ -4,7 +4,9 @@
 
 1. [Kiến trúc hệ thống](system/workflow.md) — Workflow v5.0, 6 giai đoạn
 2. [DDL MySQL](db/schema-v3.0-mysql.md) — Source of truth schema
-2b. **[Business Rules Catalog (GĐ1–GĐ6, bảng 11 cột)](business-rules-catalog.md)** — catalog thống nhất B1 từ code BE (bổ sung, không thay `mf0x/01-business-rules*.md`)
+2a. **[BE clean architecture audit](architecture/be-clean-architecture-audit.md)** — layering compliance + cleanup status
+2b. **[API conventions](architecture/api-conventions.md)** — envelope, HTTP status, pagination SSOT
+2c. **[Business Rules Catalog (GĐ1–GĐ6, bảng 11 cột)](business-rules-catalog.md)** — catalog thống nhất B1 từ code BE
 3. [MF-01 Chuẩn bị sự kiện](mf01/README.md) — GĐ1: business rules, FR, runbook, test
 4. [MF-02 Auth & Users](mf02/README.md) — JWT, đăng ký, đội, lottery
 5. [MF-03 Thi & chấm điểm](mf03/README.md) — GĐ3–GĐ6: submission, score, ranking, prizes
