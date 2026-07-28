@@ -1,5 +1,6 @@
 package com.sealhackathon.api.announcements.service;
 
+import com.sealhackathon.api.announcements.dto.response.AnnouncementResponse;
 import com.sealhackathon.api.announcements.entity.AnnouncementView;
 import com.sealhackathon.api.announcements.entity.HackathonAnnouncement;
 import com.sealhackathon.api.announcements.repository.AnnouncementViewRepository;
@@ -85,13 +86,13 @@ public class AnnouncementService {
         viewRepository.save(view);
     }
 
-    public HackathonAnnouncement softHide(Integer announcementId, boolean hidden) {
+    public AnnouncementResponse softHide(Integer announcementId, boolean hidden) {
         HackathonAnnouncement ann = announcementRepository.findById(announcementId)
                 .orElseThrow(() -> new ResourceNotFoundException("Announcement", announcementId));
         ann.setSoftHidden(hidden);
         announcementRepository.save(ann);
         auditService.log(AuditAction.ANNOUNCEMENT_SOFT_HIDE, "hackathon_announcements", announcementId,
                 Map.of("softHidden", hidden));
-        return ann;
+        return AnnouncementResponse.from(ann);
     }
 }

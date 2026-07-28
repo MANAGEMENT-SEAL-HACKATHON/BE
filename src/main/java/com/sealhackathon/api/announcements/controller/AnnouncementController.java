@@ -1,6 +1,6 @@
 package com.sealhackathon.api.announcements.controller;
 
-import com.sealhackathon.api.announcements.entity.HackathonAnnouncement;
+import com.sealhackathon.api.announcements.dto.response.AnnouncementResponse;
 import com.sealhackathon.api.announcements.service.AnnouncementService;
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.ApprovedOnly;
@@ -42,7 +42,7 @@ public class AnnouncementController {
     @PatchMapping("/{announcementId}/soft-hide")
     @CoordinatorOnly
     @Operation(summary = "Soft-hide announcement from student default feed")
-    public ResponseEntity<ApiResponse<HackathonAnnouncement>> softHide(
+    public ResponseEntity<ApiResponse<AnnouncementResponse>> softHide(
             @PathVariable Integer hackathonId,
             @PathVariable Integer announcementId,
             @RequestParam(defaultValue = "true") boolean hidden) {

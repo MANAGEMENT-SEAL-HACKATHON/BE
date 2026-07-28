@@ -14,17 +14,16 @@ import com.sealhackathon.api.rounds.dto.response.AssignFinalJudgesResult;
 import com.sealhackathon.api.rounds.dto.response.CloseSubmissionEarlyResponse;
 import com.sealhackathon.api.rounds.dto.response.FinalJudgeAssignmentResponse;
 import com.sealhackathon.api.rounds.dto.response.LockScoringResult;
+import com.sealhackathon.api.rounds.dto.response.RankingPreviewResult;
 import com.sealhackathon.api.rounds.dto.response.RoundRankingItemResponse;
-import com.sealhackathon.api.rounds.dto.response.RoundScoreboardResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoringProgressResponse;
+import com.sealhackathon.api.rounds.dto.response.RoundScoreboardResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundSummaryResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoreAuditResponse;
 import com.sealhackathon.api.rounds.dto.response.ScoreBreakdownResponse;
 import com.sealhackathon.api.rounds.dto.response.TiebreakItemResponse;
 import com.sealhackathon.api.rounds.dto.response.WildcardCandidatesResponse;
 import com.sealhackathon.api.common.response.PageResponse;
-import com.sealhackathon.api.common.response.Warning;
-import com.sealhackathon.api.common.response.WarningCode;
 import com.sealhackathon.api.rounds.query.RoundRankingQueryService;
 import com.sealhackathon.api.rounds.service.RoundProgressionService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -54,7 +53,6 @@ import java.util.List;
 public class RoundProgressionController {
 
     private final RoundProgressionService progressionService;
-    private final RoundRankingQueryService roundRankingQueryService;
 
     @PatchMapping(value = "/{id}/release-problem", consumes = {
             MediaType.MULTIPART_FORM_DATA_VALUE,
@@ -132,13 +130,11 @@ public class RoundProgressionController {
     @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
     @Operation(summary = "FR-20 — Preview xếp hạng")
     public ResponseEntity<ApiResponse<List<RoundRankingItemResponse>>> rankingPreview(@PathVariable Integer id) {
-        List<RoundRankingItemResponse> ranking = progressionService.rankingPreview(id);
-        if (roundRankingQueryService.hasIncompleteScoring(id, true)) {
-            return ResponseEntity.ok(ApiResponse.okWithWarnings(ranking, List.of(
-                    Warning.of(WarningCode.INCOMPLETE_SCORING_IN_RANKING,
-                            "Một số tiêu chí chưa được chấm — điểm preview có thể thiếu (COALESCE=0)"))));
+        RankingPreviewResult result = progressionService.rankingPreviewResult(id);
+        if (result.getWarnings() == null || result.getWarnings().isEmpty()) {
+            return ResponseEntity.ok(ApiResponse.ok(result.getItems()));
         }
-        return ResponseEntity.ok(ApiResponse.ok(ranking));
+        return ResponseEntity.ok(ApiResponse.okWithWarnings(result.getItems(), result.getWarnings()));
     }
 
     @GetMapping("/{id}/tiebreak")

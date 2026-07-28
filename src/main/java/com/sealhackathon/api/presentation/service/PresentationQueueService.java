@@ -1,5 +1,6 @@
 package com.sealhackathon.api.presentation.service;
 
+import com.sealhackathon.api.presentation.dto.request.PresentationQueueNextRequest;
 import com.sealhackathon.api.presentation.dto.request.PresentationShuffleRequest;
 import com.sealhackathon.api.presentation.dto.response.PresentationQueueNextResponse;
 import com.sealhackathon.api.presentation.dto.response.PresentationQueueResponse;
@@ -16,6 +17,14 @@ public interface PresentationQueueService {
             Integer currentSubmissionId,
             Integer currentTeamId,
             boolean acknowledgeIncompleteScoring);
+
+    /**
+     * Parse request, validate force-ack, advance queue, audit when applicable.
+     */
+    PresentationQueueNextResponse advanceNextFromRequest(
+            Integer roundId,
+            Integer trackId,
+            PresentationQueueNextRequest request);
 
     PresentationShuffleResponse shuffle(PresentationShuffleRequest request);
 

@@ -12,6 +12,7 @@ import com.sealhackathon.api.rounds.dto.response.AssignFinalJudgesResult;
 import com.sealhackathon.api.rounds.dto.response.CloseSubmissionEarlyResponse;
 import com.sealhackathon.api.rounds.dto.response.FinalJudgeAssignmentResponse;
 import com.sealhackathon.api.rounds.dto.response.LockScoringResult;
+import com.sealhackathon.api.rounds.dto.response.RankingPreviewResult;
 import com.sealhackathon.api.rounds.dto.response.RoundRankingItemResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoreboardResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoringProgressResponse;
@@ -44,6 +45,9 @@ public interface RoundProgressionService {
     List<RoundRankingItemResponse> ranking(Integer roundId);
 
     List<RoundRankingItemResponse> rankingPreview(Integer roundId);
+
+    /** Preview ranking kèm warnings incomplete scoring (nếu có). */
+    RankingPreviewResult rankingPreviewResult(Integer roundId);
 
     List<TiebreakItemResponse> tiebreak(Integer roundId);
 

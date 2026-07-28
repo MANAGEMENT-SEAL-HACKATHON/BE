@@ -37,6 +37,7 @@ import com.sealhackathon.api.rounds.dto.response.AssignFinalJudgesResult;
 import com.sealhackathon.api.rounds.dto.response.CloseSubmissionEarlyResponse;
 import com.sealhackathon.api.rounds.dto.response.FinalJudgeAssignmentResponse;
 import com.sealhackathon.api.rounds.dto.response.LockScoringResult;
+import com.sealhackathon.api.rounds.dto.response.RankingPreviewResult;
 import com.sealhackathon.api.rounds.dto.response.RoundRankingItemResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoreboardResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoringProgressResponse;
@@ -479,8 +480,21 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
     @Override
     @Transactional(readOnly = true)
     public List<RoundRankingItemResponse> rankingPreview(Integer roundId) {
+        return rankingPreviewResult(roundId).getItems();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public RankingPreviewResult rankingPreviewResult(Integer roundId) {
         roundAccessGuard.requireRound(roundId);
-        return roundRankingQueryService.rankingForRound(roundId, true);
+        List<RoundRankingItemResponse> items = roundRankingQueryService.rankingForRound(roundId, true);
+        List<Warning> warnings = List.of();
+        if (roundRankingQueryService.hasIncompleteScoring(roundId, true)) {
+            warnings = List.of(Warning.of(
+                    WarningCode.INCOMPLETE_SCORING_IN_RANKING,
+                    "Một số tiêu chí chưa được chấm — điểm preview có thể thiếu (COALESCE=0)"));
+        }
+        return RankingPreviewResult.builder().items(items).warnings(warnings).build();
     }
 
     // =========================================================================

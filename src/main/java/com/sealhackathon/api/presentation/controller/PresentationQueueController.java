@@ -30,8 +30,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class PresentationQueueController {
 
     private final PresentationQueueService presentationQueueService;
-    private final com.sealhackathon.api.common.audit.AuditService auditService;
-    private final com.sealhackathon.api.common.security.CurrentUserAccessor currentUserAccessor;
 
     @GetMapping
     @ApprovedOnly
@@ -57,43 +55,8 @@ public class PresentationQueueController {
             @RequestParam(required = false) Integer roundId,
             @RequestParam(required = false) Integer trackId,
             @RequestBody(required = false) PresentationQueueNextRequest request) {
-        Integer currentSubmissionId = null;
-        Integer currentTeamId = null;
-        boolean acknowledgeIncompleteScoring = false;
-        String forceAckReason = null;
-        if (request != null) {
-            currentSubmissionId = request.getCurrentSubmissionId();
-            currentTeamId = request.getCurrentTeamId();
-            if (trackId == null) {
-                trackId = request.getTrackId();
-            }
-            if (Boolean.TRUE.equals(request.getAcknowledgeIncompleteScoring())) {
-                acknowledgeIncompleteScoring = true;
-                forceAckReason = request.getForceAckReason();
-            }
-        }
-        if (acknowledgeIncompleteScoring) {
-            if (forceAckReason == null || forceAckReason.isBlank()) {
-                throw new com.sealhackathon.api.common.exception.BusinessRuleException(
-                        com.sealhackathon.api.common.exception.ErrorCode.VALIDATION_FAILED,
-                        "Force chuyển đội khi chưa đủ chấm bắt buộc nhập lý do (forceAckReason).");
-            }
-        }
-        var response = presentationQueueService.advanceNext(
-                roundId, trackId, currentSubmissionId, currentTeamId, acknowledgeIncompleteScoring);
-        if (acknowledgeIncompleteScoring) {
-            auditService.log(
-                    com.sealhackathon.api.common.audit.AuditAction.PRESENTATION_FORCE_ADVANCE_ACK,
-                    "presentation_queue",
-                    roundId,
-                    java.util.Map.of(
-                            "trackId", trackId != null ? trackId : 0,
-                            "submissionId", currentSubmissionId != null ? currentSubmissionId : 0,
-                            "forceAckReason", forceAckReason.trim(),
-                            "actorUserId", currentUserAccessor.currentUserId() != null
-                                    ? currentUserAccessor.currentUserId() : 0));
-        }
-        return ResponseEntity.ok(ApiResponse.ok(response));
+        return ResponseEntity.ok(ApiResponse.ok(
+                presentationQueueService.advanceNextFromRequest(roundId, trackId, request)));
     }
 
     @PatchMapping("/skip")

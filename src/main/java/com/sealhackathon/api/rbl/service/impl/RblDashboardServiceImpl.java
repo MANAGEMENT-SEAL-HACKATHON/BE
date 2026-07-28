@@ -5,6 +5,7 @@ import com.sealhackathon.api.rbl.dto.response.RblInterRaterCriterionResponse;
 import com.sealhackathon.api.rbl.dto.response.RblScoringProgressResponse;
 import com.sealhackathon.api.rbl.dto.response.RblVarianceItemResponse;
 import com.sealhackathon.api.rbl.dto.response.RblVarianceResponse;
+import com.sealhackathon.api.rbl.repository.RblDashboardQueryRepository;
 import com.sealhackathon.api.rbl.service.RblDashboardService;
 import com.sealhackathon.api.rbl.support.JudgeResearchType;
 import com.sealhackathon.api.rbl.support.JudgeResearchTypeResolver;
@@ -14,9 +15,6 @@ import com.sealhackathon.api.scores.value_object.ScoreType;
 import com.sealhackathon.api.submissions.repository.SubmissionRepository;
 import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
-import jakarta.persistence.Query;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,9 +32,7 @@ public class RblDashboardServiceImpl implements RblDashboardService {
     private final SubmissionRepository submissionRepository;
     private final RoundRepository roundRepository;
     private final UserRepository userRepository;
-
-    @PersistenceContext
-    private EntityManager entityManager;
+    private final RblDashboardQueryRepository dashboardQueryRepository;
 
     @Override
     public RblVarianceResponse varianceByRound(Integer roundId) {
@@ -44,7 +40,8 @@ public class RblDashboardServiceImpl implements RblDashboardService {
                 .orElseThrow(() -> new ResourceNotFoundException("Round", roundId));
         Integer hackathonId = round.getHackathon() != null ? round.getHackathon().getId() : null;
         List<RblVarianceItemResponse> perJudge = queryPerJudgeSpread(roundId, hackathonId);
-        List<RblInterRaterCriterionResponse> interRater = queryInterRaterByCriterion(roundId);
+        List<RblInterRaterCriterionResponse> interRater =
+                queryInterRaterByCriterion(roundId);
         return RblVarianceResponse.builder()
                 .perJudgeSpread(perJudge)
                 .interRaterByCriterion(interRater)
@@ -52,30 +49,8 @@ public class RblDashboardServiceImpl implements RblDashboardService {
     }
 
     private List<RblVarianceItemResponse> queryPerJudgeSpread(Integer roundId, Integer hackathonId) {
-        String sql = """
-            SELECT
-                c.id as criterionId,
-                c.name as criterionName,
-                c.type as criterionType,
-                s.judge_id as judgeId,
-                AVG(s.score_value) as meanScore,
-                STDDEV(s.score_value) as stdDev
-            FROM scores s
-            JOIN criteria c ON s.criterion_id = c.id
-            JOIN submissions sub ON s.submission_id = sub.id
-            WHERE sub.round_id = ?1
-              AND s.score_type = ?2
-              AND c.type <> 'PENALTY'
-            GROUP BY c.id, c.name, c.type, s.judge_id
-            ORDER BY c.id ASC, stdDev DESC
-        """;
-
-        Query query = entityManager.createNativeQuery(sql);
-        query.setParameter(1, roundId);
-        query.setParameter(2, ScoreType.NORMAL.name());
-
-        @SuppressWarnings("unchecked")
-        List<Object[]> results = query.getResultList();
+        List<Object[]> results = dashboardQueryRepository.findPerJudgeSpread(
+                roundId, ScoreType.NORMAL.name());
         List<RblVarianceItemResponse> responses = new ArrayList<>();
         Map<Integer, JudgeResearchType> typeCache = new HashMap<>();
 
@@ -98,44 +73,9 @@ public class RblDashboardServiceImpl implements RblDashboardService {
         return responses;
     }
 
-    /**
-     * STDDEV of scores across judges on the same (submission, criterion), then mean by criterion.
-     * PENALTY criteria excluded.
-     */
     private List<RblInterRaterCriterionResponse> queryInterRaterByCriterion(Integer roundId) {
-        String sql = """
-            SELECT
-                criterion_id,
-                criterion_name,
-                criterion_type,
-                AVG(inter_stddev) AS mean_inter_rater_std,
-                COUNT(*) AS submission_count
-            FROM (
-                SELECT
-                    c.id AS criterion_id,
-                    c.name AS criterion_name,
-                    c.type AS criterion_type,
-                    s.submission_id,
-                    STDDEV(s.score_value) AS inter_stddev
-                FROM scores s
-                JOIN criteria c ON s.criterion_id = c.id
-                JOIN submissions sub ON s.submission_id = sub.id
-                WHERE sub.round_id = ?1
-                  AND s.score_type = ?2
-                  AND c.type <> 'PENALTY'
-                GROUP BY c.id, c.name, c.type, s.submission_id
-                HAVING COUNT(DISTINCT s.judge_id) >= 2
-            ) per_sub
-            GROUP BY criterion_id, criterion_name, criterion_type
-            ORDER BY criterion_id ASC
-        """;
-
-        Query query = entityManager.createNativeQuery(sql);
-        query.setParameter(1, roundId);
-        query.setParameter(2, ScoreType.NORMAL.name());
-
-        @SuppressWarnings("unchecked")
-        List<Object[]> results = query.getResultList();
+        List<Object[]> results = dashboardQueryRepository.findInterRaterByCriterion(
+                roundId, ScoreType.NORMAL.name());
         List<RblInterRaterCriterionResponse> responses = new ArrayList<>();
         for (Object[] row : results) {
             responses.add(RblInterRaterCriterionResponse.builder()
@@ -156,21 +96,8 @@ public class RblDashboardServiceImpl implements RblDashboardService {
         }
 
         long totalSubmissions = submissionRepository.countByRoundId(roundId);
-
-        String sql = """
-            SELECT COUNT(DISTINCT s.submission_id)
-            FROM scores s
-            JOIN submissions sub ON s.submission_id = sub.id
-            WHERE sub.round_id = ?1
-              AND s.score_type = ?2
-        """;
-
-        Query query = entityManager.createNativeQuery(sql);
-        query.setParameter(1, roundId);
-        query.setParameter(2, ScoreType.NORMAL.name());
-
-        Number scoredCountNum = (Number) query.getSingleResult();
-        long scoredSubmissions = scoredCountNum != null ? scoredCountNum.longValue() : 0;
+        long scoredSubmissions = dashboardQueryRepository.countDistinctScoredSubmissions(
+                roundId, ScoreType.NORMAL.name());
 
         double completionPct = totalSubmissions > 0
                 ? ((double) scoredSubmissions / totalSubmissions) * 100.0

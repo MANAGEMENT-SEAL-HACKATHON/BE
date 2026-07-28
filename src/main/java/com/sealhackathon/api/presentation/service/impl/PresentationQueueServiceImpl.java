@@ -15,6 +15,7 @@ import com.sealhackathon.api.events.repository.PresentationSlotRepository;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.live_scoring.PresentationQueuePublisher;
+import com.sealhackathon.api.presentation.dto.request.PresentationQueueNextRequest;
 import com.sealhackathon.api.presentation.dto.request.PresentationShuffleRequest;
 import com.sealhackathon.api.presentation.dto.response.PresentationQueueNextResponse;
 import com.sealhackathon.api.presentation.dto.response.PresentationQueueResponse;
@@ -160,6 +161,51 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
                 round, trackId, currentSubmissionId, currentTeamId, acknowledgeIncompleteScoring);
         PresentationQueueResponse payload = getQueue(roundId, trackId);
         queuePublisher.publish(roundId, trackId, payload);
+        return response;
+    }
+
+    @Override
+    public PresentationQueueNextResponse advanceNextFromRequest(
+            Integer roundId,
+            Integer trackIdParam,
+            PresentationQueueNextRequest request) {
+        Integer currentSubmissionId = null;
+        Integer currentTeamId = null;
+        boolean acknowledgeIncompleteScoring = false;
+        String forceAckReason = null;
+        Integer trackId = trackIdParam;
+        if (request != null) {
+            currentSubmissionId = request.getCurrentSubmissionId();
+            currentTeamId = request.getCurrentTeamId();
+            if (trackId == null) {
+                trackId = request.getTrackId();
+            }
+            if (Boolean.TRUE.equals(request.getAcknowledgeIncompleteScoring())) {
+                acknowledgeIncompleteScoring = true;
+                forceAckReason = request.getForceAckReason();
+            }
+        }
+        if (acknowledgeIncompleteScoring) {
+            if (forceAckReason == null || forceAckReason.isBlank()) {
+                throw new BusinessRuleException(
+                        ErrorCode.VALIDATION_FAILED,
+                        "Force chuyển đội khi chưa đủ chấm bắt buộc nhập lý do (forceAckReason).");
+            }
+        }
+        PresentationQueueNextResponse response = advanceNext(
+                roundId, trackId, currentSubmissionId, currentTeamId, acknowledgeIncompleteScoring);
+        if (acknowledgeIncompleteScoring) {
+            auditService.log(
+                    AuditAction.PRESENTATION_FORCE_ADVANCE_ACK,
+                    "presentation_queue",
+                    roundId,
+                    Map.of(
+                            "trackId", trackId != null ? trackId : 0,
+                            "submissionId", currentSubmissionId != null ? currentSubmissionId : 0,
+                            "forceAckReason", forceAckReason.trim(),
+                            "actorUserId", currentUserAccessor.currentUserId() != null
+                                    ? currentUserAccessor.currentUserId() : 0));
+        }
         return response;
     }
 
