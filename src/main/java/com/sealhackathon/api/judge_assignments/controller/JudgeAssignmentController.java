@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -28,13 +29,14 @@ import java.util.Map;
 @Tag(name = "Personnel — Judge", description = "FR-05c — Phân công judge vào track")
 @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
+@RequestMapping("/api/v1")
 @RequiredArgsConstructor
 @CoordinatorOnly
 public class JudgeAssignmentController {
 
     private final JudgeAssignmentService judgeAssignmentService;
 
-    @PostMapping("/api/v1/judge-assignments")
+    @PostMapping("/judge-assignments")
     @Operation(summary = "Phân công judge vào track", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<JudgeAssignmentResponse>> assign(
             @Valid @RequestBody CreateJudgeAssignmentRequest req
@@ -45,7 +47,7 @@ public class JudgeAssignmentController {
         );
     }
 
-    @GetMapping("/api/v1/tracks/{trackId}/judges")
+    @GetMapping("/tracks/{trackId}/judges")
     @Operation(summary = "Liệt kê judge của track", description = "Không dùng ở GĐ1 — xem runbook Bước 5.")
     public ResponseEntity<ApiResponse<List<JudgeAssignmentResponse>>> listByTrack(
             @PathVariable Integer trackId
@@ -54,7 +56,7 @@ public class JudgeAssignmentController {
     }
 
     /** List Judge Chung kết (round_id). Không dùng ở GĐ1 — xem runbook Bước 5. */
-    @GetMapping("/api/v1/rounds/{roundId}/judges")
+    @GetMapping("/rounds/{roundId}/judges")
     @Operation(summary = "Liệt kê judge của vòng chung kết", description = "Không dùng ở GĐ1 — xem runbook Bước 5.")
     public ResponseEntity<ApiResponse<List<JudgeAssignmentResponse>>> listByRound(
             @PathVariable Integer roundId
@@ -62,13 +64,13 @@ public class JudgeAssignmentController {
         return ResponseEntity.ok(ApiResponse.ok(judgeAssignmentService.listByRound(roundId)));
     }
 
-    @GetMapping("/api/v1/users/{judgeId}/round-assignments")
+    @GetMapping("/users/{judgeId}/round-assignments")
     @Operation(summary = "Liệt kê track/vòng mà judge được phân công", description = "Không dùng ở GĐ1 — xem runbook Bước 5.")
     public ResponseEntity<ApiResponse<List<JudgeAssignmentResponse>>> listByJudge(@PathVariable Integer judgeId) {
         return ResponseEntity.ok(ApiResponse.ok(judgeAssignmentService.listByJudge(judgeId)));
     }
 
-    @DeleteMapping("/api/v1/judge-assignments/{id}")
+    @DeleteMapping("/judge-assignments/{id}")
     @Operation(summary = "Hủy phân công judge khỏi track", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<Map<String, Object>>> unassign(@PathVariable Integer id) {
         Integer deletedId = judgeAssignmentService.unassign(id);

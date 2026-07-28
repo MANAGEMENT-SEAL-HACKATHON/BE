@@ -6,6 +6,7 @@ import com.sealhackathon.api.rbl.calibration.dto.CalibrationDtos.*;
 import com.sealhackathon.api.rbl.calibration.service.CalibrationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,20 +19,20 @@ public class JudgeCalibrationController {
 
     @GetMapping("/rounds/{roundId}/prompts")
     @JudgeOnly
-    public ApiResponse<List<PromptView>> openPrompts(@PathVariable Integer roundId) {
-        return ApiResponse.ok(calibrationService.listOpenForJudge(roundId));
+    public ResponseEntity<ApiResponse<List<PromptView>>> openPrompts(@PathVariable Integer roundId) {
+        return ResponseEntity.ok(ApiResponse.ok(calibrationService.listOpenForJudge(roundId)));
     }
 
     @PostMapping("/prompts/{promptId}/scores")
     @JudgeOnly
-    public ApiResponse<DistributionView> submit(
+    public ResponseEntity<ApiResponse<DistributionView>> submit(
             @PathVariable Integer promptId, @Valid @RequestBody SubmitScoresRequest request) {
-        return ApiResponse.ok(calibrationService.submit(promptId, request));
+        return ResponseEntity.ok(ApiResponse.ok(calibrationService.submit(promptId, request)));
     }
 
     @GetMapping("/prompts/{promptId}/distribution")
     @JudgeOnly
-    public ApiResponse<DistributionView> distribution(@PathVariable Integer promptId) {
-        return ApiResponse.ok(calibrationService.distribution(promptId, true));
+    public ResponseEntity<ApiResponse<DistributionView>> distribution(@PathVariable Integer promptId) {
+        return ResponseEntity.ok(ApiResponse.ok(calibrationService.distribution(promptId, true)));
     }
 }

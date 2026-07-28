@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -29,13 +30,14 @@ import java.util.Map;
 @Tag(name = "Personnel — Mentor", description = "FR-05b — Phân công mentor vào track")
 @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
+@RequestMapping("/api/v1")
 @RequiredArgsConstructor
 @CoordinatorOnly
 public class MentorAssignmentController {
 
     private final MentorAssignmentService mentorAssignmentService;
 
-    @PostMapping("/api/v1/mentor-assignments")
+    @PostMapping("/mentor-assignments")
     @Operation(summary = "Phân công mentor vào track", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<MentorAssignmentResponse>> assign(
             @Valid @RequestBody CreateMentorAssignmentRequest req
@@ -48,19 +50,19 @@ public class MentorAssignmentController {
         );
     }
 
-    @GetMapping("/api/v1/tracks/{trackId}/mentors")
+    @GetMapping("/tracks/{trackId}/mentors")
     @Operation(summary = "Liệt kê mentor của track", description = "Không dùng ở GĐ1 — xem runbook Bước 5.")
     public ResponseEntity<ApiResponse<List<MentorAssignmentResponse>>> listByTrack(@PathVariable Integer trackId) {
         return ResponseEntity.ok(ApiResponse.ok(mentorAssignmentService.listByTrack(trackId)));
     }
 
-    @GetMapping("/api/v1/users/{mentorId}/track-assignments")
+    @GetMapping("/users/{mentorId}/track-assignments")
     @Operation(summary = "Liệt kê track mà mentor được phân công", description = "Không dùng ở GĐ1 — xem runbook Bước 5.")
     public ResponseEntity<ApiResponse<List<MentorAssignmentResponse>>> listByMentor(@PathVariable Integer mentorId) {
         return ResponseEntity.ok(ApiResponse.ok(mentorAssignmentService.listByMentor(mentorId)));
     }
 
-    @DeleteMapping("/api/v1/mentor-assignments/{id}")
+    @DeleteMapping("/mentor-assignments/{id}")
     @Operation(summary = "Hủy phân công mentor khỏi track", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<Map<String, Object>>> unassign(@PathVariable Integer id) {
         Integer deletedId = mentorAssignmentService.unassign(id);

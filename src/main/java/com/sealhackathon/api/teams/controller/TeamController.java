@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * MF-02 GĐ2 — Teams (FR-11 … FR-13C).
@@ -144,11 +145,11 @@ public class TeamController {
     @DeleteMapping("/{teamId}/members/{userId}")
     @ApprovedOnly
     @Operation(summary = "FR-12 — Leader hủy lời mời PENDING")
-    public ResponseEntity<ApiResponse<Void>> removePendingMember(
+    public ResponseEntity<ApiResponse<Map<String, Object>>> removePendingMember(
             @PathVariable Integer teamId,
             @PathVariable Integer userId) {
         teamService.removePendingMember(teamId, userId);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.ok(Map.of("deletedId", userId), "Removed"));
     }
 
     @PatchMapping("/{teamId}/rounds/{roundId}/track")
@@ -175,11 +176,11 @@ public class TeamController {
     @DeleteMapping("/{teamId}/rounds/{roundId}/mentor")
     @CoordinatorOnly
     @Operation(summary = "FR-13C — Gỡ Mentor per-round (trước khi có điểm)")
-    public ResponseEntity<ApiResponse<Void>> removeMentor(
+    public ResponseEntity<ApiResponse<Map<String, Object>>> removeMentor(
             @PathVariable Integer teamId,
             @PathVariable Integer roundId) {
         teamService.removeMentor(teamId, roundId);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.ok(Map.of("teamId", teamId, "roundId", roundId), "Mentor removed"));
     }
 
     @GetMapping("/{teamId}/mentors")

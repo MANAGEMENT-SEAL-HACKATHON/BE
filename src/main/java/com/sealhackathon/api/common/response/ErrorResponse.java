@@ -48,10 +48,24 @@ public class ErrorResponse {
                 .build();
     }
 
+    public static ErrorResponse of(String code, String message, int status, String traceId) {
+        return ErrorResponse.builder()
+                .success(false)
+                .error(ErrorPayload.builder().code(code).message(message).status(status).build())
+                .traceId(traceId)
+                .timestamp(Instant.now())
+                .build();
+    }
+
     public static ErrorResponse of(String code, String message, int status, Map<String, Object> details) {
+        return of(code, message, status, details, null);
+    }
+
+    public static ErrorResponse of(String code, String message, int status, Map<String, Object> details, String traceId) {
         return ErrorResponse.builder()
                 .success(false)
                 .error(ErrorPayload.builder().code(code).message(message).status(status).details(details).build())
+                .traceId(traceId)
                 .timestamp(Instant.now())
                 .build();
     }

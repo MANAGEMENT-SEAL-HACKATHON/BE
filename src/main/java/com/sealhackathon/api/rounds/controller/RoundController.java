@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -38,13 +39,14 @@ import java.util.Map;
 @Tag(name = "Round", description = "FR-02 — Round CRUD (dưới hackathon)")
 @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
+@RequestMapping("/api/v1")
 @RequiredArgsConstructor
 @CoordinatorOnly
 public class RoundController {
 
     private final RoundService roundService;
 
-    @PostMapping("/api/v1/hackathons/{hackathonId}/rounds")
+    @PostMapping("/hackathons/{hackathonId}/rounds")
     @Operation(summary = "Tạo round mới cho hackathon", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<RoundResponse>> createByHackathon(
             @PathVariable Integer hackathonId,
@@ -52,13 +54,13 @@ public class RoundController {
     ) {
         RoundResponse data = roundService.createByHackathon(hackathonId, req);
         URI location = ServletUriComponentsBuilder.fromCurrentContextPath()
-                .path("/api/v1/rounds/{id}")
+                .path("/rounds/{id}")
                 .buildAndExpand(data.getId())
                 .toUri();
         return ResponseEntity.created(location).body(ApiResponse.created(data));
     }
 
-    @GetMapping("/api/v1/hackathons/{hackathonId}/rounds")
+    @GetMapping("/hackathons/{hackathonId}/rounds")
     @Operation(summary = "Liệt kê các round của hackathon", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<List<RoundSummaryResponse>>> listByHackathon(
             @PathVariable Integer hackathonId
@@ -66,13 +68,13 @@ public class RoundController {
         return ResponseEntity.ok(ApiResponse.ok(roundService.listByHackathon(hackathonId)));
     }
 
-    @GetMapping("/api/v1/rounds/{id}")
+    @GetMapping("/rounds/{id}")
     @Operation(summary = "Xem chi tiết round", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<RoundResponse>> getById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.ok(roundService.getById(id)));
     }
 
-    @PutMapping("/api/v1/rounds/{id}")
+    @PutMapping("/rounds/{id}")
     @Operation(summary = "Cập nhật round", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<RoundResponse>> update(
             @PathVariable Integer id,
@@ -81,14 +83,14 @@ public class RoundController {
         return ResponseEntity.ok(ApiResponse.ok(roundService.update(id, req)));
     }
 
-    @DeleteMapping("/api/v1/rounds/{id}")
+    @DeleteMapping("/rounds/{id}")
     @Operation(summary = "Xóa round", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<Map<String, Object>>> delete(@PathVariable Integer id) {
         Integer deletedId = roundService.delete(id);
         return ResponseEntity.ok(ApiResponse.ok(Map.of("deletedId", deletedId), "Deleted"));
     }
 
-    @PostMapping(value = "/api/v1/rounds/{id}/problem-statement", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/rounds/{id}/problem-statement", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Upload file PDF đề bài (trước khi phát)")
     public ResponseEntity<ApiResponse<RoundResponse>> uploadProblemStatement(
             @PathVariable Integer id,
@@ -96,14 +98,14 @@ public class RoundController {
         return ResponseEntity.ok(ApiResponse.ok(roundService.uploadProblemStatement(id, file)));
     }
 
-    @PostMapping("/api/v1/rounds/{id}/dismiss-final-problem-migration-banner")
+    @PostMapping("/rounds/{id}/dismiss-final-problem-migration-banner")
     @Operation(summary = "Dismiss banner migration đề CK (một lần theo round)")
     public ResponseEntity<ApiResponse<RoundResponse>> dismissFinalProblemMigrationBanner(
             @PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.ok(roundService.dismissFinalProblemMigrationBanner(id)));
     }
 
-    @GetMapping("/api/v1/rounds/{id}/problem-statement")
+    @GetMapping("/rounds/{id}/problem-statement")
     @Operation(summary = "Tải file PDF đề bài")
     public ResponseEntity<Resource> downloadProblemStatement(@PathVariable Integer id) {
         Resource resource = roundService.downloadProblemStatement(id);

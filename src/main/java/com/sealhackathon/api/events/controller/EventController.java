@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -39,12 +40,13 @@ import java.util.Map;
 @Tag(name = "Events", description = "FR-06 — Lịch sự kiện (WORKSHOP, KICKOFF, …)")
 @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
+@RequestMapping("/api/v1")
 @RequiredArgsConstructor
 public class EventController {
 
     private final EventService eventService;
 
-    @PostMapping("/api/v1/hackathons/{hackathonId}/events")
+    @PostMapping("/hackathons/{hackathonId}/events")
     @CoordinatorOnly
     @Operation(summary = "Tạo event mới cho hackathon", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")
     public ResponseEntity<ApiResponse<EventResponse>> create(
@@ -53,7 +55,7 @@ public class EventController {
     ) {
         EventService.CreateResult result = eventService.create(hackathonId, req);
         URI location = ServletUriComponentsBuilder.fromCurrentContextPath()
-                .path("/api/v1/events/{id}")
+                .path("/events/{id}")
                 .buildAndExpand(result.event().getId())
                 .toUri();
         return ResponseEntity.created(location).body(
@@ -61,7 +63,7 @@ public class EventController {
         );
     }
 
-    @GetMapping("/api/v1/hackathons/{hackathonId}/events")
+    @GetMapping("/hackathons/{hackathonId}/events")
     @PreAuthorize("(hasAnyRole('COORDINATOR', 'STUDENT')) and authentication.principal.status.name() == 'APPROVED'")
     @Operation(summary = "Danh sách event của hackathon", description = "Coordinator hoặc Student APPROVED. Có thể lọc theo type, khoảng thời gian (from-to), và isPublic.")
     public ResponseEntity<ApiResponse<List<EventResponse>>> listByHackathon(
@@ -76,14 +78,14 @@ public class EventController {
         ));
     }
 
-    @GetMapping("/api/v1/events/{id}")
+    @GetMapping("/events/{id}")
     @PreAuthorize("(hasAnyRole('COORDINATOR', 'STUDENT')) and authentication.principal.status.name() == 'APPROVED'")
     @Operation(summary = "Lấy thông tin chi tiết event theo ID", description = "Coordinator hoặc Student APPROVED. Trả về lỗi 404 nếu không tìm thấy.")
     public ResponseEntity<ApiResponse<EventResponse>> getById(@PathVariable Integer id) {
         return ResponseEntity.ok(ApiResponse.ok(eventService.getById(id)));
     }
 
-    @PutMapping("/api/v1/events/{id}")
+    @PutMapping("/events/{id}")
     @CoordinatorOnly
     @Operation(summary = "Cập nhật thông tin event", description = "Chỉ coordinator mới có quyền thực hiện hành động này. Trả về lỗi 404 nếu không tìm thấy event với ID đã cho.")
     public ResponseEntity<ApiResponse<EventResponse>> update(
@@ -94,7 +96,7 @@ public class EventController {
         return ResponseEntity.ok(ApiResponse.okWithWarnings(result.event(), result.warnings()));
     }
 
-    @DeleteMapping("/api/v1/events/{id}")
+    @DeleteMapping("/events/{id}")
     @CoordinatorOnly
     @Operation(summary = "Xóa event", description = "Chỉ coordinator mới có quyền thực hiện hành động này. Trả về lỗi 404 nếu không tìm thấy event với ID đã cho.")
     public ResponseEntity<ApiResponse<Map<String, Object>>> delete(@PathVariable Integer id) {

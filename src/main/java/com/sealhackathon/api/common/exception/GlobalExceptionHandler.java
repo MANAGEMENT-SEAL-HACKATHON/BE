@@ -50,7 +50,7 @@ public class GlobalExceptionHandler {
         log.warn("[{}] {} {} -> 401: {}", traceId, req.getMethod(), req.getRequestURI(), ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
                 ErrorResponse.of(ErrorCode.UNAUTHORIZED, "Chưa xác thực hoặc token không hợp lệ",
-                        HttpStatus.UNAUTHORIZED.value()));
+                        HttpStatus.UNAUTHORIZED.value(), traceId));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -60,7 +60,7 @@ public class GlobalExceptionHandler {
         log.warn("[{}] {} {} -> 403: {}", traceId, req.getMethod(), req.getRequestURI(), ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
                 ErrorResponse.of(ErrorCode.FORBIDDEN, "Không có quyền truy cập",
-                        HttpStatus.FORBIDDEN.value()));
+                        HttpStatus.FORBIDDEN.value(), traceId));
     }
 
     @ExceptionHandler(BaseException.class)
@@ -174,7 +174,7 @@ public class GlobalExceptionHandler {
                 ErrorResponse.of(
                         ErrorCode.CONCURRENT_MODIFICATION,
                         "Dữ liệu đã được cập nhật bởi thao tác khác — vui lòng thử lại",
-                        HttpStatus.CONFLICT.value()));
+                        HttpStatus.CONFLICT.value(), traceId));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
@@ -188,7 +188,7 @@ public class GlobalExceptionHandler {
                     traceId, req.getMethod(), req.getRequestURI(), signalCode);
             return ResponseEntity.unprocessableEntity().body(
                     ErrorResponse.of(signalCode, humanMessageForSignal(signalCode),
-                            HttpStatus.UNPROCESSABLE_ENTITY.value())
+                            HttpStatus.UNPROCESSABLE_ENTITY.value(), traceId)
             );
         }
         log.warn("[{}] {} {} -> 409 DB integrity: {}",
@@ -196,7 +196,7 @@ public class GlobalExceptionHandler {
         ErrorResponse body = ErrorResponse.of(
                 "DB_INTEGRITY_VIOLATION",
                 "Vi phạm ràng buộc dữ liệu (UNIQUE / FK / NOT NULL)",
-                HttpStatus.CONFLICT.value());
+                HttpStatus.CONFLICT.value(), traceId);
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
@@ -253,7 +253,7 @@ public class GlobalExceptionHandler {
                 ErrorResponse.of(
                         ErrorCode.NOT_IMPLEMENTED,
                         "API đã có khung; logic nghiệp vụ chưa implement (TODO)",
-                        HttpStatus.NOT_IMPLEMENTED.value()));
+                        HttpStatus.NOT_IMPLEMENTED.value(), traceId));
     }
 
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})
@@ -261,7 +261,7 @@ public class GlobalExceptionHandler {
         String traceId = traceId();
         log.warn("[{}] {} {} -> 400 malformed: {}", traceId, req.getMethod(), req.getRequestURI(), ex.getMessage());
         return ResponseEntity.badRequest().body(
-                ErrorResponse.of("MALFORMED_REQUEST", "Body/Param không đọc được", HttpStatus.BAD_REQUEST.value())
+                ErrorResponse.of("MALFORMED_REQUEST", "Body/Param không đọc được", HttpStatus.BAD_REQUEST.value(), traceId)
         );
     }
 
@@ -275,7 +275,7 @@ public class GlobalExceptionHandler {
                 ErrorResponse.of(
                         ErrorCode.INVALID_SLIDE_FILE,
                         "slideFile vượt quá dung lượng cho phép (tối đa 25MB)",
-                        HttpStatus.PAYLOAD_TOO_LARGE.value())
+                        HttpStatus.PAYLOAD_TOO_LARGE.value(), traceId)
         );
     }
 
@@ -289,7 +289,7 @@ public class GlobalExceptionHandler {
                 ErrorResponse.of(
                         ErrorCode.RESOURCE_NOT_FOUND,
                         "Endpoint hoặc tài nguyên không tồn tại",
-                        HttpStatus.NOT_FOUND.value())
+                        HttpStatus.NOT_FOUND.value(), traceId)
         );
     }
 
@@ -299,7 +299,7 @@ public class GlobalExceptionHandler {
         log.error("[{}] {} {} -> 500 unhandled", traceId, req.getMethod(), req.getRequestURI(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                 ErrorResponse.of(ErrorCode.INTERNAL_ERROR, "Đã xảy ra lỗi hệ thống",
-                        HttpStatus.INTERNAL_SERVER_ERROR.value())
+                        HttpStatus.INTERNAL_SERVER_ERROR.value(), traceId)
         );
     }
 

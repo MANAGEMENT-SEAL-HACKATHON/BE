@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -98,7 +99,7 @@ public class JudgeMeController {
     @Operation(summary = "FR-J-22/23 — HEAD vote tiebreak")
     public ResponseEntity<ApiResponse<TiebreakVoteResponse>> tiebreakVote(
             @Valid @RequestBody TiebreakVoteRequest request) {
-        return ResponseEntity.ok(ApiResponse.created(judgePortalService.submitTiebreakVote(request)));
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(judgePortalService.submitTiebreakVote(request)));
     }
 
     @GetMapping("/judge-history")

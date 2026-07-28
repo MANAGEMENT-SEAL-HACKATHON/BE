@@ -26,19 +26,19 @@ public class CoordinatorCalibrationController {
 
     @PatchMapping("/prompts/{promptId}/close")
     @CoordinatorOnly
-    public ApiResponse<PromptView> close(@PathVariable Integer promptId) {
-        return ApiResponse.ok(calibrationService.close(promptId));
+    public ResponseEntity<ApiResponse<PromptView>> close(@PathVariable Integer promptId) {
+        return ResponseEntity.ok(ApiResponse.ok(calibrationService.close(promptId)));
     }
 
     @GetMapping("/rounds/{roundId}/prompts")
     @CoordinatorOnly
-    public ApiResponse<List<PromptView>> list(@PathVariable Integer roundId) {
-        return ApiResponse.ok(calibrationService.listByRound(roundId));
+    public ResponseEntity<ApiResponse<List<PromptView>>> list(@PathVariable Integer roundId) {
+        return ResponseEntity.ok(ApiResponse.ok(calibrationService.listByRound(roundId)));
     }
 
     @GetMapping("/prompts/{promptId}/distribution")
     @CoordinatorOnly
-    public ApiResponse<DistributionView> distribution(@PathVariable Integer promptId) {
-        return ApiResponse.ok(calibrationService.distribution(promptId, false));
+    public ResponseEntity<ApiResponse<DistributionView>> distribution(@PathVariable Integer promptId) {
+        return ResponseEntity.ok(ApiResponse.ok(calibrationService.distribution(promptId, false)));
     }
 }

@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -87,7 +88,7 @@ public class StudentMeController {
     @PostMapping("/appeals")
     @Operation(summary = "FR-U-30 — Gửi khiếu nại")
     public ResponseEntity<ApiResponse<AppealResponse>> createAppeal(@Valid @RequestBody CreateAppealRequest request) {
-        return ResponseEntity.ok(ApiResponse.created(studentPortalService.createAppeal(request)));
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(studentPortalService.createAppeal(request)));
     }
 
     @GetMapping("/history")
