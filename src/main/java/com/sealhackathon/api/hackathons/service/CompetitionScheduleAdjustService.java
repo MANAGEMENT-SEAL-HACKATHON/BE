@@ -100,6 +100,20 @@ public class CompetitionScheduleAdjustService {
     }
 
     /**
+     * Dời lịch từ API: preview + pessimistic lock + apply trong một transaction.
+     * Self-invocation: {@code @Transactional} phải nằm trên method này (không dựa preview/apply).
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public CompetitionSchedulePreviewResponse adjust(Integer hackathonId, LocalDateTime newPrelimExamAt,
+                                                     CompetitionScheduleOverrides overrides) {
+        CompetitionSchedulePreviewResponse preview = preview(hackathonId, newPrelimExamAt);
+        Hackathon h = hackathonRepository.findByIdForUpdate(hackathonId)
+                .orElseThrow(() -> new ResourceNotFoundException("Hackathon", hackathonId));
+        apply(h, newPrelimExamAt, false, overrides);
+        return preview;
+    }
+
+    /**
      * Áp dụng lịch + đánh dấu đã dời 1 lần + notify.
      *
      * @param skipKickoffWindowGate true khi gọi từ close-reg-early (chưa chắc có KO đúng ngày)

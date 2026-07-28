@@ -7,7 +7,6 @@ import com.sealhackathon.api.config.OpenApiConfig;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import com.sealhackathon.api.common.exception.ResourceNotFoundException;
 import com.sealhackathon.api.hackathons.dto.request.CloseRegistrationEarlyRequest;
 import com.sealhackathon.api.hackathons.dto.request.CompetitionScheduleAdjustRequest;
 import com.sealhackathon.api.hackathons.dto.request.CreateHackathonRequest;
@@ -18,8 +17,6 @@ import com.sealhackathon.api.hackathons.dto.response.CompetitionSchedulePreviewR
 import com.sealhackathon.api.hackathons.dto.response.HackathonLotteryResponse;
 import com.sealhackathon.api.hackathons.dto.response.HackathonResponse;
 import com.sealhackathon.api.hackathons.dto.response.HackathonSummaryResponse;
-import com.sealhackathon.api.hackathons.entity.Hackathon;
-import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.service.CompetitionScheduleAdjustService;
 import com.sealhackathon.api.hackathons.service.HackathonLotteryService;
 import com.sealhackathon.api.hackathons.service.HackathonRegistrationCloseService;
@@ -56,7 +53,6 @@ public class HackathonController {
     private final HackathonLotteryService hackathonLotteryService;
     private final HackathonRegistrationCloseService hackathonRegistrationCloseService;
     private final CompetitionScheduleAdjustService competitionScheduleAdjustService;
-    private final HackathonRepository hackathonRepository;
 
     // API MỚI DÀNH RIÊNG CHO FRONTEND SET MẶC ĐỊNH
     @GetMapping("/active")
@@ -170,12 +166,9 @@ public class HackathonController {
     public ResponseEntity<ApiResponse<CompetitionSchedulePreviewResponse>> adjustCompetitionSchedule(
             @PathVariable Integer id,
             @Valid @RequestBody CompetitionScheduleAdjustRequest request) {
-        CompetitionSchedulePreviewResponse preview =
-                competitionScheduleAdjustService.preview(id, request.getNewPrelimExamAt());
-        Hackathon h = hackathonRepository.findByIdForUpdate(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Hackathon", id));
-        competitionScheduleAdjustService.apply(h, request.getNewPrelimExamAt(), false, request.getOverrides());
-        return ResponseEntity.ok(ApiResponse.ok(preview));
+        return ResponseEntity.ok(ApiResponse.ok(
+                competitionScheduleAdjustService.adjust(
+                        id, request.getNewPrelimExamAt(), request.getOverrides())));
     }
 
     @PostMapping(value = "/{id}/banner", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
