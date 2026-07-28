@@ -80,7 +80,6 @@ import com.sealhackathon.api.tracks.value_object.TrackStatus;
 import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
 import com.sealhackathon.api.wildcard_reviews.dto.request.WildcardOverrideRequest;
-import com.sealhackathon.api.wildcard_reviews.dto.request.WildcardReviewDecisionRequest;
 import com.sealhackathon.api.wildcard_reviews.dto.response.WildcardOverrideHistoryResponse;
 import com.sealhackathon.api.wildcard_reviews.dto.response.WildcardReviewResponse;
 import com.sealhackathon.api.wildcard_reviews.entity.WildcardOverrideHistory;
@@ -936,6 +935,9 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         return Optional.of(new WildcardPoolSnapshot(slots, topNTeams.size(), selected));
     }
 
+    private record WildcardPoolSnapshot(
+            int availableSlots, int autoAdvancedCount, List<RoundRankingItemResponse> selectedCandidates) {}
+
     private List<WildcardCandidateResponse> buildWildcardCandidateResponses(
             Round round, WildcardPoolSnapshot snapshot) {
         List<WildcardCandidateResponse> responses = new ArrayList<>();
@@ -1192,100 +1194,7 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
     }
 
     // =========================================================================
-    // NHIỆM VỤ 2.2: LƯU QUYẾT ĐỊNH CỦA BAN TỔ CHỨC (DUYỆT VÉ VỚT) — legacy soft-disabled after lock
-    // =========================================================================
-    @Override
-    public WildcardReviewResponse decideWildcardReview(Integer reviewId, WildcardReviewDecisionRequest req) {
-        WildcardReview review = wildcardReviewRepository.findById(reviewId)
-                .orElseThrow(() -> new ResourceNotFoundException("WildcardReview", reviewId));
-
-        if (review.getRound().getWildcardProposalConfirmedAt() != null) {
-            throw new BusinessRuleException(ErrorCode.WILDCARD_PROPOSAL_ALREADY_CONFIRMED,
-                    "Đề xuất đã khóa — dùng Override để sửa quyết định");
-        }
-
-        if (!Boolean.TRUE.equals(review.getRound().getScoringLocked())) {
-            throw new BusinessRuleException(ErrorCode.ROUND_NOT_SCORING_LOCKED,
-                    "Phải khóa chấm điểm trước khi xét duyệt vé vớt");
-        }
-
-        if (review.getCoordinatorApproved() != null) {
-            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
-                    "Quyết định vé vớt đã chốt — không thể thay đổi");
-        }
-
-        Round round = review.getRound();
-        WildcardPoolSnapshot pool = resolveWildcardPool(round)
-                .orElseThrow(() -> new BusinessRuleException(ErrorCode.INVALID_STATE,
-                        "Không có pool vé vớt đang mở cho vòng này"));
-
-        boolean teamInPool = pool.selectedCandidates().stream()
-                .anyMatch(c -> Objects.equals(c.getTeamId(), review.getTeam().getId()));
-        if (!teamInPool) {
-            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
-                    "Đội không thuộc danh sách vé vớt hiện tại");
-        }
-
-        if (Boolean.TRUE.equals(req.getApproved())) {
-            long approvedCount = wildcardReviewRepository.countByRound_IdAndCoordinatorApproved(
-                    round.getId(), true);
-            if (approvedCount >= pool.availableSlots()) {
-                throw new BusinessRuleException(ErrorCode.INVALID_STATE,
-                        "Đã đủ " + pool.availableSlots() + " suất vé vớt được duyệt");
-            }
-        }
-
-        User coordinator = userRepository.findById(currentUserAccessor.currentUserId()).orElseThrow();
-        LocalDateTime now = LocalDateTime.now();
-
-        review.setCoordinatorApproved(req.getApproved());
-        review.setCoordinatorNote(req.getCoordinatorNote());
-        review.setReviewedBy(coordinator);
-        review.setReviewedAt(now);
-        WildcardReview saved = wildcardReviewRepository.save(review);
-
-        if (Boolean.TRUE.equals(req.getApproved())) {
-            long approvedAfter = wildcardReviewRepository.countByRound_IdAndCoordinatorApproved(
-                    round.getId(), true);
-            if (approvedAfter >= pool.availableSlots()) {
-                autoRejectRemainingWildcardPool(round, pool, coordinator, now);
-            }
-        }
-
-        auditService.log(AuditAction.ROUND_UPDATE, "wildcard_reviews", saved.getId(),
-                java.util.Map.of(
-                        "coordinatorApproved", req.getApproved(),
-                        "teamId", saved.getTeam().getId()));
-
-        return WildcardReviewResponse.builder()
-                .id(saved.getId())
-                .roundId(saved.getRound().getId())
-                .teamId(saved.getTeam().getId())
-                .avgScore(saved.getAvgScore())
-                .coordinatorApproved(saved.getCoordinatorApproved())
-                .coordinatorNote(saved.getCoordinatorNote())
-                .reviewedAt(saved.getReviewedAt())
-                .build();
-    }
-
-    private void autoRejectRemainingWildcardPool(
-            Round round, WildcardPoolSnapshot pool, User coordinator, LocalDateTime reviewedAt) {
-        for (RoundRankingItemResponse candidate : pool.selectedCandidates()) {
-            wildcardReviewRepository.findByRound_IdAndTeam_Id(round.getId(), candidate.getTeamId())
-                    .filter(pending -> pending.getCoordinatorApproved() == null)
-                    .ifPresent(pending -> {
-                        pending.setCoordinatorApproved(false);
-                        pending.setCoordinatorNote("Tự động từ chối — đủ suất vé vớt");
-                        pending.setReviewedBy(coordinator);
-                        pending.setReviewedAt(reviewedAt);
-                        wildcardReviewRepository.save(pending);
-                    });
-        }
-    }
-
-    private record WildcardPoolSnapshot(
-            int availableSlots, int autoAdvancedCount, List<RoundRankingItemResponse> selectedCandidates) {}
-
+    // NHIỆM VỤ 2.2: OVERRIDE VÉ VỚT (Plan C)
     // =========================================================================
     // NHIỆM VỤ 1.3: CÀI GATE BẢO VỆ CHO ADVANCE_TEAMS (Không cho thăng vòng nếu còn Tiebreak)
     // =========================================================================
@@ -1345,15 +1254,6 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                 .advancedTeamIds(advanced)
                 .eliminatedTeamIds(eliminated)
                 .build();
-    }
-
-    /**
-     * @deprecated Wildcard removed — always no-op. Kept so legacy callers compile;
-     * advance never waits on vé vớt (Top-N only).
-     */
-    @Deprecated
-    private void requireWildcardReadyForAdvance(Round round) {
-        // no-op
     }
 
     @Override

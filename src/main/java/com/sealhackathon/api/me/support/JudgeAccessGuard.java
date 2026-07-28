@@ -3,17 +3,20 @@ package com.sealhackathon.api.me.support;
 import org.springframework.stereotype.Component;
 
 /**
- * Kiểm tra phân công Judge + HEAD tiebreak.
- * TODO: FR-J-05..26 — judge_assignments scope, HEAD role.
+ * Kiểm tra phân công Judge + HEAD tiebreak (FR-J-05..26).
+ *
+ * <p><b>Status:</b> placeholder — no call sites yet. Judge portal enforces scope via
+ * {@code JudgePortalServiceImpl} and assignment repositories. Implement here when
+ * consolidating judge access checks (Phase 5).
  */
 @Component
 public class JudgeAccessGuard {
 
     public void assertAssignedToTrack(Integer trackId) {
-        // TODO: FR-J-05 — judge_track_assignments
+        // Deferred — see class Javadoc
     }
 
     public void assertHeadJudgeForRound(Integer roundId) {
-        // TODO: FR-J-22/23 — HEAD tiebreak vote
+        // Deferred — tiebreak vote allowed for any assigned judge in round scope
     }
 }

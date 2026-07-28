@@ -21,7 +21,6 @@ import com.sealhackathon.api.rounds.dto.response.RoundScoreAuditResponse;
 import com.sealhackathon.api.rounds.dto.response.ScoreBreakdownResponse;
 import com.sealhackathon.api.rounds.dto.response.TiebreakItemResponse;
 import com.sealhackathon.api.rounds.dto.response.WildcardCandidatesResponse;
-import com.sealhackathon.api.wildcard_reviews.dto.request.WildcardReviewDecisionRequest;
 import com.sealhackathon.api.wildcard_reviews.dto.response.WildcardReviewResponse;
 
 import java.util.List;
@@ -68,8 +67,6 @@ public interface RoundProgressionService {
     default AdvanceTeamsResponse advance(Integer roundId, AdvanceTeamsRequest req) {
         return advanceTeams(roundId, req);
     }
-
-    WildcardReviewResponse decideWildcardReview(Integer reviewId, WildcardReviewDecisionRequest req);
 
     /** Plan C — override sau khi proposal LOCKED. */
     WildcardReviewResponse overrideWildcardReview(

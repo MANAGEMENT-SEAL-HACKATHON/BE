@@ -30,15 +30,6 @@ public final class WildcardCandidateSelection {
         return sorted.subList(0, slots);
     }
 
-    /**
-     * @deprecated Plan C dùng {@link #selectExactSlots}; giữ để tương thích test cũ nếu còn gọi.
-     */
-    @Deprecated(since = "PlanC")
-    public static List<RoundRankingItemResponse> selectWithTiesAtCutoff(
-            List<RoundRankingItemResponse> remainingTeams, int slots) {
-        return selectExactSlots(remainingTeams, slots);
-    }
-
     public static List<RoundRankingItemResponse> sortProposalOrder(
             List<RoundRankingItemResponse> teams) {
         List<RoundRankingItemResponse> sorted = new ArrayList<>(teams);

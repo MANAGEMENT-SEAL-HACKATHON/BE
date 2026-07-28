@@ -128,7 +128,7 @@ public class TeamController {
             @Valid @RequestBody InviteTeamMemberRequest req) {
         teamService.inviteMember(teamId, req);
         return ResponseEntity.status(HttpStatus.ACCEPTED)
-                .body(ApiResponse.ok(null, "Đã gửi lời mời (TODO)"));
+                .body(ApiResponse.ok(null, "Đã gửi lời mời thành viên"));
     }
 
     @PatchMapping("/{teamId}/members/{userId}")
