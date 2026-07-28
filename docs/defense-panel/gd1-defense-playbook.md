@@ -1,5 +1,7 @@
 # GĐ1 — Defense Playbook: Setup & Kích hoạt (DRAFT → ONGOING)
 
+> **Doc sync:** Đã rà lại theo code BE sau cleanup Phases 1–5 (`2026-07-28`).
+
 > **Person 1** · ~17 phút · Slug: `seal-e2e-2026` (Mode B) · `seal-fall-2025-finished` (archive)  
 > **Gate:** DRAFT → readiness pass → `ONGOING` · **Gate ra GĐ2:** status `ONGOING`, prelim inactive
 

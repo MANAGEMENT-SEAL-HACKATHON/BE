@@ -1,5 +1,7 @@
 # GĐ2 — Defense Playbook: Đăng ký · Đội · Bốc thăm · Kích hoạt Sơ loại
 
+> **Doc sync:** Đã rà lại theo code BE sau cleanup Phases 1–5 (`2026-07-28`).
+
 > **Person 2** · ~15 phút · Slug: `seal-e2e-2026` (duy nhất — không có slug GĐ2 riêng)  
 > **Gate vào:** ONGOING, prelim inactive · **Gate ra GĐ3:** prelim `is_active=true`
 

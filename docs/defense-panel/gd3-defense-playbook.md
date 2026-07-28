@@ -1,5 +1,7 @@
 # GĐ3 — Defense Playbook: Sơ loại Live (Nộp · Queue · Timer · Chấm · Khóa)
 
+> **Doc sync:** Đã rà lại theo code BE sau cleanup Phases 1–5 (`2026-07-28`).
+
 > **Person 3** · ~18 phút · Slug: `seal-gd3-prelim-open`  
 > **Gate vào:** lottery xong, round SL active, đề có thể release · **Gate ra GĐ4:** SL `scoring_locked=true`
 
@@ -96,7 +98,7 @@ flowchart TD
 
 | ID | Loại | Role | URL | Thao tác UI | Kết quả UI | ErrorCode | FE | BE |
 |----|------|------|-----|-------------|------------|-----------|----|----|
-| G3-H01 | Happy | Coord | Vòng thi | **Phát đề bài** / **Phát tất cả** | SV thấy đề; early-wait → disabled đến giờ | — | `RoundsTab` | `ProblemReleaseController` |
+| G3-H01 | Happy | Coord | Vòng thi | **Phát đề bài** / **Phát tất cả** | SV thấy đề; early-wait → disabled đến giờ | — | `RoundsTab` | `RoundProgressionController` |
 | G3-H02 | Happy | Student | `/student/submit` | Tab **Sơ loại** → repo + PDF → **Nộp bài Sơ loại** | Toast success; status SUBMITTED | — | `SubmitPage` | `SubmissionController` |
 | G3-H03 | Happy | Coord | Vòng thi | **Kết thúc thời gian thi sớm** → confirm | Modal KHÔNG HOÀN TÁC; cổng đóng | — | `RoundsTab` | `RoundProgressionController` |
 | G3-H04 | Happy | Coord | `/presentation/queue` | **Khởi Động Máy Quay Số** | Queue order hiển thị | — | `PresentationQueuePage` | `PresentationQueueController` |
@@ -106,8 +108,8 @@ flowchart TD
 | G3-H08 | Happy | Judge | Workspace | **HOÀN TẤT & CHỐT SỔ ĐIỂM** | Slot chuyển ENDED | — | `JudgeScoringWorkspace` | `ScoreController` |
 | G3-H09 | Happy | Judge | Workspace | **Kết thúc & gọi đội kế tiếp** | Queue next team | — | `JudgeTimerAndControls` | `PresentationQueueController` |
 | G3-H10 | Happy | Coord | Vòng thi | **Khóa chấm điểm** → Xác nhận | Locked badge; hackathon vẫn ONGOING | — | `RoundsTab` | `RoundProgressionController` |
-| G3-H11 | Happy | Mentor | `/mentor/support` | Xem đội được gán — tab **Bài nộp** / **Điểm** | Read-only mentor view | — | `MentorSupportPage` | `MentorPortalController` |
-| G3-H12 | Happy | Coord | `/coordinator/late-submissions` | Duyệt `LATE_PENDING` → Approve | SV submission gradable | — | `LateSubmissionReviewPage` | `LateSubmissionController` |
+| G3-H11 | Happy | Mentor | `/mentor/support?roundId=` | Xem đội được gán — tab **Bài nộp** / **Điểm** | Read-only mentor view | — | `MentorSupportPage` | `MentorMeController` |
+| G3-H12 | Happy | Coord | `/coordinator/late-submissions?roundId=` | Duyệt `LATE_PENDING` → Approve | SV submission gradable | — | `LateSubmissionReviewPage` | `SubmissionController.reviewLate` |
 
 ---
 
@@ -127,8 +129,8 @@ flowchart TD
 |----|------|------|-----|----------|------------|-----------|----|----|
 | G3-B01 | Bad | Judge | Dashboard | Chấm trước end-early | Toast / disabled | `SCORING_NOT_OPEN` | `JudgeScoringWorkspace` | `ScoreController` |
 | G3-B02 | Bad | Coord | Queue | Shuffle khi còn LATE_PENDING | Nút disabled | — | `PresentationQueuePage` | `PresentationQueueController` |
-| G3-B03 | Bad | Judge | Workspace | Next khi chưa đủ GK chốt | Nút disabled | — | `JudgeTimerAndControls` | `timerControlGates.js` |
-| G3-B04 | Bad | Coord | Queue | Force-advance thiếu lý do | Validation | — | `PresentationQueuePage` | `PresentationQueueController` |
+| G3-B03 | Bad | Judge | Workspace | Next khi chưa đủ GK chốt | Nút disabled / 422 nếu gọi tay | `SCORING_INCOMPLETE_BEFORE_NEXT` | `JudgeTimerAndControls` | `PresentationQueueController` |
+| G3-B04 | Bad | Coord | Queue | Force-advance thiếu lý do | Validation / 422 | `VALIDATION_FAILED` | `PresentationQueuePage` | `PresentationQueueController` |
 | G3-B05 | Bad | Student | Submit | Repo platform sai (drive.google) | Toast 422 | `INVALID_REPO_PLATFORM` | `SubmitPage` | `GitHubRepoValidator` |
 | G3-B06 | Bad | Student | Submit | Thiếu PDF slide | `INCOMPLETE` / `SLIDE_FILE_REQUIRED` | — | `SubmitPage` | `SubmissionController` |
 
@@ -160,7 +162,9 @@ flowchart TD
 | BE Submit | `SubmissionController` |
 | BE Queue/Timer | `PresentationQueueController`, `PresentationTimerController` |
 | BE Score | `ScoreController` |
-| BE Lock | `RoundProgressionController` |
+| BE Mentor portal | `MentorMeController` |
+| BE Late review | `SubmissionController.reviewLate` |
+| BE Lock / release / close-early | `RoundProgressionController` |
 
 ---
 

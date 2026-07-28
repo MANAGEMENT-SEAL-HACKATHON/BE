@@ -1,5 +1,7 @@
 # GĐ4 — Defense Playbook: Kết quả Sơ loại · Top-N · Cấu hình & Kích hoạt CK
 
+> **Doc sync:** Đã rà lại theo code BE sau cleanup Phases 1–5 (`2026-07-28`).
+
 > **Person 4** · ~16 phút · Slugs: `seal-gd4-advance-ready` + 3 tiebreak/wildcard  
 > **Gate vào:** SL `scoring_locked=true` · **Gate ra GĐ5:** CK `is_active=true`, SL published, teams ADVANCED
 
@@ -97,9 +99,9 @@ flowchart TD
 
 | ID | Loại | Role | URL | Thao tác UI | Kết quả UI | ErrorCode | FE | BE |
 |----|------|------|-----|-------------|------------|-----------|----|----|
-| G4-H01 | Happy | Coord | `/rounds/{prelimId}/results` | Mở stepper — bước **Khóa chấm** đã xanh | Stepper hiển thị 6 bước | — | `PreliminaryResultsPage` | `RoundRankingQueryService` |
-| G4-H02 | Happy | Coord | Tab **Xem trước** | Xem BXH tạm / warning incomplete | BarChart hoặc warning vàng | — | `RankingPreviewPanel` | `RoundRankingQueryService` |
-| G4-H03 | Happy | Coord | Tab **Đồng điểm** | (Nếu banner đỏ) kéo-thả biên Top-N → **Lưu** | Tiebreak resolved | — | `OfficialRankingPanel` | `TiebreakController` |
+| G4-H01 | Happy | Coord | `/rounds/{prelimId}/results` | Mở stepper — bước **Khóa chấm** đã xanh | Stepper hiển thị 6 bước | — | `PreliminaryResultsPage` | `RoundProgressionController` |
+| G4-H02 | Happy | Coord | Tab **Xem trước** | Xem BXH tạm / warning incomplete | BarChart hoặc warning vàng | — | `RankingPreviewPanel` | `RoundProgressionController` |
+| G4-H03 | Happy | Coord | Tab **Đồng điểm** | (Nếu banner đỏ) kéo-thả biên Top-N → **Lưu** | Tiebreak resolved | — | `OfficialRankingPanel` | `RoundProgressionController.resolveTiebreak` |
 | G4-H04 | Happy | Coord | Results | **Công bố kết quả** → confirm | `isPublished=true`; announcement WS | — | `PreliminaryResultsPage` | `RoundProgressionController.publish` |
 | G4-H05 | Happy | Coord | Results | **Chốt chuyển vòng** → confirm | ADVANCED / ELIMINATED tags | — | `RankingTopSteps` | `RoundProgressionServiceImpl.advance` |
 | G4-H06 | Happy | Coord | Tab **Danh sách CK & Bị loại** | Verify ADVANCED / ELIMINATED | 8 đội phân loại đúng Top-N | — | `AdvancementListPanel` | `RoundProgressionServiceImpl` |
@@ -113,7 +115,7 @@ flowchart TD
 | ID | Loại | Slug | Thao tác UI | Kết quả UI | FE | BE |
 |----|------|------|-------------|------------|----|----|
 | G4-H09 | Happy | `tiebreak-submission-time` | Tab **Đồng điểm** → resolve auto | Team nộp sớm hơn thắng biên Top-2 | `OfficialRankingPanel` | `TiebreakService` SUBMISSION_TIME |
-| G4-H10 | Happy | `tiebreak-manual` | Advance → banner `TIEBREAK_REQUIRED` → Coord chọn đội | Manual resolve OK | `OfficialRankingPanel` | `TiebreakController` |
+| G4-H10 | Happy | `tiebreak-manual` | Advance → banner `TIEBREAK_REQUIRED` → Coord chọn đội | Manual resolve OK | `OfficialRankingPanel` | `RoundProgressionController.resolveTiebreak` |
 | G4-H11 | Happy | `wildcard-gap` | **Chốt chuyển vòng** với `availableSlots=2` | Top-N mỗi bảng; không tab Vé vớt | `PreliminaryResultsPage` | `RoundProgressionServiceImpl` |
 
 ---
@@ -122,9 +124,9 @@ flowchart TD
 
 | ID | Loại | Role | URL | Thao tác | Kết quả UI | ErrorCode | FE | BE |
 |----|------|------|-----|----------|------------|-----------|----|----|
-| G4-B01 | Bad | Coord | Results | Preview khi còn submission chưa chấm | Warning vàng incomplete | — | `RankingPreviewPanel` | `RoundRankingQueryService` |
+| G4-B01 | Bad | Coord | Results | Preview khi còn submission chưa chấm | Warning vàng incomplete | — | `RankingPreviewPanel` | `RoundProgressionController.rankingPreview` |
 | G4-B02 | Bad | Coord | Activate CK | Activate khi chưa publish SL | 422 toast | `RESULT_NOT_PUBLISHED` | `RoundsTab` | `RoundActivationService` |
-| G4-B03 | Bad | Coord | Advance | Advance khi tiebreak chưa resolve | 422 | `TIEBREAK_UNRESOLVED` | `RankingTopSteps` | `RoundProgressionServiceImpl` |
+| G4-B03 | Bad | Coord | Advance | Advance khi tiebreak chưa resolve | 422 | `TIEBREAK_REQUIRED` | `RankingTopSteps` | `RoundProgressionServiceImpl` |
 | G4-B04 | Bad | Coord | Final-config | Activate thiếu criteria CK | Readiness fail | `FINAL_CRITERIA_MISSING` | `FinalRoundConfigPage` | `ReadinessService` |
 | G4-B05 | Bad | Coord | People | Gán INTERNAL làm FINAL_EXTERNAL | Toast reject | `INVALID_ASSIGNMENT_TYPE` | `PeopleTab` | `JudgeAssignmentController` |
 
@@ -135,7 +137,7 @@ flowchart TD
 | ID | Loại | Role | URL | Thao tác (cố ý) | Kết quả (chặn) | ErrorCode | FE | BE |
 |----|------|------|-----|-----------------|----------------|-----------|----|----|
 | G4-S01 | Sabotage | Coord | Advance | Advance trước publish | 422 | `RESULT_NOT_PUBLISHED` | `RankingTopSteps` | `RoundProgressionServiceImpl` |
-| G4-S02 | Sabotage | Coord | Advance | Tiebreak biên Top-N chưa resolve | 422 | `TIEBREAK_UNRESOLVED` | `OfficialRankingPanel` | `TiebreakController` |
+| G4-S02 | Sabotage | Coord | Advance | Tiebreak biên Top-N chưa resolve | 422 | `TIEBREAK_REQUIRED` | `OfficialRankingPanel` | `RoundProgressionController.resolveTiebreak` |
 | G4-S03 | Sabotage | Coord | Activate | Activate CK unpublished SL | 422 | `RESULT_NOT_PUBLISHED` | `RoundsTab` | `RoundActivationService` |
 | G4-S04 | Sabotage | Coord | Final-config | Xóa hết criteria CK → activate | Blocked | `FINAL_CRITERIA_MISSING` | `FinalRoundConfigPage` | `ReadinessService` |
 | G4-S05 | Sabotage | Coord | People | Activate thiếu judge CK | Readiness fail | — | `FinalRoundConfigPage` | `JudgeAssignmentController` |
@@ -151,8 +153,8 @@ flowchart TD
 | FE Results | `PreliminaryResultsPage`, `OfficialRankingPanel`, `RankingTopSteps` |
 | FE Final config | `FinalRoundConfigPage` |
 | BE Progression | `RoundProgressionServiceImpl`, `RoundProgressionController` |
-| BE Ranking | `RoundRankingQueryService` |
-| BE Tiebreak | `TiebreakController`, `TiebreakService` |
+| BE Ranking preview | `RoundProgressionController` + `RoundRankingQueryService` |
+| BE Tiebreak / advance | `RoundProgressionController`, `RoundProgressionServiceImpl` |
 | BE Judges | `JudgeAssignmentController` |
 
 ---

@@ -1,5 +1,7 @@
 # GĐ5 + GĐ6 — Defense Playbook: Chung kết & Đóng giải
 
+> **Doc sync:** Đã rà lại theo code BE sau cleanup Phases 1–5 (`2026-07-28`).
+
 > **Person 5** · ~25 phút (Phần A ~12p + Phần B ~10p + handoff 3p)  
 > **Slug A:** `seal-gd5-final-active` · **Slug B:** `seal-gd6-pending-confirm`
 
