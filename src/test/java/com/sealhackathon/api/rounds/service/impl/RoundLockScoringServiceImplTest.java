@@ -5,6 +5,7 @@ import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
+import com.sealhackathon.api.live_scoring.PresentationQueuePublisher;
 import com.sealhackathon.api.rounds.dto.request.LockScoringRequest;
 import com.sealhackathon.api.rounds.dto.response.RoundScoringProgressResponse;
 import com.sealhackathon.api.rounds.entity.Round;
@@ -38,7 +39,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class RoundProgressionServiceImplLockScoringSequenceTest {
+class RoundLockScoringServiceImplTest {
 
     @Mock private RoundRepository roundRepository;
     @Mock private RoundMapper roundMapper;
@@ -50,26 +51,11 @@ class RoundProgressionServiceImplLockScoringSequenceTest {
     @Mock private CurrentUserAccessor currentUserAccessor;
     @Mock private RoundPresentationReadiness roundPresentationReadiness;
     @Mock private com.sealhackathon.api.hackathons.repository.HackathonRepository hackathonRepository;
-    @Mock private com.sealhackathon.api.notifications.service.NotificationService notificationService;
-    @Mock private com.sealhackathon.api.tracks.repository.TrackRepository trackRepository;
-    @Mock private com.sealhackathon.api.mentors.repository.MentorAssignmentRepository mentorAssignmentRepository;
-    @Mock private com.sealhackathon.api.criteria.repository.CriteriaRepository criteriaRepository;
-    @Mock private com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository judgeAssignmentRepository;
     @Mock private com.sealhackathon.api.scores.repository.ScoreRepository scoreRepository;
-    @Mock private com.sealhackathon.api.rounds.query.RoundRankingQueryService roundRankingQueryService;
-    @Mock private com.sealhackathon.api.teams.repository.TeamRoundTrackRepository teamRoundTrackRepository;
-    @Mock private com.sealhackathon.api.teams.repository.TeamRoundParticipationRepository teamRoundParticipationRepository;
-    @Mock private com.sealhackathon.api.judge_assignments.service.JudgeAssignmentService judgeAssignmentService;
-    @Mock private com.sealhackathon.api.tiebreak_evaluations.repository.TiebreakEvaluationRepository tiebreakEvaluationRepository;
-    @Mock private com.sealhackathon.api.teams.repository.TeamRepository teamRepository;
-    @Mock private com.sealhackathon.api.wildcard_reviews.repository.WildcardReviewRepository wildcardReviewRepository;
-    @Mock private com.sealhackathon.api.wildcard_reviews.repository.WildcardOverrideHistoryRepository wildcardOverrideHistoryRepository;
-    @Mock private com.sealhackathon.api.rounds.support.RoundProblemStatementStorage problemStatementStorage;
-    @Mock private com.sealhackathon.api.teams.repository.TeamMemberRepository teamMemberRepository;
-    @Mock private com.sealhackathon.api.submissions.repository.SubmissionRepository submissionRepository;
+    @Mock private PresentationQueuePublisher presentationQueuePublisher;
 
     @InjectMocks
-    private RoundProgressionServiceImpl service;
+    private RoundLockScoringServiceImpl service;
 
     private Round round;
 
@@ -165,5 +151,57 @@ class RoundProgressionServiceImplLockScoringSequenceTest {
         service.lockScoring(10, LockScoringRequest.builder().force(true).reason("judge absent").build());
 
         verify(roundRepository).save(any(Round.class));
+    }
+
+    @Test
+    void lockScoring_ongoing_rejectsWithNotClosedCodeEvenWithForce() {
+        LocalDateTime pastExam = LocalDateTime.now().minusMinutes(30);
+        Round ongoingRound = Round.builder()
+                .id(10)
+                .hackathon(round.getHackathon())
+                .roundType(RoundType.PRELIMINARY)
+                .isActive(true)
+                .scoringLocked(false)
+                .examAt(pastExam)
+                .submissionOpen(pastExam)
+                .submissionDeadline(LocalDateTime.now().plusHours(2))
+                .build();
+        when(roundAccessGuard.requireActiveRoundForUpdate(10)).thenReturn(ongoingRound);
+
+        assertThatThrownBy(() -> service.lockScoring(10,
+                        LockScoringRequest.builder().force(true).reason("emergency").build()))
+                .isInstanceOf(BusinessRuleException.class)
+                .satisfies(ex -> assertThat(((BusinessRuleException) ex).getCode())
+                        .isEqualTo(ErrorCode.INVALID_ROUND_STATE_NOT_CLOSED));
+
+        verify(roundRepository, never()).save(any());
+    }
+
+    @Test
+    void lockScoring_finalNotShuffled_rejectsQueueNotShuffledEvenWithForce() {
+        Hackathon hackathon = new Hackathon();
+        hackathon.setId(1);
+        Round finalRound = Round.builder()
+                .id(20)
+                .hackathon(hackathon)
+                .isFinal(true)
+                .isActive(true)
+                .scoringLocked(false)
+                .presentationShuffled(false)
+                .submissionClosedEarlyAt(LocalDateTime.now().minusMinutes(5))
+                .examAt(LocalDateTime.now().minusHours(1))
+                .submissionDeadline(LocalDateTime.now().plusHours(1))
+                .build();
+        when(roundAccessGuard.requireActiveRoundForUpdate(20)).thenReturn(finalRound);
+        doThrow(new BusinessRuleException(ErrorCode.INVALID_ROUND_STATE_QUEUE_NOT_SHUFFLED, "x"))
+                .when(roundPresentationReadiness).assertShuffled(finalRound);
+
+        assertThatThrownBy(() -> service.lockScoring(20,
+                        LockScoringRequest.builder().force(true).reason("emergency").build()))
+                .isInstanceOf(BusinessRuleException.class)
+                .satisfies(ex -> assertThat(((BusinessRuleException) ex).getCode())
+                        .isEqualTo(ErrorCode.INVALID_ROUND_STATE_QUEUE_NOT_SHUFFLED));
+
+        verify(roundRepository, never()).save(any());
     }
 }

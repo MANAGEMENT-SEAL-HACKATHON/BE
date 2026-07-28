@@ -8,7 +8,6 @@ import com.sealhackathon.api.me.student.dto.response.*;
 import com.sealhackathon.api.me.student.service.StudentPortalService;
 import com.sealhackathon.api.teams.dto.request.CreateTeamRequest;
 import com.sealhackathon.api.teams.dto.response.TeamResponse;
-import com.sealhackathon.api.teams.service.TeamService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -33,7 +32,6 @@ import java.util.List;
 public class StudentMeController {
 
     private final StudentPortalService studentPortalService;
-    private final TeamService teamService;
 
     @GetMapping("/teams")
     @Operation(summary = "FR-U-15 — Đội của tôi",
@@ -46,7 +44,7 @@ public class StudentMeController {
     @PostMapping("/teams")
     @Operation(summary = "FR-U-07 — Leader tạo đội (portal alias của POST /teams)")
     public ResponseEntity<ApiResponse<TeamResponse>> createMyTeam(@Valid @RequestBody CreateTeamRequest req) {
-        TeamResponse data = teamService.createTeam(req);
+        TeamResponse data = studentPortalService.createTeam(req);
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}")
                 .buildAndExpand(data.getId())
@@ -73,10 +71,7 @@ public class StudentMeController {
             @PathVariable Integer id,
             @RequestParam(defaultValue = "false") boolean download) throws java.io.IOException {
         CertificateDownload file = studentPortalService.getCertificateDownload(id);
-        byte[] bytes;
-        try (var stream = file.content().stream()) {
-            bytes = stream.readAllBytes();
-        }
+        byte[] bytes = file.readBytes();
         String disposition = download ? "attachment" : "inline";
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,

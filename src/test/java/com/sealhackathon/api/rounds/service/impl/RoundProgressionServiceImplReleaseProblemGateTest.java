@@ -68,6 +68,7 @@ class RoundProgressionServiceImplReleaseProblemGateTest {
     @Mock private RoundProblemStatementStorage problemStatementStorage;
     @Mock private com.sealhackathon.api.teams.repository.TeamMemberRepository teamMemberRepository;
     @Mock private com.sealhackathon.api.submissions.repository.SubmissionRepository submissionRepository;
+    @Mock private com.sealhackathon.api.rounds.service.RoundLockScoringService roundLockScoringService;
 
     @InjectMocks
     private RoundProgressionServiceImpl service;

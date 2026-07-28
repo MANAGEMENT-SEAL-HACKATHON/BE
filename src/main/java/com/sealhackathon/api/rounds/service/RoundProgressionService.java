@@ -50,6 +50,9 @@ public interface RoundProgressionService {
 
     List<TiebreakItemResponse> tiebreak(Integer roundId);
 
+    /** Called after lock-scoring to auto-resolve single-candidate tiebreaks. */
+    void autoApplyResolvableTiebreaks(Integer roundId);
+
     List<RoundRankingItemResponse> resolveTiebreak(Integer roundId, ResolveTiebreakRequest req);
 
     WildcardCandidatesResponse wildcardCandidates(Integer roundId);

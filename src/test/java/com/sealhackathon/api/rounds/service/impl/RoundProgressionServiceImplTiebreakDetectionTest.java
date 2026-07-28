@@ -15,6 +15,7 @@ import com.sealhackathon.api.rounds.mapper.RoundMapper;
 import com.sealhackathon.api.rounds.query.RoundRankingQueryService;
 import com.sealhackathon.api.rounds.query.ScoringProgressQueryService;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
+import com.sealhackathon.api.rounds.service.RoundLockScoringService;
 import com.sealhackathon.api.rounds.value_object.RoundType;
 import com.sealhackathon.api.rounds.value_object.TiebreakRule;
 import com.sealhackathon.api.tiebreak_evaluations.entity.TiebreakEvaluation;
@@ -76,6 +77,7 @@ class RoundProgressionServiceImplTiebreakDetectionTest {
     @Mock private com.sealhackathon.api.rounds.support.RoundProblemStatementStorage problemStatementStorage;
     @Mock private com.sealhackathon.api.teams.repository.TeamMemberRepository teamMemberRepository;
     @Mock private com.sealhackathon.api.submissions.repository.SubmissionRepository submissionRepository;
+    @Mock private RoundLockScoringService roundLockScoringService;
     @Mock private com.sealhackathon.api.announcements.service.AnnouncementService announcementService;
     @Mock private com.sealhackathon.api.live_scoring.PresentationQueuePublisher presentationQueuePublisher;
 

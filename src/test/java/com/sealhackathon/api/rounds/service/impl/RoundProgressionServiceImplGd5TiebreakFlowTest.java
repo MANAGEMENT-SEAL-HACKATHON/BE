@@ -63,6 +63,7 @@ class RoundProgressionServiceImplGd5TiebreakFlowTest {
     @Mock private com.sealhackathon.api.submissions.repository.SubmissionRepository submissionRepository;
     @Mock private com.sealhackathon.api.announcements.service.AnnouncementService announcementService;
     @Mock private com.sealhackathon.api.live_scoring.PresentationQueuePublisher presentationQueuePublisher;
+    @Mock private com.sealhackathon.api.rounds.service.RoundLockScoringService roundLockScoringService;
 
     @InjectMocks
     private RoundProgressionServiceImpl service;

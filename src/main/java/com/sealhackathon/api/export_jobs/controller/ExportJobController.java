@@ -41,8 +41,7 @@ public class ExportJobController {
     public ResponseEntity<byte[]> download(@PathVariable Integer id) throws IOException {
         ExportFileDownload file = exportJobService.downloadFile(id);
         String contentType = file.content().contentType();
-        byte[] bytes = file.content().stream().readAllBytes();
-        file.content().stream().close();
+        byte[] bytes = file.readBytes();
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"" + file.filename() + "\"")

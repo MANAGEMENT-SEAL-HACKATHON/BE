@@ -40,6 +40,9 @@ import com.sealhackathon.api.submissions.entity.Submission;
 import com.sealhackathon.api.submissions.repository.SubmissionRepository;
 import com.sealhackathon.api.submissions.support.SubmissionSlideStorage;
 import com.sealhackathon.api.submissions.value_object.SubmissionStatus;
+import com.sealhackathon.api.teams.dto.request.CreateTeamRequest;
+import com.sealhackathon.api.teams.dto.response.TeamResponse;
+import com.sealhackathon.api.teams.service.TeamService;
 import com.sealhackathon.api.teams.entity.TeamMember;
 import com.sealhackathon.api.teams.repository.TeamMemberRepository;
 import com.sealhackathon.api.teams.value_object.TeamMemberStatus;
@@ -112,6 +115,7 @@ public class StudentPortalServiceImpl implements StudentPortalService {
     private final RoundProblemStatementStorage roundProblemStatementStorage;
     private final TrackProblemStatementStorage trackProblemStatementStorage;
     private final PrelimMutationGuard prelimMutationGuard;
+    private final TeamService teamService;
 
     private static String studentProblemDownloadPath(Integer roundId) {
         return "/api/v1/me/rounds/" + roundId + "/problem-statement";
@@ -155,6 +159,12 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                             .build();
                 })
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public TeamResponse createTeam(CreateTeamRequest request) {
+        return teamService.createTeam(request);
     }
 
     @Override

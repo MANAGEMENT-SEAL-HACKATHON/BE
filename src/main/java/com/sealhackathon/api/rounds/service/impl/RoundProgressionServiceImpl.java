@@ -50,6 +50,7 @@ import com.sealhackathon.api.rounds.dto.response.WildcardCandidatesResponse;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.mapper.RoundMapper;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
+import com.sealhackathon.api.rounds.service.RoundLockScoringService;
 import com.sealhackathon.api.rounds.service.RoundProgressionService;
 import com.sealhackathon.api.rounds.support.RoundPresentationReadiness;
 import com.sealhackathon.api.rounds.support.RoundProblemStatementStorage;
@@ -132,6 +133,7 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
     private final CriteriaRepository criteriaRepository;
     private final com.sealhackathon.api.announcements.service.AnnouncementService announcementService;
     private final com.sealhackathon.api.live_scoring.PresentationQueuePublisher presentationQueuePublisher;
+    private final RoundLockScoringService roundLockScoringService;
 
     private static final int ADVANCE_ROSTER_DEFAULT_PAGE_SIZE = 50;
 
@@ -276,119 +278,15 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
     @Override
     @Transactional
     public LockScoringResult lockScoring(Integer roundId, LockScoringRequest req) {
-        LockScoringRequest body = req != null ? req : LockScoringRequest.builder().build();
-        Round round = roundAccessGuard.requireActiveRoundForUpdate(roundId);
-        if (Boolean.TRUE.equals(round.getScoringLocked())) {
-            throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Round đã khóa chấm điểm");
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-        boolean closedEarly = round.getSubmissionClosedEarlyAt() != null;
-        boolean pastDeadline = round.getSubmissionDeadline() != null
-                && now.isAfter(round.getSubmissionDeadline());
-        if (!closedEarly && !pastDeadline) {
-            throw new BusinessRuleException(ErrorCode.INVALID_ROUND_STATE_NOT_CLOSED,
-                    "Chưa đóng vòng thi (chưa hết giờ hoặc chưa kết thúc sớm), không thể khóa chấm!");
-        }
-
-        // Gate 2–3: force MUST NOT bypass
-        roundPresentationReadiness.assertShuffled(round);
-        roundPresentationReadiness.assertPresentationsComplete(round);
-
-        List<Warning> warnings = new ArrayList<>();
-        RoundScoringProgressResponse progress = scoringProgressQueryService.progressForRound(round);
-        int pending = progress.getPendingSubmissions() != null ? progress.getPendingSubmissions() : 0;
-        if (pending > 0) {
-            if (!Boolean.TRUE.equals(body.getForce())) {
-                throw new BusinessRuleException(ErrorCode.INVALID_ROUND_STATE_SCORING_INCOMPLETE,
-                        "Còn bài chưa được chấm điểm, không thể khóa chấm!");
-            }
-            if (!StringUtils.hasText(body.getReason())) {
-                throw new BusinessRuleException(ErrorCode.FORCE_LOCK_REASON_REQUIRED,
-                        "Bắt buộc lý do khi force lock");
-            }
-            warnings.add(Warning.builder()
-                    .code(WarningCode.PARTIAL_SCORING_BEFORE_LOCK)
-                    .message("Còn bài chưa được chấm điểm")
-                    .build());
-        } else if (Boolean.TRUE.equals(body.getForce()) && !StringUtils.hasText(body.getReason())) {
-            throw new BusinessRuleException(ErrorCode.FORCE_LOCK_REASON_REQUIRED,
-                    "Bắt buộc lý do khi force lock");
-        }
-
-        User locker = userRepository.findById(currentUserAccessor.currentUserId()).orElseThrow();
-        round.setScoringLocked(true);
-        round.setScoringLockedAt(LocalDateTime.now());
-        round.setScoringLockedBy(locker);
-        if (Boolean.TRUE.equals(body.getForce())) {
-            round.setForceLocked(true);
-            round.setForceLockReason(body.getReason());
-        }
-        Round saved = roundRepository.save(round);
-        finalizeScoresForRound(roundId);
-
-        String auditAction = Boolean.TRUE.equals(body.getForce())
-                ? AuditAction.ROUND_FORCE_LOCK
-                : AuditAction.ROUND_LOCK;
-        auditService.log(auditAction, "rounds", roundId,
-                java.util.Map.of("force", Boolean.TRUE.equals(body.getForce())));
-
-        eventPublisher.publishEvent(new ScoringLockedEvent(this, roundId));
-
-        if (Boolean.TRUE.equals(saved.getIsFinal())) {
-            transitionHackathonToPendingConfirm(saved);
-        }
-
+        LockScoringResult result = roundLockScoringService.lockScoring(roundId, req);
         autoApplyResolvableTiebreaks(roundId);
-
-        return LockScoringResult.builder()
-                .round(roundMapper.toSummary(saved, 0, 0, 0f))
-                .warnings(warnings.isEmpty() ? null : warnings)
-                .build();
+        return result;
     }
 
     @Override
     @Transactional
     public RoundSummaryResponse unlockScoring(Integer roundId, UnlockScoringRequest req) {
-        UnlockScoringRequest body = req != null ? req : UnlockScoringRequest.builder().build();
-        if (!StringUtils.hasText(body.getReason())) {
-            throw new BusinessRuleException(ErrorCode.UNLOCK_REASON_REQUIRED,
-                    "Bắt buộc lý do khi mở khóa chấm");
-        }
-        Round round = roundAccessGuard.requireActiveRoundForUpdate(roundId);
-        if (!Boolean.TRUE.equals(round.getScoringLocked())) {
-            throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Round chưa khóa chấm");
-        }
-        round.setScoringLocked(false);
-        round.setScoringLockedAt(null);
-        round.setScoringLockedBy(null);
-        round.setForceLocked(false);
-        round.setForceLockReason(null);
-        Round saved = roundRepository.save(round);
-        auditService.log(AuditAction.ROUND_SCORING_UNLOCKED, "rounds", roundId,
-                Map.of("reason", body.getReason()));
-        presentationQueuePublisher.publishScoringUnlocked(roundId, null, body.getReason());
-        return roundMapper.toSummary(saved, 0, 0, 0f);
-    }
-
-    /** FR-30A — lock round Chung kết ⇒ hackathon ONGOING → PENDING_CONFIRM. */
-    private void transitionHackathonToPendingConfirm(Round finalRound) {
-        Hackathon hackathon = finalRound.getHackathon();
-        if (hackathon == null) {
-            return;
-        }
-        if (hackathon.getStatus() != HackathonStatus.ONGOING) {
-            return;
-        }
-        HackathonStatus from = hackathon.getStatus();
-        hackathon.setStatus(HackathonStatus.PENDING_CONFIRM);
-        hackathonRepository.save(hackathon);
-        auditService.log(AuditAction.HACKATHON_STATUS_CHANGE, "hackathons", hackathon.getId(),
-                Map.of(
-                        "from", from.name(),
-                        "to", HackathonStatus.PENDING_CONFIRM.name(),
-                        "trigger", "FINAL_ROUND_LOCK",
-                        "roundId", finalRound.getId()));
+        return roundLockScoringService.unlockScoring(roundId, req);
     }
 
     @Override
@@ -709,7 +607,8 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                 totalScore);
     }
 
-    private void autoApplyResolvableTiebreaks(Integer roundId) {
+    @Override
+    public void autoApplyResolvableTiebreaks(Integer roundId) {
         Round round = roundRepository.findById(roundId).orElse(null);
         if (round == null || !Boolean.TRUE.equals(round.getScoringLocked())) {
             return;
@@ -1859,24 +1758,6 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                         .round(finalRound)
                         .hackathon(hackathon)
                         .build()));
-    }
-
-    private void finalizeScoresForRound(Integer roundId) {
-        Set<Integer> seen = new HashSet<>();
-        List<Score> toUpdate = new ArrayList<>();
-        for (Score s : scoreRepository.findBySubmission_Round_Id(roundId)) {
-            if (seen.add(s.getId())) {
-                s.setIsFinal(true);
-                toUpdate.add(s);
-            }
-        }
-        for (Score s : scoreRepository.findBySubmission_Track_Round_Id(roundId)) {
-            if (seen.add(s.getId())) {
-                s.setIsFinal(true);
-                toUpdate.add(s);
-            }
-        }
-        scoreRepository.saveAll(toUpdate);
     }
 
     private void notifyProblemReleased(Round round) {

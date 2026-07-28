@@ -3,6 +3,8 @@ package com.sealhackathon.api.me.student.service;
 import com.sealhackathon.api.me.student.dto.request.CreateAppealRequest;
 import com.sealhackathon.api.me.student.dto.request.RelotteryTrackRequest;
 import com.sealhackathon.api.me.student.dto.response.*;
+import com.sealhackathon.api.teams.dto.request.CreateTeamRequest;
+import com.sealhackathon.api.teams.dto.response.TeamResponse;
 import com.sealhackathon.api.tracks.dto.response.TrackSummaryResponse;
 
 import java.util.List;
@@ -12,6 +14,8 @@ public interface StudentPortalService {
     List<StudentHackathonBrowseItemResponse> browseHackathons(String status);
 
     List<MeTeamSummaryResponse> listMyTeams(boolean includeEliminated);
+
+    TeamResponse createTeam(CreateTeamRequest request);
 
     void relotteryTrack(Integer teamId, Integer roundId, RelotteryTrackRequest request);
 
