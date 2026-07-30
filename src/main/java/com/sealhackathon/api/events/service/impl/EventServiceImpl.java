@@ -24,6 +24,8 @@ import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
 import com.sealhackathon.api.notifications.entity.Notification;
 import com.sealhackathon.api.notifications.repository.NotificationRepository;
 import com.sealhackathon.api.notifications.service.NotificationService;
+import com.sealhackathon.api.notifications.service.StakeholderBroadcastService;
+import com.sealhackathon.api.notifications.value_object.NotificationType;
 import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
 import com.sealhackathon.api.users.value_object.UserStatus;
@@ -35,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * FR-06A Event CRUD impl. Gọi {@link EventScheduleValidator} mọi mutation.
@@ -57,6 +60,7 @@ public class EventServiceImpl implements EventService {
     private final UserRepository userRepository;
     private final CurrentUserAccessor currentUserAccessor;
     private final HackathonArchiveGuard archiveGuard;
+    private final StakeholderBroadcastService stakeholderBroadcastService;
 
     @Override
     public CreateResult create(Integer hackathonId, CreateEventRequest req) {
@@ -84,7 +88,7 @@ public class EventServiceImpl implements EventService {
                            "details", w.getDetails() == null ? Map.of() : w.getDetails()));
         }
         if (Boolean.TRUE.equals(saved.getIsPublic())) {
-            fanoutReminder(saved);
+            fanoutReminder(saved, true);
         }
         if (saved.getType() == EventType.KICKOFF) {
             hackathonTimelineService.assertAllRoundsExamAtValid(hackathonId);
@@ -129,6 +133,7 @@ public class EventServiceImpl implements EventService {
 
         EventResponse before = eventMapper.toResponse(e);
         LocalDateTime prevStart = e.getStartsAt();
+        String prevLocation = e.getLocation();
         eventMapper.applyUpdate(e, req);
         if (!e.getStartsAt().equals(prevStart)) {
             e.setReminderSentAt(null);
@@ -142,8 +147,14 @@ public class EventServiceImpl implements EventService {
                     Map.of("code", w.getCode(), "message", w.getMessage(),
                            "details", w.getDetails() == null ? Map.of() : w.getDetails()));
         }
-        if (Boolean.TRUE.equals(saved.getIsPublic()) && !saved.getStartsAt().equals(prevStart)) {
-            fanoutReminder(saved);
+        boolean startsChanged = !saved.getStartsAt().equals(prevStart);
+        boolean locationChanged = !Objects.equals(saved.getLocation(), prevLocation);
+        if (Boolean.TRUE.equals(saved.getIsPublic())) {
+            if (isStakeholderMilestone(saved.getType())) {
+                fanoutReminder(saved, startsChanged || locationChanged);
+            } else if (startsChanged) {
+                fanoutReminder(saved, false);
+            }
         }
         if (saved.getType() == EventType.KICKOFF) {
             hackathonTimelineService.assertAllRoundsExamAtValid(h.getId());
@@ -221,15 +232,35 @@ public class EventServiceImpl implements EventService {
                 .anyMatch(e -> !e.getId().equals(excludeEventId));
     }
 
-    private void fanoutReminder(Event event) {
+    private void fanoutReminder(Event event, boolean sendEmail) {
+        String title = "Sự kiện sắp diễn ra: %s".formatted(event.getTitle());
+        String body = "Thời gian: %s%s".formatted(
+                event.getStartsAt(),
+                event.getLocation() == null ? "" : " — " + event.getLocation());
+        if (isStakeholderMilestone(event.getType())) {
+            Integer hackathonId = event.getHackathon() != null ? event.getHackathon().getId() : null;
+            stakeholderBroadcastService.broadcast(
+                    hackathonId,
+                    NotificationType.EVENT_REMINDER,
+                    title,
+                    body,
+                    "events",
+                    event.getId(),
+                    sendEmail);
+            return;
+        }
         List<User> users = userRepository.findAllByStatus(UserStatus.APPROVED);
         notificationService.sendBatch(
                 users,
-                "EVENT_REMINDER",
-                "Sự kiện sắp diễn ra: %s".formatted(event.getTitle()),
-                "Thời gian: %s%s".formatted(
-                        event.getStartsAt(),
-                        event.getLocation() == null ? "" : " — " + event.getLocation()),
+                NotificationType.EVENT_REMINDER,
+                title,
+                body,
                 "events", event.getId());
+    }
+
+    private static boolean isStakeholderMilestone(EventType type) {
+        return type == EventType.KICKOFF
+                || type == EventType.WORKSHOP
+                || type == EventType.AWARDS;
     }
 }

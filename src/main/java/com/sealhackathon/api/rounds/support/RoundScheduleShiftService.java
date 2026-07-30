@@ -9,18 +9,12 @@ import com.sealhackathon.api.events.service.MilestoneEventRescheduleService;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.service.HackathonRoundTimelineSyncService;
-import com.sealhackathon.api.notifications.service.NotificationService;
+import com.sealhackathon.api.notifications.service.StakeholderBroadcastService;
+import com.sealhackathon.api.notifications.value_object.NotificationType;
 import com.sealhackathon.api.presentation.service.PresentationSlotCascadeService;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.value_object.ActivateScheduleMode;
-import com.sealhackathon.api.teams.entity.Team;
-import com.sealhackathon.api.teams.entity.TeamMember;
-import com.sealhackathon.api.teams.repository.TeamMemberRepository;
-import com.sealhackathon.api.teams.repository.TeamRepository;
-import com.sealhackathon.api.teams.value_object.TeamMemberStatus;
-import com.sealhackathon.api.teams.value_object.TeamStatus;
-import com.sealhackathon.api.users.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,13 +24,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * Nén / dời lịch Round khi Activate (START_NOW / RESCHEDULE).
@@ -54,9 +44,7 @@ public class RoundScheduleShiftService {
     private final RoundScheduleValidator scheduleValidator;
     private final PresentationSlotCascadeService presentationSlotCascadeService;
     private final AuditService auditService;
-    private final NotificationService notificationService;
-    private final TeamRepository teamRepository;
-    private final TeamMemberRepository teamMemberRepository;
+    private final StakeholderBroadcastService stakeholderBroadcastService;
     private final HackathonRoundTimelineSyncService hackathonRoundTimelineSyncService;
     private final MilestoneEventRescheduleService milestoneEventRescheduleService;
     private final HackathonRepository hackathonRepository;
@@ -259,7 +247,8 @@ public class RoundScheduleShiftService {
         LocalDateTime examAt = round.getExamAt();
         LocalDateTime deadline = round.getSubmissionDeadline();
 
-        Runnable notifyTask = () -> notifyStudentsScheduleUpdated(hackathonId, roundId, roundName, examAt, deadline);
+        Runnable notifyTask = () -> notifyStakeholdersScheduleUpdated(
+                hackathonId, roundId, roundName, examAt, deadline);
 
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -278,31 +267,21 @@ public class RoundScheduleShiftService {
         }
     }
 
-    private void notifyStudentsScheduleUpdated(Integer hackathonId, Integer roundId, String roundName,
-                                               LocalDateTime examAt, LocalDateTime deadline) {
+    private void notifyStakeholdersScheduleUpdated(Integer hackathonId, Integer roundId, String roundName,
+                                                   LocalDateTime examAt, LocalDateTime deadline) {
         if (hackathonId == null) {
-            return;
-        }
-        Set<User> students = new LinkedHashSet<>();
-        for (Team team : teamRepository.findByHackathon_IdAndStatus(hackathonId, TeamStatus.ACTIVE)) {
-            for (TeamMember member : teamMemberRepository.findByTeam_Id(team.getId())) {
-                if (member.getStatus() == TeamMemberStatus.ACCEPTED && member.getUser() != null) {
-                    students.add(member.getUser());
-                }
-            }
-        }
-        if (students.isEmpty()) {
             return;
         }
         String when = examAt != null ? examAt.format(FMT) : "—";
         String due = deadline != null ? deadline.format(FMT) : "—";
-        notificationService.sendBatch(
-                new ArrayList<>(students),
-                "ROUND_SCHEDULE_UPDATED",
+        stakeholderBroadcastService.broadcast(
+                hackathonId,
+                NotificationType.ROUND_SCHEDULE_UPDATED,
                 "Thời gian vòng thi '%s' đã được cập nhật".formatted(roundName),
                 "Thời gian vòng %s đã được BTC cập nhật. Vòng thi bắt đầu lúc %s. Hạn nộp: %s."
                         .formatted(roundName, when, due),
                 "rounds",
-                roundId);
+                roundId,
+                true);
     }
 }

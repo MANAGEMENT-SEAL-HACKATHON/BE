@@ -64,6 +64,12 @@ public class Hackathon {
     @Column(name = "schedule_adjusted_at")
     private LocalDateTime scheduleAdjustedAt;
 
+    /**
+     * Lần gửi email stakeholder broadcast gần nhất — dùng dedupe SMTP fan-out.
+     */
+    @Column(name = "last_broadcast_at")
+    private LocalDateTime lastBroadcastAt;
+
     @Column(name = "event_start")
     private LocalDate eventStart;
 

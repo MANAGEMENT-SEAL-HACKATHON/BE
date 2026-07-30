@@ -15,6 +15,8 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, TeamMemb
 
     List<TeamMember> findByTeam_Id(Integer teamId);
 
+    List<TeamMember> findByTeam_IdIn(Collection<Integer> teamIds);
+
     @Query("""
             SELECT COUNT(tm) > 0 FROM TeamMember tm
             JOIN tm.team t

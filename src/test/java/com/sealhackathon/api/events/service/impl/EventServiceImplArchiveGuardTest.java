@@ -17,6 +17,7 @@ import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.notifications.repository.NotificationRepository;
 import com.sealhackathon.api.notifications.service.NotificationService;
+import com.sealhackathon.api.notifications.service.StakeholderBroadcastService;
 import com.sealhackathon.api.users.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +45,7 @@ class EventServiceImplArchiveGuardTest {
     @Mock NotificationRepository notificationRepository;
     @Mock UserRepository userRepository;
     @Mock CurrentUserAccessor currentUserAccessor;
+    @Mock StakeholderBroadcastService stakeholderBroadcastService;
     @Spy HackathonArchiveGuard archiveGuard = new HackathonArchiveGuard();
 
     @InjectMocks EventServiceImpl eventService;

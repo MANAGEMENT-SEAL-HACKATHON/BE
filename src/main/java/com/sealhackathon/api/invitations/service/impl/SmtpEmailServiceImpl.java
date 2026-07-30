@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import java.io.UnsupportedEncodingException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 /**
  * Gửi email SMTP thật khi {@code app.mail.enabled=true}. Cần cấu hình {@code spring.mail.*}.
@@ -117,6 +118,25 @@ public class SmtpEmailServiceImpl implements EmailService {
                 + button(loginUrl, "Xem phân công");
         send(email, "Bạn được phân công làm Giám khảo — SEAL Hackathon",
                 wrap("Phân công Giám khảo", body));
+    }
+
+    @Override
+    public void sendHackathonBroadcast(String email, String fullName, String subject,
+                                       String headline, List<String> lines, String ctaUrl) {
+        StringBuilder body = new StringBuilder();
+        body.append(paragraph("Xin chào <b>" + escape(fullName) + "</b>,"));
+        if (lines != null) {
+            for (String line : lines) {
+                if (line != null && !line.isBlank()) {
+                    body.append(paragraph(escape(line)));
+                }
+            }
+        }
+        if (ctaUrl != null && !ctaUrl.isBlank()) {
+            body.append(button(ctaUrl, "Mở dashboard"));
+        }
+        String heading = headline == null || headline.isBlank() ? "Thông báo SEAL Hackathon" : headline;
+        send(email, subject == null ? heading : subject, wrap(heading, body.toString()));
     }
 
     private void send(String to, String subject, String htmlBody) {

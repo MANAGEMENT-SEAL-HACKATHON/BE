@@ -14,24 +14,11 @@ import com.sealhackathon.api.hackathons.dto.response.CompetitionSchedulePreviewR
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.support.HackathonRegistrationSupport;
-import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
-import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
-import com.sealhackathon.api.mentors.entity.MentorTeamAssignment;
-import com.sealhackathon.api.mentors.repository.MentorTeamAssignmentRepository;
-import com.sealhackathon.api.notifications.service.NotificationService;
+import com.sealhackathon.api.notifications.service.StakeholderBroadcastService;
+import com.sealhackathon.api.notifications.value_object.NotificationType;
 import com.sealhackathon.api.presentation.service.PresentationSlotCascadeService;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
-import com.sealhackathon.api.teams.entity.Team;
-import com.sealhackathon.api.teams.entity.TeamMember;
-import com.sealhackathon.api.teams.repository.TeamMemberRepository;
-import com.sealhackathon.api.teams.repository.TeamRepository;
-import com.sealhackathon.api.teams.value_object.TeamMemberStatus;
-import com.sealhackathon.api.teams.value_object.TeamStatus;
-import com.sealhackathon.api.users.entity.User;
-import com.sealhackathon.api.users.repository.UserRepository;
-import com.sealhackathon.api.users.value_object.UserRole;
-import com.sealhackathon.api.users.value_object.UserStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -43,11 +30,9 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * Dời lịch thi Sơ loại + cascade WS/KO/CK/Awards — đúng 1 lần / hackathon.
@@ -68,12 +53,7 @@ public class CompetitionScheduleAdjustService {
     private final HackathonRoundTimelineSyncService hackathonRoundTimelineSyncService;
     private final MilestoneEventRescheduleService milestoneEventRescheduleService;
     private final PresentationSlotCascadeService presentationSlotCascadeService;
-    private final NotificationService notificationService;
-    private final TeamRepository teamRepository;
-    private final TeamMemberRepository teamMemberRepository;
-    private final MentorTeamAssignmentRepository mentorTeamAssignmentRepository;
-    private final JudgeAssignmentRepository judgeAssignmentRepository;
-    private final UserRepository userRepository;
+    private final StakeholderBroadcastService stakeholderBroadcastService;
 
     @Transactional(readOnly = true)
     public CompetitionSchedulePreviewResponse preview(Integer hackathonId, LocalDateTime newPrelimExamAt) {
@@ -448,37 +428,6 @@ public class CompetitionScheduleAdjustService {
     }
 
     private void notifyStakeholders(Hackathon h, List<ScheduleChangeItem> changes) {
-        Set<User> recipients = new LinkedHashSet<>();
-        for (Team team : teamRepository.findByHackathon_IdAndStatus(h.getId(), TeamStatus.ACTIVE)) {
-            for (TeamMember m : teamMemberRepository.findByTeam_Id(team.getId())) {
-                if (m.getStatus() == TeamMemberStatus.ACCEPTED && m.getUser() != null) {
-                    recipients.add(m.getUser());
-                }
-            }
-        }
-        for (MentorTeamAssignment mta : mentorTeamAssignmentRepository.findByHackathon_Id(h.getId())) {
-            if (mta.getMentor() != null) {
-                recipients.add(mta.getMentor());
-            }
-        }
-        for (Round r : roundRepository.findByHackathon_IdOrderByExamAtAsc(h.getId())) {
-            for (JudgeAssignment ja : judgeAssignmentRepository.findByRoundId(r.getId())) {
-                if (ja.getJudge() != null) {
-                    recipients.add(ja.getJudge());
-                }
-            }
-        }
-        try {
-            recipients.addAll(userRepository
-                    .findByRoleAndStatus(UserRole.COORDINATOR, UserStatus.APPROVED,
-                            org.springframework.data.domain.Pageable.unpaged())
-                    .getContent());
-        } catch (Exception ignored) {
-            // optional fan-out
-        }
-        if (recipients.isEmpty()) {
-            return;
-        }
         StringBuilder body = new StringBuilder("BTC đã cập nhật lịch sự kiện \"")
                 .append(h.getName()).append("\". Chi tiết:\n");
         for (ScheduleChangeItem c : changes) {
@@ -489,13 +438,14 @@ public class CompetitionScheduleAdjustService {
                     .append(c.getOldValue()).append(" → ").append(c.getNewValue()).append("\n");
         }
         body.append("Vui lòng kiểm tra lịch trên hệ thống.");
-        notificationService.sendBatch(
-                new ArrayList<>(recipients),
-                "COMPETITION_SCHEDULE_UPDATED",
+        stakeholderBroadcastService.broadcast(
+                h.getId(),
+                NotificationType.COMPETITION_SCHEDULE_UPDATED,
                 "Lịch thi / sự kiện đã được cập nhật",
                 body.toString(),
                 "hackathons",
-                h.getId());
+                h.getId(),
+                true);
     }
 
     private Optional<Event> earliestKickoff(Integer hackathonId) {

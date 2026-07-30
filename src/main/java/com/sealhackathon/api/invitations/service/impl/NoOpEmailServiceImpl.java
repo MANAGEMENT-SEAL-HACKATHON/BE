@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * Impl mặc định khi {@code app.mail.enabled=false} (hoặc không set) — chỉ log, không gửi mail.
@@ -64,5 +65,12 @@ public class NoOpEmailServiceImpl implements EmailService {
                                     String hackathonName, String loginUrl) {
         log.info("[EmailService stub] sendJudgeAssignment to {} ({}) assignment='{}' hackathon='{}'",
                 email, fullName, assignmentLabel, hackathonName);
+    }
+
+    @Override
+    public void sendHackathonBroadcast(String email, String fullName, String subject,
+                                       String headline, List<String> lines, String ctaUrl) {
+        log.info("[EmailService stub] sendHackathonBroadcast to {} ({}) subject='{}' headline='{}' lines={} ctaUrl={}",
+                email, fullName, subject, headline, lines == null ? 0 : lines.size(), ctaUrl);
     }
 }

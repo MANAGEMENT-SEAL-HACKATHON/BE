@@ -1,6 +1,7 @@
 package com.sealhackathon.api.invitations.service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * Gửi email hệ thống. Mặc định {@link com.sealhackathon.api.invitations.service.impl.NoOpEmailServiceImpl}
@@ -47,4 +48,10 @@ public interface EmailService {
      */
     void sendJudgeAssignment(String email, String fullName, String assignmentLabel,
                              String hackathonName, String loginUrl);
+
+    /**
+     * Email broadcast chung tới stakeholder hackathon (lịch / sự kiện / thông báo BTC).
+     */
+    void sendHackathonBroadcast(String email, String fullName, String subject,
+                                String headline, List<String> lines, String ctaUrl);
 }

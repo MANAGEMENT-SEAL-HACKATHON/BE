@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -33,7 +34,11 @@ public interface JudgeAssignmentRepository extends JpaRepository<JudgeAssignment
 
     List<JudgeAssignment> findByRoundId(Integer roundId);
 
+    List<JudgeAssignment> findByRound_IdIn(Collection<Integer> roundIds);
+
     List<JudgeAssignment> findByTrackId(Integer trackId);
+
+    List<JudgeAssignment> findByTrack_IdIn(Collection<Integer> trackIds);
 
     Optional<JudgeAssignment> findFirstByTrack_IdAndAssignmentType(
             Integer trackId, JudgeAssignmentType assignmentType);

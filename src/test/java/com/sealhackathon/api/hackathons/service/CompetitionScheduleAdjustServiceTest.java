@@ -5,15 +5,10 @@ import com.sealhackathon.api.events.repository.EventRepository;
 import com.sealhackathon.api.events.service.MilestoneEventRescheduleService;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
-import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
-import com.sealhackathon.api.mentors.repository.MentorTeamAssignmentRepository;
-import com.sealhackathon.api.notifications.service.NotificationService;
+import com.sealhackathon.api.notifications.service.StakeholderBroadcastService;
 import com.sealhackathon.api.presentation.service.PresentationSlotCascadeService;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
-import com.sealhackathon.api.teams.repository.TeamMemberRepository;
-import com.sealhackathon.api.teams.repository.TeamRepository;
-import com.sealhackathon.api.users.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -29,10 +24,12 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -45,13 +42,7 @@ class CompetitionScheduleAdjustServiceTest {
     @Mock private HackathonRoundTimelineSyncService hackathonRoundTimelineSyncService;
     @Mock private MilestoneEventRescheduleService milestoneEventRescheduleService;
     @Mock private PresentationSlotCascadeService presentationSlotCascadeService;
-    @Mock private NotificationService notificationService;
-    @Mock private TeamRepository teamRepository;
-    @Mock private TeamMemberRepository teamMemberRepository;
-    @Mock private MentorTeamAssignmentRepository mentorTeamAssignmentRepository;
-    @Mock private JudgeAssignmentRepository judgeAssignmentRepository;
-
-    @Mock private UserRepository userRepository;
+    @Mock private StakeholderBroadcastService stakeholderBroadcastService;
 
     @InjectMocks private CompetitionScheduleAdjustService service;
 
@@ -79,15 +70,12 @@ class CompetitionScheduleAdjustServiceTest {
         when(roundRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(roundRepository.findPreliminaryLikeByHackathonId(9)).thenReturn(List.of(prelim));
         when(roundRepository.findByHackathon_IdAndIsFinalTrue(9)).thenReturn(Optional.of(finalR));
-        when(roundRepository.findByHackathon_IdOrderByExamAtAsc(9)).thenReturn(List.of(prelim, finalR));
         when(hackathonRepository.findById(9)).thenReturn(Optional.of(h));
         when(eventRepository.findByHackathonIdAndType(eq(9), any())).thenReturn(List.of());
         when(milestoneEventRescheduleService.setWorkshopKickoffTimes(any(), any(), any(), any(), any())).thenReturn(2);
         when(milestoneEventRescheduleService.setAwardsTimes(any(), any(), any())).thenReturn(1);
-        when(teamRepository.findByHackathon_IdAndStatus(eq(9), any())).thenReturn(List.of());
-        when(mentorTeamAssignmentRepository.findByHackathon_Id(9)).thenReturn(List.of());
-        when(userRepository.findByRoleAndStatus(any(), any(), any()))
-                .thenReturn(org.springframework.data.domain.Page.empty());
+        doNothing().when(stakeholderBroadcastService).broadcast(
+                anyInt(), anyString(), anyString(), anyString(), anyString(), any(), anyBoolean());
 
         Map<String, Object> meta = service.apply(h, newExam, true);
 
@@ -138,14 +126,11 @@ class CompetitionScheduleAdjustServiceTest {
         when(roundRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(roundRepository.findPreliminaryLikeByHackathonId(9)).thenReturn(List.of(prelim));
         when(roundRepository.findByHackathon_IdAndIsFinalTrue(9)).thenReturn(Optional.of(finalR));
-        when(roundRepository.findByHackathon_IdOrderByExamAtAsc(9)).thenReturn(List.of(prelim, finalR));
         when(eventRepository.findByHackathonIdAndType(eq(9), any())).thenReturn(List.of());
         when(milestoneEventRescheduleService.setWorkshopKickoffTimes(any(), any(), any(), any(), any())).thenReturn(2);
         when(milestoneEventRescheduleService.setAwardsTimes(any(), any(), any())).thenReturn(1);
-        when(teamRepository.findByHackathon_IdAndStatus(eq(9), any())).thenReturn(List.of());
-        when(mentorTeamAssignmentRepository.findByHackathon_Id(9)).thenReturn(List.of());
-        when(userRepository.findByRoleAndStatus(any(), any(), any()))
-                .thenReturn(org.springframework.data.domain.Page.empty());
+        doNothing().when(stakeholderBroadcastService).broadcast(
+                anyInt(), anyString(), anyString(), anyString(), anyString(), any(), anyBoolean());
 
         var preview = service.adjust(9, newExam, null);
 

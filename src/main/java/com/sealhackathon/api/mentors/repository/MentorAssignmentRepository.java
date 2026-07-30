@@ -41,6 +41,8 @@ public interface MentorAssignmentRepository extends JpaRepository<MentorAssignme
 
     List<MentorAssignment> findByTrackId(Integer trackId);
 
+    List<MentorAssignment> findByTrack_Round_Hackathon_Id(Integer hackathonId);
+
     List<MentorAssignment> findByMentorId(Integer mentorId);
 
     long countByMentorId(Integer mentorId);
