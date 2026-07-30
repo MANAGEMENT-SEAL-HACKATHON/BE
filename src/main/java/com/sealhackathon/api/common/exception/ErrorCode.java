@@ -321,4 +321,8 @@ public final class ErrorCode {
     public static final String PRIZE_REVOKE_CATEGORY_INVALID                = "PRIZE_REVOKE_CATEGORY_INVALID";
     /** Trao giải chỉ cho đội vào Chung kết (có TRP trên vòng final). */
     public static final String PRIZE_TEAM_NOT_FINALIST                      = "PRIZE_TEAM_NOT_FINALIST";
+
+    // ---------- KITS ----------
+    public static final String KIT_OUT_OF_STOCK                             = "KIT_OUT_OF_STOCK";
+    public static final String KIT_ALREADY_ISSUED                           = "KIT_ALREADY_ISSUED";
 }

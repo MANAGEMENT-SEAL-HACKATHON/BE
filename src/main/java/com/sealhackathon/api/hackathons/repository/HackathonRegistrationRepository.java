@@ -14,6 +14,8 @@ public interface HackathonRegistrationRepository extends JpaRepository<Hackathon
     // Kiểm tra nhanh xem User đã đăng ký Hackathon này chưa (Phục vụ Guard FR-U-06)
     java.util.List<HackathonRegistration> findAllByHackathon_Id(Integer hackathonId);
 
+    java.util.List<HackathonRegistration> findAllByUser_Id(Integer userId);
+
     boolean existsByHackathon_IdAndUser_Id(Integer hackathonId, Integer userId);
 
     void deleteByHackathon_IdAndUser_Id(Integer hackathonId, Integer userId);

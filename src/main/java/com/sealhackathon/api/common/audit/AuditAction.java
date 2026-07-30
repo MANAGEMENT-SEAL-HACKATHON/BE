@@ -143,6 +143,10 @@ public final class AuditAction {
     public static final String EXPORT_JOB_CREATED         = "EXPORT_JOB_CREATED";
     public static final String EXPORT_FILE_DOWNLOADED     = "EXPORT_FILE_DOWNLOADED";
 
+    // ---------- KITS ----------
+    public static final String KIT_ISSUED                   = "KIT_ISSUED";
+    public static final String KIT_REVOKED                  = "KIT_REVOKED";
+
     // ---------- WARNINGS ----------
     public static final String WARNING_CONFLICT_CHECK_SKIPPED = "WARNING_CONFLICT_CHECK_SKIPPED";
     public static final String WARNING_EVENT_ORDER            = "WARNING_EVENT_ORDER";

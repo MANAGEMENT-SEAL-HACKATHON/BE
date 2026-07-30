@@ -33,4 +33,8 @@ public class HackathonRegistration {
     @Builder.Default
     @Column(name = "registered_at", nullable = false)
     private LocalDateTime registeredAt = LocalDateTime.now();
+
+    /** Preferred kit shirt size: XS, S, M, L, XL, XXL. */
+    @Column(name = "preferred_shirt_size", length = 10)
+    private String preferredShirtSize;
 }
