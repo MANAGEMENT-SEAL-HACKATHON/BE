@@ -38,12 +38,9 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -90,69 +87,7 @@ class RoundActivationServiceImplTest {
         assertEquals(5, result.getId());
         assertEquals(true, result.getIsActive());
         verifyNoInteractions(notificationService);
-        verify(roundScheduleShiftService, never()).applyOnActivate(any(), any(), any(), any());
-    }
-
-    /** J3 — vòng đã active + START_NOW phải nén lịch (examAt/deadline) thay vì no-op. */
-    @Test
-    void activate_alreadyActive_startNow_compressesSchedule() {
-        LocalDateTime oldExam = LocalDateTime.now().plusHours(5);
-        Round round = Round.builder()
-                .id(5)
-                .isActive(true)
-                .isFinal(false)
-                .codingDurationHours(7)
-                .examAt(oldExam)
-                .hackathon(Hackathon.builder().id(1).build())
-                .build();
-
-        when(roundRepository.findByIdForUpdate(5)).thenReturn(Optional.of(round));
-        when(roundScheduleShiftService.applyOnActivate(
-                eq(round), eq(ActivateScheduleMode.START_NOW), any(), eq(10)))
-                .thenAnswer(inv -> {
-                    Round r = inv.getArgument(0);
-                    r.setExamAt(LocalDateTime.now().plusMinutes(10));
-                    return true;
-                });
-        when(roundRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(roundMapper.toResponse(any())).thenAnswer(inv -> {
-            Round r = inv.getArgument(0);
-            return RoundResponse.builder().id(r.getId()).isActive(r.getIsActive()).examAt(r.getExamAt()).build();
-        });
-
-        RoundResponse result = activationService.activate(5, ActivateRoundRequest.builder()
-                .scheduleMode(ActivateScheduleMode.START_NOW)
-                .setupLeadMinutes(10)
-                .build());
-
-        assertNotNull(result.getExamAt());
-        assertFalse(result.getExamAt().isAfter(oldExam));
-        verify(roundScheduleShiftService).applyOnActivate(
-                eq(round), eq(ActivateScheduleMode.START_NOW), any(), eq(10));
-        verify(roundRepository).save(round);
-        verifyNoInteractions(notificationService);
-    }
-
-    /** J3 — đã phát đề thì không cho nén lịch nữa. */
-    @Test
-    void activate_alreadyActive_startNow_blockedAfterProblemReleased() {
-        Round round = Round.builder()
-                .id(5)
-                .isActive(true)
-                .isFinal(false)
-                .codingDurationHours(7)
-                .examAt(LocalDateTime.now().plusHours(5))
-                .problemReleasedAt(LocalDateTime.now().minusMinutes(1))
-                .hackathon(Hackathon.builder().id(1).build())
-                .build();
-        when(roundRepository.findByIdForUpdate(5)).thenReturn(Optional.of(round));
-
-        BusinessRuleException ex = assertThrows(BusinessRuleException.class,
-                () -> activationService.activate(5, ActivateRoundRequest.builder()
-                        .scheduleMode(ActivateScheduleMode.START_NOW)
-                        .build()));
-        assertEquals(ErrorCode.INVALID_STATE, ex.getCode());
-        verify(roundScheduleShiftService, never()).applyOnActivate(any(), any(), any(), any());
+        verify(roundScheduleShiftService, never()).applyOnActivate(any(), any(), any());
     }
 
     @Test
@@ -175,7 +110,7 @@ class RoundActivationServiceImplTest {
                 JudgeAssignment.builder().judge(User.builder().id(1).build()).build()));
         when(mentorAssignmentRepository.findByTrackId(10)).thenReturn(List.of());
         when(roundScheduleShiftService.applyOnActivate(
-                eq(round), eq(ActivateScheduleMode.KEEP), any(), any()))
+                eq(round), eq(ActivateScheduleMode.KEEP), any()))
                 .thenReturn(false);
         when(roundRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(roundMapper.toResponse(any())).thenReturn(RoundResponse.builder().id(5).isActive(true).build());
@@ -185,7 +120,7 @@ class RoundActivationServiceImplTest {
 
         assertEquals(true, result.getIsActive());
         verify(roundScheduleShiftService).applyOnActivate(
-                eq(round), eq(ActivateScheduleMode.KEEP), any(), any());
+                eq(round), eq(ActivateScheduleMode.KEEP), any());
     }
 
     @Test
@@ -252,7 +187,7 @@ class RoundActivationServiceImplTest {
         when(criteriaRepository.countNormalByFinalRoundId(9)).thenReturn(1L);
         when(criteriaRepository.sumWeightExcludingPenaltyByFinalRoundId(9)).thenReturn(Optional.of(1.0));
         when(judgeAssignmentRepository.findByRoundId(9)).thenReturn(assignments);
-        when(roundScheduleShiftService.applyOnActivate(any(), any(), any(), any())).thenReturn(false);
+        when(roundScheduleShiftService.applyOnActivate(any(), any(), any())).thenReturn(false);
         when(roundMapper.toResponse(any())).thenReturn(RoundResponse.builder().id(9).isActive(true).build());
         when(roundRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -286,7 +221,7 @@ class RoundActivationServiceImplTest {
         when(criteriaRepository.countNormalByFinalRoundId(9)).thenReturn(1L);
         when(criteriaRepository.sumWeightExcludingPenaltyByFinalRoundId(9)).thenReturn(Optional.of(1.0));
         when(judgeAssignmentRepository.findByRoundId(9)).thenReturn(assignments);
-        when(roundScheduleShiftService.applyOnActivate(any(), any(), any(), any())).thenReturn(false);
+        when(roundScheduleShiftService.applyOnActivate(any(), any(), any())).thenReturn(false);
         when(roundMapper.toResponse(any())).thenAnswer(inv -> {
             Round r = inv.getArgument(0);
             return RoundResponse.builder()
@@ -306,40 +241,6 @@ class RoundActivationServiceImplTest {
         assertNotNull(result.getProblemReleasedAt());
         assertNotNull(round.getProblemReleasedAt());
         assertEquals(round.getActivatedAt(), round.getProblemReleasedAt());
-    }
-
-    @Test
-    void activate_startNow_passesSetupLeadMinutesToShiftService() {
-        Round round = Round.builder()
-                .id(5)
-                .isFinal(false)
-                .isActive(false)
-                .hackathon(Hackathon.builder().id(1).build())
-                .build();
-        Track track = Track.builder().id(10).name("Track A").status(TrackStatus.OPEN).round(round).build();
-
-        when(roundRepository.findByIdForUpdate(5)).thenReturn(Optional.of(round));
-        when(teamRoundParticipationRepository.countByRound_Id(5)).thenReturn(3L);
-        when(trackRepository.findByRoundIdOrderBySequenceOrderAsc(5)).thenReturn(List.of(track));
-        when(teamRoundTrackRepository.countByTrack_Id(10)).thenReturn(1L);
-        when(criteriaRepository.countNormalByTrackId(10)).thenReturn(2L);
-        when(weightSummaryService.isValidForTrack(10)).thenReturn(true);
-        when(judgeAssignmentRepository.findByTrackId(10)).thenReturn(List.of(
-                JudgeAssignment.builder().judge(User.builder().id(1).build()).build()));
-        when(mentorAssignmentRepository.findByTrackId(10)).thenReturn(List.of());
-        when(roundScheduleShiftService.applyOnActivate(
-                eq(round), eq(ActivateScheduleMode.START_NOW), any(), eq(10)))
-                .thenReturn(true);
-        when(roundRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(roundMapper.toResponse(any())).thenReturn(RoundResponse.builder().id(5).isActive(true).build());
-
-        activationService.activate(5, ActivateRoundRequest.builder()
-                .scheduleMode(ActivateScheduleMode.START_NOW)
-                .setupLeadMinutes(10)
-                .build());
-
-        verify(roundScheduleShiftService).applyOnActivate(
-                eq(round), eq(ActivateScheduleMode.START_NOW), any(), eq(10));
     }
 
     /** TC-BE-RESCHEDULE — RESCHEDULE không còn trên activate; dùng competition-schedule/adjust */
@@ -364,7 +265,7 @@ class RoundActivationServiceImplTest {
                 .note("Dời lịch")
                 .build()));
 
-        verify(roundScheduleShiftService, never()).applyOnActivate(any(), any(), any(), any());
+        verify(roundScheduleShiftService, never()).applyOnActivate(any(), any(), any());
         verifyNoInteractions(notificationService);
     }
 }

@@ -77,11 +77,6 @@ public class RoundActivationServiceImpl implements RoundActivationService {
         }
 
         if (Boolean.TRUE.equals(round.getIsActive())) {
-            // Vòng đã active + START_NOW = «bắt đầu thi sớm»: phải nén examAt/submissionOpen/submissionDeadline.
-            // Trước đây nhánh này return luôn → lịch không đổi (bug J3).
-            if (scheduleMode == ActivateScheduleMode.START_NOW) {
-                return startAlreadyActiveRoundEarly(round, body);
-            }
             return roundMapper.toResponse(round);
         }
 
@@ -104,7 +99,7 @@ public class RoundActivationServiceImpl implements RoundActivationService {
         }
 
         boolean scheduleShifted = roundScheduleShiftService.applyOnActivate(
-                round, scheduleMode, body.getNewExamAt(), body.getSetupLeadMinutes());
+                round, scheduleMode, body.getNewExamAt());
 
         LocalDateTime activatedAt = LocalDateTime.now();
         round.setIsActive(true);
@@ -128,72 +123,9 @@ public class RoundActivationServiceImpl implements RoundActivationService {
         if (stampedFinalProblemRelease) {
             activateAudit.put("problemReleasedAtStamped", true);
         }
-        if (scheduleMode == ActivateScheduleMode.START_NOW) {
-            activateAudit.put("setupLeadMinutes",
-                    body.getSetupLeadMinutes() != null
-                            ? body.getSetupLeadMinutes()
-                            : RoundScheduleShiftService.DEFAULT_SETUP_LEAD_MINUTES);
-        }
         auditService.log(AuditAction.ROUND_ACTIVATE, "rounds", roundId, activateAudit);
 
         notifyRoundStarted(saved);
-        return roundMapper.toResponse(saved);
-    }
-
-    /**
-     * Vòng đã active nhưng examAt còn ở tương lai — Coord bấm «bắt đầu thi sớm» (START_NOW).
-     * Nén examAt = now + setupLead và tính lại submissionOpen/submissionDeadline qua ShiftService.
-     */
-    private RoundResponse startAlreadyActiveRoundEarly(Round round, ActivateRoundRequest body) {
-        if (round.getProblemReleasedAt() != null) {
-            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
-                    "Đề bài đã được phát — không thể dời giờ thi sớm nữa",
-                    Map.of("roundId", round.getId()));
-        }
-        boolean scheduleShifted = roundScheduleShiftService.applyOnActivate(
-                round, ActivateScheduleMode.START_NOW, body.getNewExamAt(), body.getSetupLeadMinutes());
-        Round saved = roundRepository.save(round);
-
-        Map<String, Object> audit = new LinkedHashMap<>();
-        audit.put("hackathonId", round.getHackathon() != null ? round.getHackathon().getId() : null);
-        audit.put("note", body.getNote());
-        audit.put("scheduleMode", ActivateScheduleMode.START_NOW.name());
-        audit.put("scheduleShifted", scheduleShifted);
-        audit.put("alreadyActive", true);
-        audit.put("setupLeadMinutes",
-                body.getSetupLeadMinutes() != null
-                        ? body.getSetupLeadMinutes()
-                        : RoundScheduleShiftService.DEFAULT_SETUP_LEAD_MINUTES);
-        auditService.log(AuditAction.ROUND_SCHEDULE_SHIFTED, "rounds", saved.getId(), audit);
-
-        return roundMapper.toResponse(saved);
-    }
-
-    /**
-     * Chỉ dời lịch — ShiftService trước; giữ isActive / activatedAt; không notifyRoundStarted.
-     */
-    private RoundResponse rescheduleOnly(Round round, ActivateRoundRequest body) {
-        LocalDateTime activatedAtBefore = round.getActivatedAt();
-        Boolean isActiveBefore = round.getIsActive();
-
-        boolean scheduleShifted = roundScheduleShiftService.applyOnActivate(
-                round, ActivateScheduleMode.RESCHEDULE, body.getNewExamAt(), body.getSetupLeadMinutes());
-
-        if (!Boolean.TRUE.equals(isActiveBefore)) {
-            round.setIsActive(false);
-        }
-        round.setActivatedAt(activatedAtBefore);
-        Round saved = roundRepository.save(round);
-
-        Map<String, Object> audit = new LinkedHashMap<>();
-        audit.put("hackathonId", round.getHackathon() != null ? round.getHackathon().getId() : null);
-        audit.put("note", body.getNote());
-        audit.put("scheduleMode", ActivateScheduleMode.RESCHEDULE.name());
-        audit.put("scheduleShifted", scheduleShifted);
-        audit.put("activated", false);
-        audit.put("isActive", saved.getIsActive());
-        auditService.log(AuditAction.ROUND_SCHEDULE_SHIFTED, "rounds", saved.getId(), audit);
-
         return roundMapper.toResponse(saved);
     }
 

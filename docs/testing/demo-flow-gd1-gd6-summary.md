@@ -10,7 +10,7 @@
 
 | Đã có trong playbook (§0.4c / GĐ) | Còn lệch / thiếu so với FE gần đây |
 |-----------------------------------|-------------------------------------|
-| Nhân bản năm editable; clone không copy lịch vòng | Modal kích hoạt: chỗ ghi **chỉ START_NOW/KEEP**, chỗ khác vẫn mô tả **RESCHEDULE** (mâu thuẫn) |
+| Nhân bản năm editable; clone không copy lịch vòng | Modal kích hoạt: **KEEP only** (START_NOW đã gỡ phase 2); dời lịch qua «Dời lịch thi» / đóng ĐK sớm |
 | Trao giải BXH CK + `PRIZE_TEAM_NOT_FINALIST` | UX đóng ĐK: Collapse «Quy tắc lịch», thẻ số modal kết quả — **chưa** ghi rõ §0.4c |
 | Quay lại deep-link; post-lock ẩn BXH tạm | Timer: Progress «Giám khảo đã chốt X/Y»; copy VN panel — **chưa** ghi rõ |
 | Cảnh báo Q&A ≤ **1/3** thời lượng | Seed `Criteria.description` + Tag trọng số trên Collapse rubric — **chưa** ghi rõ |
@@ -66,7 +66,7 @@ Login Coord
   → (press) Bốc thăm Tự động (Cho đội chưa có)
   → Tab Vòng thi
   → (press) Kích hoạt Vòng thi (Sơ loại)
-  → (chọn) START_NOW + lead phút  (demo nhanh)  hoặc  KEEP
+  → (chọn) KEEP — xác nhận kích hoạt (examAt ≤ now; nếu còn future → «Dời lịch thi» trước). ~~START_NOW đã gỡ (phase 2).~~
   → Xác nhận → vòng Sơ loại Active
 ```
 
@@ -115,7 +115,7 @@ Login Coord
   → Cấu hình Chung kết (setup tab /final-config)
   → Nhân sự → gán Guest Judge FINAL_EXTERNAL (guestjudge@ / guestjudge2@)
   → Tab Vòng thi → (press) Kích hoạt Vòng thi (Chung kết)
-  → START_NOW (hoặc KEEP) → CK Active (tự đóng dấu đề — không Phát đề CK)
+  → KEEP → CK Active (tự đóng dấu đề — không Phát đề CK). ~~START_NOW đã gỡ (phase 2).~~
 ```
 
 **Không còn:** tab Vé vớt / Wildcard.
@@ -166,7 +166,7 @@ Login SV
 | GĐ | Flow một dòng |
 |----|----------------|
 | **1** | Login → Tạo sự kiện → Setup (vòng/bảng/tiêu chí/người/sự kiện) → **Xác nhận Kích hoạt** → ONGOING |
-| **2** | Duyệt đội → **Kết thúc ĐK sớm** → **Bốc thăm** → **Kích hoạt vòng SL** (START_NOW) |
+| **2** | Duyệt đội → **Kết thúc ĐK sớm** → **Bốc thăm** → **Kích hoạt vòng SL** (KEEP; dời lịch trước nếu examAt còn future) |
 | **3** | **Phát đề** → SV **Nộp SL** → **Kết thúc thi sớm** → Shuffle queue → Judge chấm/chốt → **Khóa chấm** |
 | **4** | Results → (Đồng điểm) → **Công bố** → **Chốt chuyển vòng** → Cấu hình CK → **Kích hoạt CK** |
 | **5** | SV **Nộp CK** → End-early → Queue + Guest chấm → **Khóa chấm CK** → PENDING_CONFIRM |

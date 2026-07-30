@@ -18,7 +18,7 @@
 
 ### Điểm RA (Person 2 → bàn giao Person 3)
 
-- **Thao tác UI cuối:** Tab **Vòng thi** → **Kích hoạt Vòng thi** (Sơ loại) → modal **START_NOW** → Xác nhận.
+- **Thao tác UI cuối:** Tab **Vòng thi** → **Kích hoạt Vòng thi** (Sơ loại) → modal xác nhận **KEEP** (examAt ≤ now; nếu còn future thì dùng «Dời lịch thi» trước). → Xác nhận.
 - **Verify:** Round Sơ loại badge **Active**; đội `is_locked=true`; lottery đã gán track/bảng.
 - **Câu chốt:** «Vòng Sơ loại đã active — chưa phát đề / chưa nộp bài. Xin mời Person 3 phần thi Sơ loại.»  
 - **Mode A Person 3:** Mở slug `seal-gd3-prelim-open`.
@@ -97,7 +97,7 @@ flowchart TD
 | G2-H05 | Happy | Coord | `setup?tab=general` | **Kết thúc đăng ký sớm** → chọn giờ SL → preview (Collapse quy tắc) → **Xác nhận** | Modal kết quả; thẻ số đội | — | `HackathonGeneralConfig` | `HackathonRegistrationCloseServiceImpl` |
 | G2-H06 | Happy | Coord | Modal kết quả | **Xử lý N đội đang chờ** (nếu có) → duyệt/từ chối | Không còn PENDING blocking | — | `CloseRegResultModal` | `TeamController` |
 | G2-H07 | Happy | Coord | Tab **Bốc thăm** | **Bốc thăm Tự động** (Cho đội chưa có) | Track + `assignedGroup` hiển thị | — | `LotteryManagementPage` | `HackathonLotteryServiceImpl` |
-| G2-H08 | Happy | Coord | Tab **Vòng thi** | **Kích hoạt Vòng thi** (Sơ loại) → **START_NOW** + lead phút | Round SL **Active** | — | `RoundsTab` | `RoundActivationService` |
+| G2-H08 | Happy | Coord | Tab **Vòng thi** | **Kích hoạt Vòng thi** (Sơ loại) → xác nhận KEEP (examAt ≤ now; dời lịch trước nếu cần) | Round SL **Active** | — | `RoundsTab` | `RoundActivationService` |
 | G2-H09 | Happy | Coord | Radar panel | `/teams` — **Radar & Giải cứu đội thi** | Orphan + đội thiếu/thừa người | — | `TeamsRadarPanel` | `TeamQueryService` |
 | G2-H10 | Happy | Coord | Tab **Vòng thi** | (Tuỳ chọn) **Dời lịch thi** nếu chưa `scheduleAdjustedAt` | Preview adjust OK | — | `CompetitionScheduleAdjustModal` | `CompetitionScheduleAdjustService` |
 
@@ -170,7 +170,7 @@ flowchart TD
 |---------|---------|
 | Tại sao không slug GĐ2 riêng? | GĐ1–2 cùng `seal-e2e-2026`; E2eWorkflowDataSeeder tách state GĐ2. |
 | Track vs Bảng? | Track = chủ đề; `assignedGroup` = bảng trong track. |
-| START_NOW vs KEEP? | START_NOW = demo nhanh; KEEP = giữ lịch seed. |
+| KEEP vs «Dời lịch thi»? | KEEP = kích hoạt giữ lịch đã xếp (examAt ≤ now). Muốn giờ sớm hơn → toolbar «Dời lịch thi» (1 lần). ~~START_NOW đã gỡ (phase 2).~~ |
 | Close-reg có hoàn tác? | Không — modal cảnh báo trước khi xác nhận. |
 
 **Docs:** `gd2-full-test-matrix-and-seeds.md`, `qa-test-cases` Feature A.

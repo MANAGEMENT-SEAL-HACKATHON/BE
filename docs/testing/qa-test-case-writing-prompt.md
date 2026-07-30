@@ -1,7 +1,7 @@
 # Test Case — Coord đóng ĐK sớm / chọn lịch / kích hoạt SL + GK rubric & timer
 
 **Dự án:** SEAL Hackathon Management System  
-**Phạm vi:** UI/UX + nghiệp vụ liên quan: đóng đăng ký sớm + preview lịch, modal kết quả, kích hoạt vòng Sơ loại (`START_NOW`/`KEEP` trên FE), rubric GK, timer Live Scoring.  
+**Phạm vi:** UI/UX + nghiệp vụ liên quan: đóng đăng ký sớm + preview lịch, modal kết quả, kích hoạt vòng Sơ loại (`KEEP` only trên FE; START_NOW removed phase 2), rubric GK, timer Live Scoring.  
 **Nguồn:** code FE/BE (đã audit đối chiếu)  
 **Tài khoản seed:** `coord@fpt.edu.vn` / `Coordinator@dev1`  
 **Status:** `Not Run` · **Test date:** trống  
@@ -41,21 +41,21 @@ BE: `HackathonRegistrationCloseServiceImpl`
 
 ## B. Kích hoạt vòng Sơ loại
 
-FE: `ActivateScheduleModal.jsx` — chỉ tự set `START_NOW` (examAt future) hoặc `KEEP` (không future).  
+FE: `ActivateScheduleModal.jsx` — chỉ `KEEP`; nếu examAt future thì block và hướng dẫn «Dời lịch thi». ~~START_NOW removed phase 2.~~  
 BE: `RoundActivationServiceImpl` · `PATCH /api/v1/rounds/{id}/activate`
 
 | ID | Test Case Description | Pre-Condition | Test Case Procedure | Test Data | Expected Output | Status | Test date | Note |
 |----|----------------------|---------------|---------------------|-----------|-----------------|--------|-----------|------|
-| TC-ACT-01 | Happy START_NOW + lead | ĐK đóng, lottery xong, prelim inactive, đủ criteria/judge/track có đội; examAt future | Tab Vòng thi → `round-activate-btn` → set lead (mặc định 5) → **Kích hoạt & bắt đầu sớm** | `setupLeadMinutes` 1–30 | Body: `scheduleMode=START_NOW`, `setupLeadMinutes`; vòng active; giờ thi theo `calculateStartTime`; Alert/helper không viết tắt WS/KO/CK | Not Run | | FE payload |
-| TC-ACT-02 | Preview giờ theo lead | Modal; examInFuture | Đổi InputNumber 1 / 5 / 30 | — | Text helper cập nhật `formatExamPreview(calculateStartTime(...))`; clamp 1–30 | Not Run | | FE |
+| TC-ACT-01 | ~~Happy START_NOW + lead~~ Obsolete (phase 2) — block when examAt future | ĐK đóng, lottery xong, prelim inactive, đủ criteria/judge/track có đội; examAt future | Tab Vòng thi → `round-activate-btn` → set lead (mặc định 5) → **Kích hoạt & bắt đầu sớm** | `setupLeadMinutes` 1–30 | Body: `scheduleMode=START_NOW`, `setupLeadMinutes`; vòng active; giờ thi theo `calculateStartTime`; Alert/helper không viết tắt WS/KO/CK | Not Run | | FE payload |
+| TC-ACT-02 | ~~Preview giờ theo lead~~ Obsolete (phase 2) | Modal; examInFuture | Đổi InputNumber 1 / 5 / 30 | — | Text helper cập nhật `formatExamPreview(calculateStartTime(...))`; clamp 1–30 | Not Run | | FE |
 | TC-ACT-03 | KEEP khi examAt không future | `examAt` ≤ now | Mở modal → không có lead → **Kích hoạt** | — | Body `scheduleMode=KEEP`; không gửi `setupLeadMinutes` | Not Run | | FE `handleOk` |
 | TC-ACT-04 | Hủy modal | Modal mở | **Hủy** | — | Không đổi round | Not Run | | |
 | TC-ACT-05 | BE prelim: track không có đội | Prelim có track nhưng `countByTrack` = 0 | Activate | — | `TRACK_EMPTY_TEAMS` | Not Run | | `validateTeamsInRound` |
 | TC-ACT-06 | BE prelim: track không có criteria | Track 0 criteria thường | Activate | — | `ROUND_NO_CRITERIA` | Not Run | | `validatePreliminaryRoundTracks` |
 | TC-ACT-07 | BE prelim: weight track ≠ 1 | Track weight invalid | Activate | — | `ROUND_WEIGHT_NOT_ONE` | Not Run | | |
 | TC-ACT-08 | BE prelim: track chưa gán judge | Track không assignment | Activate | — | `JUDGE_NOT_ASSIGNED` | Not Run | | |
-| TC-ACT-09 | Bắt đầu thi sớm (round đã active, examAt future) | Round `isActive`, examAt future | Modal title «Bắt đầu thi sớm…» → OK | Lead minutes | FE vẫn `START_NOW` + `setupLeadMinutes`; BE nhánh early-start nén exam/submission | Not Run | | `RoundActivationServiceImpl` |
-| TC-ACT-10 | Copy Alert không viết tắt | Modal START_NOW | Đọc Alert + helper | — | Có «Workshop», «Khai mạc», «đóng đăng ký sớm», «Chung kết» | Not Run | | UX |
+| TC-ACT-09 | ~~Bắt đầu thi sớm~~ Obsolete (phase 2) | Round `isActive`, examAt future | Modal title «Bắt đầu thi sớm…» → OK | Lead minutes | FE vẫn `START_NOW` + `setupLeadMinutes`; BE nhánh early-start nén exam/submission | Not Run | | `RoundActivationServiceImpl` |
+| TC-ACT-10 | Copy Alert hướng dẫn Dời lịch khi examAt future | Modal KEEP/block | Đọc Alert + helper | — | Có «Workshop», «Khai mạc», «đóng đăng ký sớm», «Chung kết» | Not Run | | UX |
 
 ---
 
@@ -98,7 +98,7 @@ FE: `JudgeTimerAndControls.jsx`, `timerControlGates.js`
 
 | ID | Test Case Description | Pre-Condition | Test Case Procedure | Test Data | Expected Output | Status | Test date | Note |
 |----|----------------------|---------------|---------------------|-----------|-----------------|--------|-----------|------|
-| TC-SM-01 | Chuỗi đóng ĐK → lottery → START_NOW (hành vi không đổi) | `seal-e2e-2026` | Theo playbook GĐ2 B→D | Coord | API/CTA hoạt động; khác chủ yếu copy/layout | Not Run | | Regression |
+| TC-SM-01 | Chuỗi đóng ĐK → lottery → KEEP activate | `seal-e2e-2026` | Theo playbook GĐ2 B→D | Coord | API/CTA hoạt động; khác chủ yếu copy/layout | Not Run | | Regression |
 | TC-SM-02 | Seed criteria idempotent | Track đã có criteria | Gọi lại `ensureDefaultTrackCriteria` (re-seed/restart không create-drop) | — | Return sớm; không insert thêm; **không** cập nhật description cũ | Not Run | | Code `if (!…isEmpty()) return` |
 | TC-SM-03 | Non-Coord gọi close-reg | Login STUDENT hoặc JUDGE | `POST .../close-registration-early` | Token không COORDINATOR APPROVED | Bị chặn `@CoordinatorOnly` (`hasRole('COORDINATOR')` + status APPROVED) — Spring Security deny (thường 403) | Not Run | | Annotation thật |
 

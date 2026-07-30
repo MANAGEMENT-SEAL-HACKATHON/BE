@@ -18,7 +18,7 @@
 
 ### Điểm RA (Person 4 → bàn giao Person 5)
 
-- **Thao tác UI cuối:** Tab **Vòng thi** → **Kích hoạt Vòng thi** (Chung kết) → **START_NOW** → Xác nhận.
+- **Thao tác UI cuối:** Tab **Vòng thi** / Cấu hình CK → **Kích hoạt Vòng thi** (Chung kết) → xác nhận KEEP → Xác nhận.
 - **Verify:** CK **Active**; đội ADVANCED; SL `isPublished=true`; **không** cần Phát đề CK (tự release).
 - **Câu chốt:** «Chung kết đã active — SV có thể nộp bài CK. Xin mời Person 5.»  
 - **Mode A Person 5:** Mở `seal-gd5-final-active`.
@@ -106,7 +106,7 @@ flowchart TD
 | G4-H05 | Happy | Coord | Results | **Chốt chuyển vòng** → confirm | ADVANCED / ELIMINATED tags | — | `RankingTopSteps` | `RoundProgressionServiceImpl.advance` |
 | G4-H06 | Happy | Coord | Tab **Danh sách CK & Bị loại** | Verify ADVANCED / ELIMINATED | 8 đội phân loại đúng Top-N | — | `AdvancementListPanel` | `RoundProgressionServiceImpl` |
 | G4-H07 | Happy | Coord | `/coordinator/final-config` | Criteria CK + gán **Guest Judge** FINAL_EXTERNAL | Readiness FINAL_ROUND pass | — | `FinalRoundConfigPage` | `JudgeAssignmentController` |
-| G4-H08 | Happy | Coord | Tab **Vòng thi** | **Kích hoạt Vòng thi** (CK) → START_NOW | CK Active; **không** nút Phát đề CK | — | `RoundsTab` | `RoundActivationService` |
+| G4-H08 | Happy | Coord | Tab **Vòng thi** / Final config | **Kích hoạt Vòng thi** (CK) → KEEP | CK Active; **không** nút Phát đề CK | — | `RoundsTab` | `RoundActivationService` |
 
 ---
 

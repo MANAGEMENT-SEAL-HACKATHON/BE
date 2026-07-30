@@ -22,7 +22,6 @@ import org.mockito.quality.Strictness;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -105,58 +104,9 @@ class RoundScheduleShiftServiceTest {
                 .hackathon(hackathon)
                 .build();
 
-        assertThat(shiftService.applyOnActivate(round, ActivateScheduleMode.KEEP, null, null)).isFalse();
+        assertThat(shiftService.applyOnActivate(round, ActivateScheduleMode.KEEP, null)).isFalse();
         verify(presentationSlotCascadeService, never()).rescheduleForRound(any());
         verify(hackathonRoundTimelineSyncService, never()).syncFromRounds(any());
-    }
-
-    /** TC-BE-01 — lead=10, không ceil */
-    @Test
-    void startNow_withLead10_setsExamNearNowPlus10Exact() {
-        LocalDateTime oldExam = LocalDateTime.now().plusDays(5).withSecond(0).withNano(0);
-        Round round = prelimRound(oldExam, 7);
-
-        LocalDateTime before = LocalDateTime.now();
-        boolean shifted = shiftService.applyOnActivate(
-                round, ActivateScheduleMode.START_NOW, null, 10);
-        LocalDateTime after = LocalDateTime.now();
-
-        assertThat(shifted).isTrue();
-        assertThat(round.getExamAt()).isAfterOrEqualTo(before.plusMinutes(10).minusSeconds(2));
-        assertThat(round.getExamAt()).isBeforeOrEqualTo(after.plusMinutes(10).plusSeconds(2));
-        assertThat(round.getExamAt()).isBefore(oldExam);
-        verify(presentationSlotCascadeService).rescheduleForRound(3);
-        verify(hackathonRoundTimelineSyncService).syncFromRounds(9);
-        verify(milestoneEventRescheduleService, never()).repositionWorkshopKickoff(any());
-    }
-
-    /** TC-BE-02 — null lead → default 5, không ceil */
-    @Test
-    void startNow_nullLead_defaultsToFiveMinutesExact() {
-        LocalDateTime oldExam = LocalDateTime.now().plusDays(5).withSecond(0).withNano(0);
-        Round round = prelimRound(oldExam, 7);
-
-        LocalDateTime before = LocalDateTime.now();
-        shiftService.applyOnActivate(round, ActivateScheduleMode.START_NOW, null, null);
-        LocalDateTime after = LocalDateTime.now();
-
-        assertThat(round.getExamAt()).isAfterOrEqualTo(before.plusMinutes(5).minusSeconds(2));
-        assertThat(round.getExamAt()).isBeforeOrEqualTo(after.plusMinutes(5).plusSeconds(2));
-    }
-
-    /** TC-BE-03 */
-    @Test
-    void startNow_preservesCodingDurationWindow() {
-        LocalDateTime oldExam = LocalDateTime.now().plusDays(5).withSecond(0).withNano(0);
-        Round round = prelimRound(oldExam, 7);
-
-        shiftService.applyOnActivate(round, ActivateScheduleMode.START_NOW, null, 5);
-
-        assertThat(round.getSubmissionDeadline())
-                .isEqualTo(RoundScheduleSeedUtil.submissionDeadline(round.getExamAt(), 7));
-        assertThat(round.getSubmissionOpen())
-                .isEqualTo(RoundScheduleSeedUtil.submissionOpen(round.getExamAt(), 7));
-        assertThat(ChronoUnit.HOURS.between(round.getExamAt(), round.getSubmissionDeadline())).isEqualTo(7);
     }
 
     /** TC-BE-05 */
@@ -171,7 +121,7 @@ class RoundScheduleShiftServiceTest {
         when(milestoneEventRescheduleService.repositionAwardsAfterFinal(any(), any())).thenReturn(0);
 
         boolean shifted = shiftService.applyOnActivate(
-                round, ActivateScheduleMode.RESCHEDULE, newExam, null);
+                round, ActivateScheduleMode.RESCHEDULE, newExam);
 
         assertThat(shifted).isTrue();
         assertThat(round.getExamAt()).isEqualTo(RoundScheduleClocks.ceilToNextMinute(newExam));
@@ -180,39 +130,6 @@ class RoundScheduleShiftServiceTest {
         verify(presentationSlotCascadeService).rescheduleForRound(3);
         verify(milestoneEventRescheduleService).repositionWorkshopKickoff(hackathon);
         verify(scheduleValidator).requireReschedulePrelimWorkshopKickoffGap(eq(round), any());
-    }
-
-    /** Không ceil khi có giây */
-    @Test
-    void startNow_keepsSeconds_noCeil() {
-        LocalDateTime oldExam = LocalDateTime.now().plusDays(5).withSecond(0).withNano(0);
-        Round round = prelimRound(oldExam, 7);
-
-        LocalDateTime before = LocalDateTime.now();
-        shiftService.applyOnActivate(round, ActivateScheduleMode.START_NOW, null, 5);
-
-        long diffSec = ChronoUnit.SECONDS.between(before.plusMinutes(5), round.getExamAt());
-        assertThat(Math.abs(diffSec)).isLessThanOrEqualTo(2);
-    }
-
-    @Test
-    void startNow_cascadesFinalWithinMaxGap() {
-        LocalDateTime oldExam = LocalDateTime.now().plusDays(5).withSecond(0).withNano(0);
-        Round prelim = prelimRound(oldExam, 7);
-        Round finalR = finalRound(oldExam.plusHours(10), 2);
-        when(roundRepository.findByHackathon_IdAndIsFinalTrue(9)).thenReturn(Optional.of(finalR));
-        when(milestoneEventRescheduleService.repositionAwardsAfterFinal(any(), any())).thenReturn(1);
-
-        shiftService.applyOnActivate(prelim, ActivateScheduleMode.START_NOW, null, 5);
-
-        LocalDateTime expectedFinal = RoundScheduleSeedUtil.maxFinalExamAt(prelim.getExamAt(), 7);
-        assertThat(finalR.getExamAt()).isEqualTo(expectedFinal);
-        assertThat(finalR.getSubmissionDeadline())
-                .isEqualTo(RoundScheduleSeedUtil.submissionDeadline(expectedFinal, 2));
-        verify(presentationSlotCascadeService).rescheduleForRound(3);
-        verify(presentationSlotCascadeService).rescheduleForRound(4);
-        verify(milestoneEventRescheduleService).repositionAwardsAfterFinal(hackathon, finalR);
-        verify(milestoneEventRescheduleService, never()).repositionWorkshopKickoff(any());
     }
 
     @Test
@@ -227,12 +144,28 @@ class RoundScheduleShiftServiceTest {
         when(milestoneEventRescheduleService.repositionWorkshopKickoff(any())).thenReturn(2);
         when(milestoneEventRescheduleService.repositionAwardsAfterFinal(any(), any())).thenReturn(1);
 
-        shiftService.applyOnActivate(prelim, ActivateScheduleMode.RESCHEDULE, newExam, null);
+        shiftService.applyOnActivate(prelim, ActivateScheduleMode.RESCHEDULE, newExam);
 
         assertThat(finalR.getExamAt())
                 .isEqualTo(RoundScheduleSeedUtil.maxFinalExamAt(prelim.getExamAt(), 7));
         verify(milestoneEventRescheduleService).repositionWorkshopKickoff(hackathon);
         verify(milestoneEventRescheduleService).repositionAwardsAfterFinal(hackathon, finalR);
         verify(hackathonRoundTimelineSyncService).syncFromRounds(9);
+    }
+
+    @Test
+    void reschedule_preservesCodingDurationWindow() {
+        LocalDateTime oldExam = LocalDateTime.now().plusDays(10).withSecond(0).withNano(0);
+        LocalDateTime newExam = LocalDateTime.now().plusDays(5).withSecond(0).withNano(0);
+        Round round = prelimRound(oldExam, 7);
+        doNothing().when(scheduleValidator).requireNewExamAtNotInPast(any(), any());
+        doNothing().when(scheduleValidator).requireReschedulePrelimWorkshopKickoffGap(any(), any());
+
+        shiftService.applyOnActivate(round, ActivateScheduleMode.RESCHEDULE, newExam);
+
+        assertThat(round.getSubmissionDeadline())
+                .isEqualTo(RoundScheduleSeedUtil.submissionDeadline(round.getExamAt(), 7));
+        assertThat(round.getSubmissionOpen())
+                .isEqualTo(RoundScheduleSeedUtil.submissionOpen(round.getExamAt(), 7));
     }
 }

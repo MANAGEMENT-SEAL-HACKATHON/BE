@@ -29,8 +29,8 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Nén / dời lịch Round khi Activate (START_NOW / RESCHEDULE).
- * Sơ loại: cascade CK + sync hackathon dates + (RESCHEDULE) WS/KO + AWARDS + slots.
+ * Dời lịch Round khi RESCHEDULE (START_NOW đã bị gỡ — phase 2).
+ * Sơ loại: cascade CK + sync hackathon dates + WS/KO + AWARDS + slots.
  * Chung kết: shift + AWARDS + sync + slots.
  */
 @Service
@@ -49,25 +49,16 @@ public class RoundScheduleShiftService {
     private final MilestoneEventRescheduleService milestoneEventRescheduleService;
     private final HackathonRepository hackathonRepository;
 
-    public static final int DEFAULT_SETUP_LEAD_MINUTES = 5;
-
     /**
      * @return true nếu đã đổi lịch
      */
     @Transactional(rollbackFor = Exception.class)
     public boolean applyOnActivate(Round round, ActivateScheduleMode mode, LocalDateTime newExamAt) {
-        return applyOnActivate(round, mode, newExamAt, null);
-    }
-
-    /**
-     * @param setupLeadMinutes phút chuẩn bị khi START_NOW; null → {@link #DEFAULT_SETUP_LEAD_MINUTES}
-     * @return true nếu đã đổi lịch
-     */
-    @Transactional(rollbackFor = Exception.class)
-    public boolean applyOnActivate(Round round, ActivateScheduleMode mode, LocalDateTime newExamAt,
-                                   Integer setupLeadMinutes) {
         ActivateScheduleMode effective = mode != null ? mode : ActivateScheduleMode.KEEP;
         if (effective == ActivateScheduleMode.KEEP) {
+            return false;
+        }
+        if (effective != ActivateScheduleMode.RESCHEDULE) {
             return false;
         }
 
@@ -82,23 +73,14 @@ public class RoundScheduleShiftService {
         LocalDateTime oldDeadline = round.getSubmissionDeadline();
 
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime examAt;
-        int leadApplied = DEFAULT_SETUP_LEAD_MINUTES;
-        if (effective == ActivateScheduleMode.START_NOW) {
-            leadApplied = resolveSetupLeadMinutes(setupLeadMinutes);
-            examAt = now.plusMinutes(leadApplied);
-        } else if (effective == ActivateScheduleMode.RESCHEDULE) {
-            scheduleValidator.requireNewExamAtNotInPast(newExamAt, now);
-            examAt = RoundScheduleClocks.ceilToNextMinute(newExamAt);
-            if (!examAt.isAfter(now)) {
-                throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
-                        "newExamAt phải lớn hơn thời điểm hiện tại sau khi làm tròn phút");
-            }
-            if (!Boolean.TRUE.equals(round.getIsFinal())) {
-                scheduleValidator.requireReschedulePrelimWorkshopKickoffGap(round, examAt);
-            }
-        } else {
-            return false;
+        scheduleValidator.requireNewExamAtNotInPast(newExamAt, now);
+        LocalDateTime examAt = RoundScheduleClocks.ceilToNextMinute(newExamAt);
+        if (!examAt.isAfter(now)) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                    "newExamAt phải lớn hơn thời điểm hiện tại sau khi làm tròn phút");
+        }
+        if (!Boolean.TRUE.equals(round.getIsFinal())) {
+            scheduleValidator.requireReschedulePrelimWorkshopKickoffGap(round, examAt);
         }
 
         LocalDateTime open = RoundScheduleSeedUtil.submissionOpen(examAt, hours);
@@ -122,14 +104,11 @@ public class RoundScheduleShiftService {
         if (Boolean.TRUE.equals(saved.getIsFinal())) {
             cascadeAfterFinalShift(saved, cascadeMeta);
         } else {
-            cascadeAfterPrelimShift(saved, effective, cascadeMeta);
+            cascadeAfterPrelimShift(saved, cascadeMeta);
         }
 
         Map<String, Object> audit = new LinkedHashMap<>();
         audit.put("scheduleMode", effective.name());
-        if (effective == ActivateScheduleMode.START_NOW) {
-            audit.put("setupLeadMinutes", leadApplied);
-        }
         audit.put("oldExamAt", String.valueOf(oldExamAt));
         audit.put("oldSubmissionOpen", String.valueOf(oldOpen));
         audit.put("oldSubmissionDeadline", String.valueOf(oldDeadline));
@@ -146,9 +125,9 @@ public class RoundScheduleShiftService {
     }
 
     /**
-     * Sơ loại đã shift → kéo CK vào [end+1h, end+2h], sync dates, (RESCHEDULE) WS/KO, AWARDS, slots.
+     * Sơ loại đã shift → kéo CK vào [end+1h, end+2h], sync dates, WS/KO, AWARDS, slots.
      */
-    private void cascadeAfterPrelimShift(Round prelim, ActivateScheduleMode mode, Map<String, Object> meta) {
+    private void cascadeAfterPrelimShift(Round prelim, Map<String, Object> meta) {
         Integer hackathonId = prelim.getHackathon() != null ? prelim.getHackathon().getId() : null;
         if (hackathonId == null) {
             presentationSlotCascadeService.rescheduleForRound(prelim.getId());
@@ -192,10 +171,7 @@ public class RoundScheduleShiftService {
             return;
         }
 
-        int milestones = 0;
-        if (mode == ActivateScheduleMode.RESCHEDULE) {
-            milestones += milestoneEventRescheduleService.repositionWorkshopKickoff(h);
-        }
+        int milestones = milestoneEventRescheduleService.repositionWorkshopKickoff(h);
         Round finalForAwards = cascadedFinal != null ? cascadedFinal : finalOpt.orElse(null);
         if (finalForAwards != null) {
             milestones += milestoneEventRescheduleService.repositionAwardsAfterFinal(h, finalForAwards);
@@ -228,16 +204,6 @@ public class RoundScheduleShiftService {
             }
         }
         presentationSlotCascadeService.rescheduleForRound(finalRound.getId());
-    }
-
-    static int resolveSetupLeadMinutes(Integer setupLeadMinutes) {
-        if (setupLeadMinutes == null) {
-            return DEFAULT_SETUP_LEAD_MINUTES;
-        }
-        if (setupLeadMinutes < 1) {
-            return 1;
-        }
-        return Math.min(30, setupLeadMinutes);
     }
 
     private void scheduleNotifyAfterCommit(Round round) {

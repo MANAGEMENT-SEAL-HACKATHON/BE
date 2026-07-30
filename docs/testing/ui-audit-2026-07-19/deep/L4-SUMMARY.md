@@ -6,4 +6,4 @@
 | `gd6-full-chain-api.mjs` | 8 PASS / 0 FAIL / 1 SKIP | Confirm → FINISHED + export DONE |
 | `phase-b-critical-api.mjs` | Most PASS; 1 CRITICAL FAIL G5-07 participating=0; G2-03b 404 | |
 
-**Root cause L4 main chain:** START_NOW activate still gates release-problem on examAt; chain needs reschedule-before-release or seed with examAt≤now. Non-blocking for L5 after reseed.
+**Root cause L4 main chain (historical):** START_NOW activate gated release-problem on examAt. **Note (phase 2):** START_NOW removed — use «Dời lịch thi» then KEEP activate when examAt≤now. Non-blocking for L5 after reseed.

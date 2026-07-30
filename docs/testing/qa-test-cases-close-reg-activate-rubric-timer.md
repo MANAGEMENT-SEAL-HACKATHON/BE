@@ -38,16 +38,16 @@
 
 ---
 
-## Feature B — Kích hoạt vòng Sơ loại (START_NOW / KEEP)
+## Feature B — Kích hoạt vòng Sơ loại (KEEP only; START_NOW removed phase 2)
 
 | ID | Test Case Description | Pre-Condition | Test Case Procedure | Test Data | Expected Output | Status | Test date (dd/mm/yyyy) | Note |
 |----|----------------------|---------------|---------------------|-----------|-----------------|--------|------------------------|------|
-| TC-B01 | Kiểm tra kích hoạt và bắt đầu sớm START_NOW kèm thời gian chuẩn bị | Đã đóng ĐK; lottery xong; prelim inactive; đủ criteria/judge; mọi track có đội; `examAt` còn tương lai; login Coord | 1. Tab **Vòng thi**. 2. Bấm kích hoạt vòng (`data-testid=round-activate-btn`). 3. Đặt thời gian chuẩn bị = 5 (hoặc giữ mặc định). 4. Bấm **Kích hoạt & bắt đầu sớm**. | `setupLeadMinutes=5`; `scheduleMode=START_NOW` | Gọi `PATCH /api/v1/rounds/{id}/activate` với `scheduleMode=START_NOW` và `setupLeadMinutes`; vòng `isActive`; giờ thi theo `calculateStartTime` | Not Run | | Happy · `ActivateScheduleModal` |
-| TC-B02 | Kiểm tra preview giờ thi cập nhật theo lead minutes 1–30 | Modal kích hoạt mở; `examAt` future | 1. Đổi InputNumber lead lần lượt 1, 5, 30. 2. Thử nhập ngoài khoảng (nếu UI cho phép). | Lead 1 / 5 / 30 | Text helper «Giờ thi sẽ là …» đổi theo `formatExamPreview(calculateStartTime(...))`; giá trị clamp trong 1–30 | Not Run | | FE |
-| TC-B03 | Kiểm tra chế độ KEEP khi examAt không còn ở tương lai | Round prelim `examAt` ≤ now; đủ điều kiện activate | 1. Mở modal kích hoạt. 2. Xác nhận không hiện ô lead START_NOW. 3. Bấm **Kích hoạt**. | `scheduleMode=KEEP` | Body không gửi `setupLeadMinutes`; kích hoạt giữ lịch đã xếp | Not Run | | FE `handleOk` |
+| TC-B01 | ~~START_NOW + lead~~ **Obsolete (phase 2)** — block activate khi examAt còn future | Đã đóng ĐK; lottery xong; prelim inactive; `examAt` còn tương lai; login Coord | 1. Tab **Vòng thi**. 2. Bấm kích hoạt. 3. Đọc Alert hướng dẫn «Dời lịch thi». | — | Modal **không** gửi START_NOW; OK disabled; copy hướng dẫn dùng «Dời lịch thi» | Not Run | | `ActivateScheduleModal` |
+| TC-B02 | ~~Preview lead minutes~~ **Obsolete (phase 2)** | — | — | — | N/A — setupLeadMinutes UI removed | Not Run | | Removed |
+| TC-B03 | Kiểm tra chế độ KEEP khi examAt không còn ở tương lai | Round prelim `examAt` ≤ now; đủ điều kiện activate | 1. Mở modal kích hoạt. 2. Bấm **Kích hoạt**. | `scheduleMode=KEEP` | Body `scheduleMode=KEEP`; kích hoạt giữ lịch đã xếp | Not Run | | FE `handleOk` |
 | TC-B04 | Kiểm tra hủy modal kích hoạt vòng | Modal kích hoạt đang mở | 1. Bấm **Hủy**. | — | Modal đóng; không đổi `isActive` / không gọi activate thành công | Not Run | | Alternative |
-| TC-B05 | Kiểm tra bắt đầu thi sớm khi vòng đã active và examAt còn tương lai | Round `isActive=true`; `examAt` future | 1. Mở modal (title kiểu «Bắt đầu thi sớm…»). 2. Set lead. 3. Xác nhận. | Lead 5; `START_NOW` | FE gửi `START_NOW` + `setupLeadMinutes`; BE nén exam/submission window (nhánh early-start) | Not Run | | `RoundActivationServiceImpl` |
-| TC-B06 | Kiểm tra copy Alert modal không dùng viết tắt WS/KO/CK | Modal START_NOW đang mở | 1. Đọc toàn bộ Alert và dòng helper giờ thi. | — | Có chữ đủ «Workshop», «Khai mạc», «đóng đăng ký sớm», «Chung kết» — không viết tắt WS/KO/CK | Not Run | | UX |
+| TC-B05 | ~~Early-start khi đã active~~ **Obsolete (phase 2)** | Round `isActive=true` | Thử activate | — | FE gate chặn / BE idempotent; không còn nhánh START_NOW | Not Run | | Removed |
+| TC-B06 | Kiểm tra copy Alert khi examAt future hướng dẫn Dời lịch thi | Modal mở với examAt future | 1. Đọc Alert. | — | Có hướng dẫn «Dời lịch thi»; không còn lead InputNumber / START_NOW | Not Run | | UX |
 | TC-B07 | Kiểm tra BE trả TRACK_EMPTY_TEAMS khi bảng đấu không có đội | Prelim có track nhưng track đó 0 đội (`teamRoundTrack` rỗng) | 1. Gọi `PATCH .../activate` (hoặc bấm kích hoạt trên UI nếu tới được gate). | Round/track seed gate | `error.code` = `TRACK_EMPTY_TEAMS` | Not Run | | `validateTeamsInRound` |
 | TC-B08 | Kiểm tra BE trả ROUND_NO_CRITERIA khi track chưa có tiêu chí | Track không có criteria thường | 1. Thử kích hoạt vòng Sơ loại. | Track 0 criteria | `error.code` = `ROUND_NO_CRITERIA` | Not Run | | `validatePreliminaryRoundTracks` |
 | TC-B09 | Kiểm tra BE trả ROUND_WEIGHT_NOT_ONE khi tổng weight track ≠ 1 | Track có criteria nhưng tổng weight (trừ PENALTY) không ≈ 1.0 | 1. Thử kích hoạt. | Weight invalid | `error.code` = `ROUND_WEIGHT_NOT_ONE` | Not Run | | `weightSummaryService.isValidForTrack` |

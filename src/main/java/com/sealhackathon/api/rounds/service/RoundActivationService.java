@@ -4,7 +4,7 @@ import com.sealhackathon.api.rounds.dto.request.ActivateRoundRequest;
 import com.sealhackathon.api.rounds.dto.response.RoundResponse;
 
 /**
- * FR-06B — Activate Round (weight + schedule mode KEEP | START_NOW | RESCHEDULE).
+ * FR-06B — Activate Round (weight + schedule mode KEEP; RESCHEDULE rejected on activate).
  */
 public interface RoundActivationService {
 

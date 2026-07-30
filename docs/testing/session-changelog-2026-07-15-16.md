@@ -2,6 +2,8 @@
 
 **Bối cảnh:** Báo cáo tổng hợp các bản vá lỗi P0 về logic vận hành, workflow và UX/FE từ sáng 15/07 đến **19/07**. Các thay đổi tập trung vào đồng bộ state Coord↔Student, vá lỗ hổng nghiệp vụ (Timer, Chấm điểm), chuẩn hóa UI phi kỹ thuật, **luồng onboard giám khảo khách (PENDING → APPROVED)**, **3 màn giám sát Coordinator**, phiên **Enterprise Audit + Regression** (17/07), phiên **Audit Remediation (18/07)** — **bỏ hẳn Vé vớt/Wildcard (Top-N)**, **bỏ role Trưởng ban (HEAD)**, **Personnel Guard**, tối ưu N+1 bốc thăm, robust E2E — và phiên **Full System Deep Test 3 làn + Zero-skip E2E (19/07)**.
 
+> **Note (phase 2, later):** `START_NOW` / «Bắt đầu sớm» đã hard-remove khỏi BE+FE. Các mục DONE bên dưới đề cập START_NOW là lịch sử session — không còn là hành vi hiện tại.
+
 ---
 
 ## 0. Phiên 19/07 — Full System Deep Test (3 làn) + Zero-skip E2E (MỚI NHẤT)

@@ -55,7 +55,7 @@ public class RoundScheduleValidator {
     }
 
     /**
-     * @param allowEarlyExamAt true khi Coord xác nhận START_NOW/RESCHEDULE (bỏ min ngày sau ĐK + eventStart/KICKOFF)
+     * @param allowEarlyExamAt true khi Coord xác nhận RESCHEDULE (bỏ min ngày sau ĐK + eventStart/KICKOFF)
      */
     public void validateActivateShift(Round round, LocalDateTime examAt, LocalDateTime submissionOpen,
                                       LocalDateTime submissionDeadline, boolean allowEarlyExamAt) {

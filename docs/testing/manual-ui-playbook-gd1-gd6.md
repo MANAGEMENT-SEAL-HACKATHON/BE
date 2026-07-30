@@ -427,7 +427,7 @@ Tạo slug sự kiện mới hoàn toàn như các step hiện tại của GĐ1.
   - **Kết quả kỳ vọng:** Form CK **không** có nút Upload PDF đề mới. Trường Ngày Mở/Hạn nộp bị mờ (disabled) và có icon `(i)` giải thích. Có thể chỉnh **Thời lượng thi**.
 - **Bước 3**
   - **Thao tác:** Trên header **Thiết lập**, nếu nút **Xác nhận Kích hoạt** xám → hover icon ℹ️ (hoặc nút) để xem điều kiện thiếu → bổ sung (vòng, sự kiện KICKOFF/AWARDS, …). Khi nút sáng → nhấn **Xác nhận Kích hoạt**.
-  - **Kết quả kỳ vọng:** Toast *Đã mở đăng ký — sự kiện đang diễn ra.* Status **ONGOING**. (Kích hoạt **vòng** Sơ loại/CK sau này ở tab **Vòng thi** — modal KEEP / START_NOW / RESCHEDULE — là bước GĐ2+, khác nút này.)
+  - **Kết quả kỳ vọng:** Toast *Đã mở đăng ký — sự kiện đang diễn ra.* Status **ONGOING**. (Kích hoạt **vòng** Sơ loại/CK sau này ở tab **Vòng thi** — modal KEEP only; dời lịch qua «Dời lịch thi» — là bước GĐ2+, khác nút này. START_NOW đã gỡ phase 2.)
 
 
 
@@ -746,10 +746,10 @@ Duyệt đội PENDING → khóa đăng ký (tự nhiên hoặc sớm) → bốc
 4. Modal **Kết thúc đăng ký sớm?** → xác nhận theo UI.
 5. Expect modal kết quả: đội ACTIVE bị khóa. Nếu còn đội PENDING (đã confirm chờ duyệt **hoặc** còn 24h grace) → CTA primary **«Xử lý N đội đang chờ»** → `/teams?hackathonId=…&status=PENDING` (**không** hiện CTA Lottery). Khi hết PENDING → CTA **«Bốc thăm & Khai mạc»**.
 
-5b. **Trình tự bắt buộc:** Kết thúc đăng ký sớm (chọn giờ SL + xem preview WS/KO/CK/Awards) → xử lý PENDING → Bốc thăm → Kích hoạt & bắt đầu sơ loại sớm (START_NOW) nếu test.
+5b. **Trình tự bắt buộc:** Kết thúc đăng ký sớm (chọn giờ SL + xem preview WS/KO/CK/Awards) → xử lý PENDING → Bốc thăm → Kích hoạt Sơ loại (KEEP; nếu examAt còn future dùng «Dời lịch thi» trước). ~~START_NOW đã gỡ (phase 2).~~
 6. **Đóng ĐK sớm:** bắt buộc chọn `newPrelimExamAt` (≥ today+3); cascade WS/KO/SL/CK/Awards; `scheduleAdjustedAt` set (không dời lại). Notify mentor/GK/SV. Lottery không bị xóa.
 7. **Dời lịch riêng** (tab Vòng thi): hiện khi ĐK đã đóng và chưa `scheduleAdjustedAt`; chỉ khi còn ≥4 ngày trước Kickoff; 1 lần.
-8. **Kích hoạt vòng:** chỉ START_NOW (test nhanh) hoặc KEEP — **không** còn RESCHEDULE trong modal kích hoạt.
+8. **Kích hoạt vòng:** chỉ KEEP — **không** còn START_NOW / RESCHEDULE trong modal kích hoạt (dời lịch = «Dời lịch thi» / đóng ĐK sớm).
 
 ##### C. Bốc thăm (chia đội vào bảng đấu)
 
@@ -766,12 +766,12 @@ Duyệt đội PENDING → khóa đăng ký (tự nhiên hoặc sớm) → bốc
 2. Trên hàng vòng Sơ loại (chưa active): click icon/tooltip **Kích hoạt Vòng thi** (`data-testid=round-activate-btn`).
 3. Modal **Kích hoạt {tên vòng}?** — **Activate ≠ bắt đầu thi ngay**:
   - **Chỉ kích hoạt vòng thi — giữ nguyên lịch dự kiến** (`KEEP`) — mặc định an toàn.
-    - **Kích hoạt và bắt đầu thi ngay** (`START_NOW`) — nén lịch round (coding/QA/deadline); có thể set **lead time** vài phút; Mode B E2E thường chọn mục này. BE kéo **Chung kết** (+ Awards) theo cửa sổ 1–2h; **không** dời Workshop/Kickoff.
+    - ~~**Kích hoạt và bắt đầu thi ngay** (`START_NOW`)~~ — **đã gỡ (phase 2).** Muốn giờ sớm hơn: dùng «Dời lịch thi», rồi kích hoạt KEEP khi đã tới giờ thi.
     - **Kích hoạt và dời giờ thi sang mốc mới** (`RESCHEDULE`) — chọn `newExamAt` ≥ now và **≥ registrationEnd + 3 ngày** (đủ Workshop + Khai mạc); **không** bắt đầu ngay — chờ đến mốc đã đổi. BE **cascade**: Chung kết (cửa sổ 1–2h sau SL), `eventStart`/`eventEnd`, WORKSHOP/KICKOFF/AWARDS, presentation slots. Lottery / khóa đội **không** bị reset.
 4. Click **Kích hoạt** (okText modal — **không** nhầm với nút header hackathon **Xác nhận Kích hoạt**).
-5. Expect: với `KEEP`/`START_NOW` — vòng Sơ loại `isActive`; với `RESCHEDULE` — vòng vẫn Bản nháp nhưng lịch SL+CK+events đã đổi. `START_NOW` cũng kéo CK (+ Awards) theo; **không** reposition WS/KO.
+5. Expect: với `KEEP` — vòng Sơ loại `isActive` (giữ lịch). Dời lịch = «Dời lịch thi» / close-reg-early (cascade CK + WS/KO/Awards). ~~START_NOW đã gỡ (phase 2).~~
 
-> **Phân biệt hai “Kích hoạt”:** (1) Hackathon ONGOING = header setup → **Xác nhận Kích hoạt** (DRAFT→ONGOING). (2) Vòng Sơ loại/CK = tab **Vòng thi** → modal **ActivateScheduleModal** (`KEEP` / `START_NOW` / `RESCHEDULE`).
+> **Phân biệt hai “Kích hoạt”:** (1) Hackathon ONGOING = header setup → **Xác nhận Kích hoạt** (DRAFT→ONGOING). (2) Vòng Sơ loại/CK = tab **Vòng thi** → modal **ActivateScheduleModal** (`KEEP` only; START_NOW removed phase 2).
 
 
 
@@ -797,7 +797,7 @@ Duyệt đội PENDING → khóa đăng ký (tự nhiên hoặc sớm) → bốc
 ```http
 POST /api/v1/hackathons/{id}/close-registration-early
 PATCH /api/v1/rounds/{prelimId}/activate
-  Body: { "note": "...", "scheduleMode": "KEEP" | "START_NOW" | "RESCHEDULE", "newExamAt": "..." }
+  Body: { "note": "...", "scheduleMode": "KEEP" }  // START_NOW removed (phase 2); RESCHEDULE rejected on activate
 ```
 
 - Sau close-reg: đội ACTIVE locked; registration closed; **timeline nén** (WS→KO→SL→CK); lottery không bị xóa; `timelineCompressed=true` trên response.
@@ -883,7 +883,7 @@ Chạy đủ pipeline vòng Sơ loại. **Không có nút «Mở chấm»** — 
 1. Login Coord `coord@fpt.edu.vn` / `Coordinator@dev1`.
 2. `/hackathons` → mở card `seal-gd3-prelim-open` → **Thiết lập** → tab **Vòng thi** (`setup?tab=rounds`).
 3. Trên vòng Sơ loại **Active**:
-  - Nếu đang **early-wait** (đã activate START_NOW nhưng chưa tới `examAt`): nút **Phát đề bài** **vẫn hiện** nhưng **disabled** + tooltip **«Chưa tới giờ thi»** (`EARLY-WAIT-01`). Countdown banner: «nút Phát đề đang khóa».
+  - Nếu đang **early-wait** (đã activate KEEP nhưng chưa tới `examAt` — lịch seed/adjust; START_NOW đã gỡ phase 2): nút **Phát đề bài** **vẫn hiện** nhưng **disabled** + tooltip **«Chưa tới giờ thi»** (`EARLY-WAIT-01`). Countdown banner: «nút Phát đề đang khóa».
   - Khi đã tới giờ thi: nút **enabled** + tooltip **Phát đề bài**.
 4. Modal **Phát đề bài** (khi enabled):
   - **Phát Đề** từng bảng (nếu PDF còn thiếu từng track), **hoặc**
@@ -1679,7 +1679,7 @@ node scripts/gd3-gd4-gd5-full-chain-api.mjs
 | H2  | Team trước duyệt              | Leader `POST /teams/{id}/confirm-formation` rồi Coord duyệt                                                                                                                                                                        |
 | H3  | Confirm GĐ6 cần chấm đủ CK    | `scoreEntirePresentationQueue` (guest) trước `lock-scoring` — thiếu đội → `SCORING_INCOMPLETE_BEFORE_CONFIRM`                                                                                                                      |
 | H4  | GĐ4–GĐ6 flaky UI              | Fallback trong `modeBContinuousHelpers`: `publishRoundByApi`, `advanceRoundByApi`, `closeSubmissionEarlyByApi`, `shufflePresentationQueue`, `lockScoringByApi`, `awardPrizeByApi`, `confirmHackathonByApi`, `createExportJobByApi` |
-| H5  | Activate round modal          | UI: `confirmActivateScheduleModal` chọn **Kích hoạt và bắt đầu thi ngay**; fallback API `activateRoundByApi(..., scheduleMode: 'START_NOW')`                                                                                       |
+| H5  | Activate round modal          | UI: `confirmActivateScheduleModal` xác nhận **KEEP**; fallback API `activateRoundByApi(..., scheduleMode: 'KEEP')`. ~~START_NOW removed phase 2.~~                                                                                       |
 | H6  | Guest judge CK UI flaky       | `openJudgeScoringRoom` + nếu UI miss → `scoreEntirePresentationQueue` / score API guest                                                                                                                                            |
 
 
@@ -1689,7 +1689,7 @@ node scripts/gd3-gd4-gd5-full-chain-api.mjs
 | GĐ  | Vẫn UI trong E2E                                                                                                             | Đã chuyển API / helper (E2E only)                                                                                                                                              |
 | --- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 1   | Form **Tạo sự kiện** + **Vòng thi** (**Thêm vòng thi** ×2) + header **Xác nhận Kích hoạt** (`hackathon-activate-btn`)        | `createPrelimTrack`, `applyStandardCriteriaBundle`, `assignPrelimJudgeByEmail`, `createMilestoneEvents`. `createPrelimAndFinalRounds` / ~~tab Đánh giá~~ deprecated cho Mode B |
-| 2   | close-reg sớm, lottery, activate SL (modal **START_NOW** + `confirmActivateScheduleModal`; có `activateRoundByApi` fallback) | `registerStudentForHackathon`, `createStudentTeam` + confirm-formation, `approvePendingTeams`                                                                                  |
+| 2   | close-reg sớm, lottery, activate SL (modal **KEEP** + `confirmActivateScheduleModal`; có `activateRoundByApi` fallback) | `registerStudentForHackathon`, `createStudentTeam` + confirm-formation, `approvePendingTeams`                                                                                  |
 | 3   | Phát đề / end-early / shuffle / timer QA / judge chấm (UI ưu tiên)                                                           | `releaseTrackProblem` / `releaseRoundProblem`, `drivePresentationTimerToQa`, `lockScoringByApi` fallback                                                                       |
 | 4   | results / activate CK (UI ưu tiên)                                                                                           | `publishRoundByApi`, `advanceRoundByApi`, `assignFinalGuestJudgeByEmail`, `uploadRoundProblemPdf`, `activateRoundByApi`                                                        |
 | 5   | nộp CK UI (`roundId` multipart) + queue + guest phòng chấm                                                                   | `closeSubmissionEarlyByApi` / `shufflePresentationQueue` fallback; `scoreEntirePresentationQueue` bắt buộc đủ đội; `lockScoringByApi`                                          |
@@ -2156,7 +2156,7 @@ Ghi nhận: mentor-portal (sau verify). **Không** chạy calibration suite. **S
 | ----- | --------------------------------------------------------------------------------------- |
 | File  | `e2e/mode-b-continuous-ui.spec.js`                                                      |
 | SUT   | Ephemeral slug `seal-m2-*` (không gắn seed catalog)                                     |
-| Cover | Serial GĐ1→GĐ6; ActivateScheduleModal **START_NOW**; timer QA; guest score fallback API |
+| Cover | Serial GĐ1→GĐ6; ActivateScheduleModal **KEEP** (START_NOW removed phase 2); timer QA; guest score fallback API |
 
 
 ```powershell
@@ -2261,7 +2261,7 @@ Lần này: **25/25** (chạy **trước** mutating hoặc **sau** restart BE).
 | GĐ5 sau hạn                                     | Toast **REJECTED** (`HARD_LOCK`)                                                                                                                                                                                                      |
 | Redis cache round                               | Không có trong BE — không cần evict                                                                                                                                                                                                   |
 | Re-open submission                              | **Không có API** — đúng warning irreversible                                                                                                                                                                                          |
-| Activate round schedule                         | Tab **Vòng thi** → **ActivateScheduleModal**: `KEEP` / `START_NOW` / `RESCHEDULE`; API `PATCH .../activate` body `{ scheduleMode, newExamAt?, note }`                                                                                 |
+| Activate round schedule                         | Tab **Vòng thi** → **ActivateScheduleModal**: `KEEP` only; API `PATCH .../activate` body `{ scheduleMode: KEEP, note }`. Dời lịch: «Dời lịch thi». ~~START_NOW removed phase 2.~~                                                                                 |
 | Close-reg GĐ2 vs round exam                     | **Kết thúc đăng ký sớm** clamp registration **và nén** WS/KO/`eventStart`/SL/CK/Awards (`timelineCompressed`); không đụng lottery/lock                                                                                                |
 | Shuffle trước close-submission                  | Shuffle UI có thể mở sớm; **chấm** và IT flow cần **Kết thúc thời gian thi sớm** trước — nếu không → `SCORING_NOT_OPEN`                                                                                                               |
 | Timer Q&A / **Đội tiếp**                        | `queue/next` và early-end Q&A chỉ khi phase **QA** hoặc **ENDED**; judge chưa chấm → `SCORING_INCOMPLETE_BEFORE_NEXT` (+ Coord ack)                                                                                                   |
@@ -2477,7 +2477,7 @@ Lần này: **25/25** (chạy **trước** mutating hoặc **sau** restart BE).
 - [ ] Full-chain API: `node scripts/gd3-gd4-gd5-full-chain-api.mjs`
 - [ ] Sau Confirm trên e2e → **restart BE** rồi `probe:seeds` **26/26**
 - [x] SV đăng ký / tạo đội (account free) → **Duyệt**
-- [x] **Kết thúc đăng ký sớm** → lottery → **ActivateScheduleModal START_NOW**
+- [x] **Kết thúc đăng ký sớm** → lottery → **ActivateScheduleModal KEEP** (START_NOW removed phase 2)
 - [x] **Phát đề** → `waitForStudentSubmitReady` → nộp
 - [x] End-early → **Khởi Động Máy Quay Số** → timer QA → `openJudgeScoringRoom` → chấm → lock
 - [x] Publish / advance / final-config / activate CK
