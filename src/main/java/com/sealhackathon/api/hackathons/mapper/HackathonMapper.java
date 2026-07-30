@@ -72,6 +72,8 @@ public class HackathonMapper {
                 .registrationStart(e.getRegistrationStart())
                 .registrationEnd(e.getRegistrationEnd())
                 .registrationClosedEarlyAt(e.getRegistrationClosedEarlyAt())
+                .registrationExtensionCount(e.getRegistrationExtensionCount())
+                .registrationExtendedAt(e.getRegistrationExtendedAt())
                 .scheduleAdjustedAt(e.getScheduleAdjustedAt())
                 .eventStart(e.getEventStart())
                 .eventEnd(e.getEventEnd())

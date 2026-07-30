@@ -189,6 +189,12 @@ public final class ErrorCode {
     public static final String REGISTRATION_ALREADY_CLOSED              = "REGISTRATION_ALREADY_CLOSED";
     public static final String REGISTRATION_WITHDRAWN                   = "REGISTRATION_WITHDRAWN";
     public static final String REGISTRATION_ALREADY_ACTIVE_ELSEWHERE    = "REGISTRATION_ALREADY_ACTIVE_ELSEWHERE";
+    /** Đã dùng hết số lần dời hạn đăng ký. */
+    public static final String REGISTRATION_EXTENSION_LIMIT_REACHED     = "REGISTRATION_EXTENSION_LIMIT_REACHED";
+    /** Ngày hạn đăng ký mới không hợp lệ (không sau hạn hiện tại / không sau hôm nay). */
+    public static final String REGISTRATION_EXTENSION_INVALID_DATE      = "REGISTRATION_EXTENSION_INVALID_DATE";
+    /** Dời hạn ĐK làm xung đột mốc WS/KO/SL/eventStart — cần điều chỉnh lịch. */
+    public static final String REGISTRATION_EXTENSION_TIMELINE_CONFLICT = "REGISTRATION_EXTENSION_TIMELINE_CONFLICT";
     /** Đã dời lịch thi 1 lần — không cho dời lại. */
     public static final String SCHEDULE_ALREADY_ADJUSTED                = "SCHEDULE_ALREADY_ADJUSTED";
     /** Còn dưới 4 ngày trước Kickoff — quá muộn để dời lịch. */

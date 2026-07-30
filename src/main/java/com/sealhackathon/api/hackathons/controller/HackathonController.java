@@ -11,15 +11,18 @@ import com.sealhackathon.api.hackathons.dto.request.CloseRegistrationEarlyReques
 import com.sealhackathon.api.hackathons.dto.request.CompetitionScheduleAdjustRequest;
 import com.sealhackathon.api.hackathons.dto.request.CreateHackathonRequest;
 import com.sealhackathon.api.hackathons.dto.request.HackathonLotteryRequest;
+import com.sealhackathon.api.hackathons.dto.request.RegistrationExtensionRequest;
 import com.sealhackathon.api.hackathons.dto.request.UpdateHackathonRequest;
 import com.sealhackathon.api.hackathons.dto.response.CloseRegistrationEarlyResponse;
 import com.sealhackathon.api.hackathons.dto.response.CompetitionSchedulePreviewResponse;
 import com.sealhackathon.api.hackathons.dto.response.HackathonLotteryResponse;
 import com.sealhackathon.api.hackathons.dto.response.HackathonResponse;
 import com.sealhackathon.api.hackathons.dto.response.HackathonSummaryResponse;
+import com.sealhackathon.api.hackathons.dto.response.RegistrationExtensionPreviewResponse;
 import com.sealhackathon.api.hackathons.service.CompetitionScheduleAdjustService;
 import com.sealhackathon.api.hackathons.service.HackathonLotteryService;
 import com.sealhackathon.api.hackathons.service.HackathonRegistrationCloseService;
+import com.sealhackathon.api.hackathons.service.HackathonRegistrationExtensionService;
 import com.sealhackathon.api.hackathons.service.HackathonService;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.hackathons.value_object.Season;
@@ -53,6 +56,7 @@ public class HackathonController {
     private final HackathonLotteryService hackathonLotteryService;
     private final HackathonRegistrationCloseService hackathonRegistrationCloseService;
     private final CompetitionScheduleAdjustService competitionScheduleAdjustService;
+    private final HackathonRegistrationExtensionService hackathonRegistrationExtensionService;
 
     // API MỚI DÀNH RIÊNG CHO FRONTEND SET MẶC ĐỊNH
     @GetMapping("/active")
@@ -169,6 +173,26 @@ public class HackathonController {
         return ResponseEntity.ok(ApiResponse.ok(
                 competitionScheduleAdjustService.adjust(
                         id, request.getNewPrelimExamAt(), request.getOverrides())));
+    }
+
+    @PostMapping("/{id}/registration/extension/preview")
+    @CoordinatorOnly
+    @Operation(summary = "Xem trước dời hạn đăng ký (gap WS/KO/SL + giới hạn số lần)")
+    public ResponseEntity<ApiResponse<RegistrationExtensionPreviewResponse>> previewRegistrationExtension(
+            @PathVariable Integer id,
+            @Valid @RequestBody RegistrationExtensionRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                hackathonRegistrationExtensionService.preview(id, request.getNewRegistrationEnd())));
+    }
+
+    @PostMapping("/{id}/registration/extension")
+    @CoordinatorOnly
+    @Operation(summary = "Dời hạn đăng ký (+ tùy chọn cascade lịch thi) + broadcast stakeholder")
+    public ResponseEntity<ApiResponse<RegistrationExtensionPreviewResponse>> extendRegistration(
+            @PathVariable Integer id,
+            @Valid @RequestBody RegistrationExtensionRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                hackathonRegistrationExtensionService.extend(id, request)));
     }
 
     @PostMapping(value = "/{id}/banner", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

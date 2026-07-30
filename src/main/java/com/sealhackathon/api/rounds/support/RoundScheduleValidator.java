@@ -22,7 +22,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class RoundScheduleValidator {
 
-    private static final int MIN_DAYS_FROM_REG_END_TO_PRELIM_EXAM = 5;
+    /** Gap tối thiểu ĐK → ngày thi Sơ loại khi tạo/cập nhật vòng (khác DAYS_REG_END_TO_EVENT_START=3 dùng cho RESCHEDULE). */
+    public static final int MIN_DAYS_FROM_REG_END_TO_PRELIM_EXAM = 5;
 
     private final HackathonTimelineService hackathonTimelineService;
     private final RoundRepository roundRepository;

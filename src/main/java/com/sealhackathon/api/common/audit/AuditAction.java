@@ -18,6 +18,7 @@ public final class AuditAction {
     public static final String HACKATHON_STATUS_CHANGE  = "HACKATHON_STATUS_CHANGE";
     public static final String HACKATHON_READINESS_CHECK = "HACKATHON_READINESS_CHECK";
     public static final String HACKATHON_REGISTRATION_CLOSED_EARLY = "HACKATHON_REGISTRATION_CLOSED_EARLY";
+    public static final String HACKATHON_REGISTRATION_EXTENDED = "HACKATHON_REGISTRATION_EXTENDED";
 
     // ---------- FR-02 TRACK ----------
     public static final String TRACK_CREATE             = "TRACK_CREATE";

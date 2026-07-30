@@ -57,6 +57,15 @@ public class Hackathon {
     @Column(name = "registration_closed_early_at")
     private LocalDateTime registrationClosedEarlyAt;
 
+    /** Số lần đã dời hạn đăng ký (tối đa app.hackathon.max-registration-extensions). */
+    @Builder.Default
+    @Column(name = "registration_extension_count", nullable = false)
+    private Integer registrationExtensionCount = 0;
+
+    /** Thời điểm dời hạn đăng ký gần nhất. */
+    @Column(name = "registration_extended_at")
+    private LocalDateTime registrationExtendedAt;
+
     /**
      * Đã dời lịch thi (SL + cascade WS/KO/CK/Awards) đúng 1 lần.
      * Null = chưa dời; set khi close-reg-early kèm lịch hoặc adjust riêng.
