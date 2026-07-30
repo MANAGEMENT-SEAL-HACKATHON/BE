@@ -45,4 +45,6 @@ public interface HackathonRepository extends JpaRepository<Hackathon, Integer> {
 
     /** DRAFT hackathons that have not yet received the coordinator setup reminder. */
     java.util.List<Hackathon> findByStatusAndDraftReminderSentAtIsNull(HackathonStatus status);
+
+    java.util.List<Hackathon> findByStatus(HackathonStatus status);
 }

@@ -8,11 +8,21 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface PrizeRepository extends JpaRepository<Prize, Integer> {
 
     List<Prize> findByRound_Hackathon_IdOrderByAwardedAtDesc(Integer hackathonId);
+
+    @Query("""
+            SELECT p FROM Prize p
+             WHERE p.round.hackathon.id = :hackathonId
+               AND p.prizeRank = :prizeRank
+            """)
+    Optional<Prize> findByHackathonIdAndPrizeRank(
+            @Param("hackathonId") Integer hackathonId,
+            @Param("prizeRank") PrizeRank prizeRank);
 
     boolean existsByRound_IdAndTeam_Id(Integer roundId, Integer teamId);
 

@@ -43,6 +43,9 @@ public class JwtSecurityConfig {
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/rounds/*/scoreboard").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/hackathons/*/banner").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/public/hall-of-fame").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/public/articles").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/public/articles/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
