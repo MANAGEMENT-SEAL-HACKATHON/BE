@@ -124,6 +124,16 @@ public class HackathonController {
         return ResponseEntity.ok(ApiResponse.ok(hackathonService.update(id, req)));
     }
 
+    @PatchMapping("/{id}/appeal-window-minutes")
+    @CoordinatorOnly
+    @Operation(summary = "Sửa thời gian cửa sổ khiếu nại (DRAFT hoặc ONGOING trước khi sơ loại công bố)")
+    public ResponseEntity<ApiResponse<HackathonResponse>> updateAppealWindowMinutes(
+            @PathVariable Integer id,
+            @Valid @RequestBody com.sealhackathon.api.hackathons.dto.request.UpdateAppealWindowMinutesRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                hackathonService.updateAppealWindowMinutes(id, req.getAppealWindowMinutes())));
+    }
+
     @DeleteMapping("/{id}")
     @CoordinatorOnly // GẮN BẢO VỆ
     @Operation(summary = "Xóa hackathon", description = "Chỉ coordinator mới có quyền thực hiện hành động này.")

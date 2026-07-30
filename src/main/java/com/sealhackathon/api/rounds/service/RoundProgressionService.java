@@ -37,6 +37,12 @@ public interface RoundProgressionService {
 
     RoundSummaryResponse publish(Integer roundId);
 
+    /**
+     * Publish with optional late-window mode body. Null / empty body = happy path when window fits.
+     */
+    RoundSummaryResponse publish(Integer roundId,
+                                 com.sealhackathon.api.appeals.dto.request.PublishWithAppealWindowRequest request);
+
     RoundScoringProgressResponse scoringProgress(Integer roundId);
 
     List<RoundRankingItemResponse> ranking(Integer roundId);

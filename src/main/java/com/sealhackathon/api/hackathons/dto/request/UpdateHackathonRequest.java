@@ -66,4 +66,7 @@ public class UpdateHackathonRequest {
 
     @Min(value = 1, message = "Số lượng người đăng ký tối đa phải lớn hơn 0")
     private Integer maxParticipants;
+
+    @Min(value = 0, message = "Thời gian khiếu nại phải >= 0")
+    private Integer appealWindowMinutes;
 }

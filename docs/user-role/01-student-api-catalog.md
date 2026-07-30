@@ -9,6 +9,7 @@
 | U-07 | POST | `/teams` |
 | U-08..13 | POST/PATCH | `/teams/{id}/invite`, `/members`, … |
 | U-18 | POST | `/submissions` |
+| U-30 | POST/GET | `/me/appeals`, `/me/appeals/evidence` |
 | U-01..04 | — | `/auth/*`, `/users/me` |
 
 ## Portal mới (`/api/v1/me/*`)
@@ -85,7 +86,23 @@ Danh sách bài nộp theo đội (cùng schema như trên, mảng).
 }
 ```
 
+### POST `/me/appeals/evidence` (Phase 10)
+
+Upload minh chứng trước khi tạo đơn. **multipart/form-data** field `file`.
+
+**Response `data`:**
+
+```json
+{
+  "storageKey": "appeals/u12/….png",
+  "contentType": "image/png",
+  "sizeBytes": 204800
+}
+```
+
 ### POST `/me/appeals`
+
+Leader only · đội manual DQ (`ELIMINATED` + `eliminationReason`) · trong cửa sổ `appeal_window_ends_at` · ≥1 evidence · unique `(teamId, roundId)`.
 
 **Request:**
 
@@ -93,23 +110,60 @@ Danh sách bài nộp theo đội (cùng schema như trên, mảng).
 {
   "teamId": 10,
   "roundId": 5,
-  "reason": "...",
-  "evidenceUrl": "https://..."
+  "reason": "DQ không đúng quy trình…",
+  "evidences": [
+    {
+      "url": "appeals/u12/….png",
+      "type": "IMAGE",
+      "caption": "Ảnh biên bản",
+      "displayOrder": 0
+    },
+    {
+      "url": "https://drive.example/clip",
+      "type": "LINK",
+      "displayOrder": 1
+    }
+  ]
 }
 ```
+
+`evidenceUrl` (legacy single URL) vẫn được chấp nhận nếu `evidences` trống — hệ thống suy ra `type` và lưu vào `appeal_evidences`.
 
 **Response `data`:**
 
 ```json
 {
-  "id": null,
+  "id": 1,
   "teamId": 10,
+  "teamName": "Team Alpha",
   "roundId": 5,
-  "reason": "...",
-  "evidenceUrl": "https://...",
-  "status": "PENDING"
+  "roundName": "Sơ loại",
+  "reason": "DQ không đúng quy trình…",
+  "evidenceUrl": "appeals/u12/….png",
+  "evidences": [
+    {
+      "id": 1,
+      "url": "appeals/u12/….png",
+      "type": "IMAGE",
+      "caption": "Ảnh biên bản",
+      "displayOrder": 0
+    }
+  ],
+  "status": "PENDING",
+  "decisionNote": null,
+  "reviewedById": null,
+  "reviewedAt": null,
+  "createdAt": "2026-07-31T10:00:00",
+  "updatedAt": "2026-07-31T10:00:00",
+  "version": 0
 }
 ```
+
+`status` ∈ `PENDING` | `UNDER_REVIEW` | `APPROVED` | `REJECTED` | `EXPIRED`.
+
+### GET `/me/appeals`
+
+Danh sách đơn khiếu nại của các đội mà user đang là thành viên ACCEPTED (mới nhất trước). Schema phần tử giống response `POST /me/appeals`.
 
 ### GET `/me/annual-awards?year=2025` (FR-U-32)
 

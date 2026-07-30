@@ -103,9 +103,12 @@ public class RoundProgressionController {
     @PatchMapping("/{id}/publish")
     @CoordinatorOnly
     @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
-    @Operation(summary = "FR-24 — Công bố kết quả Sơ loại")
-    public ResponseEntity<ApiResponse<RoundSummaryResponse>> publish(@PathVariable Integer id) {
-        return ResponseEntity.ok(ApiResponse.ok(progressionService.publish(id)));
+    @Operation(summary = "FR-24 — Công bố kết quả Sơ loại (body tuỳ chọn khi công bố muộn)")
+    public ResponseEntity<ApiResponse<RoundSummaryResponse>> publish(
+            @PathVariable Integer id,
+            @RequestBody(required = false)
+            com.sealhackathon.api.appeals.dto.request.PublishWithAppealWindowRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(progressionService.publish(id, request)));
     }
 
     @GetMapping("/{id}/scoring-progress")

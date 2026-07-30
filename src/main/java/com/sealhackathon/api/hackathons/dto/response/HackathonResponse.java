@@ -43,6 +43,7 @@ public class HackathonResponse {
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;
     private final Integer maxParticipants;
+    private final Integer appealWindowMinutes;
     private final Integer clonedFromHackathonId;
     private final String clonedFromHackathonName;
     private final LocalDateTime clonedAt;

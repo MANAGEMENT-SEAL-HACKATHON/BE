@@ -30,7 +30,7 @@ Catalog thống nhất các business rules đang được enforce trong backend,
 
 | Metric | Giá trị |
 |--------|--------:|
-| Tổng rules | 527 |
+| Tổng rules | 531 |
 | Modules | 34 |
 | ErrorCode constants | 235 |
 | ErrorCode xuất hiện trong catalog | 202 |
@@ -57,7 +57,7 @@ Catalog thống nhất các business rules đang được enforce trong backend,
 - [Score](#score) (13)
 - [RoundProgression](#roundprogression) (46)
 - [Presentation](#presentation) (27)
-- [Appeal](#appeal) (4)
+- [Appeal](#appeal) (8)
 - [Calibration](#calibration) (4)
 - [JudgePortal](#judgeportal) (5)
 - [StudentPortal](#studentportal) (1)
@@ -598,12 +598,18 @@ Catalog thống nhất các business rules đang được enforce trong backend,
 
 ## Appeal
 
+> **Phase 10 — DQ appeal window** (cửa sổ nghỉ sau công bố sơ loại). Cũ: deadline 24h từ `eliminatedAt` — **đã thay** bằng `rounds.appeal_window_ends_at` mở one-shot lúc first publish.
+
 | Rule ID | Related Req ID | Module | Rule Type | Business Rule Statement | Condition / Trigger | System Action / Expected Result | Exception / Error Message | Test Case / Example Data | Status | Evidence Link / Note |
 |---------|-----------------|--------|-----------|-------------------------|---------------------|---------------------------------|---------------------------|--------------------------|--------|----------------------|
-| BR-APPEAL-001 | N/A | Appeal | Authorization | Chỉ team leader gửi khiếu nại | Không phải leader | 403 | FORBIDDEN/NOT_TEAM_MEMBER | Member gửi appeal | Implemented | appeals/service/impl/AppealServiceImpl.java;me/support/StudentAccessGuard.java |
-| BR-APPEAL-002 | N/A | Appeal | Validation | Chỉ đội TeamStatus.ELIMINATED (loại thủ công) được appeal | team≠ELIMINATED | Từ chối | INVALID_STATE | Appeal đội ACTIVE | Implemented | AppealServiceImpl.java |
-| BR-APPEAL-003 | N/A | Appeal | Validation | Trong 24h kể từ eliminatedAt | now&gt;eliminatedAt+24h hoặc null | Từ chối | APPEAL_DEADLINE_EXPIRED\|INVALID_STATE | Appeal sau 25h | Implemented | AppealServiceImpl.java |
-| BR-APPEAL-004 | N/A | Appeal | Invariant | Mỗi đội mỗi round 1 appeal | exists team+round | 409 Conflict | INVALID_STATE | Appeal 2 lần cùng round | Implemented | AppealServiceImpl.java |
+| BR-APPEAL-001 | FR-U-30 | Appeal | Policy | `appealWindowMinutes` cấu hình được: default **30**, min **10** (hoặc 0 — xem BR-APPEAL-008); sửa qua `PATCH /hackathons/{id}/appeal-window-minutes` khi DRAFT/ONGOING và **trước** prelim publish | Status≠DRAFT\|ONGOING, hoặc prelim đã `isPublished`, hoặc 1..9 phút | Từ chối | APPEAL_WINDOW_LOCKED_AFTER_PUBLISH\|APPEAL_WINDOW_BELOW_MINIMUM\|INVALID_STATE | Sửa sau publish SL | Implemented | hackathons/service/impl/HackathonServiceImpl#updateAppealWindowMinutes;HackathonController |
+| BR-APPEAL-002 | FR-U-30 | Appeal | Lifecycle | Cửa sổ mở **chỉ lần first prelim publish**; `appeal_window_ends_at` one-shot — **không** reset khi republish / publish lại | `appealWindowEndsAt` đã set | `openOnFirstPublish` no-op; republish chỉ tăng `publish_revision` + `results_revised_at` | N/A | Republish sau approve | Implemented | appeals/service/impl/AppealWindowServiceImpl#openOnFirstPublish;#republish;RoundProgressionServiceImpl#publish |
+| BR-APPEAL-003 | FR-U-30 | Appeal | Gate | Late publish khi remaining &lt; configured: bắt chọn mode **DELAY_FINAL** / **SHRINK** / **SKIP**; **SHRINK** bị chặn nếu remaining &lt; 10 phút; SKIP bắt buộc `skipReason` | `!fits` && mode null / SHRINK&lt;10 / SKIP thiếu lý do | Preflight liệt kê mode; publish áp dụng mode | APPEAL_WINDOW_DOES_NOT_FIT\|APPEAL_WINDOW_BELOW_MINIMUM\|APPEAL_WINDOW_SKIP_REASON_REQUIRED | Publish sát giờ CK | Implemented | AppealWindowServiceImpl#preflight;#openOnFirstPublish;PublishWithAppealWindowRequest |
+| BR-APPEAL-004 | FR-U-30 | Appeal | Validation | Submit: **leader only**; chỉ đội **manual DQ** (`ELIMINATED` + có `eliminationReason`); **≥1 evidence**; trong cửa sổ; unique `(team_id, round_id)` | Member / ACTIVE / hết cửa sổ / trùng / thiếu evidence | Tạo PENDING + evidences | FORBIDDEN\|INVALID_STATE\|APPEAL_WINDOW_NOT_OPEN\|APPEAL_DEADLINE_EXPIRED\|APPEAL_EVIDENCE_REQUIRED\|APPEAL_ALREADY_SUBMITTED | Member appeal; hết hạn | Implemented | appeals/service/impl/AppealServiceImpl#create;me/support/StudentAccessGuard |
+| BR-APPEAL-005 | FR-U-30 | Appeal | Gate | Advance bị chặn khi còn appeal **PENDING** hoặc **UNDER_REVIEW**; sau cửa sổ đóng, open → **EXPIRED** rồi advance được | `exists PENDING\|UNDER_REVIEW` sau expire | 422 block advance; EXPIRED không chặn | APPEAL_PENDING_BLOCKS_ADVANCE | Advance còn PENDING | Implemented | RoundProgressionServiceImpl#advanceTeams;AppealWindowServiceImpl#expireOpenAppealsForRound |
+| BR-APPEAL-006 | FR-U-30 | Appeal | StateTransition | **Approve** phục hồi đội (ACTIVE, clear DQ) **chỉ pre-advance**; **Reject** bắt buộc `decisionNote` | Approve sau ADVANCED / Reject thiếu note | Reinstate hoặc REJECTED | APPEAL_APPROVE_AFTER_ADVANCE\|APPEAL_DECISION_NOTE_REQUIRED\|APPEAL_NOT_PENDING | Approve sau chốt CK | Implemented | AppealReviewServiceImpl#review;teams/service/impl/TeamReinstatementServiceImpl |
+| BR-APPEAL-007 | FR-U-30 | Appeal | Policy | T-5 / DELAY_FINAL dời CK dùng ngân sách chung **`appeal_delay_minutes_applied` cap 30**; `allowEarlyExamAt` — **không** đổi MIN/MAX gap hours timeline | `applied + minutes &gt; 30` | Từ chối hoặc dời `examAt` + cộng budget | APPEAL_DELAY_LIMIT_EXCEEDED\|APPEAL_DELAY_NOT_APPLICABLE | Delay lần 2 vượt 30 | Implemented | rounds/support/RoundScheduleShiftService#delayFinalForAppeals;AppealWindowServiceImpl#applyDelay |
+| BR-APPEAL-008 | FR-U-30 | Appeal | Policy | `appealWindowMinutes=0` = **emergency off**: không mở cửa sổ khi publish (GĐ4 như không có appeal) | configured ≤ 0 | `openOnFirstPublish` return sớm; preflight `fits=true` | N/A | Set 0 trước publish | Implemented | AppealWindowServiceImpl#openOnFirstPublish;#preflight;HackathonServiceImpl#validateAppealWindowMinutes |
 
 ## Calibration
 
@@ -821,11 +827,11 @@ Catalog thống nhất các business rules đang được enforce trong backend,
 
 _Không có (hoặc đã cover qua rule khác)._
 
-### A.3 Mã trong catalog không phải constant `ErrorCode` (2)
+### A.3 Mã trong catalog không phải constant `ErrorCode` (1)
 
-`APPEAL_DEADLINE_EXPIRED`, `RESULT_NOT_AVAILABLE`
+`RESULT_NOT_AVAILABLE`
 
-_Thường là string literal runtime (vd. `APPEAL_DEADLINE_EXPIRED`, `RESULT_NOT_AVAILABLE`, warning codes)._
+_Thường là string literal runtime / warning codes._
 
 ## Appendix B — FR collisions & doc drift
 
@@ -857,6 +863,7 @@ _Thường là string literal runtime (vd. `APPEAL_DEADLINE_EXPIRED`, `RESULT_NO
 | Team / Lottery / Lock | `teams.service.impl.*` / `HackathonLotteryServiceImpl` |
 | Submission / Score | `submissions.*` / `scores.*` |
 | Presentation | `presentation.service.impl.*` |
+| Appeal | `appeals.service.impl.*` + `rounds.support.RoundScheduleShiftService#delayFinalForAppeals` + `teams.service.impl.TeamReinstatementServiceImpl` |
 | Closure / Prize / Ranking / Export | `HackathonClosureServiceImpl` / `prizes` / rankings / `export_jobs` |
 | RBL / Calibration | `rbl.service` / `rbl.calibration` |
 | Portals | `me.student` / `me.judge` / `me.mentor` |

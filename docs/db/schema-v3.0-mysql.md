@@ -27,6 +27,18 @@
 | **BC-10** | ~~`wildcard_reviews`~~ | **Removed (Phase 9)** — bảng `wildcard_reviews` / `wildcard_override_history` / `certificates` và cột `wildcard_enabled` / `wildcard_proposal_confirmed_at` đã xóa. Advance = Top-N only. |
 | **BC-11** | Triggers | 3 trigger DB-layer mới: `fn_check_mentor_judge_conflict`, `fn_check_judge_mentor_conflict`, `fn_prevent_track_in_final_round` + các trigger guard mới (`fn_check_submission_round_is_final`, `fn_check_criteria_round_is_final`, `fn_check_team_track_same_hackathon`). |
 
+### Phase 10 addendum — DQ appeal window (2026-07-31)
+
+Additive (không đảo FK). Manual SQL: `src/main/resources/db/manual/V20260731_appeal_dq_window.sql`.
+
+| Bảng / enum | Thay đổi |
+|-------------|----------|
+| `hackathons` | + `appeal_window_minutes INT NOT NULL DEFAULT 30` (0 = feature off; min runtime 10 khi &gt; 0) |
+| `rounds` | + `appeal_window_ends_at`, `results_revised_at`, `publish_revision`, `appeal_delay_minutes_applied` |
+| `appeals` | + `reviewed_by`, `reviewed_at`, `decision_note`, `updated_at`, `version`; UNIQUE `(team_id, round_id)` |
+| `appeal_evidences` | **Bảng mới** — minh chứng đính kèm appeal |
+| `AppealStatus` | + `EXPIRED` (cùng `PENDING`, `UNDER_REVIEW`, `APPROVED`, `REJECTED`) |
+
 ---
 
 ## 1. Mapping PostgreSQL → MySQL (Cheat Sheet)
@@ -80,7 +92,7 @@ CREATE TABLE submissions (
 
 ---
 
-## 2. DDL — Toàn bộ 27 bảng
+## 2. DDL — Toàn bộ 29 bảng (+ Phase 10 appeals)
 
 ```sql
 -- ============================================================
@@ -190,6 +202,8 @@ CREATE TABLE hackathons (
     event_end                  DATE,
     individual_ranking_enabled BOOLEAN      NOT NULL DEFAULT FALSE,
     chapter_scoring_formula    TEXT,
+    -- Phase 10: DQ appeal window length (minutes). Default 30; 0 = emergency off; app min 10 when > 0.
+    appeal_window_minutes      INT          NOT NULL DEFAULT 30,
     created_by                 INT,
     created_at                 DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at                 DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -222,6 +236,11 @@ CREATE TABLE rounds (
     scoring_locked_by       INT,
     force_locked            BOOLEAN      NOT NULL DEFAULT FALSE,
     force_lock_reason       TEXT,
+    -- Phase 10: DQ appeal window (set once on first prelim publish; republish must not reset ends_at)
+    appeal_window_ends_at          DATETIME     NULL,
+    results_revised_at             DATETIME     NULL,
+    publish_revision               INT          NOT NULL DEFAULT 1,
+    appeal_delay_minutes_applied   INT          NOT NULL DEFAULT 0,
     created_at              DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_rounds_hackathon_sequence (hackathon_id, sequence_order),
     CONSTRAINT chk_rounds_round_type    CHECK (round_type IN ('PRELIMINARY','SEMIFINAL','FINAL')),
@@ -333,6 +352,47 @@ CREATE TABLE team_round_tracks (
     CONSTRAINT fk_trt_team        FOREIGN KEY (team_id)     REFERENCES teams(id)  ON DELETE CASCADE,
     CONSTRAINT fk_trt_track       FOREIGN KEY (track_id)    REFERENCES tracks(id) ON DELETE CASCADE,
     CONSTRAINT fk_trt_assigned_by FOREIGN KEY (assigned_by) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- NHÓM 3b: DQ APPEALS (Phase 10)
+-- ============================================================
+
+-- appeals — khiếu nại DQ trong cửa sổ nghỉ sau công bố sơ loại
+CREATE TABLE appeals (
+    id             INT          NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    team_id        INT          NOT NULL,
+    round_id       INT          NOT NULL,
+    submitted_by   INT          NOT NULL,
+    reason         TEXT         NOT NULL,
+    evidence_url   TEXT,                              -- legacy single URL; prefer appeal_evidences
+    status         VARCHAR(30)  NOT NULL DEFAULT 'PENDING',
+    reviewed_by    INT          NULL,
+    reviewed_at    DATETIME     NULL,
+    decision_note  TEXT         NULL,
+    created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at     DATETIME     NULL,
+    version        INT          NOT NULL DEFAULT 0,   -- optimistic lock (@Version)
+    UNIQUE KEY uq_appeals_team_round (team_id, round_id),
+    CONSTRAINT chk_appeals_status CHECK (status IN (
+        'PENDING','UNDER_REVIEW','APPROVED','REJECTED','EXPIRED'
+    )),
+    CONSTRAINT fk_appeals_team         FOREIGN KEY (team_id)      REFERENCES teams(id),
+    CONSTRAINT fk_appeals_round        FOREIGN KEY (round_id)     REFERENCES rounds(id),
+    CONSTRAINT fk_appeals_submitted_by FOREIGN KEY (submitted_by) REFERENCES users(id),
+    CONSTRAINT fk_appeals_reviewed_by  FOREIGN KEY (reviewed_by)  REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- appeal_evidences — minh chứng đính kèm (IMAGE | VIDEO | LINK)
+CREATE TABLE appeal_evidences (
+    id            INT          NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    appeal_id     INT          NOT NULL,
+    url           TEXT         NOT NULL,
+    type          VARCHAR(20)  NOT NULL,
+    caption       VARCHAR(500) NULL,
+    display_order INT          NOT NULL DEFAULT 0,
+    CONSTRAINT chk_appeal_evidence_type CHECK (type IN ('IMAGE','VIDEO','LINK')),
+    CONSTRAINT fk_appeal_evidences_appeal FOREIGN KEY (appeal_id) REFERENCES appeals(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
@@ -633,6 +693,7 @@ CREATE INDEX idx_rounds_hackathon ON rounds(hackathon_id);
 CREATE INDEX idx_rounds_active    ON rounds(is_active);
 CREATE INDEX idx_rounds_final     ON rounds(is_final);
 CREATE INDEX idx_rounds_type      ON rounds(round_type);
+CREATE INDEX idx_rounds_appeal_window_ends ON rounds(appeal_window_ends_at);
 -- Mỗi hackathon đúng 1 round FINAL — mô phỏng partial unique
 ALTER TABLE rounds
   ADD COLUMN final_uk INT GENERATED ALWAYS AS (CASE WHEN is_final = TRUE THEN hackathon_id END) VIRTUAL,
@@ -656,6 +717,11 @@ CREATE INDEX idx_teams_hackathon   ON teams(hackathon_id);
 CREATE INDEX idx_teams_status      ON teams(status);
 CREATE INDEX idx_teams_leader      ON teams(leader_id);
 CREATE INDEX idx_teams_locked      ON teams(is_locked);
+
+-- Appeals (Phase 10)
+CREATE INDEX idx_appeals_round_status ON appeals(round_id, status);
+CREATE INDEX idx_appeals_team         ON appeals(team_id);
+CREATE INDEX idx_appeal_evidences_appeal ON appeal_evidences(appeal_id);
 CREATE INDEX idx_team_members_user ON team_members(user_id);
 
 -- Submissions — [BC-06]
@@ -1399,6 +1465,13 @@ Event.java       :: enum EventType bỏ TEAM_MEETING (BC-09)
 User.java        :: thêm isDeptHead (FIX-02)
 Team.java        :: bỏ 3 cột registration/assigned, thêm hackathonId (BC-05) — entity mới
 TeamRoundTrack.java :: entity mới (BC-04)
+
+-- Phase 10 (DQ appeal window)
+Hackathon.java   :: + appealWindowMinutes (default 30)
+Round.java       :: + appealWindowEndsAt, resultsRevisedAt, publishRevision, appealDelayMinutesApplied
+Appeal.java      :: + reviewedBy, reviewedAt, decisionNote, updatedAt, version; UNIQUE (team, round)
+AppealEvidence.java :: entity mới (appeal_evidences)
+AppealStatus     :: + EXPIRED
 ```
 
 ---

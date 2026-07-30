@@ -960,6 +960,19 @@ public class StudentPortalServiceImpl implements StudentPortalService {
         return appealService.create(request);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.List<AppealResponse> listMyAppeals() {
+        return appealService.listMine();
+    }
+
+    @Override
+    @Transactional
+    public com.sealhackathon.api.appeals.dto.response.AppealEvidenceUploadResponse uploadAppealEvidence(
+            org.springframework.web.multipart.MultipartFile file) {
+        return appealService.uploadEvidence(file);
+    }
+
     // =================================================================================
     // HELPER METHODS
     // =================================================================================

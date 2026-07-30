@@ -61,6 +61,8 @@ class RoundProgressionServiceImplCloseSubmissionEarlyTest {
     @Mock private com.sealhackathon.api.teams.repository.TeamMemberRepository teamMemberRepository;
     @Mock private com.sealhackathon.api.submissions.repository.SubmissionRepository submissionRepository;
     @Mock private com.sealhackathon.api.rounds.service.RoundLockScoringService roundLockScoringService;
+    @Mock private com.sealhackathon.api.appeals.service.AppealWindowService appealWindowService;
+    @Mock private com.sealhackathon.api.appeals.repository.AppealRepository appealRepository;
 
     @InjectMocks
     private RoundProgressionServiceImpl service;

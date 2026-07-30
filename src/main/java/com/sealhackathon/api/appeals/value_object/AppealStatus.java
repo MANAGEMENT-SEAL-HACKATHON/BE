@@ -4,5 +4,6 @@ public enum AppealStatus {
     PENDING,
     UNDER_REVIEW,
     APPROVED,
-    REJECTED
+    REJECTED,
+    EXPIRED
 }

@@ -121,6 +121,8 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
     private final com.sealhackathon.api.announcements.service.AnnouncementService announcementService;
     private final com.sealhackathon.api.live_scoring.PresentationQueuePublisher presentationQueuePublisher;
     private final RoundLockScoringService roundLockScoringService;
+    private final com.sealhackathon.api.appeals.service.AppealWindowService appealWindowService;
+    private final com.sealhackathon.api.appeals.repository.AppealRepository appealRepository;
 
     private static final int ADVANCE_ROSTER_DEFAULT_PAGE_SIZE = 50;
 
@@ -278,6 +280,12 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
 
     @Override
     public RoundSummaryResponse publish(Integer roundId) {
+        return publish(roundId, null);
+    }
+
+    @Override
+    public RoundSummaryResponse publish(Integer roundId,
+                                        com.sealhackathon.api.appeals.dto.request.PublishWithAppealWindowRequest request) {
         Round round = roundAccessGuard.requireRound(roundId);
         if (Boolean.TRUE.equals(round.getIsFinal())) {
             throw new BusinessRuleException(ErrorCode.INVALID_STATE,
@@ -294,10 +302,18 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         }
 
         User publisher = userRepository.findById(currentUserAccessor.currentUserId()).orElseThrow();
+        LocalDateTime publishedAt = LocalDateTime.now();
         round.setIsPublished(true);
-        round.setPublishedAt(LocalDateTime.now());
+        round.setPublishedAt(publishedAt);
         round.setPublishedBy(publisher);
+        if (round.getPublishRevision() == null || round.getPublishRevision() < 1) {
+            round.setPublishRevision(1);
+        }
         Round saved = roundRepository.save(round);
+
+        // Open appeal window (one-shot); may delay final / shrink / skip when late
+        appealWindowService.openOnFirstPublish(saved, request, publishedAt);
+        saved = roundRepository.findById(roundId).orElse(saved);
 
         auditService.log(AuditAction.ROUND_PUBLISH, "rounds", roundId,
                 java.util.Map.of("hackathonId", round.getHackathon().getId()));
@@ -719,6 +735,21 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
     public AdvanceTeamsResponse advanceTeams(Integer roundId, AdvanceTeamsRequest req) {
         Round round = requirePreliminaryRoundForProgression(roundId);
         requireScoringLockedAndPublished(round);
+
+        // Lazy-expire pending appeals if window closed, then block if any still open
+        appealWindowService.expireOpenAppealsForRound(roundId);
+        if (appealRepository.existsByRound_IdAndStatusIn(roundId,
+                java.util.EnumSet.of(
+                        com.sealhackathon.api.appeals.value_object.AppealStatus.PENDING,
+                        com.sealhackathon.api.appeals.value_object.AppealStatus.UNDER_REVIEW))) {
+            long pending = appealRepository.countByRound_IdAndStatus(roundId,
+                    com.sealhackathon.api.appeals.value_object.AppealStatus.PENDING);
+            long underReview = appealRepository.countByRound_IdAndStatus(roundId,
+                    com.sealhackathon.api.appeals.value_object.AppealStatus.UNDER_REVIEW);
+            throw new BusinessRuleException(ErrorCode.APPEAL_PENDING_BLOCKS_ADVANCE,
+                    "Còn đơn khiếu nại chưa xử lý — không thể chốt chuyển vòng",
+                    java.util.Map.of("pendingCount", pending, "underReviewCount", underReview));
+        }
 
         autoApplyResolvableTiebreaks(roundId);
 

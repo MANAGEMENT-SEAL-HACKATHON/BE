@@ -319,4 +319,22 @@ public final class ErrorCode {
     // ---------- KITS ----------
     public static final String KIT_OUT_OF_STOCK                             = "KIT_OUT_OF_STOCK";
     public static final String KIT_ALREADY_ISSUED                           = "KIT_ALREADY_ISSUED";
+
+    // ---------- APPEALS (GĐ4 DQ) ----------
+    public static final String APPEAL_WINDOW_NOT_OPEN                       = "APPEAL_WINDOW_NOT_OPEN";
+    public static final String APPEAL_WINDOW_CLOSED                         = "APPEAL_WINDOW_CLOSED";
+    public static final String APPEAL_DEADLINE_EXPIRED                      = "APPEAL_DEADLINE_EXPIRED";
+    public static final String APPEAL_ALREADY_SUBMITTED                     = "APPEAL_ALREADY_SUBMITTED";
+    public static final String APPEAL_EVIDENCE_REQUIRED                     = "APPEAL_EVIDENCE_REQUIRED";
+    public static final String APPEAL_NOT_PENDING                           = "APPEAL_NOT_PENDING";
+    public static final String APPEAL_PENDING_BLOCKS_ADVANCE                = "APPEAL_PENDING_BLOCKS_ADVANCE";
+    public static final String APPEAL_APPROVE_AFTER_ADVANCE                 = "APPEAL_APPROVE_AFTER_ADVANCE";
+    public static final String APPEAL_DECISION_NOTE_REQUIRED                = "APPEAL_DECISION_NOTE_REQUIRED";
+    public static final String APPEAL_WINDOW_HAS_PENDING                    = "APPEAL_WINDOW_HAS_PENDING";
+    public static final String APPEAL_DELAY_LIMIT_EXCEEDED                  = "APPEAL_DELAY_LIMIT_EXCEEDED";
+    public static final String APPEAL_DELAY_NOT_APPLICABLE                  = "APPEAL_DELAY_NOT_APPLICABLE";
+    public static final String APPEAL_WINDOW_DOES_NOT_FIT                   = "APPEAL_WINDOW_DOES_NOT_FIT";
+    public static final String APPEAL_WINDOW_BELOW_MINIMUM                  = "APPEAL_WINDOW_BELOW_MINIMUM";
+    public static final String APPEAL_WINDOW_SKIP_REASON_REQUIRED           = "APPEAL_WINDOW_SKIP_REASON_REQUIRED";
+    public static final String APPEAL_WINDOW_LOCKED_AFTER_PUBLISH           = "APPEAL_WINDOW_LOCKED_AFTER_PUBLISH";
 }

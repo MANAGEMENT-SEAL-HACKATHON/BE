@@ -52,6 +52,11 @@ public interface StudentPortalService {
 
     AppealResponse createAppeal(CreateAppealRequest request);
 
+    java.util.List<AppealResponse> listMyAppeals();
+
+    com.sealhackathon.api.appeals.dto.response.AppealEvidenceUploadResponse uploadAppealEvidence(
+            org.springframework.web.multipart.MultipartFile file);
+
     StudentHistoryResponse getHistory();
 
     List<AnnualAwardResponse> getAnnualAwards(Integer year);

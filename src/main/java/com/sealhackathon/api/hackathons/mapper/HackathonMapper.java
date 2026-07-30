@@ -28,6 +28,7 @@ public class HackathonMapper {
                 .individualRankingEnabled(req.getIndividualRankingEnabled() != null && req.getIndividualRankingEnabled())
                 .chapterScoringFormula(req.getChapterScoringFormula())
                 .maxParticipants(req.getMaxParticipants())
+                .appealWindowMinutes(resolveAppealWindowMinutes(req.getAppealWindowMinutes()))
                 .build();
     }
 
@@ -48,6 +49,9 @@ public class HackathonMapper {
         entity.setChapterScoringFormula(req.getChapterScoringFormula());
         if (req.getMaxParticipants() != null) {
             entity.setMaxParticipants(req.getMaxParticipants());
+        }
+        if (req.getAppealWindowMinutes() != null) {
+            entity.setAppealWindowMinutes(resolveAppealWindowMinutes(req.getAppealWindowMinutes()));
         }
     }
 
@@ -79,10 +83,19 @@ public class HackathonMapper {
                 .createdAt(e.getCreatedAt())
                 .updatedAt(e.getUpdatedAt())
                 .maxParticipants(e.getMaxParticipants())
+                .appealWindowMinutes(e.getAppealWindowMinutes() != null ? e.getAppealWindowMinutes() : 30)
                 .clonedFromHackathonId(e.getClonedFromHackathon() == null ? null : e.getClonedFromHackathon().getId())
                 .clonedFromHackathonName(e.getClonedFromHackathon() == null ? null : e.getClonedFromHackathon().getName())
                 .clonedAt(e.getClonedAt())
                 .build();
+    }
+
+    /** 0 disables; otherwise clamp to default 30 when null; min 10 enforced in service when non-zero. */
+    static Integer resolveAppealWindowMinutes(Integer requested) {
+        if (requested == null) {
+            return 30;
+        }
+        return requested;
     }
 
     public HackathonSummaryResponse toSummary(Hackathon e) {

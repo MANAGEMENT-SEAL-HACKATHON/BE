@@ -181,6 +181,27 @@ public class Round {
     @JoinColumn(name = "published_by")
     private User publishedBy;
 
+    /** One-shot appeal window end — set on first publish; republish must not reset. */
+    @Column(name = "appeal_window_ends_at")
+    private LocalDateTime appealWindowEndsAt;
+
+    /** Last results republish after appeal approve. */
+    @Column(name = "results_revised_at")
+    private LocalDateTime resultsRevisedAt;
+
+    /** Publish / republish counter (starts at 1 on first publish). */
+    @Builder.Default
+    @Column(name = "publish_revision", nullable = false)
+    private Integer publishRevision = 1;
+
+    /**
+     * Cumulative minutes final exam was delayed for appeals (publish DELAY_FINAL + T-5).
+     * Hard cap 30 across both paths.
+     */
+    @Builder.Default
+    @Column(name = "appeal_delay_minutes_applied", nullable = false)
+    private Integer appealDelayMinutesApplied = 0;
+
     /** Set when the submission-deadline reminder (student + judge) was sent (idempotent scheduler). */
     @Column(name = "deadline_reminder_sent_at")
     private LocalDateTime deadlineReminderSentAt;

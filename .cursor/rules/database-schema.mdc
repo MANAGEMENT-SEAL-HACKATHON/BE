@@ -43,6 +43,18 @@ Hackathon
 - **BC-10** ~~`wildcard_reviews`~~: **Removed (Phase 9)** — không còn bảng/cột wildcard hay certificates.
 - **BC-11** Triggers DB-layer: 9 triggers chính ([5.1-5.9](mdc:docs/db/schema-v3.0-mysql.md)).
 
+### Phase 10 — DQ appeal window (additive)
+
+- `hackathons.appeal_window_minutes` INT NOT NULL DEFAULT 30 — cấu hình cửa sổ; `0` = tắt feature; app enforce min 10 khi &gt; 0.
+- `rounds.appeal_window_ends_at` DATETIME NULL — one-shot lúc first prelim publish; **không** reset khi republish.
+- `rounds.results_revised_at` DATETIME NULL — lần republish sau approve.
+- `rounds.publish_revision` INT NOT NULL DEFAULT 1 — đếm publish/republish.
+- `rounds.appeal_delay_minutes_applied` INT NOT NULL DEFAULT 0 — ngân sách dời CK (DELAY_FINAL + T-5), cap 30.
+- `appeals`: + `reviewed_by`, `reviewed_at`, `decision_note`, `updated_at`, `version`; UNIQUE `(team_id, round_id)`.
+- `appeal_evidences` — bảng mới (`url`, `type` ∈ IMAGE|VIDEO|LINK, `caption`, `display_order`).
+- `AppealStatus` + `EXPIRED` (cùng PENDING, UNDER_REVIEW, APPROVED, REJECTED).
+- Manual migrate: `src/main/resources/db/manual/V20260731_appeal_dq_window.sql`.
+
 ## 3. JPA convention bắt buộc
 
 ```java

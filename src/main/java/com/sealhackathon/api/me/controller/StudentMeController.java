@@ -57,9 +57,23 @@ public class StudentMeController {
     }
 
     @PostMapping("/appeals")
-    @Operation(summary = "FR-U-30 — Gửi khiếu nại")
+    @Operation(summary = "FR-U-30 — Gửi khiếu nại DQ")
     public ResponseEntity<ApiResponse<AppealResponse>> createAppeal(@Valid @RequestBody CreateAppealRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(studentPortalService.createAppeal(request)));
+    }
+
+    @GetMapping("/appeals")
+    @Operation(summary = "Danh sách đơn khiếu nại của các đội tôi thuộc")
+    public ResponseEntity<ApiResponse<List<AppealResponse>>> listMyAppeals() {
+        return ResponseEntity.ok(ApiResponse.ok(studentPortalService.listMyAppeals()));
+    }
+
+    @PostMapping(value = "/appeals/evidence", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Upload minh chứng khiếu nại (ảnh/video)")
+    public ResponseEntity<ApiResponse<com.sealhackathon.api.appeals.dto.response.AppealEvidenceUploadResponse>> uploadAppealEvidence(
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created(studentPortalService.uploadAppealEvidence(file)));
     }
 
     @GetMapping("/history")

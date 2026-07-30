@@ -17,6 +17,14 @@ public final class NotificationType {
     public static final String KIT_ISSUED = "KIT_ISSUED";
     public static final String HACKATHON_BROADCAST = "HACKATHON_BROADCAST";
 
+    public static final String APPEAL_WINDOW_OPENED = "APPEAL_WINDOW_OPENED";
+    public static final String APPEAL_WINDOW_SKIPPED = "APPEAL_WINDOW_SKIPPED";
+    public static final String APPEAL_SUBMITTED = "APPEAL_SUBMITTED";
+    public static final String APPEAL_APPROVED = "APPEAL_APPROVED";
+    public static final String APPEAL_REJECTED = "APPEAL_REJECTED";
+    public static final String APPEAL_EXPIRED = "APPEAL_EXPIRED";
+    public static final String RESULTS_REVISED = "RESULTS_REVISED";
+
     private NotificationType() {
     }
 }
