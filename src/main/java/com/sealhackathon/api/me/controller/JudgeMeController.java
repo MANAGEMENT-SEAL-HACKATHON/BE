@@ -3,11 +3,14 @@ package com.sealhackathon.api.me.controller;
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.JudgeOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
+import com.sealhackathon.api.me.dto.request.AssignmentDeclineRequest;
+import com.sealhackathon.api.me.dto.response.AssignmentResponseStatusResponse;
 import com.sealhackathon.api.me.judge.dto.request.JudgeScoreCommentRequest;
 import com.sealhackathon.api.me.judge.dto.request.JudgeScoringCompletionRequest;
 import com.sealhackathon.api.me.judge.dto.request.TiebreakVoteRequest;
 import com.sealhackathon.api.me.judge.dto.response.*;
 import com.sealhackathon.api.me.judge.service.JudgePortalService;
+import com.sealhackathon.api.me.service.AssignmentResponseService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -28,11 +31,29 @@ import java.util.List;
 public class JudgeMeController {
 
     private final JudgePortalService judgePortalService;
+    private final AssignmentResponseService assignmentResponseService;
 
     @GetMapping("/judge-track-assignments")
     @Operation(summary = "FR-J-05 — Phân công track")
     public ResponseEntity<ApiResponse<List<JudgeTrackAssignmentResponse>>> trackAssignments() {
         return ResponseEntity.ok(ApiResponse.ok(judgePortalService.listTrackAssignments()));
+    }
+
+    @PatchMapping("/judge/assignments/{id}/decline")
+    @Operation(summary = "Pha 6 — Giám khảo từ chối phân công")
+    public ResponseEntity<ApiResponse<AssignmentResponseStatusResponse>> declineAssignment(
+            @PathVariable Integer id,
+            @Valid @RequestBody AssignmentDeclineRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                assignmentResponseService.declineJudgeAssignment(id, request), "Đã từ chối phân công"));
+    }
+
+    @PatchMapping("/judge/assignments/{id}/accept")
+    @Operation(summary = "Pha 6 — Giám khảo chấp nhận lại phân công")
+    public ResponseEntity<ApiResponse<AssignmentResponseStatusResponse>> acceptAssignment(
+            @PathVariable Integer id) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                assignmentResponseService.acceptJudgeAssignment(id), "Đã chấp nhận phân công"));
     }
 
     @GetMapping("/judge-final-assignments")

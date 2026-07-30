@@ -15,4 +15,6 @@ public class MentorTeamAssignmentResponse {
     private Integer teamId;
     private String teamName;
     private Integer hackathonId;
+    private String responseStatus;
+    private String declineReason;
 }

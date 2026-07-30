@@ -25,4 +25,7 @@ public class JudgeTrackAssignmentResponse {
     private Integer totalTeams;
     /** Số đội judge này đã chấm đủ tiêu chí. */
     private Integer scoredTeams;
+    /** PENDING | ACCEPTED | DECLINED — default ACCEPTED. */
+    private String responseStatus;
+    private String declineReason;
 }

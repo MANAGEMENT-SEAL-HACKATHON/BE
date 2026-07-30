@@ -1,6 +1,7 @@
 package com.sealhackathon.api.me.mentor.service.impl;
 
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
+import com.sealhackathon.api.common.value_object.AssignmentResponseStatus;
 import com.sealhackathon.api.events.repository.PresentationSlotRepository;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.me.mentor.dto.response.*;
@@ -59,6 +60,10 @@ public class MentorPortalServiceImpl implements MentorPortalService {
                         .assignmentId(ma.getId())
                         .trackId(ma.getTrack().getId())
                         .trackName(ma.getTrack().getName())
+                        .responseStatus(ma.getResponseStatus() != null
+                                ? ma.getResponseStatus().name()
+                                : AssignmentResponseStatus.ACCEPTED.name())
+                        .declineReason(ma.getDeclineReason())
                         .build())
                 .toList();
     }
@@ -86,6 +91,11 @@ public class MentorPortalServiceImpl implements MentorPortalService {
                             .map(a -> MentorRoundResponse.TeamInfo.builder()
                                     .teamId(a.getTeam().getId())
                                     .teamName(a.getTeam().getTeamName())
+                                    .assignmentId(a.getId())
+                                    .responseStatus(a.getResponseStatus() != null
+                                            ? a.getResponseStatus().name()
+                                            : AssignmentResponseStatus.ACCEPTED.name())
+                                    .declineReason(a.getDeclineReason())
                                     .build())
                             .toList();
 
@@ -162,6 +172,10 @@ public class MentorPortalServiceImpl implements MentorPortalService {
                         .teamId(mta.getTeam().getId())
                         .teamName(mta.getTeam().getTeamName())
                         .hackathonId(mta.getHackathon().getId())
+                        .responseStatus(mta.getResponseStatus() != null
+                                ? mta.getResponseStatus().name()
+                                : AssignmentResponseStatus.ACCEPTED.name())
+                        .declineReason(mta.getDeclineReason())
                         .build())
                 .toList();
     }

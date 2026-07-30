@@ -1,5 +1,6 @@
 package com.sealhackathon.api.judge_assignments.entity;
 
+import com.sealhackathon.api.common.value_object.AssignmentResponseStatus;
 import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.tracks.entity.Track;
@@ -75,4 +76,18 @@ public class JudgeAssignment {
 
     @Column(name = "completion_updated_at")
     private LocalDateTime completionUpdatedAt;
+
+    /**
+     * Default {@link AssignmentResponseStatus#ACCEPTED} — must NOT be PENDING or activate gates break.
+     */
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "response_status", nullable = false, length = 20)
+    private AssignmentResponseStatus responseStatus = AssignmentResponseStatus.ACCEPTED;
+
+    @Column(name = "responded_at")
+    private LocalDateTime respondedAt;
+
+    @Column(name = "decline_reason", length = 1000)
+    private String declineReason;
 }

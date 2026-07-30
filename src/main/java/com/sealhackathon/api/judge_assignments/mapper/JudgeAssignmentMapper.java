@@ -1,5 +1,6 @@
 package com.sealhackathon.api.judge_assignments.mapper;
 
+import com.sealhackathon.api.common.value_object.AssignmentResponseStatus;
 import com.sealhackathon.api.judge_assignments.dto.response.JudgeAssignmentResponse;
 import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
 import com.sealhackathon.api.rounds.entity.Round;
@@ -42,6 +43,11 @@ public class JudgeAssignmentMapper {
                 .assignmentType(e.getAssignmentType())
                 .assignedAt(e.getAssignedAt())
                 .assignedById(e.getAssignedBy() == null ? null : e.getAssignedBy().getId())
+                .responseStatus(e.getResponseStatus() != null
+                        ? e.getResponseStatus()
+                        : AssignmentResponseStatus.ACCEPTED)
+                .respondedAt(e.getRespondedAt())
+                .declineReason(e.getDeclineReason())
                 .build();
     }
 }

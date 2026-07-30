@@ -3,11 +3,15 @@ package com.sealhackathon.api.me.controller;
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.MentorOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
+import com.sealhackathon.api.me.dto.request.AssignmentDeclineRequest;
+import com.sealhackathon.api.me.dto.response.AssignmentResponseStatusResponse;
 import com.sealhackathon.api.me.mentor.dto.response.*;
 import com.sealhackathon.api.me.mentor.service.MentorPortalService;
+import com.sealhackathon.api.me.service.AssignmentResponseService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,11 +27,46 @@ import java.util.List;
 public class MentorMeController {
 
     private final MentorPortalService mentorPortalService;
+    private final AssignmentResponseService assignmentResponseService;
 
     @GetMapping("/mentor-track-assignments")
     @Operation(summary = "FR-M-05 — Phân công track")
     public ResponseEntity<ApiResponse<List<MentorTrackAssignmentResponse>>> trackAssignments() {
         return ResponseEntity.ok(ApiResponse.ok(mentorPortalService.listTrackAssignments()));
+    }
+
+    @PatchMapping("/mentor/assignments/{id}/decline")
+    @Operation(summary = "Pha 6 — Mentor từ chối phân công track")
+    public ResponseEntity<ApiResponse<AssignmentResponseStatusResponse>> declineTrackAssignment(
+            @PathVariable Integer id,
+            @Valid @RequestBody AssignmentDeclineRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                assignmentResponseService.declineMentorAssignment(id, request), "Đã từ chối phân công"));
+    }
+
+    @PatchMapping("/mentor/assignments/{id}/accept")
+    @Operation(summary = "Pha 6 — Mentor chấp nhận lại phân công track")
+    public ResponseEntity<ApiResponse<AssignmentResponseStatusResponse>> acceptTrackAssignment(
+            @PathVariable Integer id) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                assignmentResponseService.acceptMentorAssignment(id), "Đã chấp nhận phân công"));
+    }
+
+    @PatchMapping("/mentor/team-assignments/{id}/decline")
+    @Operation(summary = "Pha 6 — Mentor từ chối phân công đội")
+    public ResponseEntity<ApiResponse<AssignmentResponseStatusResponse>> declineTeamAssignment(
+            @PathVariable Integer id,
+            @Valid @RequestBody AssignmentDeclineRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                assignmentResponseService.declineMentorTeamAssignment(id, request), "Đã từ chối phân công"));
+    }
+
+    @PatchMapping("/mentor/team-assignments/{id}/accept")
+    @Operation(summary = "Pha 6 — Mentor chấp nhận lại phân công đội")
+    public ResponseEntity<ApiResponse<AssignmentResponseStatusResponse>> acceptTeamAssignment(
+            @PathVariable Integer id) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                assignmentResponseService.acceptMentorTeamAssignment(id), "Đã chấp nhận phân công"));
     }
 
     @GetMapping("/mentor/rounds")

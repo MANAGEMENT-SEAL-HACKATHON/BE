@@ -1,5 +1,6 @@
 package com.sealhackathon.api.mentors.mapper;
 
+import com.sealhackathon.api.common.value_object.AssignmentResponseStatus;
 import com.sealhackathon.api.mentors.dto.response.MentorAssignmentResponse;
 import com.sealhackathon.api.mentors.entity.MentorAssignment;
 import org.springframework.stereotype.Component;
@@ -20,6 +21,11 @@ public class MentorAssignmentMapper {
                 .trackName(e.getTrack() == null ? null : e.getTrack().getName())
                 .assignedAt(e.getAssignedAt())
                 .assignedById(e.getAssignedBy() == null ? null : e.getAssignedBy().getId())
+                .responseStatus(e.getResponseStatus() != null
+                        ? e.getResponseStatus()
+                        : AssignmentResponseStatus.ACCEPTED)
+                .respondedAt(e.getRespondedAt())
+                .declineReason(e.getDeclineReason())
                 .build();
     }
 }

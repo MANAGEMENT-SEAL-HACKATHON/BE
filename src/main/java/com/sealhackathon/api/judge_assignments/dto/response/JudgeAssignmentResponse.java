@@ -1,6 +1,7 @@
 package com.sealhackathon.api.judge_assignments.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.sealhackathon.api.common.value_object.AssignmentResponseStatus;
 import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -26,4 +27,7 @@ public class JudgeAssignmentResponse {
     private final JudgeAssignmentType assignmentType;
     private final LocalDateTime assignedAt;
     private final Integer assignedById;
+    private final AssignmentResponseStatus responseStatus;
+    private final LocalDateTime respondedAt;
+    private final String declineReason;
 }

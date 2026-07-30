@@ -5,6 +5,7 @@ import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
+import com.sealhackathon.api.common.value_object.AssignmentResponseStatus;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.criteria.service.WeightSummaryService;
 import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
@@ -182,7 +183,9 @@ public class RoundActivationServiceImpl implements RoundActivationService {
     }
 
     private void validateFinalRoundJudges(Integer roundId) {
-        List<JudgeAssignment> assignments = judgeAssignmentRepository.findByRoundId(roundId);
+        List<JudgeAssignment> assignments = judgeAssignmentRepository.findByRoundId(roundId).stream()
+                .filter(ja -> ja.getResponseStatus() != AssignmentResponseStatus.DECLINED)
+                .toList();
         if (assignments.isEmpty()) {
             throw new BusinessRuleException(ErrorCode.JUDGE_NOT_ASSIGNED,
                     "Vòng thi Chung kết chưa có Judge được phân công",
@@ -232,7 +235,8 @@ public class RoundActivationServiceImpl implements RoundActivationService {
                         "Bảng đấu '%s' của vòng thi: tổng weight = %.4f".formatted(t.getName(), raw),
                         Map.of("trackId", t.getId(), "roundId", round.getId(), "total", raw));
             }
-            if (judgeAssignmentRepository.findByTrackId(t.getId()).isEmpty()) {
+            if (judgeAssignmentRepository.findByTrackId(t.getId()).stream()
+                    .noneMatch(ja -> ja.getResponseStatus() != AssignmentResponseStatus.DECLINED)) {
                 throw new BusinessRuleException(ErrorCode.JUDGE_NOT_ASSIGNED,
                         "Bảng đấu '%s' của vòng thi chưa có Judge được phân công".formatted(t.getName()),
                         Map.of("trackId", t.getId(), "roundId", round.getId()));
@@ -243,8 +247,14 @@ public class RoundActivationServiceImpl implements RoundActivationService {
 
     private void validateTrackMentorJudgeConflict(Track track) {
         for (MentorAssignment ma : mentorAssignmentRepository.findByTrackId(track.getId())) {
+            if (ma.getResponseStatus() == AssignmentResponseStatus.DECLINED) {
+                continue;
+            }
             Integer mentorId = ma.getMentor().getId();
-            if (judgeAssignmentRepository.existsByJudgeIdAndTrackId(mentorId, track.getId())) {
+            boolean mentorIsJudge = judgeAssignmentRepository.findByJudgeIdAndTrackId(mentorId, track.getId())
+                    .stream()
+                    .anyMatch(ja -> ja.getResponseStatus() != AssignmentResponseStatus.DECLINED);
+            if (mentorIsJudge) {
                 throw new BusinessRuleException(ErrorCode.CONFLICT_SAME_TRACK,
                         "Track '%s': user #%d vừa Mentor vừa Judge"
                                 .formatted(track.getName(), mentorId),
@@ -257,6 +267,7 @@ public class RoundActivationServiceImpl implements RoundActivationService {
         Set<User> recipients = new LinkedHashSet<>();
         if (Boolean.TRUE.equals(round.getIsFinal())) {
             judgeAssignmentRepository.findByRoundId(round.getId()).stream()
+                    .filter(ja -> ja.getResponseStatus() != AssignmentResponseStatus.DECLINED)
                     .map(JudgeAssignment::getJudge)
                     .forEach(recipients::add);
         } else {
@@ -265,9 +276,11 @@ public class RoundActivationServiceImpl implements RoundActivationService {
                     continue;
                 }
                 mentorAssignmentRepository.findByTrackId(t.getId()).stream()
+                        .filter(ma -> ma.getResponseStatus() != AssignmentResponseStatus.DECLINED)
                         .map(MentorAssignment::getMentor)
                         .forEach(recipients::add);
                 judgeAssignmentRepository.findByTrackId(t.getId()).stream()
+                        .filter(ja -> ja.getResponseStatus() != AssignmentResponseStatus.DECLINED)
                         .map(JudgeAssignment::getJudge)
                         .forEach(recipients::add);
             }
