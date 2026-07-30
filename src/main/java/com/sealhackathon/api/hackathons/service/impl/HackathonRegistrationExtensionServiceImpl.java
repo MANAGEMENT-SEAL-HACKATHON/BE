@@ -213,13 +213,17 @@ public class HackathonRegistrationExtensionServiceImpl implements HackathonRegis
         }
         LocalDate today = LocalDate.now();
         LocalDate currentEnd = h.getRegistrationEnd();
-        if (currentEnd != null && !newEnd.isAfter(currentEnd)) {
-            return "Ngày hết hạn mới phải sau hạn hiện tại (%s)."
-                    .formatted(currentEnd.format(DATE_FMT));
-        }
-        if (!newEnd.isAfter(today)) {
-            return "Ngày hết hạn mới phải sau hôm nay (%s)."
-                    .formatted(today.format(DATE_FMT));
+        // Sau khi đã apply, preview báo cáo với newEnd == currentEnd — không coi là invalid.
+        boolean sameAsCurrent = currentEnd != null && newEnd.equals(currentEnd);
+        if (!sameAsCurrent) {
+            if (currentEnd != null && !newEnd.isAfter(currentEnd)) {
+                return "Ngày hết hạn mới phải sau hạn hiện tại (%s)."
+                        .formatted(currentEnd.format(DATE_FMT));
+            }
+            if (!newEnd.isAfter(today)) {
+                return "Ngày hết hạn mới phải sau hôm nay (%s)."
+                        .formatted(today.format(DATE_FMT));
+            }
         }
         if (count >= max) {
             return "Đã dùng hết %d/%d lần dời hạn đăng ký.".formatted(count, max);
