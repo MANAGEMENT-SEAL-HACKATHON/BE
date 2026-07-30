@@ -42,6 +42,16 @@ public class Event {
     @Column(name = "meet_url", columnDefinition = "TEXT")
     private String meetUrl;
 
+    /** Kickoff-only: buffet venue (nullable). */
+    @Column(name = "buffet_location", length = 300)
+    private String buffetLocation;
+
+    @Column(name = "buffet_starts_at")
+    private LocalDateTime buffetStartsAt;
+
+    @Column(name = "buffet_ends_at")
+    private LocalDateTime buffetEndsAt;
+
     @Column(name = "starts_at", nullable = false)
     private LocalDateTime startsAt;
 

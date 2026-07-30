@@ -18,6 +18,9 @@ public class EventMapper {
                 .description(req.getDescription())
                 .location(req.getLocation())
                 .meetUrl(req.getMeetUrl())
+                .buffetLocation(req.getBuffetLocation())
+                .buffetStartsAt(req.getBuffetStartsAt())
+                .buffetEndsAt(req.getBuffetEndsAt())
                 .startsAt(req.getStartsAt())
                 .endsAt(req.getEndsAt())
                 .isPublic(req.getIsPublic() == null ? Boolean.TRUE : req.getIsPublic())
@@ -30,6 +33,9 @@ public class EventMapper {
         entity.setDescription(req.getDescription());
         entity.setLocation(req.getLocation());
         entity.setMeetUrl(req.getMeetUrl());
+        entity.setBuffetLocation(req.getBuffetLocation());
+        entity.setBuffetStartsAt(req.getBuffetStartsAt());
+        entity.setBuffetEndsAt(req.getBuffetEndsAt());
         entity.setStartsAt(req.getStartsAt());
         entity.setEndsAt(req.getEndsAt());
         if (req.getIsPublic() != null) {
@@ -49,6 +55,9 @@ public class EventMapper {
                 .description(e.getDescription())
                 .location(e.getLocation())
                 .meetUrl(e.getMeetUrl())
+                .buffetLocation(e.getBuffetLocation())
+                .buffetStartsAt(e.getBuffetStartsAt())
+                .buffetEndsAt(e.getBuffetEndsAt())
                 .startsAt(e.getStartsAt())
                 .endsAt(e.getEndsAt())
                 .isPublic(e.getIsPublic())

@@ -134,6 +134,9 @@ public class EventServiceImpl implements EventService {
         EventResponse before = eventMapper.toResponse(e);
         LocalDateTime prevStart = e.getStartsAt();
         String prevLocation = e.getLocation();
+        String prevBuffetLocation = e.getBuffetLocation();
+        LocalDateTime prevBuffetStartsAt = e.getBuffetStartsAt();
+        LocalDateTime prevBuffetEndsAt = e.getBuffetEndsAt();
         eventMapper.applyUpdate(e, req);
         if (!e.getStartsAt().equals(prevStart)) {
             e.setReminderSentAt(null);
@@ -149,9 +152,12 @@ public class EventServiceImpl implements EventService {
         }
         boolean startsChanged = !saved.getStartsAt().equals(prevStart);
         boolean locationChanged = !Objects.equals(saved.getLocation(), prevLocation);
+        boolean buffetChanged = !Objects.equals(saved.getBuffetLocation(), prevBuffetLocation)
+                || !Objects.equals(saved.getBuffetStartsAt(), prevBuffetStartsAt)
+                || !Objects.equals(saved.getBuffetEndsAt(), prevBuffetEndsAt);
         if (Boolean.TRUE.equals(saved.getIsPublic())) {
             if (isStakeholderMilestone(saved.getType())) {
-                fanoutReminder(saved, startsChanged || locationChanged);
+                fanoutReminder(saved, startsChanged || locationChanged || buffetChanged);
             } else if (startsChanged) {
                 fanoutReminder(saved, false);
             }
@@ -234,9 +240,7 @@ public class EventServiceImpl implements EventService {
 
     private void fanoutReminder(Event event, boolean sendEmail) {
         String title = "Sự kiện sắp diễn ra: %s".formatted(event.getTitle());
-        String body = "Thời gian: %s%s".formatted(
-                event.getStartsAt(),
-                event.getLocation() == null ? "" : " — " + event.getLocation());
+        String body = buildReminderBody(event);
         if (isStakeholderMilestone(event.getType())) {
             Integer hackathonId = event.getHackathon() != null ? event.getHackathon().getId() : null;
             stakeholderBroadcastService.broadcast(
@@ -256,6 +260,33 @@ public class EventServiceImpl implements EventService {
                 title,
                 body,
                 "events", event.getId());
+    }
+
+    static String buildReminderBody(Event event) {
+        StringBuilder body = new StringBuilder("Thời gian: %s%s".formatted(
+                event.getStartsAt(),
+                event.getLocation() == null || event.getLocation().isBlank()
+                        ? "" : " — " + event.getLocation()));
+        if (hasBuffetInfo(event)) {
+            body.append("\nBuffet");
+            if (event.getBuffetLocation() != null && !event.getBuffetLocation().isBlank()) {
+                body.append(": ").append(event.getBuffetLocation());
+            }
+            if (event.getBuffetStartsAt() != null || event.getBuffetEndsAt() != null) {
+                body.append(" (")
+                        .append(event.getBuffetStartsAt() != null ? event.getBuffetStartsAt() : "…")
+                        .append(" – ")
+                        .append(event.getBuffetEndsAt() != null ? event.getBuffetEndsAt() : "…")
+                        .append(")");
+            }
+        }
+        return body.toString();
+    }
+
+    private static boolean hasBuffetInfo(Event event) {
+        return (event.getBuffetLocation() != null && !event.getBuffetLocation().isBlank())
+                || event.getBuffetStartsAt() != null
+                || event.getBuffetEndsAt() != null;
     }
 
     private static boolean isStakeholderMilestone(EventType type) {

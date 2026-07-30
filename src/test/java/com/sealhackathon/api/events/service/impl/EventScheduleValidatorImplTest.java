@@ -354,6 +354,58 @@ class EventScheduleValidatorImplTest {
                         () -> validator.validateBlocking(hackathon, req, 0)).getCode());
     }
 
+    // ------------ BUFFET (KICKOFF) ------------
+
+    @Test
+    void allowsKickoffBuffetInsideEventWindow() {
+        CreateEventRequest req = kickoff(
+                LocalDateTime.of(2026, 4, 10, 8, 0),
+                LocalDateTime.of(2026, 4, 10, 17, 0));
+        req.setBuffetLocation("Canteen");
+        req.setBuffetStartsAt(LocalDateTime.of(2026, 4, 10, 11, 0));
+        req.setBuffetEndsAt(LocalDateTime.of(2026, 4, 10, 12, 30));
+
+        assertDoesNotThrow(() -> validator.validateBlocking(hackathon, req, 0));
+    }
+
+    @Test
+    void blocksBuffetOnNonKickoff() {
+        CreateEventRequest req = workshop(
+                LocalDateTime.of(2026, 4, 9, 20, 0),
+                LocalDateTime.of(2026, 4, 9, 21, 0));
+        req.setBuffetLocation("Canteen");
+
+        assertEquals(ErrorCode.EVENT_BUFFET_NOT_KICKOFF,
+                assertThrows(BusinessRuleException.class,
+                        () -> validator.validateBlocking(hackathon, req, 0)).getCode());
+    }
+
+    @Test
+    void blocksBuffetOutsideEventWindow() {
+        CreateEventRequest req = kickoff(
+                LocalDateTime.of(2026, 4, 10, 8, 0),
+                LocalDateTime.of(2026, 4, 10, 17, 0));
+        req.setBuffetStartsAt(LocalDateTime.of(2026, 4, 10, 18, 0));
+        req.setBuffetEndsAt(LocalDateTime.of(2026, 4, 10, 19, 0));
+
+        assertEquals(ErrorCode.EVENT_BUFFET_OUT_OF_WINDOW,
+                assertThrows(BusinessRuleException.class,
+                        () -> validator.validateBlocking(hackathon, req, 0)).getCode());
+    }
+
+    @Test
+    void blocksBuffetEndsBeforeBuffetStarts() {
+        CreateEventRequest req = kickoff(
+                LocalDateTime.of(2026, 4, 10, 8, 0),
+                LocalDateTime.of(2026, 4, 10, 17, 0));
+        req.setBuffetStartsAt(LocalDateTime.of(2026, 4, 10, 12, 0));
+        req.setBuffetEndsAt(LocalDateTime.of(2026, 4, 10, 11, 0));
+
+        assertEquals(ErrorCode.EVENT_BUFFET_OUT_OF_WINDOW,
+                assertThrows(BusinessRuleException.class,
+                        () -> validator.validateBlocking(hackathon, req, 0)).getCode());
+    }
+
     // ------------ helpers ------------
 
     private static Event kickoffEvent(int id, LocalDateTime start, LocalDateTime end) {

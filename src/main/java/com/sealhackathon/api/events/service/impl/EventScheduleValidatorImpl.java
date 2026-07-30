@@ -60,12 +60,16 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
 
     @Override
     public void validateBlocking(Hackathon hackathon, CreateEventRequest req, Integer excludeEventId) {
+        validateBuffet(req.getType(), req.getStartsAt(), req.getEndsAt(),
+                req.getBuffetLocation(), req.getBuffetStartsAt(), req.getBuffetEndsAt());
         validateBlockingCommon(hackathon, req.getType(), req.getStartsAt(), req.getEndsAt(),
                 req.getLocation(), req.getMeetUrl(), excludeEventId);
     }
 
     @Override
     public void validateBlocking(Hackathon hackathon, UpdateEventRequest req, Integer excludeEventId) {
+        validateBuffet(req.getType(), req.getStartsAt(), req.getEndsAt(),
+                req.getBuffetLocation(), req.getBuffetStartsAt(), req.getBuffetEndsAt());
         validateBlockingCommon(hackathon, req.getType(), req.getStartsAt(), req.getEndsAt(),
                 req.getLocation(), req.getMeetUrl(), excludeEventId);
     }
@@ -259,6 +263,54 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
                     "Phải cung cấp địa điểm (offline) hoặc link họp (online)",
                     Map.of());
         }
+    }
+
+    /**
+     * Buffet fields are Kickoff-only and must lie within the event window [startsAt, endsAt].
+     */
+    private void validateBuffet(EventType type, LocalDateTime startsAt, LocalDateTime endsAt,
+                                String buffetLocation, LocalDateTime buffetStartsAt,
+                                LocalDateTime buffetEndsAt) {
+        boolean hasLocation = buffetLocation != null && !buffetLocation.isBlank();
+        boolean anyBuffet = hasLocation || buffetStartsAt != null || buffetEndsAt != null;
+        if (!anyBuffet) {
+            return;
+        }
+        if (type != EventType.KICKOFF) {
+            throw new BusinessRuleException(ErrorCode.EVENT_BUFFET_NOT_KICKOFF,
+                    "Thông tin buffet chỉ áp dụng cho sự kiện Khai mạc (KICKOFF)",
+                    Map.of("type", type == null ? "null" : type.name()));
+        }
+        if (startsAt == null) {
+            return;
+        }
+        LocalDateTime windowEnd = EventTimeline.effectiveEnd(startsAt, endsAt);
+        if (buffetStartsAt != null
+                && (buffetStartsAt.isBefore(startsAt) || buffetStartsAt.isAfter(windowEnd))) {
+            throw buffetOutOfWindow(startsAt, windowEnd, buffetStartsAt, buffetEndsAt);
+        }
+        if (buffetEndsAt != null
+                && (buffetEndsAt.isBefore(startsAt) || buffetEndsAt.isAfter(windowEnd))) {
+            throw buffetOutOfWindow(startsAt, windowEnd, buffetStartsAt, buffetEndsAt);
+        }
+        if (buffetStartsAt != null && buffetEndsAt != null && buffetEndsAt.isBefore(buffetStartsAt)) {
+            throw new BusinessRuleException(ErrorCode.EVENT_BUFFET_OUT_OF_WINDOW,
+                    "buffetEndsAt (%s) phải >= buffetStartsAt (%s)"
+                            .formatted(buffetEndsAt, buffetStartsAt),
+                    Map.of("buffetStartsAt", buffetStartsAt, "buffetEndsAt", buffetEndsAt,
+                            "startsAt", startsAt, "endsAt", windowEnd));
+        }
+    }
+
+    private static BusinessRuleException buffetOutOfWindow(LocalDateTime startsAt,
+                                                           LocalDateTime windowEnd,
+                                                           LocalDateTime buffetStartsAt,
+                                                           LocalDateTime buffetEndsAt) {
+        return new BusinessRuleException(ErrorCode.EVENT_BUFFET_OUT_OF_WINDOW,
+                "Khung giờ buffet phải nằm trong [%s, %s]".formatted(startsAt, windowEnd),
+                Map.of("startsAt", startsAt, "endsAt", windowEnd,
+                        "buffetStartsAt", buffetStartsAt == null ? "null" : buffetStartsAt,
+                        "buffetEndsAt", buffetEndsAt == null ? "null" : buffetEndsAt));
     }
 
     private void validateLayer3Ordering(Integer hackathonId, EventType newType,
