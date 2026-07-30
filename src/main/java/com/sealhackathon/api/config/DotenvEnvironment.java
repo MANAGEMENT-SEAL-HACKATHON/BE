@@ -44,6 +44,10 @@ public final class DotenvEnvironment {
         mapIfPresent(dotenv, "SPRING_MAIL_PORT", "spring.mail.port");
         mapIfPresent(dotenv, "SPRING_MAIL_USERNAME", "spring.mail.username");
         mapIfPresent(dotenv, "SPRING_MAIL_PASSWORD", "spring.mail.password");
+
+        mapIfPresent(dotenv, "GITHUB_API_TOKEN", "app.github.token");
+        mapIfPresent(dotenv, "APP_GITHUB_ENABLED", "app.github.enabled");
+        mapIfPresent(dotenv, "APP_GITHUB_TOKEN", "app.github.token");
     }
 
     private static void mapIfPresent(Dotenv dotenv, String envKey, String systemPropertyKey) {

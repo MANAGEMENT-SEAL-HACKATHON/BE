@@ -7,7 +7,9 @@ import com.sealhackathon.api.common.security.SubmissionListAccess;
 import com.sealhackathon.api.config.OpenApiConfig;
 import com.sealhackathon.api.submissions.dto.request.RejectLateSubmissionRequest;
 import com.sealhackathon.api.submissions.dto.request.ReviewLateSubmissionRequest;
+import com.sealhackathon.api.submissions.dto.response.SubmissionGithubResponse;
 import com.sealhackathon.api.submissions.dto.response.SubmissionResponse;
+import com.sealhackathon.api.submissions.service.SubmissionMetadataService;
 import com.sealhackathon.api.submissions.service.SubmissionService;
 import com.sealhackathon.api.submissions.value_object.LateReviewDecision;
 import com.sealhackathon.api.submissions.value_object.SubmissionStatus;
@@ -40,6 +42,7 @@ import java.util.List;
 public class SubmissionController {
 
     private final SubmissionService submissionService;
+    private final SubmissionMetadataService submissionMetadataService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @StudentOnly
@@ -57,6 +60,19 @@ public class SubmissionController {
 
         return ResponseEntity.status(201).body(ApiResponse.created(
                 submissionService.submitMultipart(teamId, trackId, roundId, repoUrl, demoUrl, lateReason, slideFile)));
+    }
+
+    @GetMapping("/{id}/github")
+    @SubmissionListAccess
+    @Operation(summary = "FR-17 — GitHub repo info + commits (read-only PAT)",
+            description = "Trả về metadata repo và danh sách commit. Khi tắt integration / thiếu token / rate-limit: "
+                    + "payload rỗng kèm status flags (không hard error). "
+                    + "`anonymous=true` ẩn tên/avatar author (chấm ẩn danh).")
+    public ResponseEntity<ApiResponse<SubmissionGithubResponse>> getGithub(
+            @PathVariable Integer id,
+            @RequestParam(defaultValue = "false") boolean anonymous) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                submissionMetadataService.getGithubInfo(id, anonymous)));
     }
 
     @GetMapping("/{id}/slide")
