@@ -1,6 +1,6 @@
 # GĐ5 + GĐ6 — Defense Playbook: Chung kết & Đóng giải
 
-> **Doc sync:** Đã rà lại theo code BE sau cleanup Phases 1–5 (`2026-07-28`).
+> **Doc sync:** 2026-07-31 — Phases 0–11
 
 > **Person 5** · ~25 phút (Phần A ~12p + Phần B ~10p + handoff 3p)  
 > **Slug A:** `seal-gd5-final-active` · **Slug B:** `seal-gd6-pending-confirm`
@@ -14,7 +14,7 @@
 - **Trạng thái kỳ vọng:** Person 4 vừa **Kích hoạt Vòng thi (Chung kết)** — CK Active, đội ADVANCED, SL published.
 - **Câu bàn giao:** «Chung kết đã active. Em bắt từ SV **Gửi Bài Dự Thi Chung Kết**, queue, guest chấm, khóa CK.»
 - **Mode A:** Mở `seal-gd5-final-active`.
-- **Mode B:** Tiếp hackathon sau activate CK GĐ4.
+- **Mode B:** Tiếp hackathon sau activate CK GĐ4 (**KEEP only** — START_NOW đã gỡ phase 2).
 
 ## VÁCH NGĂN — RA PHẦN A / VÀO PHẦN B (nội bộ Person 5)
 
@@ -25,13 +25,15 @@
 
 **Khác biệt GĐ5 vs GĐ3:** Guest judge chấm CK **không** bị gate `SCORING_NOT_OPEN` (round `isFinal=true`).
 
+**START_NOW:** đã gỡ — không demo «Bắt đầu sớm» trên activate; CK đã active từ GĐ4 KEEP.
+
 ---
 
 ## A.1 Phạm vi GĐ5
 
 | Hạng mục | Nội dung |
 |----------|----------|
-| Phạm vi | Nộp CK, end-early, queue, guest + internal judge chấm, lock → PENDING_CONFIRM |
+| Phạm vi | Nộp CK (+ GitHub repo panel), end-early, queue, guest + internal judge chấm, lock → PENDING_CONFIRM |
 | Gate vào | G-5.1 ADVANCED; G-5.2 CK active; G-5.3 SL published |
 | Gate ra | `lock-scoring` CK → `PENDING_CONFIRM` |
 
@@ -57,7 +59,7 @@
 
 ```mermaid
 flowchart TD
-  A[SV Nộp CK] --> B[End-early CK]
+  A[SV Nộp CK + GitHubRepoPanel] --> B[End-early CK]
   B --> C[Shuffle queue]
   C --> D[Guest + Judge chấm]
   D --> E[Khóa chấm CK]
@@ -70,14 +72,16 @@ flowchart TD
 
 | ID | Loại | Role | URL | Thao tác UI | Kết quả UI | ErrorCode | FE | BE |
 |----|------|------|-----|-------------|------------|-----------|----|----|
-| G5-H01 | Happy | Student | `/student/submit` | Tab **Chung kết** → repo + PDF → **Gửi Bài Dự Thi Chung Kết** | SUBMITTED | — | `SubmitPage` | `SubmissionController` |
-| G5-H02 | Happy | Coord | Vòng thi CK | **Kết thúc thời gian thi sớm** (CK) | Cổng nộp đóng | — | `RoundsTab` | `RoundProgressionController` |
+| G5-H01 | Happy | Student | `/student/submit` | Tab **Chung kết** → repo + PDF → **Gửi Bài Dự Thi Chung Kết**; xem `GitHubRepoPanel` | SUBMITTED | — | `StudentSubmissionPage`, `FinalSubmissionPanel`, `GitHubRepoPanel` | `SubmissionController` |
+| G5-H02 | Happy | Coord | Vòng thi CK | **Kết thúc thời gian thi sớm** (CK) | Cổng nộp đóng | — | `RoundManagementPage` | `RoundProgressionController` |
 | G5-H03 | Happy | Coord | `/presentation/queue` | **Khởi Động Máy Quay Số** (CK pool chung) | Queue CK hiển thị | — | `PresentationQueuePage` | `PresentationQueueController` |
 | G5-H04 | Happy | Guest | `/judge/dashboard` | Login guest → **Vào phòng** → chấm rubric | 201 score (không SCORING_NOT_OPEN) | — | `JudgeScoringWorkspace` | `ScoreController` |
-| G5-H05 | Happy | Judge | Dashboard | HEAD judge timer + **HOÀN TẤT & CHỐT SỔ ĐIỂM** | Progress X/Y | — | `JudgeScoringWorkspace` | `ScoreController` |
+| G5-H05 | Happy | Judge | Dashboard | HEAD judge timer + **HOÀN TẤT & CHỐT SỔ ĐIỂM**; `GitHubRepoPanel` trên controls | Progress X/Y | — | `JudgeScoringWorkspace`, `JudgeTimerAndControls`, `GitHubRepoPanel` | `ScoreController` |
 | G5-H06 | Happy | Judge | Workspace | **Kết thúc & gọi đội kế tiếp** | Next team CK | — | `JudgeTimerAndControls` | `PresentationQueueController` |
-| G5-H07 | Happy | Coord | Vòng thi | **Khóa chấm điểm** (CK) | Banner **Chờ chốt sổ** | — | `RoundsTab` | `RoundProgressionController` |
+| G5-H07 | Happy | Coord | Vòng thi | **Khóa chấm điểm** (CK) | Banner **Chờ chốt sổ** | — | `RoundManagementPage` | `RoundProgressionController` |
 | G5-H08 | Happy | Coord | Teams/results | Xem **Các đội vào Chung kết** + **Điểm thành phần** | BXH component scores | — | `HackathonResultsPage` | `RoundRankingQueryService` |
+
+**`GitHubRepoPanel` xuất hiện trên:** `StudentSubmissionPage`, `FinalSubmissionPanel`, `JudgeTimerAndControls`.
 
 ---
 
@@ -85,8 +89,8 @@ flowchart TD
 
 | ID | Loại | Role | URL | Thao tác | Kết quả UI | ErrorCode | FE | BE |
 |----|------|------|-----|----------|------------|-----------|----|----|
-| G5-B01 | Bad | Student | Submit | Nộp sau HARD_LOCK deadline | REJECTED toast | `HARD_LOCK_LATE` | `SubmitPage` | `SubmissionController` |
-| G5-B02 | Bad | Student | Submit | Đội không ADVANCED | 422 | `TEAM_NOT_IN_ROUND` | `SubmitPage` | `SubmissionController` |
+| G5-B01 | Bad | Student | Submit | Nộp sau HARD_LOCK deadline | REJECTED toast | `HARD_LOCK_LATE` | `StudentSubmissionPage` | `SubmissionController` |
+| G5-B02 | Bad | Student | Submit | Đội không ADVANCED | 422 | `TEAM_NOT_IN_ROUND` | `StudentSubmissionPage` | `SubmissionController` |
 | G5-B03 | Bad | Coord | Queue | Mở scoring thiếu guest judge | Warning / blocked | `FINAL_JUDGE_MISSING` | `PresentationQueuePage` | `JudgeAssignmentController` |
 
 ---
@@ -95,15 +99,15 @@ flowchart TD
 
 | ID | Loại | Role | URL | Thao tác (cố ý) | Kết quả (chặn) | ErrorCode | FE | BE |
 |----|------|------|-----|-----------------|----------------|-----------|----|----|
-| G5-S01 | Sabotage | Student | Submit | Nộp sau deadline CK | REJECTED | `HARD_LOCK_LATE` | `SubmitPage` | `SubmissionController` |
-| G5-S02 | Sabotage | Student | Submit | Token đội ELIMINATED | 422 | `TEAM_NOT_IN_ROUND` | `SubmitPage` | `SubmissionController` |
+| G5-S01 | Sabotage | Student | Submit | Nộp sau deadline CK | REJECTED | `HARD_LOCK_LATE` | `StudentSubmissionPage` | `SubmissionController` |
+| G5-S02 | Sabotage | Student | Submit | Token đội ELIMINATED | 422 | `TEAM_NOT_IN_ROUND` | `StudentSubmissionPage` | `SubmissionController` |
 | G5-S03 | Sabotage | Coord | Judges | Xóa hết guest judge → queue | Blocked | `FINAL_JUDGE_MISSING` | `FinalRoundConfigPage` | `JudgeAssignmentController` |
-| G5-S04 | Sabotage | Student | Submit | CK chưa active (tay) | 422 | `ROUND_NOT_ACTIVE` | `SubmitPage` | `SubmissionController` |
+| G5-S04 | Sabotage | Student | Submit | CK chưa active (tay) | 422 | `ROUND_NOT_ACTIVE` | `StudentSubmissionPage` | `SubmissionController` |
 | G5-S05 | Sabotage | Judge INTERNAL | Dashboard | Judge SL-only chấm CK không assigned | 403 | `JUDGE_NOT_ASSIGNED` | `JudgeScoringWorkspace` | `ScoreController` |
 
 ---
 
-# PHẦN B — GĐ6: Trao giải · Confirm · Export
+# PHẦN B — GĐ6: Trao giải · Confirm · Export · Showcase
 
 ## VÁCH NGĂN — VÀO PHẦN B
 
@@ -113,8 +117,8 @@ flowchart TD
 
 ## VÁCH NGĂN — KẾT THÚC DEMO (Person 5 dừng)
 
-- **Thao tác UI cuối:** **Chốt sổ & Công bố kết quả** → confirm.
-- **Verify:** Banner **Đã kết thúc**; **Xuất CSV** enabled; SV `/student/results` banner lifecycle.
+- **Thao tác UI cuối:** **Chốt sổ & Công bố kết quả** → confirm → (optional) print prizes / showcase / export.
+- **Verify:** Banner **Đã kết thúc**; **Xuất CSV** enabled; SV `/student/results` banner lifecycle; **không** certificates.
 - **Câu chốt:** «Hackathon FINISHED — demo full chain GĐ1→GĐ6 hoàn tất.»
 
 ---
@@ -123,9 +127,11 @@ flowchart TD
 
 | Hạng mục | Nội dung |
 |----------|----------|
-| Phạm vi | Trao giải modal BXH, confirm FINISHED, chapter/individual rankings, export CSV |
+| Phạm vi | Trao giải + bản in, confirm FINISHED, chapter/individual rankings, showcase/hall-of-fame, export CSV (Results + Analytics), annual awards |
 | Gate vào | G-6.1 PENDING_CONFIRM; G-6.2 CK locked; G-6.3 SL published |
 | Gate ra | `PATCH /confirm` → FINISHED |
+
+**Certificates:** **REMOVED** — không còn `/me/certificates`; `MyHonorsPanel` chỉ prizes. Sabotage: `grep` route/API certificates = 0.
 
 ---
 
@@ -148,24 +154,77 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  A[Trao giải modal BXH] --> B[Thêm SECOND THIRD]
+  A[Trao giải modal BXH] --> B[Xem bản in prizes]
   B --> C[Chốt sổ & Công bố]
   C --> D[FINISHED]
   D --> E[Xuất CSV + rankings]
+  D --> F[Showcase / Hall of Fame]
+  D --> G[Annual awards SV]
 ```
 
 ---
 
-## B.5 Happy path GĐ6 (G6-H01 … G6-H06)
+## B.5 Happy path GĐ6 (G6-H01 … G6-H12)
 
 | ID | Loại | Role | URL | Thao tác UI | Kết quả UI | ErrorCode | FE | BE |
 |----|------|------|-----|-------------|------------|-----------|----|----|
 | G6-H01 | Happy | Coord | `/hackathons/{id}/results` | Xem BXH CK | Bảng hạng + điểm | — | `HackathonResultsPage` | `RoundRankingQueryService` |
-| G6-H02 | Happy | Coord | Results | **Trao giải mới** → modal BXH (chỉ finalist) → chọn đội → **Lưu** | Prize list cập nhật | — | `AwardPrizeModal` | `PrizeController` |
+| G6-H02 | Happy | Coord | Results · tab **Giải thưởng** | **Trao giải mới** → modal BXH (chỉ finalist) → chọn đội → **Lưu** | Prize list cập nhật | — | `AwardPrizeModal` | `PrizeController` |
+| G6-H02b | Happy | Coord | Giải thưởng | **Xem bản in** → `/hackathons/{id}/prizes/print` | Trang in giải thưởng | — | `PrizePrintPage` | `PrizeController` / prizes API |
 | G6-H03 | Happy | Coord | Results | **Chốt sổ & Công bố kết quả** → confirm | Status **Đã kết thúc**; async rankings | — | `HackathonResultsPage` | `HackathonClosureController` |
 | G6-H04 | Happy | Coord | Results | Xem **Chapter rankings** (sau confirm) | Tab/chart chapter | — | `TeamRankingTable` | `ChapterRankingService` |
-| G6-H05 | Happy | Coord | Results | **Individual rankings** (nếu enabled + FINISHED) | BXH cá nhân | — | `IndividualRankingPanel` | `IndividualRankingService` |
-| G6-H06 | Happy | Coord | Results | **Xuất CSV xếp hạng** | File download BOM+DQ | — | `HackathonResultsPage` | `ExportJobController` |
+| G6-H05 | Happy | Coord | Results | Tab **Individual rankings** (flag on + FINISHED) | BXH cá nhân | — | `IndividualRankingTable` | `IndividualRankingService` |
+| G6-H06 | Happy | Coord | Results | **Xuất CSV** | Download **CSV_RANKINGS only** (BOM+DQ) | — | `HackathonResultsPage` | `ExportJobController` type=`CSV_RANKINGS` |
+| G6-H07 | Happy | Coord | Analytics | Chọn type + xuất | `CSV_SCORES` / `CSV_RANKINGS` / `ANONYMIZED_RBL` / `FULL_REPORT` (enriched labels) | — | `AnalyticsPage` | `ExportJobController` |
+| G6-H08 | Happy | Coord | Results · **Bài viết & Vinh danh** | Chỉnh showcase (FINISHED) | Draft/publish article | — | `ShowcaseEditorPanel` | `ShowcaseCoordinatorController` |
+| G6-H09 | Happy | Public | `/hall-of-fame` | Xem hall of fame | Danh sách champion public | — | `HallOfFamePage` | `GET /api/v1/public/hall-of-fame` |
+| G6-H10 | Happy | Public | `/news/:slug` | Đọc bài champion | Nội dung article | — | `ChampionArticlePage` | `GET /api/v1/public/articles`, `/articles/{slug}` |
+| G6-H11 | Happy | Student | `/student/annual-awards` | Xem giải thường niên | List awards theo năm | — | Annual awards page | `GET /api/v1/me/annual-awards` |
+| G6-H12 | Happy | Student | `/student/results` | Tab honors | Chỉ prizes — **không** certificates | — | `MyHonorsPanel` | prizes API (no certificates) |
+
+---
+
+## B.5b Export — types, labels, headers
+
+### Results page
+
+- Nút **Xuất CSV** = **`CSV_RANKINGS` only**.
+
+### Analytics page
+
+| Type | Label (enriched) |
+|------|------------------|
+| `CSV_SCORES` | Điểm chi tiết (đội / giám khảo / tiêu chí) |
+| `CSV_RANKINGS` | Bảng xếp hạng (thành viên / chapter / DQ) |
+| `ANONYMIZED_RBL` | Dataset RBL ẩn danh dạng dài (nghiên cứu) |
+| `FULL_REPORT` | Báo cáo tổng hợp đa phần (đội, TV, tiêu chí, phân công, nộp bài, xếp hạng, giải, kháng cáo) |
+
+(`EXPORT_JOB_TYPE_LABELS` trong `labels.js`; Select trên Analytics có thể rút gọn copy «(CSV)».)
+
+### HEADER columns (tóm tắt)
+
+| Type / section | Columns chính |
+|----------------|---------------|
+| `CSV_SCORES` | hackathon_*, round_*, track_*, team_*, chapter_*, submission_*, judge_*, criterion_*, score_value, weighted_value, score_type, comment, scored_at |
+| `CSV_SCORES` anonymized | như trên nhưng `anonymized_judge_id` (không judge_name/email) |
+| `CSV_RANKINGS` | section, round_*, track_*, rank, team_*, chapter_*, weighted_avg_score, judge_count, leader_*, members, is_disqualified, elimination_reason, submitted_at, is_late, status, note |
+| `ANONYMIZED_RBL` | long-form RBL (mean/stdDev per criterion × anonymized judge) |
+
+### `FULL_REPORT` — thứ tự section
+
+1. `TEAMS`
+2. `TEAM_MEMBERS`
+3. `CRITERIA`
+4. `JUDGE_ASSIGNMENTS`
+5. `SUBMISSIONS`
+6. `RANKINGS`
+7. `CHAPTER_RANKINGS`
+8. `INDIVIDUAL_RANKINGS`
+9. `PRIZES`
+10. `APPEALS`
+11. `SCORES_ANONYMIZED`
+12. `ANONYMIZED_RBL_LONG`
+13. `RBL_VARIANCE_AGGREGATE`
 
 ---
 
@@ -173,9 +232,10 @@ flowchart TD
 
 | ID | Mô tả | Kỳ vọng |
 |----|-------|---------|
-| G56-A01 | SV `/student/results` sau FINISHED | Banner lifecycle + CTA |
+| G56-A01 | SV `/student/results` sau FINISHED | Banner lifecycle + CTA; honors = prizes only |
 | G56-A02 | Announcement WS sau confirm | SV toast không F5 |
 | G56-A03 | Mode B continuous | Lock GĐ5 → results không đổi slug |
+| G56-A04 | Public hall-of-fame / news | Không login; API `/api/v1/public/*` |
 
 ---
 
@@ -185,11 +245,11 @@ flowchart TD
 |----|------|------|-----|----------|------------|-----------|----|----|
 | G6-B01 | Bad | Coord | Results | Confirm khi 0 prize | 422 toast | `NO_PRIZES_RECORDED` | `HackathonResultsPage` | `HackathonClosureController` |
 | G6-B02 | Bad | Coord | Award | Trao giải đội không finalist | Toast reject | `PRIZE_TEAM_NOT_FINALIST` | `AwardPrizeModal` | `PrizeController` |
-| G6-B03 | Bad | Coord | Export | Export trước FINISHED | Nút disabled / 422 | — | `HackathonResultsPage` | `ExportJobController` |
+| G6-B03 | Bad | Coord | Export | Export trước FINISHED | Nút disabled / 422 | — | `HackathonResultsPage` / `AnalyticsPage` | `ExportJobController` |
 
 ---
 
-## B.8 Sabotage GĐ6 (G6-S01 … G6-S05)
+## B.8 Sabotage GĐ6 (G6-S01 … G6-S07)
 
 | ID | Loại | Role | URL | Thao tác (cố ý) | Kết quả (chặn) | ErrorCode | FE | BE |
 |----|------|------|-----|-----------------|----------------|-----------|----|----|
@@ -198,6 +258,8 @@ flowchart TD
 | G6-S03 | Sabotage | Coord | Award | Duplicate prize rank | 422 | `PRIZE_DUPLICATE` | `AwardPrizeModal` | `PrizeController` |
 | G6-S04 | Sabotage | Coord | Award | Prize team ELIMINATED | 422 | `PRIZE_TEAM_NOT_FINALIST` | `AwardPrizeModal` | `PrizeController` |
 | G6-S05 | Sabotage | Coord | Export | Export khi PENDING_CONFIRM | Disabled | — | `HackathonResultsPage` | `ExportJobController` |
+| G6-S06 | Sabotage | QA | API/UI | `grep` `/me/certificates` · route certificates | **0 kết quả** — feature đã xóa | — | `MyHonorsPanel` | (no certificates controller) |
+| G6-S07 | Sabotage | Coord | Activate (lịch sử) | Tìm START_NOW / «Bắt đầu sớm» trên modal activate | **Không còn** — chỉ KEEP | — | `ActivateScheduleModal` | `RoundActivationService` |
 
 ---
 
@@ -214,24 +276,38 @@ flowchart TD
 
 | Layer | File |
 |-------|------|
-| FE Submit CK | `features/submissions/SubmitPage` |
-| FE Judge | `JudgeScoringWorkspace`, `LiveScoringPage` |
-| FE Results/Prizes | `HackathonResultsPage`, `AwardPrizeModal`, `PrizeListPanel`, `TeamRankingTable` |
+| FE Submit CK | `student/features/submission/pages/StudentSubmissionPage`, `FinalSubmissionPanel`, `GitHubRepoPanel` |
+| FE Judge | `JudgeScoringWorkspace`, `JudgeTimerAndControls` (+ `GitHubRepoPanel`), `LiveScoringPage` |
+| FE Results/Prizes | `HackathonResultsPage`, `AwardPrizeModal`, `PrizeListPanel`, `PrizePrintPage`, `TeamRankingTable`, `IndividualRankingTable` |
+| FE Showcase | `ShowcaseEditorPanel`, `HallOfFamePage`, `ChampionArticlePage` |
+| FE Analytics export | `AnalyticsPage` + `EXPORT_JOB_TYPE_LABELS` |
+| FE Student honors | `MyHonorsPanel` (prizes only); `/student/annual-awards` |
 | BE Submissions | `SubmissionController` |
 | BE Scores | `ScoreController` |
 | BE Closure | `HackathonClosureController`, `HackathonClosureServiceImpl` |
 | BE Prizes | `PrizeController`, `HackathonPrizeController` |
-| BE Export | `ExportJobController` |
+| BE Export | `ExportJobController`, `ExportCsvBuilder` |
+| BE Showcase public | `PublicShowcaseController` — `/api/v1/public/hall-of-fame`, `/articles`, `/articles/{slug}` |
+| BE Annual awards | `StudentMeController` — `GET /me/annual-awards` |
+
+**Không còn:** certificates entity/API/UI; START_NOW trên activate.
 
 ---
 
 ## B.11 Checklist smoke (cả GĐ5+6)
 
 - [ ] `seal-gd5-final-active` CK active
+- [ ] `GitHubRepoPanel` trên submit SV + judge controls
 - [ ] Guest judges login OK
 - [ ] `seal-gd6-pending-confirm` PENDING_CONFIRM
 - [ ] Modal **Trao giải** hiện BXH finalist only
-- [ ] Export chỉ sau FINISHED
+- [ ] **Xem bản in** → `PrizePrintPage`
+- [ ] Confirm → FINISHED → tab **Bài viết & Vinh danh** (`ShowcaseEditorPanel`)
+- [ ] Public `/hall-of-fame`, `/news/:slug`
+- [ ] Results **Xuất CSV** = CSV_RANKINGS; Analytics đủ 4 types
+- [ ] Individual ranking tab khi flag on + FINISHED
+- [ ] `/student/annual-awards` + `GET /me/annual-awards`
+- [ ] `grep /me/certificates` = 0; `MyHonorsPanel` không certificates
 - [ ] Ghi `finalRoundId`
 
 ---
@@ -242,8 +318,12 @@ flowchart TD
 |---------|---------|
 | Guest chấm CK cần timer? | Không bắt buộc PRESENTING như SL — `isFinal=true`. |
 | PENDING_CONFIRM là gì? | Side-effect lock CK — chờ BTC trao giải + confirm. |
-| Individual ranking khi nào? | `individual_ranking_enabled` + FINISHED. |
+| Individual ranking khi nào? | `individual_ranking_enabled` + FINISHED → tab `IndividualRankingTable`. |
+| Results Xuất CSV ra gì? | Chỉ **CSV_RANKINGS**. Đủ 4 type nằm ở **Analytics**. |
+| FULL_REPORT gồm gì? | 13 section: TEAMS → … → RBL_VARIANCE_AGGREGATE (có APPEALS, SCORES_ANONYMIZED). |
+| Certificates? | **Đã xóa** — honors = prizes; annual awards riêng `/student/annual-awards`. |
 | Confirm có hoàn tác? | One-way → FINISHED + async calculate. |
+| START_NOW còn không? | **Không** — activate KEEP only (phase 2). |
 | 2 guest judges? | `guestjudge@` + `guestjudge2@` seed active. |
 
 **Docs:** `gd5-full-test-matrix-and-seeds.md`, `gd6-full-test-matrix-and-seeds.md`.
