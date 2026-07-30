@@ -60,6 +60,17 @@ class RoundPhaseResolverTest {
     }
 
     @Test
+    void resolve_judgingWhenClosedEarly_evenIfDeadlineStillFuture() {
+        Round round = Round.builder()
+                .isActive(true)
+                .examAt(LocalDateTime.now().minusHours(1))
+                .submissionDeadline(LocalDateTime.now().plusHours(3))
+                .submissionClosedEarlyAt(LocalDateTime.now().minusMinutes(1))
+                .build();
+        assertEquals(RoundPhase.JUDGING, resolver.resolve(round));
+    }
+
+    @Test
     void resolve_judgingWhenActiveAndExamStarted_noDeadlineFallback() {
         Round round = Round.builder()
                 .isActive(true)

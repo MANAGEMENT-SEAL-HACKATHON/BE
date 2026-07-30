@@ -2,6 +2,7 @@ package com.sealhackathon.api.presentation.support;
 
 import com.sealhackathon.api.presentation.value_object.RoundPhase;
 import com.sealhackathon.api.rounds.entity.Round;
+import com.sealhackathon.api.rounds.support.RoundSubmissionWindow;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -10,10 +11,11 @@ import java.time.LocalDateTime;
  * Phase vòng thi live scoring.
  *
  * <p>CODING = vòng active và <strong>còn trong cửa sổ nộp</strong>
- * ({@code now < submissionDeadline}). Hết hạn nộp hoặc kết thúc sớm
- * (deadline đã clamp ≤ now) → JUDGING.
+ * ({@code now < submissionDeadline} và chưa {@code submissionClosedEarlyAt}).
+ * Hết hạn nộp hoặc kết thúc sớm → JUDGING.
  *
- * <p>Fallback khi thiếu deadline: dùng {@code examAt} (chỉ CODING khi chưa đến giờ thi).
+ * <p>Fallback khi thiếu deadline và chưa đóng sớm: dùng {@code examAt}
+ * (chỉ CODING khi chưa đến giờ thi).
  */
 @Component
 public class RoundPhaseResolver {
@@ -29,12 +31,12 @@ public class RoundPhaseResolver {
             return RoundPhase.SETUP;
         }
         LocalDateTime now = LocalDateTime.now();
+        if (RoundSubmissionWindow.isClosed(round, now)) {
+            return RoundPhase.JUDGING;
+        }
         LocalDateTime deadline = round.getSubmissionDeadline();
         if (deadline != null) {
-            if (now.isBefore(deadline)) {
-                return RoundPhase.CODING;
-            }
-            return RoundPhase.JUDGING;
+            return RoundPhase.CODING;
         }
         LocalDateTime examAt = round.getExamAt();
         if (examAt != null && now.isBefore(examAt)) {

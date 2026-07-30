@@ -24,6 +24,7 @@ import com.sealhackathon.api.rounds.query.ScoringProgressQueryService;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.service.RoundLockScoringService;
 import com.sealhackathon.api.rounds.support.RoundPresentationReadiness;
+import com.sealhackathon.api.rounds.support.RoundSubmissionWindow;
 import com.sealhackathon.api.scores.entity.Score;
 import com.sealhackathon.api.scores.repository.ScoreRepository;
 import com.sealhackathon.api.users.entity.User;
@@ -68,10 +69,7 @@ public class RoundLockScoringServiceImpl implements RoundLockScoringService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        boolean closedEarly = round.getSubmissionClosedEarlyAt() != null;
-        boolean pastDeadline = round.getSubmissionDeadline() != null
-                && now.isAfter(round.getSubmissionDeadline());
-        if (!closedEarly && !pastDeadline) {
+        if (!RoundSubmissionWindow.isClosed(round, now)) {
             throw new BusinessRuleException(ErrorCode.INVALID_ROUND_STATE_NOT_CLOSED,
                     "Chưa đóng vòng thi (chưa hết giờ hoặc chưa kết thúc sớm), không thể khóa chấm!");
         }

@@ -123,6 +123,11 @@ public class RoundScheduleShiftService {
         round.setSubmissionOpen(open);
         round.setSubmissionDeadline(deadline);
         round.setDeadlineReminderSentAt(null);
+        // Re-open submission window: clear early-close flag so phase gates stay consistent
+        boolean clearedClosedEarly = round.getSubmissionClosedEarlyAt() != null;
+        if (clearedClosedEarly) {
+            round.setSubmissionClosedEarlyAt(null);
+        }
         Round saved = roundRepository.save(round);
 
         Map<String, Object> cascadeMeta = new LinkedHashMap<>();
@@ -143,6 +148,7 @@ public class RoundScheduleShiftService {
         audit.put("newExamAt", String.valueOf(saved.getExamAt()));
         audit.put("newSubmissionOpen", String.valueOf(saved.getSubmissionOpen()));
         audit.put("newSubmissionDeadline", String.valueOf(saved.getSubmissionDeadline()));
+        audit.put("clearedSubmissionClosedEarlyAt", clearedClosedEarly);
         audit.put("hackathonId", saved.getHackathon() != null ? saved.getHackathon().getId() : null);
         audit.putAll(cascadeMeta);
         auditService.log(AuditAction.ROUND_SCHEDULE_SHIFTED, "rounds", saved.getId(), audit);
@@ -177,6 +183,9 @@ public class RoundScheduleShiftService {
             finalRound.setSubmissionOpen(finalOpen);
             finalRound.setSubmissionDeadline(finalDeadline);
             finalRound.setDeadlineReminderSentAt(null);
+            if (finalRound.getSubmissionClosedEarlyAt() != null) {
+                finalRound.setSubmissionClosedEarlyAt(null);
+            }
             if (finalRound.getCodingDurationHours() == null || finalRound.getCodingDurationHours() <= 0) {
                 finalRound.setCodingDurationHours(finalHours);
             }

@@ -748,13 +748,21 @@ public class PresentationQueueServiceImpl implements PresentationQueueService {
     }
 
     private void requireJudgingPhase(Round round) {
-        if (roundPhaseResolver.resolve(round) != RoundPhase.JUDGING) {
-            throw new BusinessRuleException(ErrorCode.SUBMISSION_NOT_CLOSED_FOR_SHUFFLE,
-                    "Chưa hết hạn nộp bài — không xáo hàng đợi thuyết trình",
-                    Map.of("roundId", round.getId(),
-                            "submissionDeadline", round.getSubmissionDeadline(),
-                            "phase", roundPhaseResolver.resolve(round).name()));
+        RoundPhase phase = roundPhaseResolver.resolve(round);
+        if (phase == RoundPhase.JUDGING) {
+            return;
         }
+        String message = switch (phase) {
+            case SETUP -> "Vòng thi chưa được kích hoạt — không xáo hàng đợi thuyết trình";
+            case SCORING_LOCKED -> "Vòng đã khóa chấm — không xáo hàng đợi thuyết trình";
+            case PUBLISHED -> "Vòng đã công bố kết quả — không xáo hàng đợi thuyết trình";
+            default -> "Chưa hết hạn nộp bài — không xáo hàng đợi thuyết trình";
+        };
+        throw new BusinessRuleException(ErrorCode.SUBMISSION_NOT_CLOSED_FOR_SHUFFLE,
+                message,
+                Map.of("roundId", round.getId(),
+                        "submissionDeadline", round.getSubmissionDeadline(),
+                        "phase", phase.name()));
     }
 
     private Round resolveRound(Integer roundId) {
