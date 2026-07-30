@@ -124,20 +124,6 @@ public class Round {
     @Column(name = "min_teams_final")
     private Integer minTeamsFinal;
 
-    /**
-     * Per-round flag — runtime WC pool chỉ check field này (không AND hackathon).
-     */
-    @Builder.Default
-    @Column(name = "wildcard_enabled", nullable = false)
-    private Boolean wildcardEnabled = false;
-
-    /**
-     * Plan C — thời điểm Coordinator xác nhận đề xuất vé vớt (LOCKED).
-     * NULL = chưa xác nhận; sau lock chỉ sửa qua Override.
-     */
-    @Column(name = "wildcard_proposal_confirmed_at")
-    private LocalDateTime wildcardProposalConfirmedAt;
-
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "tiebreak_rule", length = 50)

@@ -85,9 +85,6 @@ public class Hackathon {
     @Column(name = "event_end")
     private LocalDate eventEnd;
 
-    @Column(name = "wildcard_enabled", nullable = false)
-    private Boolean wildcardEnabled = false;
-
     @Column(name = "individual_ranking_enabled", nullable = false)
     private Boolean individualRankingEnabled = false;
 

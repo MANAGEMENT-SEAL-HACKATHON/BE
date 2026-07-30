@@ -106,7 +106,6 @@ class Gd1ReadinessGateIntegrationTest {
                 .registrationEnd(LocalDate.now().plusDays(7))
                 .eventStart(LocalDate.now().plusDays(14))
                 .eventEnd(LocalDate.now().plusDays(14))
-                .wildcardEnabled(true)
                 .individualRankingEnabled(false)
                 .createdBy(coordinator)
                 .build());
@@ -136,7 +135,6 @@ class Gd1ReadinessGateIntegrationTest {
                 .registrationEnd(LocalDate.now().plusDays(7))
                 .eventStart(LocalDate.now().plusDays(14))
                 .eventEnd(LocalDate.now().plusDays(14))
-                .wildcardEnabled(true)
                 .individualRankingEnabled(false)
                 .createdBy(coordinator)
                 .build());
@@ -195,7 +193,6 @@ class Gd1ReadinessGateIntegrationTest {
                 .registrationEnd(LocalDate.now().plusDays(7))
                 .eventStart(LocalDate.now().plusDays(14))
                 .eventEnd(LocalDate.now().plusDays(14))
-                .wildcardEnabled(true)
                 .individualRankingEnabled(false)
                 .createdBy(coordinator)
                 .build());

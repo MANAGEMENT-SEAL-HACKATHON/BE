@@ -30,8 +30,8 @@ Catalog thống nhất các business rules đang được enforce trong backend,
 
 | Metric | Giá trị |
 |--------|--------:|
-| Tổng rules | 543 |
-| Modules | 35 |
+| Tổng rules | 527 |
+| Modules | 34 |
 | ErrorCode constants | 235 |
 | ErrorCode xuất hiện trong catalog | 202 |
 | ErrorCode được reference trong src | 198 |
@@ -43,7 +43,7 @@ Catalog thống nhất các business rules đang được enforce trong backend,
 - [Hackathon](#hackathon) (15)
 - [Readiness](#readiness) (14)
 - [Registration](#registration) (29)
-- [Round](#round) (34)
+- [Round](#round) (33)
 - [Track](#track) (15)
 - [Criteria](#criteria) (12)
 - [JudgeAssign](#judgeassign) (13)
@@ -51,11 +51,11 @@ Catalog thống nhất các business rules đang được enforce trong backend,
 - [Event](#event) (18)
 - [TempJudge](#tempjudge) (4)
 - [Invitation](#invitation) (18)
-- [Team](#team) (61)
+- [Team](#team) (59)
 - [Lottery](#lottery) (8)
 - [Submission](#submission) (33)
 - [Score](#score) (13)
-- [RoundProgression](#roundprogression) (57)
+- [RoundProgression](#roundprogression) (46)
 - [Presentation](#presentation) (27)
 - [Appeal](#appeal) (4)
 - [Calibration](#calibration) (4)
@@ -70,7 +70,6 @@ Catalog thống nhất các business rules đang được enforce trong backend,
 - [Announcement](#announcement) (4)
 - [LiveScoring](#livescoring) (6)
 - [Archive](#archive) (1)
-- [Certificate](#certificate) (2)
 - [Common](#common) (3)
 - [RoundAccess](#roundaccess) (3)
 - [Appendix A — ErrorCode orphan / unused](#appendix-a--errorcode-orphan--unused)
@@ -230,7 +229,6 @@ Catalog thống nhất các business rules đang được enforce trong backend,
 | BR-ROUND-009 | FR-02 | Round | Validation | Final exam cùng ngày prelim (nếu codingHours>0) và trong [minFinal; maxFinal]; else examAt > latest prelim | final exam order sai | Reject | ROUND_FINAL_EXAM_ORDER | TC final exam order | Implemented | rounds/service/impl/RoundServiceImpl.java |
 | BR-ROUND-010 | FR-02 | Round | Validation | Prelim examAt phải trước final.examAt | prelim exam >= final exam | Reject | ROUND_PRELIM_EXAM_ORDER | TC prelim after final | Implemented | rounds/service/impl/RoundServiceImpl.java |
 | BR-ROUND-011 | FR-02 | Round | Validation | examAt sau KICKOFF.endsAt (nếu có) và trong [eventStart; eventEnd] | timeline validateRoundExamAt | Reject | ROUND_EXAM_BEFORE_KICKOFF; EVENT_OUT_OF_HACKATHON | TC exam before KO end | Implemented | events/service/impl/HackathonTimelineServiceImpl.java |
-| BR-ROUND-012 | FR-02 | Round | Validation | Final: topNAdvance/minTeamsFinal phải null; wildcardEnabled không true; roundType=FINAL; late policy HARD_LOCK | validateRoundBusinessRules / update rules | Reject | ROUND_DEADLINE_INVALID; INVALID_STATE | TC final with topN | Implemented | rounds/service/impl/RoundServiceImpl.java |
 | BR-ROUND-013 | FR-02 | Round | Validation | Non-final không được roundType=FINAL khi is_final=false | mismatch flags | Reject | INVALID_STATE | TC inconsistent flags | Implemented | rounds/service/impl/RoundServiceImpl.java |
 | BR-ROUND-014 | FR-02 | Round | Validation | Prelim submissionDeadline < final.examAt (nếu có final) | ordering fail | Reject | ROUND_PRELIM_DEADLINE_AFTER_FINAL_EXAM | TC prelim deadline after final exam | Implemented | rounds/service/impl/RoundServiceImpl.java |
 | BR-ROUND-015 | FR-02 | Round | Validation | Final submissionDeadline < AWARDS.startsAt (nếu có AWARDS) | deadline >= awardsStart | Reject | ROUND_FINAL_DEADLINE_AFTER_AWARDS | TC final deadline after awards | Implemented | rounds/service/impl/RoundServiceImpl.java |
@@ -431,7 +429,6 @@ Catalog thống nhất các business rules đang được enforce trong backend,
 | BR-TEAM-045 | FR-13C | Team | Validation | User gán phải role MENTOR | role != MENTOR | 422 | USER_INVALID_ROLE | assign student as mentor | Implemented | TeamServiceImpl.java |
 | BR-TEAM-046 | FR-13C | Team | Gap | removeMentor xóa assignment không check điểm (docs yêu cầu ROUND_HAS_SCORES) | DELETE mentor | xóa luôn | ROUND_HAS_SCORES (chưa dùng) | remove mentor after scores exist | Partial | TeamServiceImpl.java#removeMentor vs docs mf02 |
 | BR-TEAM-047 | FR-13/GD3 | Team | Validation | DQ bắt buộc reason; không DQ lại | blank / already ELIMINATED |  | VALIDATION_FAILED / INVALID_STATE | DQ without reason | Implemented | TeamServiceImpl.java#eliminateTeam |
-| BR-TEAM-048 | FR-13/GD3 | Team | SideEffect | DQ set ELIMINATED + TRT ELIMINATED + afterEliminate backfill | DQ team ADVANCED prelim | notify TEAM_DQ + backfill seat | N/A | bench/wildcard promote | Implemented | TeamServiceImpl + TeamDqBackfillServiceImpl |
 | BR-TEAM-049 | FR-11 | Team | Gate | Admin create chặn khi prelim round đã active | any non-final round isActive | 422 | ROUND_ALREADY_ACTIVE | admin create after prelim open | Implemented | TeamServiceImpl.java#adminCreateTeam |
 | BR-TEAM-050 | FR-11 | Team | Validation | Admin create bắt buộc size trong min-max (1 leader + members) | out of range |  | TEAM_INVALID_MEMBER_COUNT | admin create 2 people | Implemented | TeamServiceImpl.java |
 | BR-TEAM-051 | FR-11 | Team | StateTransition | Admin create → ACTIVE ngay; lock nếu registration closed | create ok | ACTIVE + optional lock | USER_IN_ANOTHER_TEAM nếu member đã có đội | admin create after close locks | Implemented | TeamServiceImpl.java |
@@ -441,7 +438,6 @@ Catalog thống nhất các business rules đang được enforce trong backend,
 | BR-TEAM-055 | FR-11 | Team | Policy | Incomplete/matchmaking = PENDING với acceptedCount ngoài [min,max] | query incomplete | trả danh sách | N/A | under-min and over-max both listed | Implemented | TeamServiceImpl.java#getIncompleteTeams |
 | BR-TEAM-056 | FR-13A | Team | Scheduler | Cron khóa ACTIVE khi registration period ended; reject PENDING out-of-range + withdraw orphans | ONGOING + registration ended | lock ACTIVE; reject incomplete; withdraw orphans | N/A | run lockTeamsAfterRegistrationEnd | Implemented | teams/.../TeamLockServiceImpl.java |
 | BR-TEAM-057 | FR-11 | Team | Scheduler | PENDING chưa confirm và graceDeadline < now → REJECTED + withdraw ACCEPTED + notify | expireOverdueGraceTeams | LEFT + withdraw + TEAM_FORMATION_GRACE_EXPIRED | N/A | wait >24h after close-early grace | Implemented | FormationGraceExpiryServiceImpl.java |
-| BR-TEAM-058 | FR-13/GD3 | Team | Policy | Sau DQ ghế ADVANCED prelim: nếu hackathon FINISHED chỉ log; nếu FINAL active reject backfill; else TOP_N bench hoặc WILDCARD pool | afterEliminate seats | promote candidate ADVANCED + final TRP + notify | INVALID_STATE race nếu candidate đã ADVANCED | DQ advanced team promotes next rank same group | Implemented | TeamDqBackfillServiceImpl.java |
 | BR-TEAM-059 | FR-13/GD3 | Team | Invariant | Backfill candidate không ELIMINATED; same assignedGroup (case-insensitive) cho TOP_N path | filter ranking | skip ineligible | DQ_NO_BACKFILL_* audits khi empty | empty bench logs audit only | Implemented | TeamDqBackfillServiceImpl.java |
 | BR-TEAM-060 | FR-11 | Team | Authorization | Journey yêu cầu TeamAccessGuard | unauthorized viewer | 403 | FORBIDDEN | IDOR journey | Implemented | TeamJourneyServiceImpl.java |
 | BR-TEAM-061 | FR-13 | Team | SideEffect | releaseMembers: PENDING→REJECTED; ACCEPTED→LEFT (+optional withdraw); notify TEAM_RELEASED | reject/disband/merge source | audit TEAM_MEMBERS_RELEASED | N/A | banner TEAM_RELEASED | Implemented | TeamMembershipReleaseServiceImpl.java |
@@ -557,23 +553,12 @@ Catalog thống nhất các business rules đang được enforce trong backend,
 | BR-RPROG-036 | FR-22B | RoundProgression | Validation | orderedTeamIds không trùng | duplicate ids | Từ chối | INVALID_STATE | orderedTeamIds=[1,1] | Implemented | RoundProgressionServiceImpl#resolveTiebreak |
 | BR-RPROG-037 | FR-22B | RoundProgression | Validation | orderedTeamIds phải khớp đúng nhóm đang tie | Set≠candidate set | INVALID_STATE hoặc TIEBREAK_ALREADY_RESOLVED | INVALID_STATE\|TIEBREAK_ALREADY_RESOLVED | Thứ tự đội không thuộc nhóm hòa | Implemented | RoundProgressionServiceImpl#resolveTiebreak |
 | BR-RPROG-038 | FR-22B | RoundProgression | StateTransition | Đã có casting-vote → 409 | isCastingVote tồn tại | Conflict | TIEBREAK_ALREADY_RESOLVED | 2 Coord resolve song song | Implemented | RoundProgressionServiceImpl#resolveTiebreak |
-| BR-RPROG-039 | FR-22A | RoundProgression | Policy | Product: wildcardCandidates luôn empty pool (Top-N only; WC-MIG) | GET wildcard-candidates | Trả empty; ignore enabled flags | N/A | GET candidates khi wildcardEnabled | Deprecated | RoundProgressionServiceImpl#wildcardCandidates |
-| BR-RPROG-040 | FR-22A | RoundProgression | Gate | Confirm proposal cần scoring_locked | !locked | Từ chối | ROUND_NOT_SCORING_LOCKED | Confirm trước lock | Implemented | RoundProgressionServiceImpl#confirmWildcardProposal |
-| BR-RPROG-041 | FR-22A | RoundProgression | StateTransition | Đã confirm không confirm lại | wildcardProposalConfirmedAt≠null | Từ chối | WILDCARD_PROPOSAL_ALREADY_CONFIRMED | Confirm 2 lần | Implemented | RoundProgressionServiceImpl#confirmWildcardProposal |
-| BR-RPROG-042 | FR-22A | RoundProgression | Gate | Round wildcardEnabled phải true | !wildcardEnabled | Từ chối | INVALID_STATE | Confirm khi tắt WC | Implemented | RoundProgressionServiceImpl#confirmWildcardProposal |
-| BR-RPROG-043 | FR-22A | RoundProgression | Gate | Phải có pool slots=min(minTeamsFinal−topN×tracks, minTeamsFinal−topNActual) &gt;0 | Không đủ slot/remaining | Từ chối | INVALID_STATE | minTeamsFinal quá thấp | Implemented | RoundProgressionServiceImpl#resolveWildcardPool;#confirmWildcardProposal |
-| BR-RPROG-044 | FR-22A | RoundProgression | SideEffect | Approve proposed; reject ngoài pool; set confirmedAt; audit | Confirm OK | Lock proposal | N/A | Confirm rồi override | Implemented | RoundProgressionServiceImpl#confirmWildcardProposal |
-| BR-RPROG-045 | FR-22A | RoundProgression | Gate | Override chỉ sau proposal confirmed | confirmedAt=null | Từ chối | WILDCARD_PROPOSAL_NOT_LOCKED | Override trước confirm | Implemented | RoundProgressionServiceImpl#overrideWildcardReview |
-| BR-RPROG-046 | FR-22A | RoundProgression | Validation | Category ∈ PROPOSED_TEAM_VIOLATION\|TRACK_QUOTA_ADJUST\|SCORE_CORRECTED\|OTHER; OTHER bắt buộc note | category invalid / OTHER blank note | Từ chối | WILDCARD_OVERRIDE_CATEGORY_INVALID\|WILDCARD_OVERRIDE_NOTE_REQUIRED | Override OTHER không note | Implemented | wildcard_reviews/support/WildcardOverrideCategory.java;RoundProgressionServiceImpl |
-| BR-RPROG-047 | FR-22A | RoundProgression | SideEffect | Ghi WildcardOverrideHistory + isOverride + audit | Override OK | Lưu before/after approved | N/A | List overrides | Implemented | RoundProgressionServiceImpl#overrideWildcardReview |
-| BR-RPROG-048 | FR-22A | RoundProgression | Gate | Legacy decide: chặn nếu proposal confirmed; cần lock; chưa decided; team in pool; đủ slots khi approve | PATCH wildcard-reviews/{id} | Approve/reject + auto-reject remaining | WILDCARD_PROPOSAL_ALREADY_CONFIRMED\|ROUND_NOT_SCORING_LOCKED\|INVALID_STATE | Legacy decide sau Plan C | Deprecated | RoundProgressionServiceImpl#decideWildcardReview;WildcardReviewController |
 | BR-RPROG-049 | FR-30 | RoundProgression | Validation | Advance chỉ round Sơ loại | isFinal | Từ chối | INVALID_STATE | Advance round CK | Implemented | RoundProgressionServiceImpl#requirePreliminaryRoundForProgression |
 | BR-RPROG-050 | FR-24/FR-30 | RoundProgression | Gate | Advance cần scoring_locked + isPublished | Thiếu lock hoặc publish | Từ chối | ROUND_NOT_SCORING_LOCKED\|RESULT_NOT_PUBLISHED | Advance trước publish | Implemented | RoundProgressionServiceImpl#requireScoringLockedAndPublished |
 | BR-RPROG-051 | FR-22B/FR-30 | RoundProgression | Gate | Còn unresolved tiebreak → không advance (auto-resolve trước) | tiebreak() còn items | Từ chối kèm unresolvedItems | TIEBREAK_REQUIRED | Advance khi còn hòa cutoff | Implemented | RoundProgressionServiceImpl#advanceTeams |
 | BR-RPROG-052 | FR-30 | RoundProgression | Gate | Hackathon phải có round FINAL | Không có isFinal round | Từ chối | INVALID_FINAL_ROUND | Advance thiếu CK | Implemented | RoundProgressionServiceImpl#advanceTeams |
 | BR-RPROG-053 | FR-30 | RoundProgression | Validation | Team không vừa advanced vừa eliminated | overlap sets | Từ chối | INVALID_STATE | Cùng teamId 2 list | Implemented | RoundProgressionServiceImpl#advanceTeams |
 | BR-RPROG-054 | FR-30 | RoundProgression | SideEffect | Set TRT ADVANCED/ELIMINATED; upsert TeamRoundParticipation CK; audit | Advance OK | Idempotent upsert TRP | N/A | Advance rồi submit CK | Implemented | RoundProgressionServiceImpl#advanceTeams;#upsertFinalRoundParticipation |
-| BR-RPROG-055 | FR-22A/FR-30 | RoundProgression | Policy | Advance không block trên wildcard (WC-MIG Top-N only) | Legacy WC pending | Bỏ qua requireWildcardReadyForAdvance | WILDCARD_PENDING (không dùng) | Advance khi WC pending legacy | Implemented | RoundProgressionServiceImpl#advanceTeams |
 | BR-RPROG-056 | FR-27 | RoundProgression | Validation | Chỉ assign judge trên round FINAL; warning nếu &lt;1 hoặc &lt;3 judges | !isFinal / ít judge | Assign FINAL_EXTERNAL + warnings MIN_FINAL_JUDGES_NOT_MET | INVALID_FINAL_ROUND | Assign trên prelim | Implemented | RoundProgressionServiceImpl#assignFinalJudges |
 | BR-RPROG-057 | FR-16/FR-26 | RoundProgression | Policy | ALLOW_LATE_PENDING (SL) vs HARD_LOCK (CK) — BC-01 | Round.lateSubmissionPolicy | Nhánh status late | N/A | Đổi policy round | Implemented | rounds/value_object/LateSubmissionPolicy.java |
 
@@ -774,13 +759,6 @@ Catalog thống nhất các business rules đang được enforce trong backend,
 |---------|-----------------|--------|-----------|-------------------------|---------------------|---------------------------------|---------------------------|--------------------------|--------|----------------------|
 | BR-ARCH-001 | N/A | Archive | Guard | FINISHED chặn mọi mutation qua HackathonArchiveGuard (hackathon/round/track/criteria) | assertNotArchived* khi FINISHED | Conflict | HACKATHON_ARCHIVED | Sửa round khi FINISHED | Implemented | hackathons/support/HackathonArchiveGuard.java |
 
-## Certificate
-
-| Rule ID | Related Req ID | Module | Rule Type | Business Rule Statement | Condition / Trigger | System Action / Expected Result | Exception / Error Message | Test Case / Example Data | Status | Evidence Link / Note |
-|---------|-----------------|--------|-----------|-------------------------|---------------------|---------------------------------|---------------------------|--------------------------|--------|----------------------|
-| BR-CERT-001 | N/A | Certificate | Access | SV chỉ tải certificate của chính mình | cert.userId ≠ currentUser | FORBIDDEN | FORBIDDEN | Tải cert user khác | Implemented | me/student/service/impl/StudentPortalServiceImpl.java |
-| BR-CERT-002 | N/A | Certificate | Policy | Không có file storage (hoặc URL http) → generate PDF tối giản tên HK + fullName | resolve() thiếu object | Trả PDF generated | N/A | cert fileUrl null | Implemented | certificates/support/CertificateFileResolver.java |
-
 ## Common
 
 | Rule ID | Related Req ID | Module | Rule Type | Business Rule Statement | Condition / Trigger | System Action / Expected Result | Exception / Error Message | Test Case / Example Data | Status | Evidence Link / Note |
@@ -799,7 +777,7 @@ Catalog thống nhất các business rules đang được enforce trong backend,
 
 ## Appendix A — ErrorCode orphan / unused
 
-### A.1 Declared in `ErrorCode.java` nhưng không thấy reference `ErrorCode.*` trong `src/main/java` (37)
+### A.1 Declared in `ErrorCode.java` nhưng không thấy reference `ErrorCode.*` trong `src/main/java` (35)
 
 | ErrorCode | Ghi chú |
 |-----------|---------|
@@ -838,8 +816,6 @@ Catalog thống nhất các business rules đang được enforce trong backend,
 | `TRACK_PARENT_ROUND_ACTIVE` | Có thể chỉ dùng string literal / chưa wire / reserved |
 | `TRACK_SEQUENCE_DUPLICATE` | Có thể chỉ dùng string literal / chưa wire / reserved |
 | `USER_TYPE_LOCKED` | Có thể chỉ dùng string literal / chưa wire / reserved |
-| `WILDCARD_PENDING` | Advance không còn block WC (WC-MIG) |
-| `WILDCARD_PROPOSAL_NOT_CONFIRMED` | Có thể chỉ dùng string literal / chưa wire / reserved |
 
 ### A.2 Có reference trong src nhưng chưa gắn rule riêng trong catalog (0)
 
@@ -863,7 +839,6 @@ _Thường là string literal runtime (vd. `APPEAL_DEADLINE_EXPIRED`, `RESULT_NO
 | removeMentor | Docs yêu cầu `ROUND_HAS_SCORES` — code chưa check → Status Gap trên rule liên quan. |
 | Team rankings status gate | Docs: chỉ PENDING_CONFIRM+; **code** `FinalRankingQueryServiceImpl` không gate status. |
 | EXPORT_JOB_NOT_READY | Constant tồn tại; download dùng `INVALID_STATE`. |
-| Wildcard candidates | `wildcardCandidates` luôn empty (product disabled); confirm/override còn code. |
 | Mentor chapter AVG vs official SUM | Mentor portal AVG; `ChapterRankingServiceImpl` SUM. |
 | RESULT_PUBLISHED batch notify | TODO trong `HackathonFinishedEventListener` (announcement STOMP đã có). |
 

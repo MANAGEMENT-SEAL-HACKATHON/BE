@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * Một dòng danh sách CK / loại (Bug3 — advance-roster).
- * {@code status}: ADVANCED | ELIMINATED; {@code reasonCode}: TOP_N | WILDCARD | OUT | DQ.
+ * {@code status}: ADVANCED | ELIMINATED; {@code reasonCode}: TOP_N | OUT | DQ.
  */
 @Getter
 @NoArgsConstructor

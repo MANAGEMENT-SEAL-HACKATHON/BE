@@ -11,7 +11,6 @@ import com.sealhackathon.api.rounds.dto.response.RoundRankingItemResponse;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.query.RoundRankingQueryService;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
-import com.sealhackathon.api.rounds.support.WildcardCandidateSelection;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.entity.TeamMember;
 import com.sealhackathon.api.teams.entity.TeamRoundParticipation;
@@ -27,14 +26,11 @@ import com.sealhackathon.api.teams.value_object.TeamMemberStatus;
 import com.sealhackathon.api.teams.value_object.TeamStatus;
 import com.sealhackathon.api.tracks.entity.Track;
 import com.sealhackathon.api.users.entity.User;
-import com.sealhackathon.api.wildcard_reviews.entity.WildcardReview;
-import com.sealhackathon.api.wildcard_reviews.repository.WildcardReviewRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -55,7 +51,6 @@ public class TeamDqBackfillServiceImpl implements TeamDqBackfillService {
     private final TeamRoundParticipationRepository teamRoundParticipationRepository;
     private final TeamMemberRepository teamMemberRepository;
     private final TeamRepository teamRepository;
-    private final WildcardReviewRepository wildcardReviewRepository;
     private final NotificationService notificationService;
     private final AuditService auditService;
 
@@ -99,12 +94,8 @@ public class TeamDqBackfillServiceImpl implements TeamDqBackfillService {
                 continue;
             }
 
-            if (seat.wasWildcard()) {
-                backfillFromWildcardPool(eliminatedTeam, prelim, track, finalRoundOpt.orElse(null), reason);
-            } else {
-                backfillFromTopNBench(eliminatedTeam, prelim, track, advancedTrt.getAssignedGroup(),
-                        finalRoundOpt.orElse(null), reason);
-            }
+            backfillFromTopNBench(eliminatedTeam, prelim, track, advancedTrt.getAssignedGroup(),
+                    finalRoundOpt.orElse(null), reason);
         }
     }
 
@@ -130,49 +121,18 @@ public class TeamDqBackfillServiceImpl implements TeamDqBackfillService {
             return;
         }
 
-        promoteCandidate(candidateOpt.get().getTeamId(), prelim, track, finalRound, dqTeam, reason,
-                AuditAction.TOP_N_BACKFILL, false);
-    }
-
-    private void backfillFromWildcardPool(Team dqTeam, Round prelim, Track track,
-                                          Round finalRound, String reason) {
-        Integer topN = prelim.getTopNAdvance();
-        int topNVal = topN != null && topN > 0 ? topN : 0;
-
-        List<RoundRankingItemResponse> ranking =
-                roundRankingQueryService.rankingForRound(prelim.getId(), false);
-
-        List<RoundRankingItemResponse> remaining = ranking.stream()
-                .filter(r -> !ParticipationStatus.ADVANCED.name().equals(r.getParticipationStatus()))
-                .filter(r -> !Objects.equals(r.getTeamId(), dqTeam.getId()))
-                .filter(r -> isTeamEligibleForBackfill(r.getTeamId()))
-                .filter(r -> topNVal <= 0 || r.getRank() == null || r.getRank() > topNVal)
-                .collect(Collectors.toCollection(ArrayList::new));
-
-        List<RoundRankingItemResponse> selected =
-                WildcardCandidateSelection.selectExactSlots(remaining, 1);
-        if (selected.isEmpty()) {
-            auditService.log(AuditAction.DQ_WILDCARD_NO_CANDIDATE, "teams", dqTeam.getId(),
-                    baseAudit(dqTeam, prelim, track, reason, null));
-            return;
-        }
-
-        Integer candidateTeamId = selected.get(0).getTeamId();
-        promoteCandidate(candidateTeamId, prelim, track, finalRound, dqTeam, reason,
-                AuditAction.WILDCARD_BACKFILL, true);
+        promoteCandidate(candidateOpt.get().getTeamId(), prelim, track, finalRound, dqTeam, reason);
     }
 
     private void promoteCandidate(Integer candidateTeamId, Round prelim, Track track,
-                                  Round finalRound, Team dqTeam, String reason,
-                                  String auditAction, boolean wildcardPath) {
+                                  Round finalRound, Team dqTeam, String reason) {
         TeamRoundTrack candidateTrt = teamRoundTrackRepository
                 .findByTeam_IdAndTrack_Id(candidateTeamId, track.getId())
                 .or(() -> teamRoundTrackRepository.findByTeam_IdAndTrack_Round_Id(candidateTeamId, prelim.getId()))
                 .orElse(null);
 
         if (candidateTrt == null) {
-            auditService.log(wildcardPath ? AuditAction.DQ_WILDCARD_NO_CANDIDATE
-                            : AuditAction.DQ_NO_BACKFILL_BENCH_EMPTY,
+            auditService.log(AuditAction.DQ_NO_BACKFILL_BENCH_EMPTY,
                     "teams", dqTeam.getId(),
                     baseAudit(dqTeam, prelim, track, reason, candidateTeamId));
             return;
@@ -198,14 +158,10 @@ public class TeamDqBackfillServiceImpl implements TeamDqBackfillService {
             upsertFinalRoundParticipation(candidate, finalRound, dqTeam.getHackathon());
         }
 
-        if (wildcardPath) {
-            approveWildcardReviewIfPresent(prelim, candidate);
-        }
-
         Map<String, Object> audit = baseAudit(dqTeam, prelim, track, reason, candidateTeamId);
         audit.put("backfillTeamName", candidate.getTeamName());
-        audit.put("path", wildcardPath ? "WILDCARD" : "TOP_N");
-        auditService.log(auditAction, "teams", candidateTeamId, audit);
+        audit.put("path", "TOP_N");
+        auditService.log(AuditAction.TOP_N_BACKFILL, "teams", candidateTeamId, audit);
 
         String trackLabel = track.getName() != null ? track.getName() : ("#" + track.getId());
         notifyTeam(candidate,
@@ -215,21 +171,6 @@ public class TeamDqBackfillServiceImpl implements TeamDqBackfillService {
                         + "\" được đôn vào Chung kết thay ghế đội bị loại tại bảng "
                         + trackLabel + ".",
                 candidate.getId());
-    }
-
-    private void approveWildcardReviewIfPresent(Round prelim, Team candidate) {
-        Optional<WildcardReview> reviewOpt =
-                wildcardReviewRepository.findByRound_IdAndTeam_Id(prelim.getId(), candidate.getId());
-        if (reviewOpt.isEmpty()) {
-            return;
-        }
-        WildcardReview review = reviewOpt.get();
-        if (!Boolean.TRUE.equals(review.getCoordinatorApproved())) {
-            review.setCoordinatorApproved(true);
-            review.setCoordinatorNote("Auto-approved: DQ wildcard backfill");
-            review.setReviewedAt(LocalDateTime.now());
-            wildcardReviewRepository.save(review);
-        }
     }
 
     private boolean isTeamEligibleForBackfill(Integer teamId) {

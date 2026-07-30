@@ -25,7 +25,6 @@ public class HackathonMapper {
                 .registrationEnd(req.getRegistrationEnd())
                 .eventStart(req.getEventStart())
                 .eventEnd(req.getEventEnd())
-                .wildcardEnabled(req.getWildcardEnabled() != null && req.getWildcardEnabled())
                 .individualRankingEnabled(req.getIndividualRankingEnabled() != null && req.getIndividualRankingEnabled())
                 .chapterScoringFormula(req.getChapterScoringFormula())
                 .maxParticipants(req.getMaxParticipants())
@@ -43,9 +42,6 @@ public class HackathonMapper {
         entity.setRegistrationEnd(req.getRegistrationEnd());
         entity.setEventStart(req.getEventStart());
         entity.setEventEnd(req.getEventEnd());
-        if (req.getWildcardEnabled() != null) {
-            entity.setWildcardEnabled(req.getWildcardEnabled());
-        }
         if (req.getIndividualRankingEnabled() != null) {
             entity.setIndividualRankingEnabled(req.getIndividualRankingEnabled());
         }
@@ -77,7 +73,6 @@ public class HackathonMapper {
                 .scheduleAdjustedAt(e.getScheduleAdjustedAt())
                 .eventStart(e.getEventStart())
                 .eventEnd(e.getEventEnd())
-                .wildcardEnabled(e.getWildcardEnabled())
                 .individualRankingEnabled(e.getIndividualRankingEnabled())
                 .chapterScoringFormula(e.getChapterScoringFormula())
                 .createdById(e.getCreatedBy() == null ? null : e.getCreatedBy().getId())

@@ -105,7 +105,6 @@ class Gd3RoundGateIntegrationTest {
                 .registrationEnd(LocalDate.now().minusDays(1))
                 .eventStart(LocalDate.now())
                 .eventEnd(LocalDate.now())
-                .wildcardEnabled(false)
                 .individualRankingEnabled(false)
                 .createdBy(coordinator)
                 .build());

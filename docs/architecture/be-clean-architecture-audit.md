@@ -23,7 +23,7 @@ Not full Clean Architecture (no domain/ports rings). Matches Spring Boot modular
 | `presentation/queue` | Validation + audit in `PresentationQueueService` (Phase 1) |
 | `rounds/progression` | Ranking warnings in `RoundProgressionService` (Phase 1) |
 | `announcements` | Returns `AnnouncementResponse` DTO (Phase 1) |
-| `wildcard_reviews` | Thin `WildcardReviewService` facade; legacy PATCH removed (Phase 3) |
+| ~~`wildcard_reviews`~~ | **Removed (Phase 9)** — package/API deleted |
 | `rbl/dashboard` | Native SQL in `RblDashboardQueryRepository` (Phase 1) |
 | `rbl/calibration/*` | `ResponseEntity<ApiResponse<T>>` envelope (Phase 2) |
 | `common/system/HealthCheckController` | Co-located with `SystemTimeController` (Phase 3) |
@@ -50,7 +50,7 @@ Not full Clean Architecture (no domain/ports rings). Matches Spring Boot modular
 ## Package structure notes
 
 - Standard slice: `controller / service / repository / entity / dto` per feature
-- Internal-only (no REST): `appeals`, `notifications`, `certificates`, `oauth_accounts`, `tiebreak_evaluations`, `individual_rankings`
+- Internal-only (no REST): `appeals`, `notifications`, `oauth_accounts`, `tiebreak_evaluations`, `individual_rankings`
 - Portal: `me/*` — role-based `/api/v1/me` aliases
 - Nested feature: `rbl/calibration/`
 

@@ -44,8 +44,6 @@ public class UpdateRoundRequest {
     @Min(1)
     private Integer topNAdvance;
 
-    private Boolean wildcardEnabled;
-
     @Min(1)
     private Integer minTeamsFinal;
 

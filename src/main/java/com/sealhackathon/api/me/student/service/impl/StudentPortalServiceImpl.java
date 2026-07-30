@@ -1,8 +1,6 @@
 package com.sealhackathon.api.me.student.service.impl;
 
 import com.sealhackathon.api.appeals.service.AppealService;
-import com.sealhackathon.api.certificates.repository.CertificateRepository;
-import com.sealhackathon.api.certificates.support.CertificateFileResolver;
 import com.sealhackathon.api.common.audit.AuditAction;
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
@@ -108,8 +106,6 @@ public class StudentPortalServiceImpl implements StudentPortalService {
     private final RoundRankingQueryService roundRankingQueryService;
     private final RoundProgressionService roundProgressionService;
     private final PrizeRepository prizeRepository;
-    private final CertificateRepository certificateRepository;
-    private final CertificateFileResolver certificateFileResolver;
     private final AppealService appealService;
     private final AuditService auditService;
     private final RoundProblemStatementStorage roundProblemStatementStorage;
@@ -760,34 +756,6 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                         .rank(p.getPrizeRank() != null ? p.getPrizeRank().ordinal() + 1 : null)
                         .build())
                 .toList();
-    }
-
-    @Override
-    public List<CertificateResponse> listMyCertificates() {
-        Integer userId = currentUserAccessor.currentUserId();
-        return certificateRepository.findByUser_Id(userId).stream()
-                .map(cert -> CertificateResponse.builder()
-                        .id(cert.getId())
-                        .hackathonId(cert.getHackathon().getId())
-                        .hackathonName(cert.getHackathon().getName())
-                        .issuedAt(cert.getIssuedAt())
-                        .downloadUrl("/api/v1/me/certificates/" + cert.getId() + "/download")
-                        .build())
-                .toList();
-    }
-
-    @Override
-    public CertificateDownload getCertificateDownload(Integer certificateId) {
-        Integer userId = currentUserAccessor.currentUserId();
-        var cert = certificateRepository.findById(certificateId)
-                .orElseThrow(() -> new ResourceNotFoundException("Certificate", certificateId));
-
-        if (!cert.getUser().getId().equals(userId)) {
-            throw new com.sealhackathon.api.common.exception.AuthException(ErrorCode.FORBIDDEN,
-                    "Bạn không có quyền tải giấy chứng nhận này.", org.springframework.http.HttpStatus.FORBIDDEN);
-        }
-
-        return certificateFileResolver.resolve(cert);
     }
 
     @Override

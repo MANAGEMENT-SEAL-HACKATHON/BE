@@ -40,7 +40,6 @@ import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.users.dto.response.UserSummaryResponse;
 import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
-import com.sealhackathon.api.wildcard_reviews.repository.WildcardReviewRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -76,7 +75,6 @@ public class TeamServiceImpl implements TeamService {
     private final TeamMembershipReleaseService teamMembershipReleaseService;
     private final HackathonRegistrationRepository hackathonRegistrationRepository;
     private final TeamDqBackfillService teamDqBackfillService;
-    private final WildcardReviewRepository wildcardReviewRepository;
     private final RoundRankingQueryService roundRankingQueryService;
 
     private HackathonTeamSizeResolver.TeamSizeLimits limitsFor(Team team) {
@@ -934,8 +932,7 @@ public class TeamServiceImpl implements TeamService {
                     || Boolean.TRUE.equals(trt.getTrack().getRound().getIsFinal())) {
                 continue;
             }
-            boolean wasWildcard = wasAdvancedViaWildcard(teamId, trt.getTrack().getRound());
-            previouslyAdvanced.add(new TeamDqBackfillService.AdvancedPrelimSeat(trt, wasWildcard));
+            previouslyAdvanced.add(new TeamDqBackfillService.AdvancedPrelimSeat(trt));
         }
 
         team.setStatus(TeamStatus.ELIMINATED);
@@ -955,27 +952,6 @@ public class TeamServiceImpl implements TeamService {
 
         teamDqBackfillService.afterEliminate(saved, previouslyAdvanced, reason);
         return teamMapper.toResponse(saved);
-    }
-
-    /** Same rule as AdvanceRoster: WC if approved and outside Top N (while still ADVANCED). */
-    private boolean wasAdvancedViaWildcard(Integer teamId,
-                                           com.sealhackathon.api.rounds.entity.Round prelim) {
-        boolean wcApproved = wildcardReviewRepository.findByRound_IdAndTeam_Id(prelim.getId(), teamId)
-                .map(w -> Boolean.TRUE.equals(w.getCoordinatorApproved()))
-                .orElse(false);
-        if (!wcApproved) {
-            return false;
-        }
-        Integer topN = prelim.getTopNAdvance();
-        int topNVal = topN != null && topN > 0 ? topN : 0;
-        if (topNVal <= 0) {
-            return true;
-        }
-        return roundRankingQueryService.rankingForRound(prelim.getId(), false).stream()
-                .filter(r -> java.util.Objects.equals(r.getTeamId(), teamId))
-                .findFirst()
-                .map(r -> r.getRank() == null || r.getRank() > topNVal)
-                .orElse(true);
     }
 
     // XỬ LÝ GOM ĐỘI CHO NGƯỜI CHƠ VƠ (GOD MODE CỦA COORDINATOR)

@@ -59,7 +59,6 @@ public class HackathonCloneSupport {
                 .lateSubmissionPolicy(src.getLateSubmissionPolicy())
                 .topNAdvance(src.getTopNAdvance())
                 .minTeamsFinal(src.getMinTeamsFinal())
-                .wildcardEnabled(src.getWildcardEnabled())
                 .tiebreakRule(src.getTiebreakRule())
                 .defaultPresentationMinutes(src.getDefaultPresentationMinutes())
                 .defaultQaMinutes(src.getDefaultQaMinutes())

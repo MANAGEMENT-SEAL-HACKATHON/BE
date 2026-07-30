@@ -92,16 +92,11 @@ public class DevSeedCleanup {
                 """, hackathonId);
         jdbcTemplate.update("DELETE FROM prizes WHERE hackathon_id = ?", hackathonId);
 
-        // Appeals & wildcard
+        // Appeals
         jdbcTemplate.update("""
                 DELETE a FROM appeals a
                 INNER JOIN teams t ON t.id = a.team_id
                 WHERE t.hackathon_id = ?
-                """, hackathonId);
-        jdbcTemplate.update("""
-                DELETE wr FROM wildcard_reviews wr
-                INNER JOIN rounds r ON r.id = wr.round_id
-                WHERE r.hackathon_id = ?
                 """, hackathonId);
 
         // Mentor / team-round
@@ -172,7 +167,6 @@ public class DevSeedCleanup {
         // Hackathon-scoped misc
         jdbcTemplate.update("DELETE FROM events WHERE hackathon_id = ?", hackathonId);
         jdbcTemplate.update("DELETE FROM invitations WHERE hackathon_id = ?", hackathonId);
-        jdbcTemplate.update("DELETE FROM certificates WHERE hackathon_id = ?", hackathonId);
         jdbcTemplate.update("DELETE FROM export_jobs WHERE hackathon_id = ?", hackathonId);
         jdbcTemplate.update("DELETE FROM chapter_rankings WHERE hackathon_id = ?", hackathonId);
         jdbcTemplate.update("DELETE FROM individual_rankings WHERE hackathon_id = ?", hackathonId);

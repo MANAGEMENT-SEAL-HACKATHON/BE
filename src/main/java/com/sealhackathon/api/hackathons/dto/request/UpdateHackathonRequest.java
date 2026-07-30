@@ -60,8 +60,6 @@ public class UpdateHackathonRequest {
 
     private LocalDate eventEnd;
 
-    private Boolean wildcardEnabled;
-
     private Boolean individualRankingEnabled;
 
     private String chapterScoringFormula;

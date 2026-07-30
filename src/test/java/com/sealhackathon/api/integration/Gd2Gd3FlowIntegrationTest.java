@@ -143,7 +143,6 @@ class Gd2Gd3FlowIntegrationTest {
                 .registrationEnd(LocalDate.now().minusDays(1))
                 .eventStart(LocalDate.now())
                 .eventEnd(LocalDate.now().plusDays(7))
-                .wildcardEnabled(false)
                 .individualRankingEnabled(false)
                 .createdBy(coordinator)
                 .createdAt(now)

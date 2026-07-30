@@ -37,7 +37,6 @@ public class HackathonResponse {
     private final LocalDateTime scheduleAdjustedAt;
     private final LocalDate eventStart;
     private final LocalDate eventEnd;
-    private final Boolean wildcardEnabled;
     private final Boolean individualRankingEnabled;
     private final String chapterScoringFormula;
     private final Integer createdById;

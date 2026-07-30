@@ -98,6 +98,6 @@ class HackathonDevSeedHelperRegistrationWindowTest {
         return new HackathonDevSeedHelper(
                 null, null, hackathonRepository, null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null);
     }
 }

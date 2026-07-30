@@ -464,11 +464,6 @@ public class RoundServiceImpl implements RoundService {
                         "Round Chung kết: topNAdvance và minTeamsFinal phải null",
                         Map.of());
             }
-            if (Boolean.TRUE.equals(req.getWildcardEnabled())) {
-                throw new BusinessRuleException(ErrorCode.INVALID_STATE,
-                        "Round Chung kết: wildcardEnabled không được true",
-                        Map.of());
-            }
             if (req.getRoundType() != null && req.getRoundType() != RoundType.FINAL) {
                 throw new BusinessRuleException(ErrorCode.INVALID_STATE,
                         "is_final=TRUE yêu cầu round_type=FINAL", Map.of());
@@ -494,11 +489,6 @@ public class RoundServiceImpl implements RoundService {
         if (req.getTopNAdvance() != null || req.getMinTeamsFinal() != null) {
             throw new BusinessRuleException(ErrorCode.ROUND_DEADLINE_INVALID,
                     "Round Chung kết: topNAdvance và minTeamsFinal phải null",
-                    Map.of("roundId", entity.getId()));
-        }
-        if (Boolean.TRUE.equals(req.getWildcardEnabled())) {
-            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
-                    "Round Chung kết: wildcardEnabled không được true",
                     Map.of("roundId", entity.getId()));
         }
     }

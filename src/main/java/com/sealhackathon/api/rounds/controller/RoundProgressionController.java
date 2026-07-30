@@ -22,7 +22,6 @@ import com.sealhackathon.api.rounds.dto.response.RoundSummaryResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoreAuditResponse;
 import com.sealhackathon.api.rounds.dto.response.ScoreBreakdownResponse;
 import com.sealhackathon.api.rounds.dto.response.TiebreakItemResponse;
-import com.sealhackathon.api.rounds.dto.response.WildcardCandidatesResponse;
 import com.sealhackathon.api.common.response.PageResponse;
 import com.sealhackathon.api.rounds.query.RoundRankingQueryService;
 import com.sealhackathon.api.rounds.service.RoundProgressionService;
@@ -153,32 +152,6 @@ public class RoundProgressionController {
             @PathVariable Integer id,
             @Valid @RequestBody ResolveTiebreakRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(progressionService.resolveTiebreak(id, req)));
-    }
-
-    @GetMapping("/{id}/wildcard-candidates")
-    @CoordinatorOnly
-    @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
-    @Operation(summary = "FR-22A — Danh sách ứng viên wildcard")
-    public ResponseEntity<ApiResponse<WildcardCandidatesResponse>> wildcardCandidates(@PathVariable Integer id) {
-        return ResponseEntity.ok(ApiResponse.ok(progressionService.wildcardCandidates(id)));
-    }
-
-    @PostMapping("/{id}/wildcard-proposal/confirm")
-    @CoordinatorOnly
-    @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
-    @Operation(summary = "Plan C — Xác nhận đề xuất vé vớt (LOCK)")
-    public ResponseEntity<ApiResponse<WildcardCandidatesResponse>> confirmWildcardProposal(
-            @PathVariable Integer id) {
-        return ResponseEntity.ok(ApiResponse.ok(progressionService.confirmWildcardProposal(id)));
-    }
-
-    @GetMapping("/{id}/wildcard-overrides")
-    @CoordinatorOnly
-    @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
-    @Operation(summary = "Plan C — Lịch sử override vé vớt")
-    public ResponseEntity<ApiResponse<List<com.sealhackathon.api.wildcard_reviews.dto.response.WildcardOverrideHistoryResponse>>>
-            wildcardOverrides(@PathVariable Integer id) {
-        return ResponseEntity.ok(ApiResponse.ok(progressionService.listWildcardOverrides(id)));
     }
 
     @PostMapping("/{id}/advance")

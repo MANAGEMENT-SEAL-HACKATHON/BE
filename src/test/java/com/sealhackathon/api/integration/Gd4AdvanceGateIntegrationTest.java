@@ -106,7 +106,6 @@ class Gd4AdvanceGateIntegrationTest {
                 .registrationEnd(LocalDate.now().minusDays(30))
                 .eventStart(LocalDate.now())
                 .eventEnd(LocalDate.now())
-                .wildcardEnabled(false)
                 .individualRankingEnabled(false)
                 .createdBy(coordinator)
                 .build());

@@ -459,7 +459,6 @@ class RoundServiceImplExamValidationTest {
                 .problemReleasedAt(examAt)
                 .submissionOpen(examAt.plusHours(3).plusMinutes(20))
                 .submissionDeadline(examAt.plusHours(5))
-                .wildcardEnabled(false)
                 .tiebreakRule(com.sealhackathon.api.rounds.value_object.TiebreakRule.PENALTY_SCORE)
                 .build();
 

@@ -129,7 +129,7 @@ public class Gd4AdvanceReadyDataSeeder {
                 [Gd4AdvanceReadyDataSeeder] slug={} hackathonId={} prelimRoundId={} finalRoundId={}
                   teams: {} | {} | {} | {} | {} | {} | {} | {}
                   students: {} … {} password={}
-                  prelim locked+published + STT queues — sẵn sàng ranking/wildcard/advance
+                  prelim locked+published + STT queues — sẵn sàng ranking/advance
                   final criteria={} guestJudge={} (không tie topN mỗi bảng)
                 """,
                 Gd4SeedConstants.SLUG_GD4_ADVANCE_READY,

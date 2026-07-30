@@ -1,8 +1,8 @@
 # GĐ4 — Defense Playbook: Kết quả Sơ loại · Top-N · Cấu hình & Kích hoạt CK
 
-> **Doc sync:** Đã rà lại theo code BE sau cleanup Phases 1–5 (`2026-07-28`).
+> **Doc sync:** Phase 9 — wildcard / certificates removed (`2026-07-31`). Advance = **Top-N only**.
 
-> **Person 4** · ~16 phút · Slugs: `seal-gd4-advance-ready` + 3 tiebreak/wildcard  
+> **Person 4** · ~16 phút · Slugs: `seal-gd4-advance-ready` + 3 tiebreak  
 > **Gate vào:** SL `scoring_locked=true` · **Gate ra GĐ5:** CK `is_active=true`, SL published, teams ADVANCED
 
 ---
@@ -23,14 +23,14 @@
 - **Câu chốt:** «Chung kết đã active — SV có thể nộp bài CK. Xin mời Person 5.»  
 - **Mode A Person 5:** Mở `seal-gd5-final-active`.
 
-**Lưu ý:** 3 slug tiebreak (`tiebreak-submission-time`, `tiebreak-manual`, `wildcard-gap`) demo **sau** happy trên `advance-ready` — **cùng Person 4**, không đổi người.
+**Lưu ý:** 3 slug tiebreak (`tiebreak-submission-time`, `tiebreak-manual`, `wildcard-gap` — slug name lịch sử, hành xử Top-N) demo **sau** happy trên `advance-ready` — **cùng Person 4**, không đổi người.
 
 ---
 
-## Wildcard Plan C (bắt buộc)
+## Advance = Top-N only (wildcard đã xóa)
 
-- **Đã bỏ:** tab/route **Vé vớt**, `PATCH /wildcard-reviews/{id}` legacy UI.
-- **Còn:** logic slot `availableSlots` / advance Top-N (`RoundProgressionServiceImpl`).
+- **Đã xóa (Phase 9):** feature Vé vớt / Wildcard — bảng `wildcard_reviews`, endpoints wildcard, tab/route UI.
+- **Còn:** advance theo Top-N mỗi bảng (`round.topNAdvance`) + optional `availableSlots` / `minTeamsFinal` (`RoundProgressionServiceImpl`).
 - **UI tabs:** **Kết quả** / **Danh sách Chung kết & Bị loại** / **Kiểm tra chấm** / **Đồng điểm** — **không** tab Vé vớt.
 - Sabotage G4-S07: `grep` UI = 0 label «Vé vớt».
 
@@ -53,7 +53,7 @@
 | `seal-gd4-advance-ready` | Happy full flow | `coord@fpt.edu.vn`, `student.gd4a.leader01@`…`leader08@` |
 | `seal-gd4-tiebreak-submission-time` | Auto SUBMISSION_TIME | Coord |
 | `seal-gd4-tiebreak-manual` | `TIEBREAK_REQUIRED` manual | Coord |
-| `seal-gd4-wildcard-gap` | `availableSlots=2`, Top-N gap | Coord |
+| `seal-gd4-wildcard-gap` | `availableSlots=2`, Top-N gap (slug name lịch sử) | Coord |
 
 Password: `Coordinator@dev1` / `Student@dev1`. Guest (cho CK): `guestjudge@gmail.com` / `GuestJudge@dev1`.
 
@@ -64,7 +64,7 @@ Password: `Coordinator@dev1` / `Student@dev1`. Guest (cho CK): `guestjudge@gmail
 | Seeder | Slug |
 |--------|------|
 | `Gd4AdvanceReadyDataSeeder` | `advance-ready` — SL locked, unpublished, 8 đội |
-| `Gd4TiebreakWildcardDataSeeder` | 3 slug tiebreak/wildcard |
+| `Gd4TiebreakWildcardDataSeeder` | 3 slug tiebreak / Top-N gap |
 
 Flag: `app.seed.gd4.enabled=true`.
 
@@ -116,7 +116,7 @@ flowchart TD
 |----|------|------|-------------|------------|----|----|
 | G4-H09 | Happy | `tiebreak-submission-time` | Tab **Đồng điểm** → resolve auto | Team nộp sớm hơn thắng biên Top-2 | `OfficialRankingPanel` | `TiebreakService` SUBMISSION_TIME |
 | G4-H10 | Happy | `tiebreak-manual` | Advance → banner `TIEBREAK_REQUIRED` → Coord chọn đội | Manual resolve OK | `OfficialRankingPanel` | `RoundProgressionController.resolveTiebreak` |
-| G4-H11 | Happy | `wildcard-gap` | **Chốt chuyển vòng** với `availableSlots=2` | Top-N mỗi bảng; không tab Vé vớt | `PreliminaryResultsPage` | `RoundProgressionServiceImpl` |
+| G4-H11 | Happy | `wildcard-gap` | **Chốt chuyển vòng** với `availableSlots=2` | Top-N mỗi bảng; không tab/API Vé vớt | `PreliminaryResultsPage` | `RoundProgressionServiceImpl` |
 
 ---
 
@@ -142,7 +142,7 @@ flowchart TD
 | G4-S04 | Sabotage | Coord | Final-config | Xóa hết criteria CK → activate | Blocked | `FINAL_CRITERIA_MISSING` | `FinalRoundConfigPage` | `ReadinessService` |
 | G4-S05 | Sabotage | Coord | People | Activate thiếu judge CK | Readiness fail | — | `FinalRoundConfigPage` | `JudgeAssignmentController` |
 | G4-S06 | Sabotage | Coord | Publish | Publish lần 2 | 422 `INVALID_STATE` | — | `PreliminaryResultsPage` | `RoundProgressionController` |
-| G4-S07 | Sabotage | QA | UI grep | Tìm label «Vé vớt» / Wildcard tab | **0 kết quả** trên Results UI | TC-WC-03 | `PreliminaryResultsPage` | — |
+| G4-S07 | Sabotage | QA | UI grep | Tìm label «Vé vớt» / Wildcard tab / wildcard API | **0 kết quả** — feature đã xóa | — | `PreliminaryResultsPage` | (no wildcard controller) |
 
 ---
 
@@ -157,6 +157,8 @@ flowchart TD
 | BE Tiebreak / advance | `RoundProgressionController`, `RoundProgressionServiceImpl` |
 | BE Judges | `JudgeAssignmentController` |
 
+**Không còn:** `WildcardReviewController` / wildcard endpoints (Phase 9 deleted).
+
 ---
 
 ## 11. Checklist smoke
@@ -166,7 +168,7 @@ flowchart TD
 - [ ] Guest judge accounts login OK
 - [ ] 3 slug tiebreak seed OK (switch nhanh trên `/hackathons`)
 - [ ] Person 5 mở `seal-gd5-final-active`
-- [ ] Verify 0 UI «Vé vớt»
+- [ ] Verify 0 UI «Vé vớt»; advance chỉ Top-N
 
 ---
 
@@ -174,7 +176,7 @@ flowchart TD
 
 | Câu hỏi | Trả lời |
 |---------|---------|
-| Vé vớt còn không? | **Không** — Plan C Top-N + availableSlots only. |
+| Vé vớt còn không? | **Không** — đã xóa (Phase 9). Advance chỉ **Top-N** mỗi bảng (+ availableSlots nếu cấu hình). |
 | Publish có hoàn tác? | One-way `isPublished=true`. |
 | Phát đề CK? | Activate CK tự release — không bước Phát đề riêng. |
 | Tiebreak slugs khi nào? | Sau happy `advance-ready`, cùng Person 4. |

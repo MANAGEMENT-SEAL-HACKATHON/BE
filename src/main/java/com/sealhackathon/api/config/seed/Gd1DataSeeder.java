@@ -641,7 +641,6 @@ public class Gd1DataSeeder {
                 .registrationEnd(dates.regEnd())
                 .eventStart(dates.eventStart())
                 .eventEnd(dates.eventEnd())
-                .wildcardEnabled(true)
                 .individualRankingEnabled(false)
                 .createdBy(coordinator)
                 .build());
@@ -693,7 +692,6 @@ public class Gd1DataSeeder {
                 .registrationEnd(dates.regEnd())
                 .eventStart(dates.eventStart())
                 .eventEnd(dates.eventEnd())
-                .wildcardEnabled(true)
                 .individualRankingEnabled(false)
                 .createdBy(users.coordinator())
                 .build());
@@ -729,7 +727,6 @@ public class Gd1DataSeeder {
                 .codingDurationHours(7)
                 .lateSubmissionPolicy(LateSubmissionPolicy.ALLOW_LATE_PENDING)
                 .topNAdvance(2)
-                .wildcardEnabled(true)
                 .minTeamsFinal(6)
                 .tiebreakRule(TiebreakRule.PENALTY_SCORE)
                 .isActive(prelimActive)
@@ -745,7 +742,6 @@ public class Gd1DataSeeder {
                 .submissionDeadline(dates.finalDeadline())
                 .codingDurationHours(RoundScheduleSeedUtil.DEFAULT_FINAL_CODING_HOURS)
                 .lateSubmissionPolicy(LateSubmissionPolicy.HARD_LOCK)
-                .wildcardEnabled(false)
                 .tiebreakRule(TiebreakRule.PENALTY_SCORE)
                 .isActive(false)
                 .build());

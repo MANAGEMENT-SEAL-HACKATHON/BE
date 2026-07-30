@@ -40,7 +40,7 @@ Hackathon
 - **BC-07** `judge_assignments`: XOR FK + `assignment_type` thêm `FINAL_EXTERNAL`.
 - **BC-08** `mentor_assignments`: giữ nguyên struct.
 - **BC-09** `events`: bỏ `TEAM_MEETING` khỏi enum `type`.
-- **BC-10** `wildcard_reviews`: thêm `track_id`.
+- **BC-10** ~~`wildcard_reviews`~~: **Removed (Phase 9)** — không còn bảng/cột wildcard hay certificates.
 - **BC-11** Triggers DB-layer: 9 triggers chính ([5.1-5.9](mdc:docs/db/schema-v3.0-mysql.md)).
 
 ## 3. JPA convention bắt buộc

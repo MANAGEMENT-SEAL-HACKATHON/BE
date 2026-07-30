@@ -37,7 +37,6 @@ public class RoundResponse {
     /** Non-null khi coordinator đã dismiss banner migration. */
     private final LocalDateTime finalProblemMigrationBannerDismissedAt;
     private final Integer topNAdvance;
-    private final Boolean wildcardEnabled;
     private final Integer minTeamsFinal;
     private final TiebreakRule tiebreakRule;
     private final Boolean isActive;

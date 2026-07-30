@@ -24,7 +24,7 @@
 | **BC-07** | `judge_assignments` | XOR FK như criteria. Thêm `FINAL_EXTERNAL` vào `assignment_type` (bắt buộc ở Chung kết). |
 | **BC-08** | `mentor_assignments` | Giữ nguyên — `track_id` tự mang ngữ cảnh Round qua FK mới. |
 | **BC-09** | `events` | Bỏ `TEAM_MEETING` khỏi enum `type`. |
-| **BC-10** | `wildcard_reviews` | Thêm `track_id` để biết Wild Card đề xuất từ Track nào. |
+| **BC-10** | ~~`wildcard_reviews`~~ | **Removed (Phase 9)** — bảng `wildcard_reviews` / `wildcard_override_history` / `certificates` và cột `wildcard_enabled` / `wildcard_proposal_confirmed_at` đã xóa. Advance = Top-N only. |
 | **BC-11** | Triggers | 3 trigger DB-layer mới: `fn_check_mentor_judge_conflict`, `fn_check_judge_mentor_conflict`, `fn_prevent_track_in_final_round` + các trigger guard mới (`fn_check_submission_round_is_final`, `fn_check_criteria_round_is_final`, `fn_check_team_track_same_hackathon`). |
 
 ---
@@ -188,7 +188,6 @@ CREATE TABLE hackathons (
     registration_end           DATE,
     event_start                DATE,
     event_end                  DATE,
-    wildcard_enabled           BOOLEAN      NOT NULL DEFAULT FALSE,
     individual_ranking_enabled BOOLEAN      NOT NULL DEFAULT FALSE,
     chapter_scoring_formula    TEXT,
     created_by                 INT,
@@ -216,7 +215,6 @@ CREATE TABLE rounds (
     problem_released_at     DATETIME,
     top_n_advance           INT,
     min_teams_final         INT,
-    wildcard_enabled        BOOLEAN      NOT NULL DEFAULT FALSE,
     tiebreak_rule           VARCHAR(50)  DEFAULT 'PENALTY_SCORE',
     is_active               BOOLEAN      NOT NULL DEFAULT FALSE,
     scoring_locked          BOOLEAN      NOT NULL DEFAULT FALSE,
@@ -497,24 +495,6 @@ CREATE TABLE tiebreak_evaluations (
     CONSTRAINT fk_te_round FOREIGN KEY (round_id) REFERENCES rounds(id),
     CONSTRAINT fk_te_team  FOREIGN KEY (team_id)  REFERENCES teams(id),
     CONSTRAINT fk_te_judge FOREIGN KEY (judge_id) REFERENCES users(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- [BC-10] wildcard_reviews — thêm track_id
-CREATE TABLE wildcard_reviews (
-    id                   INT      NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    round_id             INT      NOT NULL,
-    team_id              INT      NOT NULL,
-    track_id             INT,
-    avg_score            FLOAT,
-    coordinator_approved BOOLEAN,
-    coordinator_note     TEXT,
-    reviewed_by          INT,
-    reviewed_at          DATETIME,
-    UNIQUE KEY uk_wr_round_team (round_id, team_id),
-    CONSTRAINT fk_wr_round    FOREIGN KEY (round_id)    REFERENCES rounds(id),
-    CONSTRAINT fk_wr_team     FOREIGN KEY (team_id)     REFERENCES teams(id),
-    CONSTRAINT fk_wr_track    FOREIGN KEY (track_id)    REFERENCES tracks(id) ON DELETE SET NULL,
-    CONSTRAINT fk_wr_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
@@ -1272,21 +1252,21 @@ INSERT INTO users
 INSERT INTO hackathons
   (name, slug, season, `year`, status, description,
    registration_start, registration_end, event_start, event_end,
-   wildcard_enabled, individual_ranking_enabled, created_by) VALUES
+   individual_ranking_enabled, created_by) VALUES
   ('SEAL E2E 2026', 'seal-e2e-2026', 'Spring', 2026, 'ONGOING',
    'Cuộc thi lập trình SEAL — Kỳ Spring 2026',
    '2026-01-01', '2026-01-20', '2026-02-01', '2026-03-15',
-   TRUE, FALSE, 1);
+   FALSE, 1);
 -- hackathon_id = 1
 
 INSERT INTO rounds
   (hackathon_id, name, sequence_order, is_final, round_type,
    submission_deadline, coding_duration_hours, late_submission_policy,
-   top_n_advance, wildcard_enabled, min_teams_final, tiebreak_rule, is_active) VALUES
+   top_n_advance, min_teams_final, tiebreak_rule, is_active) VALUES
   (1, 'Vòng Sơ loại',   1, FALSE, 'PRELIMINARY',
-   '2026-02-15 23:59:00', 7, 'ALLOW_LATE_PENDING', 2, TRUE,  6,    'PENALTY_SCORE', TRUE),
+   '2026-02-15 23:59:00', 7, 'ALLOW_LATE_PENDING', 2, 6,    'PENALTY_SCORE', TRUE),
   (1, 'Vòng Chung kết', 2, TRUE,  'FINAL',
-   '2026-03-01 23:59:00', NULL, 'HARD_LOCK',        NULL, FALSE, NULL, 'PENALTY_SCORE', FALSE);
+   '2026-03-01 23:59:00', NULL, 'HARD_LOCK',        NULL, NULL, 'PENALTY_SCORE', FALSE);
 
 INSERT INTO tracks
   (round_id, name, description, topic, max_teams, max_teams_per_group,
@@ -1415,7 +1395,7 @@ JudgeAssignment.java :: round nullable=true; add @ManyToOne Track track nullable
                        enum thêm FINAL_EXTERNAL, HEAD, CALIBRATION
 MentorAssignment.java:: giữ nguyên (BC-08)
 Event.java       :: enum EventType bỏ TEAM_MEETING (BC-09)
-WildcardReview.java :: thêm track_id (BC-10) — entity mới
+~~WildcardReview.java~~ :: **Removed (Phase 9)** — không còn entity wildcard / certificates
 User.java        :: thêm isDeptHead (FIX-02)
 Team.java        :: bỏ 3 cột registration/assigned, thêm hackathonId (BC-05) — entity mới
 TeamRoundTrack.java :: entity mới (BC-04)

@@ -32,13 +32,10 @@ public final class DevSeedCatalog {
     public static final String SLUG_GD4_ADVANCE_READY = Gd4SeedConstants.SLUG_GD4_ADVANCE_READY;
 
     public static final String SLUG_GD4_TIEBREAK_SUBMISSION_TIME =
-            Gd4TiebreakWildcardSeedConstants.SLUG_TIEBREAK_SUBMISSION_TIME;
+            Gd4TiebreakSeedConstants.SLUG_GD4_TIEBREAK_SUBMISSION_TIME;
 
     public static final String SLUG_GD4_TIEBREAK_MANUAL =
-            Gd4TiebreakWildcardSeedConstants.SLUG_TIEBREAK_MANUAL;
-
-    public static final String SLUG_GD4_WILDCARD_GAP =
-            Gd4TiebreakWildcardSeedConstants.SLUG_WILDCARD_GAP;
+            Gd4TiebreakSeedConstants.SLUG_GD4_TIEBREAK_MANUAL;
 
     public static final String SLUG_GD5_FINAL_ACTIVE = Gd5SeedConstants.SLUG_GD5_FINAL_ACTIVE;
 
@@ -88,6 +85,9 @@ public final class DevSeedCatalog {
             "seal-gd4-ck-activate-ready",
             "seal-gd4-edge-errors",
             "seal-gd4-wildcard-resolved",
+            "seal-gd4-tiebreak-manual",
+            "seal-gd4-tiebreak-submission-time",
+            "seal-gd4-wildcard-gap",
             "seal-gd4-tiebreak-resolved",
             "seal-gd4-wildcard-disabled",
             "seal-gd4-judge-assign-warnings",
@@ -108,15 +108,12 @@ public final class DevSeedCatalog {
             "seal-gd6-prize-duplicate",
     };
 
-    /** Happy-path + GĐ4 tiebreak/wildcard demo slugs seed khi start {@code dev}. */
+    /** Happy-path hackathon slugs seed khi start {@code dev}. */
     public static final String[] ALL_DEV_HACKATHON_SLUGS = {
             SLUG_E2E_ONGOING,
             SLUG_ARCHIVE_FINISHED,
             SLUG_GD3_PRELIM_OPEN,
             SLUG_GD4_ADVANCE_READY,
-            SLUG_GD4_TIEBREAK_SUBMISSION_TIME,
-            SLUG_GD4_TIEBREAK_MANUAL,
-            SLUG_GD4_WILDCARD_GAP,
             SLUG_GD5_FINAL_ACTIVE,
             SLUG_GD6_PENDING_CONFIRM,
     };

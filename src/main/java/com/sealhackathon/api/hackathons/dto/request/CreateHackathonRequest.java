@@ -60,8 +60,6 @@ public class CreateHackathonRequest {
 
     private LocalDate eventEnd;
 
-    private Boolean wildcardEnabled;
-
     private Boolean individualRankingEnabled;
 
     /**

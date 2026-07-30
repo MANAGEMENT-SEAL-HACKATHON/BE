@@ -50,10 +50,6 @@ public interface StudentPortalService {
 
     List<StudentPrizeResponse> listMyPrizes();
 
-    List<CertificateResponse> listMyCertificates();
-
-    CertificateDownload getCertificateDownload(Integer certificateId);
-
     AppealResponse createAppeal(CreateAppealRequest request);
 
     StudentHistoryResponse getHistory();

@@ -42,9 +42,6 @@ public class RoundMapper {
                 .codingDurationHours(req.getCodingDurationHours())
                 .problemReleasedAt(req.getProblemReleasedAt())
                 .topNAdvance(isFinal ? null : req.getTopNAdvance())
-                .wildcardEnabled(!isFinal
-                        && req.getWildcardEnabled() != null
-                        && req.getWildcardEnabled())
                 .minTeamsFinal(isFinal ? null : req.getMinTeamsFinal())
                 .tiebreakRule(req.getTiebreakRule() == null ? TiebreakRule.COORDINATOR_DECISION : req.getTiebreakRule())
                 .defaultPresentationMinutes(req.getDefaultPresentationMinutes() != null
@@ -74,9 +71,6 @@ public class RoundMapper {
         if (!Boolean.TRUE.equals(entity.getIsFinal())) {
             if (req.getTopNAdvance() != null) {
                 entity.setTopNAdvance(req.getTopNAdvance());
-            }
-            if (req.getWildcardEnabled() != null) {
-                entity.setWildcardEnabled(req.getWildcardEnabled());
             }
             if (req.getMinTeamsFinal() != null) {
                 entity.setMinTeamsFinal(req.getMinTeamsFinal());
@@ -128,7 +122,6 @@ public class RoundMapper {
                 .finalProblemMigrationClearedAt(e.getFinalProblemMigrationClearedAt())
                 .finalProblemMigrationBannerDismissedAt(e.getFinalProblemMigrationBannerDismissedAt())
                 .topNAdvance(e.getTopNAdvance())
-                .wildcardEnabled(e.getWildcardEnabled())
                 .minTeamsFinal(e.getMinTeamsFinal())
                 .tiebreakRule(e.getTiebreakRule())
                 .isActive(e.getIsActive())

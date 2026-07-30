@@ -20,8 +20,6 @@ import com.sealhackathon.api.rounds.dto.response.RoundSummaryResponse;
 import com.sealhackathon.api.rounds.dto.response.RoundScoreAuditResponse;
 import com.sealhackathon.api.rounds.dto.response.ScoreBreakdownResponse;
 import com.sealhackathon.api.rounds.dto.response.TiebreakItemResponse;
-import com.sealhackathon.api.rounds.dto.response.WildcardCandidatesResponse;
-import com.sealhackathon.api.wildcard_reviews.dto.response.WildcardReviewResponse;
 
 import java.util.List;
 
@@ -55,26 +53,12 @@ public interface RoundProgressionService {
 
     List<RoundRankingItemResponse> resolveTiebreak(Integer roundId, ResolveTiebreakRequest req);
 
-    WildcardCandidatesResponse wildcardCandidates(Integer roundId);
-
-    /** Plan C — xác nhận đề xuất hệ thống → LOCK. */
-    WildcardCandidatesResponse confirmWildcardProposal(Integer roundId);
-
-    /** Plan C — lịch sử override công khai. */
-    List<com.sealhackathon.api.wildcard_reviews.dto.response.WildcardOverrideHistoryResponse> listWildcardOverrides(
-            Integer roundId);
-
     AdvanceTeamsResponse advanceTeams(Integer roundId, AdvanceTeamsRequest req);
 
     /** v4.1 alias — {@link #advanceTeams}. */
     default AdvanceTeamsResponse advance(Integer roundId, AdvanceTeamsRequest req) {
         return advanceTeams(roundId, req);
     }
-
-    /** Plan C — override sau khi proposal LOCKED. */
-    WildcardReviewResponse overrideWildcardReview(
-            Integer reviewId,
-            com.sealhackathon.api.wildcard_reviews.dto.request.WildcardOverrideRequest req);
 
     AssignFinalJudgesResult assignFinalJudges(Integer roundId, AssignFinalJudgesRequest req);
 

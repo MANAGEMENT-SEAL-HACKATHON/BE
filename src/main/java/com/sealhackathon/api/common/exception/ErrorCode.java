@@ -254,18 +254,6 @@ public final class ErrorCode {
     public static final String TEAM_NOT_IN_TRACK                          = "TEAM_NOT_IN_TRACK";
     /** Đội ADVANCED/ELIMINATED — không được mutate Sơ loại (submit, relottery, …). */
     public static final String PRELIM_NOT_MUTABLE                         = "PRELIM_NOT_MUTABLE";
-    /** Còn vé vớt chưa duyệt/từ chối — không cho advance (C-08). */
-    public static final String WILDCARD_PENDING                           = "WILDCARD_PENDING";
-    /** Plan C WC-06 — đề xuất đã LOCKED, không confirm lại. */
-    public static final String WILDCARD_PROPOSAL_ALREADY_CONFIRMED         = "WILDCARD_PROPOSAL_ALREADY_CONFIRMED";
-    /** Plan C — advance khi còn slots nhưng chưa xác nhận đề xuất. */
-    public static final String WILDCARD_PROPOSAL_NOT_CONFIRMED             = "WILDCARD_PROPOSAL_NOT_CONFIRMED";
-    /** Plan C — override trước khi proposal locked. */
-    public static final String WILDCARD_PROPOSAL_NOT_LOCKED                = "WILDCARD_PROPOSAL_NOT_LOCKED";
-    /** Plan C — category override thiếu/không hợp lệ. */
-    public static final String WILDCARD_OVERRIDE_CATEGORY_INVALID          = "WILDCARD_OVERRIDE_CATEGORY_INVALID";
-    /** Plan C WC-05 — OTHER bắt buộc có note. */
-    public static final String WILDCARD_OVERRIDE_NOTE_REQUIRED             = "WILDCARD_OVERRIDE_NOTE_REQUIRED";
     public static final String TRACK_NOT_ALLOWED_FOR_FINAL                = "TRACK_NOT_ALLOWED_FOR_FINAL";
     public static final String SUBMISSION_NOT_GRADABLE                    = "SUBMISSION_NOT_GRADABLE";
     public static final String JUDGE_NOT_ASSIGNED_TO_TRACK                = "JUDGE_NOT_ASSIGNED_TO_TRACK";

@@ -72,8 +72,6 @@ class RoundProgressionServiceImplTiebreakDetectionTest {
     @Mock private com.sealhackathon.api.judge_assignments.service.JudgeAssignmentService judgeAssignmentService;
     @Mock private TiebreakEvaluationRepository tiebreakEvaluationRepository;
     @Mock private com.sealhackathon.api.teams.repository.TeamRepository teamRepository;
-    @Mock private com.sealhackathon.api.wildcard_reviews.repository.WildcardReviewRepository wildcardReviewRepository;
-    @Mock private com.sealhackathon.api.wildcard_reviews.repository.WildcardOverrideHistoryRepository wildcardOverrideHistoryRepository;
     @Mock private com.sealhackathon.api.rounds.support.RoundProblemStatementStorage problemStatementStorage;
     @Mock private com.sealhackathon.api.teams.repository.TeamMemberRepository teamMemberRepository;
     @Mock private com.sealhackathon.api.submissions.repository.SubmissionRepository submissionRepository;

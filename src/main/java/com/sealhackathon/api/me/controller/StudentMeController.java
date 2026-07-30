@@ -13,9 +13,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -56,28 +54,6 @@ public class StudentMeController {
     @Operation(summary = "FR-U-28 — Giải thưởng của tôi")
     public ResponseEntity<ApiResponse<List<StudentPrizeResponse>>> listMyPrizes() {
         return ResponseEntity.ok(ApiResponse.ok(studentPortalService.listMyPrizes()));
-    }
-
-    @GetMapping("/certificates")
-    @Operation(summary = "FR-U-29 — Danh sách chứng nhận")
-    public ResponseEntity<ApiResponse<List<CertificateResponse>>> listCertificates() {
-        return ResponseEntity.ok(ApiResponse.ok(studentPortalService.listMyCertificates()));
-    }
-
-    @GetMapping("/certificates/{id}/download")
-    @Operation(summary = "FR-U-29 — Xem hoặc tải chứng nhận PDF",
-            description = "Mặc định `inline` (xem trên trình duyệt). `?download=true` → `attachment` (tải file).")
-    public ResponseEntity<byte[]> downloadCertificate(
-            @PathVariable Integer id,
-            @RequestParam(defaultValue = "false") boolean download) throws java.io.IOException {
-        CertificateDownload file = studentPortalService.getCertificateDownload(id);
-        byte[] bytes = file.readBytes();
-        String disposition = download ? "attachment" : "inline";
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        disposition + "; filename=\"" + file.filename() + "\"")
-                .contentType(MediaType.APPLICATION_PDF)
-                .body(bytes);
     }
 
     @PostMapping("/appeals")

@@ -61,8 +61,6 @@ import com.sealhackathon.api.teams.value_object.TeamStatus;
 import com.sealhackathon.api.tiebreak_evaluations.entity.TiebreakEvaluation;
 import com.sealhackathon.api.tiebreak_evaluations.repository.TiebreakEvaluationRepository;
 import com.sealhackathon.api.tracks.entity.Track;
-import com.sealhackathon.api.wildcard_reviews.entity.WildcardReview;
-import com.sealhackathon.api.wildcard_reviews.repository.WildcardReviewRepository;
 import com.sealhackathon.api.tracks.repository.TrackRepository;
 import com.sealhackathon.api.tracks.support.TrackProblemStatementStorage;
 import com.sealhackathon.api.rounds.support.RoundProblemStatementStorage;
@@ -117,7 +115,6 @@ public class HackathonDevSeedHelper {
     private final HackathonRegistrationRepository hackathonRegistrationRepository;
     private final PrizeRepository prizeRepository;
     private final PresentationSlotRepository presentationSlotRepository;
-    private final WildcardReviewRepository wildcardReviewRepository;
     private final TiebreakEvaluationRepository tiebreakEvaluationRepository;
     private final IndividualRankingRepository individualRankingRepository;
     private final JdbcTemplate jdbcTemplate;
@@ -938,7 +935,6 @@ public class HackathonDevSeedHelper {
                                         : null)
                         .eventStart(dates.eventStart())
                         .eventEnd(dates.eventEnd())
-                        .wildcardEnabled(true)
                         .individualRankingEnabled(false)
                         .createdBy(coordinator)
                         .build()));
@@ -1124,7 +1120,6 @@ public class HackathonDevSeedHelper {
                 .codingDurationHours(7)
                 .lateSubmissionPolicy(LateSubmissionPolicy.ALLOW_LATE_PENDING)
                 .topNAdvance(state.topNAdvance() != null ? state.topNAdvance() : 2)
-                .wildcardEnabled(true)
                 .minTeamsFinal(state.minTeamsFinal() != null ? state.minTeamsFinal() : 6)
                 .tiebreakRule(TiebreakRule.PENALTY_SCORE)
                 .isActive(state.active())
@@ -1157,7 +1152,6 @@ public class HackathonDevSeedHelper {
                 .submissionDeadline(dates.finalDeadline())
                 .codingDurationHours(RoundScheduleSeedUtil.DEFAULT_FINAL_CODING_HOURS)
                 .lateSubmissionPolicy(LateSubmissionPolicy.HARD_LOCK)
-                .wildcardEnabled(false)
                 .tiebreakRule(TiebreakRule.PENALTY_SCORE)
                 .isActive(state.active())
                 .scoringLocked(state.scoringLocked())
@@ -2496,20 +2490,11 @@ public class HackathonDevSeedHelper {
                 });
     }
 
-    @Transactional
-    public void setWildcardEnabled(Hackathon hackathon, Round prelim, boolean enabled) {
-        hackathon.setWildcardEnabled(enabled);
-        prelim.setWildcardEnabled(enabled);
-        hackathonRepository.save(hackathon);
-        roundRepository.save(prelim);
-    }
-
     /** Cấu hình vòng sơ loại GĐ4 variant — không gọi lock API (tránh auto-apply tiebreak). */
     @Transactional
     public void applyPrelimGd4VariantConfig(
             Round prelim,
             TiebreakRule tiebreakRule,
-            boolean wildcardEnabled,
             Integer topNAdvance,
             Integer minTeamsFinal,
             boolean scoringLocked,
@@ -2520,7 +2505,6 @@ public class HackathonDevSeedHelper {
                 new PrelimState(false, true, scoringLocked, published, topNAdvance, minTeamsFinal),
                 coordinator);
         prelim.setTiebreakRule(tiebreakRule);
-        prelim.setWildcardEnabled(wildcardEnabled);
         roundRepository.save(prelim);
     }
 
@@ -2528,16 +2512,6 @@ public class HackathonDevSeedHelper {
     public void clearPrelimTiebreakEvaluations(Round prelim) {
         tiebreakEvaluationRepository.findByRound_Id(prelim.getId())
                 .forEach(tiebreakEvaluationRepository::delete);
-    }
-
-    @Transactional
-    public void clearWildcardReviews(Round prelim) {
-        wildcardReviewRepository.findByRound_Id(prelim.getId())
-                .forEach(wildcardReviewRepository::delete);
-        if (prelim.getWildcardProposalConfirmedAt() != null) {
-            prelim.setWildcardProposalConfirmedAt(null);
-            roundRepository.save(prelim);
-        }
     }
 
     /** Gán mentor theo track (FR-18) — idempotent. */
@@ -2836,11 +2810,6 @@ public class HackathonDevSeedHelper {
                 INNER JOIN rounds r ON r.id = sub.round_id
                 WHERE r.hackathon_id = ? AND r.is_final = 0
                 """, hackathonId);
-        jdbcTemplate.update("""
-                DELETE wr FROM wildcard_reviews wr
-                INNER JOIN rounds r ON r.id = wr.round_id
-                WHERE r.hackathon_id = ? AND r.is_final = 0
-                """, hackathonId);
     }
 
     @Transactional
@@ -2930,7 +2899,6 @@ public class HackathonDevSeedHelper {
         resetTeamsToPreAdvance(hackathon, prelim, finalRound);
         syncHackathonCalendarFromDates(hackathon.getSlug(), computeGd4AdvanceReadyDates());
         applyPrelimState(prelim, new PrelimState(false, true, true, true, 1, 6), coordinator);
-        prelim.setWildcardEnabled(true);
         roundRepository.save(prelim);
         applyFinalState(finalRound, new FinalState(false, false), coordinator);
         if (hackathon.getStatus() != HackathonStatus.ONGOING) {
@@ -2945,12 +2913,6 @@ public class HackathonDevSeedHelper {
         repairHackathonForGd4Retest(hackathon, prelim, finalRound);
     }
 
-    /** Reset hackathon GĐ4 wildcard resolved — locked + published, chưa advance. */
-    @Transactional
-    public void repairHackathonForGd4WildcardResolvedRetest(Hackathon hackathon, Round prelim, Round finalRound) {
-        repairHackathonForGd4PublishedRetest(hackathon, prelim, finalRound);
-    }
-
     /** Reset hackathon GĐ4 tiebreak resolved — locked + published, chưa advance, xóa penalty cũ. */
     @Transactional
     public void repairHackathonForGd4TiebreakResolvedRetest(Hackathon hackathon, Round prelim, Round finalRound) {
@@ -2961,7 +2923,6 @@ public class HackathonDevSeedHelper {
         syncHackathonCalendarFromDates(hackathon.getSlug(), computeGd4AdvanceReadyDates());
         applyPrelimState(prelim, new PrelimState(false, true, true, true, 1, 6), coordinator);
         prelim.setTopNAdvance(1);
-        prelim.setWildcardEnabled(true);
         roundRepository.save(prelim);
         applyFinalState(finalRound, new FinalState(false, false), coordinator);
         if (hackathon.getStatus() != HackathonStatus.ONGOING) {
@@ -2988,39 +2949,6 @@ public class HackathonDevSeedHelper {
         finalRound.setScoringLockedBy(null);
         roundRepository.save(finalRound);
         ensureFinalGuestJudgeAssignment(hackathon, finalRound);
-    }
-
-    @Transactional
-    public void ensureWildcardReviewDecision(
-            Round round,
-            Team team,
-            Track track,
-            float avgScore,
-            boolean approved,
-            User coordinator,
-            String note) {
-        LocalDateTime now = LocalDateTime.now();
-        WildcardReview review = wildcardReviewRepository
-                .findByRound_IdAndTeam_Id(round.getId(), team.getId())
-                .orElseGet(() -> WildcardReview.builder()
-                        .round(round)
-                        .team(team)
-                        .track(track)
-                        .avgScore(avgScore)
-                        .build());
-        review.setCoordinatorApproved(approved);
-        review.setCoordinatorNote(note);
-        review.setReviewedBy(coordinator);
-        review.setReviewedAt(now);
-        review.setSystemProposed(approved);
-        review.setIsOverride(false);
-        wildcardReviewRepository.save(review);
-
-        // Plan C: seed decisions imply proposal already confirmed so advance gate passes.
-        if (round.getWildcardProposalConfirmedAt() == null) {
-            round.setWildcardProposalConfirmedAt(now);
-            roundRepository.save(round);
-        }
     }
 
     /**
@@ -3067,7 +2995,6 @@ public class HackathonDevSeedHelper {
         clearFinalRoundArtifacts(hackathon.getId());
         syncHackathonCalendarFromDates(hackathon.getSlug(), computeGd4AdvanceReadyDates());
         applyPrelimState(prelim, new PrelimState(false, true, true, true, 1, 6), coordinator);
-        prelim.setWildcardEnabled(true);
         roundRepository.save(prelim);
         applyFinalState(finalRound, new FinalState(false, false), coordinator);
         releaseFinalProblem(finalRound);
@@ -3130,7 +3057,6 @@ public class HackathonDevSeedHelper {
         applyPrelimGd4VariantConfig(
                 prelim,
                 TiebreakRule.SUBMISSION_TIME,
-                false,
                 2,
                 3,
                 true,
@@ -3138,10 +3064,6 @@ public class HackathonDevSeedHelper {
         applyFinalState(finalRound, new FinalState(false, false), requireCoordinator());
         if (hackathon.getStatus() != HackathonStatus.ONGOING) {
             hackathon.setStatus(HackathonStatus.ONGOING);
-            hackathonRepository.save(hackathon);
-        }
-        if (Boolean.TRUE.equals(hackathon.getWildcardEnabled())) {
-            hackathon.setWildcardEnabled(false);
             hackathonRepository.save(hackathon);
         }
     }
@@ -3157,40 +3079,10 @@ public class HackathonDevSeedHelper {
         applyPrelimGd4VariantConfig(
                 prelim,
                 TiebreakRule.COORDINATOR_DECISION,
-                false,
                 1,
                 4,
                 true,
                 false);
-        applyFinalState(finalRound, new FinalState(false, false), requireCoordinator());
-        if (hackathon.getStatus() != HackathonStatus.ONGOING) {
-            hackathon.setStatus(HackathonStatus.ONGOING);
-            hackathonRepository.save(hackathon);
-        }
-        if (Boolean.TRUE.equals(hackathon.getWildcardEnabled())) {
-            hackathon.setWildcardEnabled(false);
-            hackathonRepository.save(hackathon);
-        }
-    }
-
-    /** Reset GĐ4 wildcard gap — locked + published, WC pool ≥2, chưa advance. */
-    @Transactional
-    public void repairHackathonForGd4WildcardGapRetest(
-            Hackathon hackathon, Round prelim, Round finalRound) {
-        clearFinalRoundArtifacts(hackathon.getId());
-        clearWildcardReviews(prelim);
-        clearPrelimTiebreakEvaluations(prelim);
-        resetTeamsToPreAdvance(hackathon, prelim, finalRound);
-        syncHackathonCalendarFromDates(hackathon.getSlug(), computeGd4AdvanceReadyDates());
-        applyPrelimGd4VariantConfig(
-                prelim,
-                TiebreakRule.PENALTY_SCORE,
-                true,
-                1,
-                4,
-                true,
-                true);
-        setWildcardEnabled(hackathon, prelim, true);
         applyFinalState(finalRound, new FinalState(false, false), requireCoordinator());
         if (hackathon.getStatus() != HackathonStatus.ONGOING) {
             hackathon.setStatus(HackathonStatus.ONGOING);
@@ -3207,12 +3099,7 @@ public class HackathonDevSeedHelper {
         SeedDates gd4Dates = computeGd4AdvanceReadyDates();
         syncHackathonCalendarFromDates(hackathon.getSlug(), gd4Dates);
         applyPrelimState(prelim, new PrelimState(false, true, true, true, 1, 6), coordinator);
-        prelim.setWildcardEnabled(true);
         roundRepository.save(prelim);
-        if (!Boolean.TRUE.equals(hackathon.getWildcardEnabled())) {
-            hackathon.setWildcardEnabled(true);
-            hackathonRepository.save(hackathon);
-        }
         applyFinalState(finalRound, new FinalState(false, false), coordinator);
         if (hackathon.getStatus() != HackathonStatus.ONGOING) {
             hackathon.setStatus(HackathonStatus.ONGOING);
