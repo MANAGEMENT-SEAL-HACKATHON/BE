@@ -18,6 +18,14 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, TeamMemb
     List<TeamMember> findByTeam_IdIn(Collection<Integer> teamIds);
 
     @Query("""
+            SELECT tm FROM TeamMember tm
+            JOIN FETCH tm.user
+            WHERE tm.team.id IN :teamIds
+              AND tm.status = com.sealhackathon.api.teams.value_object.TeamMemberStatus.ACCEPTED
+            """)
+    List<TeamMember> findAcceptedByTeam_IdInWithUser(@Param("teamIds") Collection<Integer> teamIds);
+
+    @Query("""
             SELECT COUNT(tm) > 0 FROM TeamMember tm
             JOIN tm.team t
             WHERE tm.user.id = :userId AND t.hackathon.id = :hackathonId

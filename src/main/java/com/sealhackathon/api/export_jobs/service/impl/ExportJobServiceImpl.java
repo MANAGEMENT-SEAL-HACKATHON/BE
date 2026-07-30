@@ -66,6 +66,10 @@ public class ExportJobServiceImpl implements ExportJobService {
                 .build();
 
         ExportJob saved = exportJobRepository.save(job);
+        // Sync build for all types (CSV_SCORES / RANKINGS / ANONYMIZED_RBL / FULL_REPORT).
+        // ExportCsvBuilder prefetches into Maps to keep FULL_REPORT within request timeout;
+        // if a large seed exceeds timeout, move ONLY FULL_REPORT to @Async(notificationExecutor)
+        // with PENDING → PROCESSING → DONE (entity statuses already exist; FE already polls).
         byte[] csvBytes = exportCsvBuilder.build(hackathon, req.getType());
         String storageKey = "exports/" + hackathonId + "/" + saved.getId() + "/" + req.getType().name() + ".csv";
         objectStorage.put(storageKey, new ByteArrayInputStream(csvBytes), "text/csv", csvBytes.length);

@@ -27,6 +27,8 @@ public interface SubmissionRepository extends JpaRepository<Submission, Integer>
 
     List<Submission> findByRound_Id(Integer roundId);
 
+    List<Submission> findByHackathon_Id(Integer hackathonId);
+
     List<Submission> findByTrack_Round_Id(Integer roundId);
 
     List<Submission> findByTrack_Id(Integer trackId);

@@ -21,6 +21,14 @@ public interface TeamRepository extends JpaRepository<Team, Integer> {
 
     List<Team> findByHackathon_Id(Integer hackathonId);
 
+    @Query("""
+            SELECT DISTINCT t FROM Team t
+            LEFT JOIN FETCH t.leader
+            LEFT JOIN FETCH t.chapter
+            WHERE t.hackathon.id = :hackathonId
+            """)
+    List<Team> findByHackathon_IdWithLeaderAndChapter(@Param("hackathonId") Integer hackathonId);
+
     List<Team> findByHackathon_IdAndStatus(Integer hackathonId, TeamStatus status);
 
     List<Team> findByLeader_Id(Integer leaderId);
