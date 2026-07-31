@@ -75,9 +75,4 @@ public interface HackathonService {
     HackathonResponse uploadBanner(Integer id, MultipartFile file);
 
     Resource getBannerResource(Integer id);
-
-    /**
-     * PATCH appeal-window-minutes — allowed while ONGOING before prelim publish.
-     */
-    HackathonResponse updateAppealWindowMinutes(Integer id, Integer appealWindowMinutes);
 }

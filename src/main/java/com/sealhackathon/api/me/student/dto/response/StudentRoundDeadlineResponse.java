@@ -17,4 +17,5 @@ public class StudentRoundDeadlineResponse {
     private LocalDateTime deadline;
     private Boolean problemReleased;
     private LocalDateTime closedEarlyAt;
+    private Boolean presentationShuffled;
 }

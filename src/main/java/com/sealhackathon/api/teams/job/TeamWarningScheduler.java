@@ -48,11 +48,12 @@ public class TeamWarningScheduler {
         // 1. Quét các Hackathon đang mở đăng ký
         List<Hackathon> ongoingHackathons = hackathonRepository.findAll().stream()
                 .filter(h -> h.getStatus() == HackathonStatus.ONGOING)
-                .filter(h -> h.getRegistrationEnd() != null && !h.getRegistrationEnd().isBefore(today))
+                .filter(h -> h.getRegistrationEnd() != null
+                        && !h.getRegistrationEnd().toLocalDate().isBefore(today))
                 .toList();
 
         for (Hackathon h : ongoingHackathons) {
-            long daysLeft = ChronoUnit.DAYS.between(today, h.getRegistrationEnd());
+            long daysLeft = ChronoUnit.DAYS.between(today, h.getRegistrationEnd().toLocalDate());
 
             // Chỉ bắn cảnh báo nếu còn đúng 2 ngày (48h) hoặc 1 ngày (24h)
             if (daysLeft == 2 || daysLeft == 1) {

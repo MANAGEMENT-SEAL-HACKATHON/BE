@@ -45,4 +45,7 @@ public class CreateCriterionRequest {
 
     @Min(0)
     private Integer displayOrder;
+
+    /** Tiêu chí ưu tiên tie-break — mặc định false nếu omit. */
+    private Boolean isTiebreakerPriority;
 }

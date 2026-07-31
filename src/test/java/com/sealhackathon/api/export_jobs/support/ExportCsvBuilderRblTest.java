@@ -1,6 +1,5 @@
 package com.sealhackathon.api.export_jobs.support;
 
-import com.sealhackathon.api.appeals.repository.AppealRepository;
 import com.sealhackathon.api.chapters.repository.ChapterRankingRepository;
 import com.sealhackathon.api.criteria.entity.Criteria;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
@@ -55,7 +54,6 @@ class ExportCsvBuilderRblTest {
     @Mock private ChapterRankingRepository chapterRankingRepository;
     @Mock private IndividualRankingRepository individualRankingRepository;
     @Mock private PrizeRepository prizeRepository;
-    @Mock private AppealRepository appealRepository;
     @Mock private RoundRankingQueryService roundRankingQueryService;
     @Mock private RblDashboardService rblDashboardService;
 

@@ -1,5 +1,6 @@
 package com.sealhackathon.api.rounds.query;
 
+import com.sealhackathon.api.common.util.ScoreScale;
 import com.sealhackathon.api.criteria.entity.Criteria;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.criteria.value_object.CriteriaType;
@@ -22,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -30,7 +32,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-/** FR-20 â€” xáº¿p háº¡ng cÃ³ trá»ng sá»‘, BUG-4 COALESCE cho criterion chÆ°a cháº¥m. */
+/** FR-20 — xếp hạng có trọng số, BUG-4 COALESCE cho criterion chưa chấm. */
 @Component
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -115,9 +117,24 @@ public class RoundRankingQueryService {
                 double avg = averageScore(submission.getId(), criterion.getId(), livePreview);
                 total += avg * criterion.getWeight();
             }
+            total = ScoreScale.round2(total);
 
-            double penalty = penaltyByTeam.getOrDefault(submission.getTeam().getId(), 0.0);
-            double displayTotal = preservePublishedPenaltyInDisplay ? (total - penalty) : total;
+            Criteria priorityCriterion = criteria.stream()
+                    .filter(c -> Boolean.TRUE.equals(c.getIsTiebreakerPriority()))
+                    .findFirst()
+                    .orElse(null);
+            double priorityScore = 0.0;
+            String priorityCriterionName = null;
+            if (priorityCriterion != null) {
+                priorityScore = ScoreScale.round2(
+                        averageScore(submission.getId(), priorityCriterion.getId(), livePreview));
+                priorityCriterionName = priorityCriterion.getName();
+            }
+
+            double penalty = ScoreScale.round2(
+                    penaltyByTeam.getOrDefault(submission.getTeam().getId(), 0.0));
+            double displayTotal = ScoreScale.round2(
+                    preservePublishedPenaltyInDisplay ? (total - penalty) : total);
 
             rows.add(new RankRow(
                     submission.getId(),
@@ -129,7 +146,9 @@ public class RoundRankingQueryService {
                     partStatus,
                     submission.getSubmittedAt(),
                     submission.getStatus() != null ? submission.getStatus().name() : null,
-                    penalty));
+                    penalty,
+                    priorityScore,
+                    priorityCriterionName));
         }
 
         List<RankRow> sortedRows = sortRankRows(rows, isFinalRound);
@@ -154,14 +173,15 @@ public class RoundRankingQueryService {
             List<RankRow> sortedRows, boolean isFinalRound, boolean displayNetsPenalty) {
         List<RoundRankingItemResponse> result = new ArrayList<>();
         if (isFinalRound) {
-            Map<Double, Long> scoreCounts = sortedRows.stream()
+            Map<String, Long> keyCounts = sortedRows.stream()
                     .collect(Collectors.groupingBy(
-                            row -> effectiveScoreForTieFlag(row, displayNetsPenalty), Collectors.counting()));
+                            row -> tieFlagKey(row, displayNetsPenalty), Collectors.counting()));
             int rank = 1;
             for (RankRow row : sortedRows) {
-                boolean tie = scoreCounts.getOrDefault(effectiveScoreForTieFlag(row, displayNetsPenalty), 0L) > 1;
+                boolean tie = keyCounts.getOrDefault(tieFlagKey(row, displayNetsPenalty), 0L) > 1;
                 result.add(toRankingItem(row, rank++, tie));
             }
+            annotateTiebreakReasonLabels(result, sortedRows);
             return result;
         }
 
@@ -176,18 +196,56 @@ public class RoundRankingQueryService {
                 j++;
             }
             List<RankRow> groupSlice = sortedRows.subList(i, j);
-            Map<Double, Long> scoreCounts = groupSlice.stream()
+            Map<String, Long> keyCounts = groupSlice.stream()
                     .collect(Collectors.groupingBy(
-                            row -> effectiveScoreForTieFlag(row, displayNetsPenalty), Collectors.counting()));
+                            row -> tieFlagKey(row, displayNetsPenalty), Collectors.counting()));
             int rankInGroup = 0;
+            List<RoundRankingItemResponse> groupResult = new ArrayList<>();
             for (RankRow row : groupSlice) {
                 rankInGroup++;
-                boolean tie = scoreCounts.getOrDefault(effectiveScoreForTieFlag(row, displayNetsPenalty), 0L) > 1;
-                result.add(toRankingItem(row, rankInGroup, tie));
+                boolean tie = keyCounts.getOrDefault(tieFlagKey(row, displayNetsPenalty), 0L) > 1;
+                groupResult.add(toRankingItem(row, rankInGroup, tie));
             }
+            annotateTiebreakReasonLabels(groupResult, groupSlice);
+            result.addAll(groupResult);
             i = j;
         }
         return result;
+    }
+
+    /**
+     * Khi hai đội điểm hiển thị bằng nhau nhưng hạng khác (waterfall/micro-penalty),
+     * gắn nhãn ngắn để UI không bị hiểu là lỗi.
+     */
+    private static void annotateTiebreakReasonLabels(
+            List<RoundRankingItemResponse> items, List<RankRow> rows) {
+        if (items.size() != rows.size()) {
+            return;
+        }
+        for (int i = 0; i < items.size(); i++) {
+            RankRow row = rows.get(i);
+            RoundRankingItemResponse item = items.get(i);
+            if (row.penaltyScore() > 0) {
+                item.setTiebreakReasonLabel("Phân định đồng điểm");
+                continue;
+            }
+            // Winner among same display score as neighbor below
+            if (i + 1 < items.size()) {
+                RoundRankingItemResponse next = items.get(i + 1);
+                RankRow nextRow = rows.get(i + 1);
+                if (Objects.equals(item.getTotalScore(), next.getTotalScore())
+                        && !Objects.equals(item.getRank(), next.getRank())) {
+                    if (row.priorityScore() > nextRow.priorityScore()) {
+                        item.setTiebreakReasonLabel("Thắng do tiêu chí phụ");
+                    } else if (row.submittedAt() != null && nextRow.submittedAt() != null
+                            && row.submittedAt().isBefore(nextRow.submittedAt())) {
+                        item.setTiebreakReasonLabel("Thắng do nộp sớm hơn");
+                    } else if (nextRow.penaltyScore() > 0) {
+                        item.setTiebreakReasonLabel("Thắng phân định đồng điểm");
+                    }
+                }
+            }
+        }
     }
 
     /** Điểm hiệu lực cho cờ tiebreakRequired — khớp detector progression. */
@@ -198,10 +256,18 @@ public class RoundRankingQueryService {
         return row.totalScore() - row.penaltyScore();
     }
 
+    /** Composite key: effectiveTotal + priorityScore + submittedAt — waterfall cannot separate. */
+    static String tieFlagKey(RankRow row, boolean displayNetsPenalty) {
+        return effectiveScoreForTieFlag(row, displayNetsPenalty)
+                + "|" + row.priorityScore()
+                + "|" + (row.submittedAt() != null ? row.submittedAt().toString() : "null");
+    }
+
     private static Comparator<RankRow> rankComparator(boolean isFinalRound) {
-        // totalScore (display) DESC → micro-penalty ASC (nội bộ) → teamId
         Comparator<RankRow> byScore = Comparator
                 .comparing(RankRow::totalScore, Comparator.reverseOrder())
+                .thenComparing(RankRow::priorityScore, Comparator.reverseOrder())
+                .thenComparing(RankRow::submittedAt, Comparator.nullsLast(Comparator.naturalOrder()))
                 .thenComparing(RankRow::penaltyScore, Comparator.nullsFirst(Double::compareTo))
                 .thenComparing(RankRow::teamId);
         Comparator<RankRow> eliminatedLast = Comparator.comparing(RoundRankingQueryService::isEliminated);
@@ -225,12 +291,14 @@ public class RoundRankingQueryService {
                 .teamName(row.teamName())
                 .trackId(row.trackId())
                 .assignedGroup(row.assignedGroup())
-                .totalScore(row.totalScore())
+                .totalScore(ScoreScale.round2(row.totalScore()))
                 .tiebreakRequired(tiebreakRequired)
                 .participationStatus(row.participationStatus())
                 .submittedAt(row.submittedAt())
                 .submissionStatus(row.submissionStatus())
-                .penaltyScore(row.penaltyScore())
+                .penaltyScore(ScoreScale.round2(row.penaltyScore()))
+                .priorityCriterionScore(ScoreScale.round2(row.priorityScore()))
+                .priorityCriterionName(row.priorityCriterionName())
                 .submissionId(row.submissionId())
                 .build();
     }
@@ -317,6 +385,8 @@ record RankRow(
         String assignedGroup,
         double totalScore,
         String participationStatus,
-        java.time.LocalDateTime submittedAt,
+        LocalDateTime submittedAt,
         String submissionStatus,
-        double penaltyScore) {}
+        double penaltyScore,
+        double priorityScore,
+        String priorityCriterionName) {}

@@ -3,7 +3,6 @@ package com.sealhackathon.api.me.controller;
 import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.StudentOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
-import com.sealhackathon.api.me.student.dto.request.CreateAppealRequest;
 import com.sealhackathon.api.me.student.dto.response.*;
 import com.sealhackathon.api.me.student.service.StudentPortalService;
 import com.sealhackathon.api.teams.dto.request.CreateTeamRequest;
@@ -54,26 +53,6 @@ public class StudentMeController {
     @Operation(summary = "FR-U-28 — Giải thưởng của tôi")
     public ResponseEntity<ApiResponse<List<StudentPrizeResponse>>> listMyPrizes() {
         return ResponseEntity.ok(ApiResponse.ok(studentPortalService.listMyPrizes()));
-    }
-
-    @PostMapping("/appeals")
-    @Operation(summary = "FR-U-30 — Gửi khiếu nại DQ")
-    public ResponseEntity<ApiResponse<AppealResponse>> createAppeal(@Valid @RequestBody CreateAppealRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(studentPortalService.createAppeal(request)));
-    }
-
-    @GetMapping("/appeals")
-    @Operation(summary = "Danh sách đơn khiếu nại của các đội tôi thuộc")
-    public ResponseEntity<ApiResponse<List<AppealResponse>>> listMyAppeals() {
-        return ResponseEntity.ok(ApiResponse.ok(studentPortalService.listMyAppeals()));
-    }
-
-    @PostMapping(value = "/appeals/evidence", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Upload minh chứng khiếu nại (ảnh/video)")
-    public ResponseEntity<ApiResponse<com.sealhackathon.api.appeals.dto.response.AppealEvidenceUploadResponse>> uploadAppealEvidence(
-            @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.created(studentPortalService.uploadAppealEvidence(file)));
     }
 
     @GetMapping("/history")

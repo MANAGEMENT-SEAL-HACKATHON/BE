@@ -53,7 +53,7 @@ class CompetitionScheduleAdjustServiceTest {
         Hackathon h = Hackathon.builder()
                 .id(9)
                 .name("SEAL")
-                .registrationEnd(regEnd)
+                .registrationEnd(regEnd.atTime(23, 59))
                 .eventStart(regEnd.plusDays(10))
                 .eventEnd(regEnd.plusDays(12))
                 .build();
@@ -93,7 +93,7 @@ class CompetitionScheduleAdjustServiceTest {
     void apply_rejectsSecondTime() {
         Hackathon h = Hackathon.builder()
                 .id(9)
-                .registrationEnd(LocalDate.now())
+                .registrationEnd(LocalDate.now().atTime(23, 59))
                 .scheduleAdjustedAt(LocalDateTime.now().minusDays(1))
                 .build();
         assertThatThrownBy(() -> service.apply(h, LocalDate.now().plusDays(5).atTime(8, 0), true))
@@ -107,7 +107,7 @@ class CompetitionScheduleAdjustServiceTest {
         Hackathon h = Hackathon.builder()
                 .id(9)
                 .name("SEAL")
-                .registrationEnd(regEnd)
+                .registrationEnd(regEnd.atTime(23, 59))
                 .eventStart(regEnd.plusDays(10))
                 .eventEnd(regEnd.plusDays(12))
                 .build();

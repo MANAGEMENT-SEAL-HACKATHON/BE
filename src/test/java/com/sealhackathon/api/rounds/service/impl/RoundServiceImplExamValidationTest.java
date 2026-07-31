@@ -268,7 +268,7 @@ class RoundServiceImplExamValidationTest {
         Hackathon h = Hackathon.builder()
                 .id(1)
                 .status(HackathonStatus.DRAFT)
-                .registrationEnd(java.time.LocalDate.of(2026, 6, 5))
+                .registrationEnd(java.time.LocalDate.of(2026, 6, 5).atTime(23, 59))
                 .build();
         when(hackathonRepository.findById(1)).thenReturn(Optional.of(h));
 
@@ -290,7 +290,7 @@ class RoundServiceImplExamValidationTest {
         Hackathon h = Hackathon.builder()
                 .id(1)
                 .status(HackathonStatus.DRAFT)
-                .registrationEnd(java.time.LocalDate.of(2026, 6, 5))
+                .registrationEnd(java.time.LocalDate.of(2026, 6, 5).atTime(23, 59))
                 .build();
         when(hackathonRepository.findById(1)).thenReturn(Optional.of(h));
         when(roundMapper.toEntity(any(), eq(h))).thenReturn(Round.builder().id(10).hackathon(h).build());
@@ -394,7 +394,7 @@ class RoundServiceImplExamValidationTest {
         Hackathon h = Hackathon.builder()
                 .id(1)
                 .status(HackathonStatus.DRAFT)
-                .registrationEnd(java.time.LocalDate.of(2026, 10, 21))
+                .registrationEnd(java.time.LocalDate.of(2026, 10, 21).atTime(23, 59))
                 .build();
         when(hackathonRepository.findById(1)).thenReturn(Optional.of(h));
         when(roundMapper.toEntity(any(), eq(h))).thenReturn(Round.builder().id(11).hackathon(h).build());
@@ -418,7 +418,7 @@ class RoundServiceImplExamValidationTest {
         Hackathon h = Hackathon.builder()
                 .id(1)
                 .status(HackathonStatus.DRAFT)
-                .registrationEnd(java.time.LocalDate.of(2026, 10, 21))
+                .registrationEnd(java.time.LocalDate.of(2026, 10, 21).atTime(23, 59))
                 .build();
         when(hackathonRepository.findById(1)).thenReturn(Optional.of(h));
 
@@ -440,7 +440,7 @@ class RoundServiceImplExamValidationTest {
         Hackathon h = Hackathon.builder()
                 .id(1)
                 .status(HackathonStatus.DRAFT)
-                .registrationEnd(java.time.LocalDate.of(2026, 6, 4))
+                .registrationEnd(java.time.LocalDate.of(2026, 6, 4).atTime(23, 59))
                 .build();
         when(hackathonRepository.findById(1)).thenReturn(Optional.of(h));
         when(roundMapper.toEntity(any(), eq(h))).thenReturn(Round.builder().id(12).hackathon(h).build());

@@ -21,8 +21,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
-
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -71,8 +69,7 @@ public class HackathonRegistrationServiceImpl implements HackathonRegistrationSe
             throw new BusinessRuleException(ErrorCode.REGISTRATION_CLOSED, "Thời gian đăng ký đã kết thúc.");
         }
 
-        LocalDate today = LocalDate.now();
-        if (hackathon.getRegistrationStart() != null && today.isBefore(hackathon.getRegistrationStart())) {
+        if (HackathonRegistrationSupport.isRegistrationNotYetOpen(hackathon)) {
             throw new BusinessRuleException(ErrorCode.REGISTRATION_CLOSED, "Chưa đến thời gian mở đăng ký.");
         }
 

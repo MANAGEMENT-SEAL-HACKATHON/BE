@@ -75,7 +75,9 @@ public class MilestoneEventRescheduleService {
         if (hackathon == null || hackathon.getId() == null) {
             return 0;
         }
-        LocalDate regEnd = hackathon.getRegistrationEnd();
+        LocalDate regEnd = hackathon.getRegistrationEnd() != null
+                ? hackathon.getRegistrationEnd().toLocalDate()
+                : null;
         LocalDate eventStart = hackathon.getEventStart();
         if (regEnd == null || eventStart == null) {
             return 0;

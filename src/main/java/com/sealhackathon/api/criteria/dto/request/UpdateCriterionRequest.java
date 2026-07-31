@@ -42,4 +42,7 @@ public class UpdateCriterionRequest {
 
     @Min(0)
     private Integer displayOrder;
+
+    /** Tiêu chí ưu tiên tie-break — null = giữ nguyên. */
+    private Boolean isTiebreakerPriority;
 }

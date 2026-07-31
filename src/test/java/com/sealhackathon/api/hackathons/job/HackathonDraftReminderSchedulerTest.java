@@ -49,7 +49,7 @@ class HackathonDraftReminderSchedulerTest {
                 .id(7)
                 .name("SEAL 2026")
                 .status(HackathonStatus.DRAFT)
-                .registrationStart(LocalDate.now().plusDays(1))
+                .registrationStart(LocalDate.now().plusDays(1).atTime(0, 0))
                 .build();
         when(hackathonRepository.findByStatusAndDraftReminderSentAtIsNull(HackathonStatus.DRAFT))
                 .thenReturn(List.of(draft));
@@ -75,7 +75,7 @@ class HackathonDraftReminderSchedulerTest {
                 .id(8)
                 .name("SEAL later")
                 .status(HackathonStatus.DRAFT)
-                .registrationStart(LocalDate.now().plusDays(30))
+                .registrationStart(LocalDate.now().plusDays(30).atTime(0, 0))
                 .build();
         when(hackathonRepository.findByStatusAndDraftReminderSentAtIsNull(HackathonStatus.DRAFT))
                 .thenReturn(List.of(draft));

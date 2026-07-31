@@ -1,6 +1,5 @@
 package com.sealhackathon.api.me.student.service;
 
-import com.sealhackathon.api.me.student.dto.request.CreateAppealRequest;
 import com.sealhackathon.api.me.student.dto.request.RelotteryTrackRequest;
 import com.sealhackathon.api.me.student.dto.response.*;
 import com.sealhackathon.api.teams.dto.request.CreateTeamRequest;
@@ -49,13 +48,6 @@ public interface StudentPortalService {
     StudentRankingResponse getHackathonRankings(Integer hackathonId);
 
     List<StudentPrizeResponse> listMyPrizes();
-
-    AppealResponse createAppeal(CreateAppealRequest request);
-
-    java.util.List<AppealResponse> listMyAppeals();
-
-    com.sealhackathon.api.appeals.dto.response.AppealEvidenceUploadResponse uploadAppealEvidence(
-            org.springframework.web.multipart.MultipartFile file);
 
     StudentHistoryResponse getHistory();
 

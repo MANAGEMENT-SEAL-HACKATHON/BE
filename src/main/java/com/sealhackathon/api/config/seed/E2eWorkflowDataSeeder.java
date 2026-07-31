@@ -68,6 +68,8 @@ public class E2eWorkflowDataSeeder {
             log.info("[E2eWorkflowDataSeeder] Tắt (app.seed.e2e.enabled=false)");
             return;
         }
+        // Safe when E2E frozen — only flips is_tiebreaker_priority boolean
+        seedHelper.backfillTiebreakerPriorityFlags();
         seedTeams();
         seedFreeAgentOrphans();
         if (!e2eDevFlowGuard.isE2eFlowFrozen()) {

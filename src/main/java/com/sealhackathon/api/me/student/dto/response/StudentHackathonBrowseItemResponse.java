@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Getter
 @NoArgsConstructor
@@ -27,8 +28,8 @@ public class StudentHackathonBrowseItemResponse {
     private String bannerUrl;
     private String season;
     private Integer year;
-    private LocalDate registrationStart;
-    private LocalDate registrationEnd;
+    private LocalDateTime registrationStart;
+    private LocalDateTime registrationEnd;
     private LocalDate eventStart;
     private LocalDate eventEnd;
     private Integer maxParticipants;

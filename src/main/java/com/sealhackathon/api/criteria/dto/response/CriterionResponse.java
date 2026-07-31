@@ -23,4 +23,5 @@ public class CriterionResponse {
     private final String description;
     private final String rubricUrl;
     private final Integer displayOrder;
+    private final Boolean isTiebreakerPriority;
 }

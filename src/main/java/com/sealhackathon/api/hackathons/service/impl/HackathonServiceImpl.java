@@ -72,9 +72,6 @@ public class HackathonServiceImpl implements HackathonService {
                     "Slug đã được sử dụng: " + req.getSlug());
         }
         validateEventStartAfterRegistrationEnd(req.getRegistrationEnd(), req.getEventStart());
-        if (req.getAppealWindowMinutes() != null) {
-            validateAppealWindowMinutes(req.getAppealWindowMinutes());
-        }
 
         Hackathon entity = hackathonMapper.toEntity(req);
         entity.setStatus(HackathonStatus.DRAFT);
@@ -105,9 +102,6 @@ public class HackathonServiceImpl implements HackathonService {
                     "Slug đã được sử dụng: " + req.getSlug());
         }
         validateEventStartAfterRegistrationEnd(req.getRegistrationEnd(), req.getEventStart());
-        if (req.getAppealWindowMinutes() != null) {
-            validateAppealWindowMinutes(req.getAppealWindowMinutes());
-        }
 
         Hackathon entity = hackathonMapper.toEntity(req);
         entity.setStatus(HackathonStatus.DRAFT);
@@ -173,9 +167,6 @@ public class HackathonServiceImpl implements HackathonService {
                     "Slug đã được sử dụng: " + req.getSlug());
         }
         validateEventStartAfterRegistrationEnd(req.getRegistrationEnd(), req.getEventStart());
-        if (req.getAppealWindowMinutes() != null) {
-            validateAppealWindowMinutes(req.getAppealWindowMinutes());
-        }
 
         HackathonResponse before = hackathonMapper.toResponse(h);
         hackathonMapper.applyUpdate(h, req);
@@ -238,54 +229,9 @@ public class HackathonServiceImpl implements HackathonService {
         return bannerStorageService.loadAsResource(hackathon.getBannerUrl());
     }
 
-    @Override
-    public HackathonResponse updateAppealWindowMinutes(Integer id, Integer appealWindowMinutes) {
-        Hackathon h = hackathonRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Hackathon", id));
-        archiveGuard.assertNotArchived(h);
-        if (h.getStatus() == HackathonStatus.FINISHED) {
-            throw new ConflictException(ErrorCode.HACKATHON_ARCHIVED,
-                    "Không sửa thời gian khiếu nại khi hackathon đã kết thúc");
-        }
-        if (h.getStatus() != HackathonStatus.DRAFT && h.getStatus() != HackathonStatus.ONGOING) {
-            throw new ConflictException(ErrorCode.INVALID_STATE,
-                    "Chỉ sửa thời gian khiếu nại khi DRAFT hoặc ONGOING (hiện %s)".formatted(h.getStatus()));
-        }
-        validateAppealWindowMinutes(appealWindowMinutes);
-
-        boolean prelimPublished = roundRepository.findPreliminaryLikeByHackathonId(id).stream()
-                .anyMatch(r -> Boolean.TRUE.equals(r.getIsPublished()));
-        if (prelimPublished) {
-            throw new BusinessRuleException(ErrorCode.APPEAL_WINDOW_LOCKED_AFTER_PUBLISH,
-                    "Không sửa thời gian khiếu nại sau khi sơ loại đã công bố");
-        }
-
-        Integer before = h.getAppealWindowMinutes();
-        h.setAppealWindowMinutes(appealWindowMinutes);
-        Hackathon saved = hackathonRepository.save(h);
-        HackathonResponse response = hackathonMapper.toResponse(saved);
-        auditService.log(AuditAction.HACKATHON_APPEAL_WINDOW_UPDATE, "hackathons", saved.getId(),
-                Map.of("before", before != null ? before : 30, "after", appealWindowMinutes));
-        return response;
-    }
-
-    private void validateAppealWindowMinutes(int minutes) {
-        if (minutes < 0) {
-            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
-                    "Thời gian khiếu nại phải >= 0");
-        }
-        if (minutes > 0 && minutes < com.sealhackathon.api.appeals.service.AppealWindowService.MIN_APPEAL_WINDOW_MINUTES) {
-            throw new BusinessRuleException(ErrorCode.APPEAL_WINDOW_BELOW_MINIMUM,
-                    "Thời gian khiếu nại tối thiểu %d phút (hoặc 0 để tắt)"
-                            .formatted(com.sealhackathon.api.appeals.service.AppealWindowService.MIN_APPEAL_WINDOW_MINUTES),
-                    Map.of("min", com.sealhackathon.api.appeals.service.AppealWindowService.MIN_APPEAL_WINDOW_MINUTES,
-                            "requested", minutes));
-        }
-    }
-
-    private void validateEventStartAfterRegistrationEnd(java.time.LocalDate regEnd,
+    private void validateEventStartAfterRegistrationEnd(java.time.LocalDateTime regEnd,
                                                         java.time.LocalDate eventStart) {
-        if (regEnd != null && eventStart != null && eventStart.isBefore(regEnd)) {
+        if (regEnd != null && eventStart != null && eventStart.isBefore(regEnd.toLocalDate())) {
             throw new BusinessRuleException(ErrorCode.HACKATHON_DATE_RANGE,
                     "eventStart (%s) phải >= registrationEnd (%s)".formatted(eventStart, regEnd),
                     Map.of("eventStart", eventStart, "registrationEnd", regEnd));

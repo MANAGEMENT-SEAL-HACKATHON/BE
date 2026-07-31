@@ -120,7 +120,7 @@ public class RoundScheduleValidator {
         if (hackathon == null || hackathon.getRegistrationEnd() == null) {
             return;
         }
-        LocalDate minExamDate = hackathon.getRegistrationEnd()
+        LocalDate minExamDate = hackathon.getRegistrationEnd().toLocalDate()
                 .plusDays(RoundScheduleSeedUtil.DAYS_REG_END_TO_EVENT_START);
         if (examAt.toLocalDate().isBefore(minExamDate)) {
             throw new BusinessRuleException(ErrorCode.ROUND_PRELIM_EXAM_ORDER,
@@ -142,7 +142,7 @@ public class RoundScheduleValidator {
         if (hackathon.getRegistrationEnd() == null) {
             return;
         }
-        LocalDate minPrelimExamDate = hackathon.getRegistrationEnd()
+        LocalDate minPrelimExamDate = hackathon.getRegistrationEnd().toLocalDate()
                 .plusDays(MIN_DAYS_FROM_REG_END_TO_PRELIM_EXAM);
         if (examAt.toLocalDate().isBefore(minPrelimExamDate)) {
             throw new BusinessRuleException(ErrorCode.ROUND_PRELIM_EXAM_ORDER,

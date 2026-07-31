@@ -1,12 +1,12 @@
 package com.sealhackathon.api.me.student.service.impl;
 
-import com.sealhackathon.api.appeals.service.AppealService;
 import com.sealhackathon.api.common.audit.AuditAction;
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
+import com.sealhackathon.api.common.util.ScoreScale;
 import com.sealhackathon.api.hackathons.repository.HackathonRegistrationRepository;
 import com.sealhackathon.api.hackathons.repository.HackathonRegistrationWithdrawalRepository;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
@@ -18,7 +18,6 @@ import com.sealhackathon.api.individual_rankings.entity.IndividualRanking;
 import com.sealhackathon.api.individual_rankings.repository.IndividualRankingRepository;
 import com.sealhackathon.api.events.entity.PresentationSlot;
 import com.sealhackathon.api.events.repository.PresentationSlotRepository;
-import com.sealhackathon.api.me.student.dto.request.CreateAppealRequest;
 import com.sealhackathon.api.me.student.dto.request.RelotteryTrackRequest;
 import com.sealhackathon.api.me.student.dto.response.*;
 import com.sealhackathon.api.me.student.service.StudentPortalService;
@@ -28,10 +27,12 @@ import com.sealhackathon.api.presentation.support.PresentationTimerCalculator;
 import com.sealhackathon.api.presentation.value_object.PresentationQueueStatus;
 import com.sealhackathon.api.presentation.value_object.PresentationTimerPhase;
 import com.sealhackathon.api.rounds.dto.response.ScoreBreakdownResponse;
+import com.sealhackathon.api.rounds.dto.response.RoundRankingItemResponse;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.query.RoundRankingQueryService;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.service.RoundProgressionService;
+import com.sealhackathon.api.rounds.support.RoundPresentationReadiness;
 import com.sealhackathon.api.rounds.support.RoundProblemStatementStorage;
 import com.sealhackathon.api.storage.StoredObjectResource;
 import com.sealhackathon.api.submissions.entity.Submission;
@@ -70,6 +71,7 @@ import org.springframework.util.StringUtils;
 
 import java.net.MalformedURLException;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.Year;
 import java.util.ArrayList;
@@ -105,8 +107,8 @@ public class StudentPortalServiceImpl implements StudentPortalService {
     private final PresentationDurationResolver presentationDurationResolver;
     private final RoundRankingQueryService roundRankingQueryService;
     private final RoundProgressionService roundProgressionService;
+    private final RoundPresentationReadiness presentationReadiness;
     private final PrizeRepository prizeRepository;
-    private final AppealService appealService;
     private final AuditService auditService;
     private final RoundProblemStatementStorage roundProblemStatementStorage;
     private final TrackProblemStatementStorage trackProblemStatementStorage;
@@ -166,8 +168,8 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                     int openCmp = Boolean.compare(Boolean.TRUE.equals(b.getRegistrationWindowOpen()),
                             Boolean.TRUE.equals(a.getRegistrationWindowOpen()));
                     if (openCmp != 0) return openCmp;
-                    java.time.LocalDate as = a.getRegistrationStart();
-                    java.time.LocalDate bs = b.getRegistrationStart();
+                    java.time.LocalDateTime as = a.getRegistrationStart();
+                    java.time.LocalDateTime bs = b.getRegistrationStart();
                     if (as != null && bs != null) {
                         int startCmp = as.compareTo(bs);
                         if (startCmp != 0) return startCmp;
@@ -562,6 +564,7 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                 .deadline(activeRound.getSubmissionDeadline())
                 .problemReleased(problemReleased)
                 .closedEarlyAt(activeRound.getSubmissionClosedEarlyAt())
+                .presentationShuffled(presentationReadiness.isShuffled(activeRound))
                 .build();
     }
 
@@ -617,12 +620,51 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                     "Kết quả vòng thi này chưa được công bố. Vui lòng quay lại sau.");
         }
 
-        var rankings = roundRankingQueryService.rankingForRound(roundId, false);
+        List<RoundRankingItemResponse> rankings =
+                roundRankingQueryService.rankingForRound(roundId, false);
+
+        // Prelim: filter to student's track / assigned group
+        if (!Boolean.TRUE.equals(round.getIsFinal())) {
+            Team team = resolveStudentTeamForRound(round);
+            Optional<TeamRoundTrack> trtOpt =
+                    teamRoundTrackRepository.findByTeam_IdAndTrack_Round_Id(team.getId(), roundId);
+            if (trtOpt.isPresent()) {
+                TeamRoundTrack trt = trtOpt.get();
+                Integer trackId = trt.getTrack() != null ? trt.getTrack().getId() : null;
+                String assignedGroup = trt.getAssignedGroup();
+                String trackName = trt.getTrack() != null ? trt.getTrack().getName() : null;
+
+                List<RoundRankingItemResponse> filtered = rankings.stream()
+                        .filter(r -> Objects.equals(r.getTrackId(), trackId))
+                        .filter(r -> assignedGroup == null
+                                || Objects.equals(r.getAssignedGroup(), assignedGroup))
+                        .toList();
+
+                int totalInGroup = filtered.size();
+                return filtered.stream().map(r -> StudentLeaderboardItemResponse.builder()
+                        .rank(r.getRank())
+                        .teamId(r.getTeamId())
+                        .teamName(r.getTeamName())
+                        .totalScore(toScaledScore(r.getTotalScore()))
+                        .assignedGroup(r.getAssignedGroup() != null ? r.getAssignedGroup() : assignedGroup)
+                        .trackId(trackId)
+                        .trackName(trackName)
+                        .rankInGroup(r.getRank())
+                        .totalInGroup(totalInGroup)
+                        .build()).toList();
+            }
+        }
+
+        int total = rankings.size();
         return rankings.stream().map(r -> StudentLeaderboardItemResponse.builder()
                 .rank(r.getRank())
                 .teamId(r.getTeamId())
                 .teamName(r.getTeamName())
-                .totalScore(BigDecimal.valueOf(r.getTotalScore()))
+                .totalScore(toScaledScore(r.getTotalScore()))
+                .assignedGroup(r.getAssignedGroup())
+                .trackId(r.getTrackId())
+                .rankInGroup(r.getRank())
+                .totalInGroup(total)
                 .build()).toList();
     }
 
@@ -725,6 +767,13 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                 "Đội của bạn không tham gia vòng thi này.");
     }
 
+    private static BigDecimal toScaledScore(Double score) {
+        if (score == null) {
+            return null;
+        }
+        return BigDecimal.valueOf(ScoreScale.round2(score)).setScale(2, RoundingMode.HALF_UP);
+    }
+
     private static String toDisplayCode(PresentationSlot slot) {
         if (slot.getSubmission() != null && slot.getSubmission().getId() != null) {
             return "#" + slot.getSubmission().getId();
@@ -756,7 +805,7 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                         .rank(r.getRank())
                         .teamId(r.getTeamId())
                         .teamName(r.getTeamName())
-                        .totalScore(BigDecimal.valueOf(r.getTotalScore()))
+                        .totalScore(toScaledScore(r.getTotalScore()))
                         .build()).toList();
 
         return StudentRankingResponse.builder()
@@ -978,25 +1027,6 @@ public class StudentPortalServiceImpl implements StudentPortalService {
         auditService.log(AuditAction.TEAM_TRACK_ASSIGNED, "team_round_tracks", trt.getId(),
                 Map.of("teamId", team.getId(), "trackId", track.getId(), "roundId", prelim.getId(),
                         "registrationType", RegistrationType.PREFERRED.name()));
-    }
-
-    @Override
-    @Transactional
-    public AppealResponse createAppeal(CreateAppealRequest request) {
-        return appealService.create(request);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public java.util.List<AppealResponse> listMyAppeals() {
-        return appealService.listMine();
-    }
-
-    @Override
-    @Transactional
-    public com.sealhackathon.api.appeals.dto.response.AppealEvidenceUploadResponse uploadAppealEvidence(
-            org.springframework.web.multipart.MultipartFile file) {
-        return appealService.uploadEvidence(file);
     }
 
     // =================================================================================

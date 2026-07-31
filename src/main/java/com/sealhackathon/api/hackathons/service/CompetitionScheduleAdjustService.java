@@ -248,7 +248,9 @@ public class CompetitionScheduleAdjustService {
     /** @deprecated dùng {@link #apply} với newPrelimExamAt — giữ overload cho test cũ nếu cần */
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> compressAfterRegistrationClosed(Hackathon hackathon) {
-        LocalDate regEnd = hackathon.getRegistrationEnd();
+        LocalDate regEnd = hackathon.getRegistrationEnd() != null
+                ? hackathon.getRegistrationEnd().toLocalDate()
+                : null;
         if (regEnd == null) {
             return Map.of();
         }
@@ -329,7 +331,7 @@ public class CompetitionScheduleAdjustService {
 
     private LocalDate resolveRegEndForGap(Hackathon h) {
         if (h.getRegistrationEnd() != null) {
-            return h.getRegistrationEnd();
+            return h.getRegistrationEnd().toLocalDate();
         }
         return LocalDate.now();
     }

@@ -1,6 +1,5 @@
 package com.sealhackathon.api.export_jobs.support;
 
-import com.sealhackathon.api.appeals.repository.AppealRepository;
 import com.sealhackathon.api.chapters.entity.Chapter;
 import com.sealhackathon.api.chapters.repository.ChapterRankingRepository;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
@@ -54,7 +53,6 @@ class ExportCsvBuilderRankingsTest {
     @Mock private ChapterRankingRepository chapterRankingRepository;
     @Mock private IndividualRankingRepository individualRankingRepository;
     @Mock private PrizeRepository prizeRepository;
-    @Mock private AppealRepository appealRepository;
     @Mock private RoundRankingQueryService roundRankingQueryService;
     @Mock private RblDashboardService rblDashboardService;
 
@@ -147,7 +145,6 @@ class ExportCsvBuilderRankingsTest {
         when(chapterRankingRepository.findByHackathon_IdOrderByRankAsc(2)).thenReturn(List.of());
         when(individualRankingRepository.findByHackathon_IdOrderByRankAsc(2)).thenReturn(List.of());
         when(prizeRepository.findByRound_Hackathon_IdOrderByAwardedAtDesc(2)).thenReturn(List.of());
-        when(appealRepository.findByRound_IdOrderByCreatedAtDesc(anyInt())).thenReturn(List.of());
         when(rblDashboardService.varianceByRound(anyInt()))
                 .thenReturn(com.sealhackathon.api.rbl.dto.response.RblVarianceResponse.builder()
                         .perJudgeSpread(List.of())

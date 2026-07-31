@@ -12,10 +12,10 @@ import com.sealhackathon.api.notifications.service.NotificationService;
 import com.sealhackathon.api.teams.entity.TeamMember;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
-import com.sealhackathon.api.presentation.service.PresentationQueueService;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.guard.RoundAccessGuard;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
+import com.sealhackathon.api.rounds.support.RoundPresentationReadiness;
 import com.sealhackathon.api.rounds.value_object.LateSubmissionPolicy;
 import com.sealhackathon.api.submissions.dto.request.ReviewLateSubmissionRequest;
 import com.sealhackathon.api.submissions.dto.request.SubmitSubmissionRequest;
@@ -81,7 +81,7 @@ public class SubmissionServiceImpl implements SubmissionService {
     private final SubmissionSlideStorage submissionSlideStorage;
     private final NotificationService notificationService;
     private final PrelimMutationGuard prelimMutationGuard;
-    private final PresentationQueueService presentationQueueService;
+    private final RoundPresentationReadiness presentationReadiness;
     private final com.sealhackathon.api.live_scoring.SubmissionRosterPublisher submissionRosterPublisher;
 
     @Override
@@ -171,6 +171,11 @@ public class SubmissionServiceImpl implements SubmissionService {
         // Closed-early ⇒ mọi lần nộp sau đó đều late (tránh race isAfter(deadline==now) = false)
         boolean afterDeadline = round.getSubmissionClosedEarlyAt() != null
                 || (round.getSubmissionDeadline() != null && !now.isBefore(round.getSubmissionDeadline()));
+
+        if (afterDeadline && isPresentationShuffled(round, track)) {
+            throw new BusinessRuleException(ErrorCode.SUBMISSION_LOCKED_AFTER_SHUFFLE,
+                    "Đã quay số thuyết trình — không cho nộp bài muộn");
+        }
 
         if (afterDeadline
                 && round.getLateSubmissionPolicy() != LateSubmissionPolicy.HARD_LOCK
@@ -332,6 +337,11 @@ public class SubmissionServiceImpl implements SubmissionService {
                     "Round Chung kết không cho duyệt bài trễ");
         }
 
+        if (isPresentationShuffled(round, submission.getTrack())) {
+            throw new BusinessRuleException(ErrorCode.SUBMISSION_LOCKED_AFTER_SHUFFLE,
+                    "Đã quay số thuyết trình — không cho duyệt bài nộp muộn");
+        }
+
         if (req.getDecision() == LateReviewDecision.REJECT
                 && !StringUtils.hasText(req.getNote())) {
             throw new BusinessRuleException(ErrorCode.REVIEW_NOTE_REQUIRED,
@@ -351,57 +361,24 @@ public class SubmissionServiceImpl implements SubmissionService {
         Submission saved = submissionRepository.save(submission);
         auditService.log(AuditAction.SUBMISSION_LATE_REVIEW, "submissions", saved.getId(),
                 Map.of("decision", req.getDecision().name()));
-        boolean queueAppendFailed = false;
-        if (req.getDecision() == LateReviewDecision.APPROVE) {
-            try {
-                presentationQueueService.appendLateApprovedIfShuffled(saved);
-            } catch (Exception ex) {
-                queueAppendFailed = true;
-                log.error("[reviewLate] queue append failed after approve submissionId={} roundId={}: {}",
-                        saved.getId(),
-                        saved.getRound() != null ? saved.getRound().getId() : null,
-                        ex.getMessage(),
-                        ex);
-                auditService.log(AuditAction.SUBMISSION_LATE_QUEUE_APPEND_FAILED, "submissions", saved.getId(),
-                        Map.of(
-                                "roundId", saved.getRound() != null ? saved.getRound().getId() : null,
-                                "error", ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName()));
-                notifyCoordinatorsQueueAppendFailed(saved, ex);
-            }
-        }
+        // Không append queue sau shuffle — đã chặn ở trên.
         if (saved.getRound() != null) {
             submissionRosterPublisher.publishInvalidate(saved.getRound().getId());
         }
-        SubmissionResponse response = toResponse(saved, false);
-        if (queueAppendFailed) {
-            return response.toBuilder().queueAppendFailed(true).build();
-        }
-        return response;
+        return toResponse(saved, false);
     }
 
-    private void notifyCoordinatorsQueueAppendFailed(Submission saved, Exception ex) {
-        try {
-            List<User> coordinators = userRepository.findByRoleAndStatus(
-                    UserRole.COORDINATOR, UserStatus.APPROVED, org.springframework.data.domain.Pageable.unpaged())
-                    .getContent();
-            if (coordinators.isEmpty()) {
-                return;
-            }
-            String teamName = saved.getTeam() != null ? saved.getTeam().getTeamName() : "?";
-            notificationService.sendBatch(
-                    coordinators,
-                    "LATE_QUEUE_APPEND_FAILED",
-                    "Bài duyệt trễ chưa vào hàng đợi thuyết trình",
-                    "Đội " + teamName + " (submission #" + saved.getId()
-                            + ") đã được duyệt trễ nhưng chưa append vào queue sau shuffle. Lỗi: "
-                            + (ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName())
-                            + ". Vui lòng kiểm tra / thử shuffle lại hoặc thêm slot thủ công.",
-                    "submissions",
-                    saved.getId());
-        } catch (Exception notifyEx) {
-            log.error("[reviewLate] failed to notify coordinators about queue append failure: {}",
-                    notifyEx.getMessage(), notifyEx);
+    private boolean isPresentationShuffled(Round round, Track track) {
+        if (round == null) {
+            return false;
         }
+        if (Boolean.TRUE.equals(round.getIsFinal())) {
+            return Boolean.TRUE.equals(round.getPresentationShuffled());
+        }
+        if (track != null) {
+            return Boolean.TRUE.equals(track.getPresentationShuffled());
+        }
+        return presentationReadiness.isShuffled(round);
     }
 
     private SubmissionStatus resolveSubmitStatus(Round round, boolean afterDeadline) {

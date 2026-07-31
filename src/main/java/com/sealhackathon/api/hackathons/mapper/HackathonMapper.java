@@ -6,6 +6,7 @@ import com.sealhackathon.api.hackathons.dto.response.HackathonResponse;
 import com.sealhackathon.api.hackathons.dto.response.HackathonSummaryResponse;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.support.HackathonBannerUrls;
+import com.sealhackathon.api.hackathons.support.HackathonRegistrationSupport;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import org.springframework.stereotype.Component;
 
@@ -28,7 +29,6 @@ public class HackathonMapper {
                 .individualRankingEnabled(req.getIndividualRankingEnabled() != null && req.getIndividualRankingEnabled())
                 .chapterScoringFormula(req.getChapterScoringFormula())
                 .maxParticipants(req.getMaxParticipants())
-                .appealWindowMinutes(resolveAppealWindowMinutes(req.getAppealWindowMinutes()))
                 .build();
     }
 
@@ -50,9 +50,6 @@ public class HackathonMapper {
         if (req.getMaxParticipants() != null) {
             entity.setMaxParticipants(req.getMaxParticipants());
         }
-        if (req.getAppealWindowMinutes() != null) {
-            entity.setAppealWindowMinutes(resolveAppealWindowMinutes(req.getAppealWindowMinutes()));
-        }
     }
 
     public HackathonResponse toResponse(Hackathon e) {
@@ -66,6 +63,7 @@ public class HackathonMapper {
                 .season(e.getSeason())
                 .year(e.getYear())
                 .status(e.getStatus())
+                .registrationPhase(HackathonRegistrationSupport.resolveRegistrationPhase(e))
                 .description(e.getDescription())
                 .rules(e.getRules())
                 .bannerUrl(HackathonBannerUrls.resolveForResponse(e))
@@ -83,19 +81,10 @@ public class HackathonMapper {
                 .createdAt(e.getCreatedAt())
                 .updatedAt(e.getUpdatedAt())
                 .maxParticipants(e.getMaxParticipants())
-                .appealWindowMinutes(e.getAppealWindowMinutes() != null ? e.getAppealWindowMinutes() : 30)
                 .clonedFromHackathonId(e.getClonedFromHackathon() == null ? null : e.getClonedFromHackathon().getId())
                 .clonedFromHackathonName(e.getClonedFromHackathon() == null ? null : e.getClonedFromHackathon().getName())
                 .clonedAt(e.getClonedAt())
                 .build();
-    }
-
-    /** 0 disables; otherwise clamp to default 30 when null; min 10 enforced in service when non-zero. */
-    static Integer resolveAppealWindowMinutes(Integer requested) {
-        if (requested == null) {
-            return 30;
-        }
-        return requested;
     }
 
     public HackathonSummaryResponse toSummary(Hackathon e) {
@@ -109,6 +98,7 @@ public class HackathonMapper {
                 .season(e.getSeason())
                 .year(e.getYear())
                 .status(e.getStatus())
+                .registrationPhase(HackathonRegistrationSupport.resolveRegistrationPhase(e))
                 .registrationStart(e.getRegistrationStart())
                 .registrationEnd(e.getRegistrationEnd())
                 .eventStart(e.getEventStart())

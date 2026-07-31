@@ -36,7 +36,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -87,10 +86,9 @@ public class HackathonRegistrationCloseServiceImpl implements HackathonRegistrat
         }
 
         LocalDateTime now = LocalDateTime.now();
-        LocalDate today = LocalDate.now();
         hackathon.setRegistrationClosedEarlyAt(now);
-        if (hackathon.getRegistrationEnd() == null || hackathon.getRegistrationEnd().isAfter(today)) {
-            hackathon.setRegistrationEnd(today);
+        if (hackathon.getRegistrationEnd() == null || hackathon.getRegistrationEnd().isAfter(now)) {
+            hackathon.setRegistrationEnd(now);
         }
         hackathonRepository.save(hackathon);
 

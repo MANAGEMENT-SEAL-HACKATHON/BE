@@ -26,6 +26,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -47,18 +48,18 @@ class HackathonRegistrationExtensionServiceImplTest {
 
     @InjectMocks private HackathonRegistrationExtensionServiceImpl service;
 
-    private LocalDate currentEnd;
+    private LocalDateTime currentEnd;
     private Hackathon hackathon;
 
     @BeforeEach
     void setUp() {
-        currentEnd = LocalDate.now().plusDays(5);
+        currentEnd = LocalDate.now().plusDays(5).atTime(23, 59);
         hackathon = Hackathon.builder()
                 .id(1)
                 .name("SEAL")
                 .status(HackathonStatus.ONGOING)
                 .registrationEnd(currentEnd)
-                .eventStart(currentEnd.plusDays(RoundScheduleValidator.MIN_DAYS_FROM_REG_END_TO_PRELIM_EXAM))
+                .eventStart(currentEnd.toLocalDate().plusDays(RoundScheduleValidator.MIN_DAYS_FROM_REG_END_TO_PRELIM_EXAM))
                 .registrationExtensionCount(0)
                 .build();
         org.mockito.Mockito.lenient().when(hackathonProperties.getMaxRegistrationExtensions()).thenReturn(2);
@@ -66,16 +67,17 @@ class HackathonRegistrationExtensionServiceImplTest {
 
     @Test
     void preview_gapStatuses_okTightViolation() {
-        LocalDate newEnd = currentEnd.plusDays(4);
+        LocalDateTime newEnd = currentEnd.plusDays(4);
+        LocalDate newEndDay = newEnd.toLocalDate();
         // WS on newEnd+1 → OK; KO on newEnd (not after) → VIOLATION
-        Event ws = Event.builder().id(10).startsAt(newEnd.plusDays(1).atTime(20, 0)).build();
-        Event ko = Event.builder().id(11).startsAt(newEnd.atTime(14, 0)).build();
+        Event ws = Event.builder().id(10).startsAt(newEndDay.plusDays(1).atTime(20, 0)).build();
+        Event ko = Event.builder().id(11).startsAt(newEndDay.atTime(14, 0)).build();
         // prelim at newEnd+3 → TIGHT; eventStart at newEnd+2 → VIOLATION (< 3)
         Round prelim = Round.builder()
                 .id(3).isFinal(false)
-                .examAt(newEnd.plusDays(RoundScheduleSeedUtil.DAYS_REG_END_TO_EVENT_START).atTime(8, 0))
+                .examAt(newEndDay.plusDays(RoundScheduleSeedUtil.DAYS_REG_END_TO_EVENT_START).atTime(8, 0))
                 .build();
-        hackathon.setEventStart(newEnd.plusDays(2));
+        hackathon.setEventStart(newEndDay.plusDays(2));
 
         when(hackathonRepository.findById(1)).thenReturn(Optional.of(hackathon));
         when(teamRepository.findByHackathon_Id(1)).thenReturn(List.of());
@@ -99,7 +101,7 @@ class HackathonRegistrationExtensionServiceImplTest {
     @Test
     void preview_limitReached_blocks() {
         hackathon.setRegistrationExtensionCount(2);
-        LocalDate newEnd = currentEnd.plusDays(3);
+        LocalDateTime newEnd = currentEnd.plusDays(3);
         when(hackathonRepository.findById(1)).thenReturn(Optional.of(hackathon));
         when(teamRepository.findByHackathon_Id(1)).thenReturn(List.of());
 

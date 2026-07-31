@@ -49,10 +49,10 @@ public class Hackathon {
     private String bannerUrl;
 
     @Column(name = "registration_start")
-    private LocalDate registrationStart;
+    private LocalDateTime registrationStart;
 
     @Column(name = "registration_end")
-    private LocalDate registrationEnd;
+    private LocalDateTime registrationEnd;
 
     @Column(name = "registration_closed_early_at")
     private LocalDateTime registrationClosedEarlyAt;
@@ -93,14 +93,6 @@ public class Hackathon {
 
     @Column(name = "max_participants")
     private Integer maxParticipants;
-
-    /**
-     * Minutes the DQ appeal window stays open after first prelim publish.
-     * 0 = feature off (GĐ4 behaves as before). Service enforces minimum 10 when enabling.
-     */
-    @Builder.Default
-    @Column(name = "appeal_window_minutes", nullable = false)
-    private Integer appealWindowMinutes = 30;
 
     /** Set when the coordinator DRAFT-setup reminder was sent (idempotent scheduler). */
     @Column(name = "draft_reminder_sent_at")

@@ -1,9 +1,9 @@
-# GĐ4 — Defense Playbook: Kết quả Sơ loại · Appeal window · Top-N · Cấu hình & Kích hoạt CK
+# GĐ4 — Defense Playbook: Kết quả Sơ loại · Waterfall Tie-break · Top-N · Cấu hình & Kích hoạt CK
 
-> **Doc sync:** 2026-07-31 — Phases 0–11
+> **Doc sync:** 2026-07-31 — Appeals **đã gỡ**; phân xử đồng điểm 3 tầng (tiêu chí phụ → nộp sớm → manual + lý do)
 
 > **Person 4** · ~16–18 phút · Slug live: **`seal-e2e-2026`** (sau scoring lock SL)  
-> **Gate vào:** SL `scoring_locked=true` · **Gate ra GĐ5:** CK `is_active=true`, SL published, teams ADVANCED (sau khi cửa sổ khiếu nại đóng / hết PENDING|UNDER_REVIEW)
+> **Gate vào:** SL `scoring_locked=true` · **Gate ra GĐ5:** CK `is_active=true`, SL published, teams ADVANCED (sau đồng điểm + chốt CK — **không** chờ khiếu nại)
 
 ---
 
@@ -12,7 +12,7 @@
 ### Điểm VÀO (Person 4 bắt đầu)
 
 - **Trạng thái kỳ vọng:** Person 3 vừa **Khóa chấm điểm** (SL) — scoring locked, chưa publish.
-- **Câu bàn giao:** «Sơ loại đã khóa chấm. Em bắt từ trang **Kết quả Sơ loại** — stepper công bố, cửa sổ khiếu nại, chuyển vòng, cấu hình CK, kích hoạt Chung kết.»
+- **Câu bàn giao:** «Sơ loại đã khóa chấm. Em bắt từ trang **Kết quả Sơ loại** — stepper công bố, đồng điểm (waterfall), chuyển vòng, cấu hình CK, kích hoạt Chung kết.»
 - **Mode A:** Tiếp `seal-e2e-2026` sau scoring lock (không mở snapshot riêng).
 - **Mode B:** Tiếp hackathon sau lock SL GĐ3 (cùng slug).
 
@@ -27,15 +27,17 @@
 
 **~~`seal-gd4-advance-ready` / `Gd4AdvanceReadyDataSeeder`~~** — **không còn primary seed**; GĐ4 chạy continuous trên `seal-e2e-2026`.
 
-**Tiebreak:** nếu có đồng điểm biên Top-N → demo tab **Đồng điểm** (`TiebreakPanel`) khi banner xuất hiện; nếu không có tie → bỏ qua bước resolve. Hành vi Top-N gap (`availableSlots` / `minTeamsFinal`) vẫn trong `RoundProgressionServiceImpl` — **không** cần slug riêng.
+**Tiebreak (waterfall):** Tầng 1 tiêu chí phụ → Tầng 2 `submitted_at` → Tầng 3 Coord + bắt buộc lý do. Tab **Đồng điểm** khóa sắp xếp nếu đã auto; badge lý do. Advance chỉ chờ manual unresolved.
 
 ---
 
 ## Advance = Top-N only (wildcard đã xóa)
 
 - **Đã xóa (Phase 9):** feature Vé vớt / Wildcard — bảng `wildcard_reviews`, endpoints wildcard, tab/route UI.
+- **Đã xóa (2026-07-31):** module **Appeals** / cửa sổ khiếu nại / T-5 delay.
 - **Còn:** advance theo Top-N mỗi bảng (`round.topNAdvance`) + optional `availableSlots` / `minTeamsFinal` (`RoundProgressionServiceImpl`).
-- **UI tabs (sau publish):** **Kết quả** / **Danh sách CK & Bị loại** / **Kiểm tra chấm** / **Đồng điểm** / **Khiếu nại**.
+- **UI tabs (sau publish):** **Kết quả** / **Danh sách CK & Bị loại** / **Kiểm tra chấm** / **Đồng điểm** (không còn tab Khiếu nại).
+- **Lý do vào CK:** `Top {rank}` theo hạng thực tế trong bảng (không còn label cứng «Top N»).
 - Sabotage G4-S07: `grep` UI = 0 label «Vé vớt».
 
 ---
@@ -45,7 +47,7 @@
 | Hạng mục | Nội dung |
 |----------|----------|
 | Phạm vi | Publish SL (+ preflight appeal), cửa sổ khiếu nại, review DQ, tiebreak (nếu có), advance Top-N, final config, guest judge, activate CK **KEEP only** |
-| Stepper | Khóa chấm → Xem trước → Đồng điểm → Công bố → **Khiếu nại** → Chốt CK → Cấu hình CK |
+| Stepper | Khóa chấm → Xem trước → Đồng điểm → Công bố & Chốt danh sách → Cấu hình CK |
 | Thời lượng | 2p + 12–14p + 5p sabotage + 3p (không còn 3 slug phụ) |
 
 ---
@@ -109,8 +111,8 @@ flowchart TD
 | Việc | URL / nhãn |
 |------|------------|
 | Kết quả SL | `/hackathons/{id}/rounds/{prelimId}/results` |
-| Stepper | **Khóa chấm** → **Xem trước** → **Đồng điểm** → **Công bố** → **Khiếu nại** → **Chốt CK** → **Cấu hình CK** |
-| Tabs (sau publish) | **Kết quả** / **Danh sách CK & Bị loại** / **Kiểm tra chấm** / **Đồng điểm** / **Khiếu nại** |
+| Stepper | **Khóa chấm** → **Xem trước** → **Đồng điểm** → **Công bố & Chốt** → **Cấu hình CK** |
+| Tabs (sau publish) | **Kết quả** / **Danh sách CK & Bị loại** / **Kiểm tra chấm** / **Đồng điểm** |
 | Final config | `/coordinator/final-config?hackathonId=` hoặc `setup?tab=final-config` |
 | Activate CK | Tab **Vòng thi** → **Kích hoạt Vòng thi** (Chung kết) → **KEEP only** |
 
@@ -120,12 +122,12 @@ flowchart TD
 
 | ID | Loại | Role | URL | Thao tác UI | Kết quả UI | ErrorCode | FE | BE |
 |----|------|------|-----|-------------|------------|-----------|----|----|
-| G4-H01 | Happy | Coord | `/rounds/{prelimId}/results` | Mở stepper — bước **Khóa chấm** đã xanh | Stepper: … Công bố → Khiếu nại → Chốt CK → Cấu hình CK | — | `PreliminaryResultsPage` | `RoundProgressionController` |
+| G4-H01 | Happy | Coord | `/rounds/{prelimId}/results` | Mở stepper — bước **Khóa chấm** đã xanh | Stepper: … Công bố & Chốt → Cấu hình CK | — | `PreliminaryResultsPage` | `RoundProgressionController` |
 | G4-H02 | Happy | Coord | Tab **Xem trước** / BXH | Xem BXH tạm / warning incomplete | BarChart hoặc warning vàng | — | `RankingTopSteps` (preview only) / `OfficialRankingPanel` | `RoundProgressionController` |
 | G4-H03 | Happy | Coord | Tab **Đồng điểm** | (Nếu banner đỏ) kéo-thả biên Top-N → **Lưu** | Tiebreak resolved | — | `TiebreakPanel` | `RoundProgressionController.resolveTiebreak` |
 | G4-H04 | Happy | Coord | Results | **Công bố kết quả** → `PublishAppealWindowModal` (fits / DELAY_FINAL·SHRINK·SKIP) → confirm | `isPublished=true`; `appeal_window_ends_at` set (nếu window &gt; 0); countdown bắt đầu; announcement kèm buffet (location/giờ/menu) nếu có `EventType.BUFFET` | — | `PublishAppealWindowModal` | `GET/POST …/publish/preflight`; `PATCH …/publish` (+ `PublishWithAppealWindowRequest`) |
 | G4-H04b | Happy | Coord / Leader | Results / Student | Cửa sổ mở — `AppealCountdownBar` **2 markers** (tới `finalExamAt` + tới `appealWindowEndsAt`); leader DQ nộp appeal + evidence | Status PENDING; advance blocked khi còn open/pending | — | `AppealCountdownBar`, `StudentAppealModal` | `GET …/appeal-window`; `POST /me/appeals`; `POST /me/appeals/evidence` |
-| G4-H04c | Happy | Coord | Tab **Khiếu nại** | Claim → Approve/Reject (reject bắt buộc note); approve → `TeamReinstatementService` (pre-advance); hoặc chờ hết hạn → EXPIRED; optional close-early / republish | Reinstate / REJECTED / EXPIRED; republish **không** reset window | — | `AppealReviewPanel` | `PATCH /appeals/{id}/claim`; `PATCH /appeals/{id}/review`; `POST …/appeal-window/close`; `POST …/republish` |
+| G4-H04c | Happy | Coord | — | *(Appeals đã gỡ)* | — | — | — | — |
 | G4-H04d | Happy | Coord | Trong window (T-5) | Khi ≤5′ tới CK + còn pending → `FinalDelayModal` preview/apply | CK `examAt` dời; `appeal_delay_minutes_applied` tăng | — | `FinalDelayModal` | `POST …/appeal-delay/preview`; `POST …/appeal-delay` |
 | G4-H05 | Happy | Coord | Results | **Chốt chuyển vòng** → confirm (sau khi không còn PENDING/UNDER_REVIEW) | ADVANCED / ELIMINATED tags | — | `PreliminaryResultsPage` | `RoundProgressionServiceImpl.advance` |
 | G4-H06 | Happy | Coord | Tab **Danh sách CK & Bị loại** | Verify ADVANCED / ELIMINATED | 8 đội phân loại đúng Top-N | — | `AdvanceRosterPanel` | `RoundProgressionServiceImpl` |
@@ -157,7 +159,7 @@ flowchart TD
 | `POST` | `/api/v1/me/appeals/evidence` | Student | Upload minh chứng (multipart) |
 | `GET` | `/api/v1/me/teams?includeEliminated=true` | Student | Đội ELIMINATED (appeal / results) |
 
-**UI demo tips:** `PublishAppealWindowModal` trước Công bố; `AppealCountdownBar` 2 markers khi OPEN; tab **Khiếu nại** sau publish; nút Chốt CK disabled khi còn PENDING/UNDER_REVIEW; T-5 **trong** window.
+**UI demo tips:** Công bố trực tiếp (không preflight appeal); tab **Đồng điểm** hiện badge waterfall; Chốt CK liền sau publish khi không còn manual tie.
 
 ---
 
@@ -277,8 +279,8 @@ flowchart TD
 ## 11. Checklist smoke
 
 - [ ] `seal-e2e-2026` SL locked, unpublished (sau GĐ3)
-- [ ] Stepper: Công bố → **Khiếu nại** → Chốt CK → Cấu hình CK
-- [ ] Tabs sau publish gồm **Khiếu nại**
+- [ ] Stepper: Công bố & Chốt → Cấu hình CK (không còn Khiếu nại)
+- [ ] Tabs sau publish: Kết quả / CK & Bị loại / Kiểm tra chấm / Đồng điểm (không Khiếu nại)
 - [ ] Publish → `PublishAppealWindowModal` + `AppealCountdownBar` (2 markers nếu window &gt; 0)
 - [ ] Advance blocked khi còn PENDING|UNDER_REVIEW; EXPIRED / close-early unlocks
 - [ ] Approve → reinstate pre-advance (`TeamReinstatementService`)

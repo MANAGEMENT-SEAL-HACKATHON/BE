@@ -4,12 +4,14 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /**
  * Một dòng danh sách CK / loại (Bug3 — advance-roster).
  * {@code status}: ADVANCED | ELIMINATED; {@code reasonCode}: TOP_N | OUT | DQ.
  */
 @Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder

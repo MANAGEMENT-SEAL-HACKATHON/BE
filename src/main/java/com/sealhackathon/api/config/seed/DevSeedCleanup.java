@@ -92,13 +92,6 @@ public class DevSeedCleanup {
                 """, hackathonId);
         jdbcTemplate.update("DELETE FROM prizes WHERE hackathon_id = ?", hackathonId);
 
-        // Appeals
-        jdbcTemplate.update("""
-                DELETE a FROM appeals a
-                INNER JOIN teams t ON t.id = a.team_id
-                WHERE t.hackathon_id = ?
-                """, hackathonId);
-
         // Mentor / team-round
         jdbcTemplate.update("DELETE FROM mentor_team_assignments WHERE hackathon_id = ?", hackathonId);
         jdbcTemplate.update("""

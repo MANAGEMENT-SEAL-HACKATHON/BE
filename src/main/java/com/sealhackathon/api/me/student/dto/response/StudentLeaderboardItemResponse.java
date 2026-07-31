@@ -17,4 +17,9 @@ public class StudentLeaderboardItemResponse {
     private Integer teamId;
     private String teamName;
     private BigDecimal totalScore;
+    private String assignedGroup;
+    private Integer trackId;
+    private String trackName;
+    private Integer rankInGroup;
+    private Integer totalInGroup;
 }

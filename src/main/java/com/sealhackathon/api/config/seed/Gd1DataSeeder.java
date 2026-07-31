@@ -146,6 +146,7 @@ public class Gd1DataSeeder {
 
     /**
      * Repair criteria; gỡ Track 3 trên E2E nếu DB cũ còn (chỉ khi chưa freeze).
+     * Backfill tiebreaker priority luôn chạy (chỉ UPDATE boolean).
      */
     @Transactional
     public void repairSeededCriteriaAndTracks() {
@@ -153,6 +154,7 @@ public class Gd1DataSeeder {
         if (unlinked > 0) {
             log.info("[Gd1DataSeeder] Đã gỡ source_criteria_id chéo track/round cho {} criterion", unlinked);
         }
+        backfillTiebreakerPriorityFlags();
         if (e2eDevFlowGuard.isE2eFlowFrozen()) {
             e2eDevFlowGuard.logSkip("Gd1.repairSeededCriteriaAndTracks (track mutate)");
             return;
@@ -172,6 +174,54 @@ public class Gd1DataSeeder {
         }
         if (track3Removed > 0) {
             log.info("[Gd1DataSeeder] Đã gỡ Track 3 trên {}", Gd1SeedConstants.SLUG_ONGOING);
+        }
+    }
+
+    /**
+     * Idempotent — gán is_tiebreaker_priority khi track/final chưa có flag.
+     * Chỉ UPDATE boolean; chạy được khi E2E frozen.
+     */
+    @Transactional
+    public void backfillTiebreakerPriorityFlags() {
+        int updated = 0;
+        for (Track track : trackRepository.findAll()) {
+            List<Criteria> list = criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(track.getId());
+            if (list.isEmpty()
+                    || list.stream().anyMatch(c -> Boolean.TRUE.equals(c.getIsTiebreakerPriority()))) {
+                continue;
+            }
+            Optional<Criteria> pick = list.stream()
+                    .filter(c -> c.getType() != CriteriaType.PENALTY)
+                    .findFirst();
+            if (pick.isPresent()) {
+                Criteria c = pick.get();
+                c.setIsTiebreakerPriority(true);
+                criteriaRepository.save(c);
+                updated++;
+            }
+        }
+        for (Round round : roundRepository.findAll()) {
+            if (!Boolean.TRUE.equals(round.getIsFinal())) {
+                continue;
+            }
+            List<Criteria> list =
+                    criteriaRepository.findByFinalRoundIdOrderByDisplayOrderAsc(round.getId());
+            if (list.isEmpty()
+                    || list.stream().anyMatch(c -> Boolean.TRUE.equals(c.getIsTiebreakerPriority()))) {
+                continue;
+            }
+            Optional<Criteria> pick = list.stream()
+                    .filter(c -> c.getType() != CriteriaType.PENALTY)
+                    .findFirst();
+            if (pick.isPresent()) {
+                Criteria c = pick.get();
+                c.setIsTiebreakerPriority(true);
+                criteriaRepository.save(c);
+                updated++;
+            }
+        }
+        if (updated > 0) {
+            log.info("[Gd1DataSeeder] backfillTiebreakerPriority: {} track/final scopes", updated);
         }
     }
 
@@ -634,8 +684,8 @@ public class Gd1DataSeeder {
                 .year(dates.eventStart().getYear())
                 .status(HackathonStatus.DRAFT)
                 .description("DRAFT không có round — test GET readiness → blockers (negative case)")
-                .registrationStart(dates.regStart())
-                .registrationEnd(dates.regEnd())
+                .registrationStart(dates.regStart().atTime(0, 0))
+                .registrationEnd(dates.regEnd().atTime(23, 59))
                 .eventStart(dates.eventStart())
                 .eventEnd(dates.eventEnd())
                 .individualRankingEnabled(false)
@@ -685,8 +735,8 @@ public class Gd1DataSeeder {
                 .year(dates.eventStart().getYear())
                 .status(status)
                 .description(description)
-                .registrationStart(dates.regStart())
-                .registrationEnd(dates.regEnd())
+                .registrationStart(dates.regStart().atTime(0, 0))
+                .registrationEnd(dates.regEnd().atTime(23, 59))
                 .eventStart(dates.eventStart())
                 .eventEnd(dates.eventEnd())
                 .individualRankingEnabled(false)
@@ -944,7 +994,12 @@ public class Gd1DataSeeder {
     }
 
     private void seedCriteriaRows(Track track, List<CriteriaSeed> rows) {
+        boolean priorityAssigned = false;
         for (CriteriaSeed row : rows) {
+            boolean isPriority = !priorityAssigned && row.type() != CriteriaType.PENALTY;
+            if (isPriority) {
+                priorityAssigned = true;
+            }
             criteriaRepository.save(Criteria.builder()
                     .track(track)
                     .round(null)
@@ -955,6 +1010,7 @@ public class Gd1DataSeeder {
                     .maxScore(10)
                     .displayOrder(row.order())
                     .description(row.description())
+                    .isTiebreakerPriority(isPriority)
                     .build());
         }
     }
@@ -976,7 +1032,12 @@ public class Gd1DataSeeder {
                 new CriteriaSeed("Mở rộng & Scale", CriteriaType.SOFT_SKILL, 0.10f, 5,
                         "Khả năng mở rộng quy mô người dùng / dữ liệu và tầm nhìn phát triển sản phẩm.\n"
                                 + "Gợi ý (thang 0–10): 9–10 lộ trình scale rõ; 7–8 có hướng mở rộng; 5–6 mới ở mức ý tưởng; ≤4 khó scale."));
+        boolean priorityAssigned = false;
         for (CriteriaSeed row : rows) {
+            boolean isPriority = !priorityAssigned && row.type() != CriteriaType.PENALTY;
+            if (isPriority) {
+                priorityAssigned = true;
+            }
             criteriaRepository.save(Criteria.builder()
                     .track(null)
                     .round(finalRound)
@@ -987,6 +1048,7 @@ public class Gd1DataSeeder {
                     .maxScore(10)
                     .displayOrder(row.order())
                     .description(row.description())
+                    .isTiebreakerPriority(isPriority)
                     .build());
         }
     }
@@ -1213,12 +1275,12 @@ public class Gd1DataSeeder {
 
     private boolean repairHackathonCalendar(Hackathon hackathon, SeedDates dates) {
         boolean changed = false;
-        if (!dates.regStart().equals(hackathon.getRegistrationStart())) {
-            hackathon.setRegistrationStart(dates.regStart());
+        if (!dates.regStart().atTime(0, 0).equals(hackathon.getRegistrationStart())) {
+            hackathon.setRegistrationStart(dates.regStart().atTime(0, 0));
             changed = true;
         }
-        if (!dates.regEnd().equals(hackathon.getRegistrationEnd())) {
-            hackathon.setRegistrationEnd(dates.regEnd());
+        if (!dates.regEnd().atTime(23, 59).equals(hackathon.getRegistrationEnd())) {
+            hackathon.setRegistrationEnd(dates.regEnd().atTime(23, 59));
             changed = true;
         }
         if (!dates.eventStart().equals(hackathon.getEventStart())) {

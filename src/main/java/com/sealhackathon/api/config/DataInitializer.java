@@ -42,6 +42,8 @@ public class DataInitializer implements CommandLineRunner {
         gd1DataSeeder.repairDevUserPasswords();
 
         boolean frozen = e2eDevFlowGuard.isE2eFlowFrozen();
+        // Always — only flips is_tiebreaker_priority; safe when GĐ3+ frozen
+        gd1DataSeeder.backfillTiebreakerPriorityFlags();
         if (frozen) {
             e2eDevFlowGuard.logSkip("timeline / criteria-track / GĐ2–GĐ5 repairs");
         } else {
@@ -75,6 +77,7 @@ public class DataInitializer implements CommandLineRunner {
         hackathonDevSeedHelper.backfillReleasedPrelimTrackProblems();
         hackathonDevSeedHelper.backfillReleasedFinalRoundProblems();
         hackathonDevSeedHelper.backfillSetupProblemPdfs();
+        hackathonDevSeedHelper.backfillTiebreakerPriorityFlags();
         hackathonDevSeedHelper.repairAllHackathonBanners();
 
         log.info("[DataInitializer] Dev seed sẵn sàng — {} happy slug: {} | frozen={} forceGd2Reset={}",

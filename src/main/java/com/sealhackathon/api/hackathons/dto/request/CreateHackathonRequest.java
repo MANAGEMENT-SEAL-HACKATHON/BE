@@ -14,6 +14,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 /**
  * FR-01 POST /api/v1/hackathons
@@ -52,9 +53,9 @@ public class CreateHackathonRequest {
 
     private String rules;
 
-    private LocalDate registrationStart;
+    private LocalDateTime registrationStart;
 
-    private LocalDate registrationEnd;
+    private LocalDateTime registrationEnd;
 
     private LocalDate eventStart;
 
@@ -70,10 +71,4 @@ public class CreateHackathonRequest {
     @NotNull(message = "Bắt buộc phải dự kiến số lượng người đăng ký tham gia tối đa")
     @Min(value = 1, message = "Số lượng người đăng ký tối đa phải lớn hơn 0")
     private Integer maxParticipants;
-
-    /**
-     * Minutes appeal window stays open after first prelim publish. Default 30; 0 disables; min 10 when enabled.
-     */
-    @Min(value = 0, message = "Thời gian khiếu nại phải >= 0")
-    private Integer appealWindowMinutes;
 }

@@ -24,8 +24,8 @@ class HackathonDevSeedHelperRegistrationWindowTest {
 
         LocalDate today = LocalDate.now();
         Hackathon hackathon = Hackathon.builder()
-                .registrationStart(today.minusDays(3))
-                .registrationEnd(today.minusDays(1))
+                .registrationStart(today.minusDays(3).atTime(0, 0))
+                .registrationEnd(today.minusDays(1).atTime(23, 59))
                 .registrationClosedEarlyAt(today.minusDays(1).atTime(23, 59))
                 .eventStart(today.plusDays(7))
                 .eventEnd(today.plusDays(30))
@@ -58,8 +58,8 @@ class HackathonDevSeedHelperRegistrationWindowTest {
 
         LocalDate today = LocalDate.now();
         Hackathon hackathon = Hackathon.builder()
-                .registrationStart(today.minusDays(3))
-                .registrationEnd(today.plusDays(5))
+                .registrationStart(today.minusDays(3).atTime(0, 0))
+                .registrationEnd(today.plusDays(5).atTime(23, 59))
                 .registrationClosedEarlyAt(null)
                 .eventStart(today.plusDays(8))
                 .eventEnd(today.plusDays(31))
@@ -67,8 +67,8 @@ class HackathonDevSeedHelperRegistrationWindowTest {
                 .build();
 
         HackathonDevSeedHelper.SeedDates dates = new HackathonDevSeedHelper.SeedDates(
-                hackathon.getRegistrationStart(),
-                hackathon.getRegistrationEnd(),
+                hackathon.getRegistrationStart().toLocalDate(),
+                hackathon.getRegistrationEnd().toLocalDate(),
                 hackathon.getEventStart(),
                 hackathon.getEventEnd(),
                 LocalDateTime.now().plusDays(10),

@@ -7,7 +7,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Getter
@@ -18,7 +17,7 @@ import java.time.LocalDateTime;
 public class RegistrationExtensionRequest {
 
     @NotNull
-    private LocalDate newRegistrationEnd;
+    private LocalDateTime newRegistrationEnd;
 
     /** true → cascade lịch thi qua CompetitionScheduleAdjustService (1 lần). */
     @Builder.Default

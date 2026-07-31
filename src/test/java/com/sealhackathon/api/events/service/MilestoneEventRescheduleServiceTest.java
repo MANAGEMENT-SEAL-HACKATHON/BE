@@ -34,7 +34,7 @@ class MilestoneEventRescheduleServiceTest {
         LocalDate regEnd = LocalDate.of(2026, 7, 20);
         Hackathon h = Hackathon.builder()
                 .id(1)
-                .registrationEnd(regEnd)
+                .registrationEnd(regEnd.atTime(23, 59))
                 .eventStart(regEnd.plusDays(3))
                 .eventEnd(regEnd.plusDays(4))
                 .build();

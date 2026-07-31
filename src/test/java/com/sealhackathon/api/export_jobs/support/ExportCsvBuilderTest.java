@@ -1,6 +1,5 @@
 package com.sealhackathon.api.export_jobs.support;
 
-import com.sealhackathon.api.appeals.repository.AppealRepository;
 import com.sealhackathon.api.chapters.repository.ChapterRankingRepository;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.export_jobs.value_object.ExportJobType;
@@ -48,7 +47,6 @@ class ExportCsvBuilderTest {
     @Mock private ChapterRankingRepository chapterRankingRepository;
     @Mock private IndividualRankingRepository individualRankingRepository;
     @Mock private PrizeRepository prizeRepository;
-    @Mock private AppealRepository appealRepository;
     @Mock private RoundRankingQueryService roundRankingQueryService;
     @Mock private RblDashboardService rblDashboardService;
 
@@ -116,7 +114,6 @@ class ExportCsvBuilderTest {
         when(chapterRankingRepository.findByHackathon_IdOrderByRankAsc(3)).thenReturn(List.of());
         when(individualRankingRepository.findByHackathon_IdOrderByRankAsc(3)).thenReturn(List.of());
         when(prizeRepository.findByRound_Hackathon_IdOrderByAwardedAtDesc(3)).thenReturn(List.of());
-        when(appealRepository.findByRound_IdOrderByCreatedAtDesc(anyInt())).thenReturn(List.of());
         when(rblDashboardService.varianceByRound(anyInt())).thenReturn(RblVarianceResponse.builder()
                 .perJudgeSpread(List.of())
                 .interRaterByCriterion(List.of())
@@ -133,7 +130,6 @@ class ExportCsvBuilderTest {
         assertThat(csv).contains(ExportCsvBuilder.SECTION_CHAPTER_RANKINGS);
         assertThat(csv).contains(ExportCsvBuilder.SECTION_INDIVIDUAL_RANKINGS);
         assertThat(csv).contains(ExportCsvBuilder.SECTION_PRIZES);
-        assertThat(csv).contains(ExportCsvBuilder.SECTION_APPEALS);
         assertThat(csv).contains(ExportCsvBuilder.SECTION_SCORES_ANONYMIZED);
         assertThat(csv).contains(ExportCsvBuilder.SECTION_ANONYMIZED_RBL_LONG);
         assertThat(csv).contains(ExportCsvBuilder.SECTION_RBL_VARIANCE_AGGREGATE);

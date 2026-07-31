@@ -146,19 +146,6 @@ public final class AuditAction {
     public static final String KIT_REVOKED                  = "KIT_REVOKED";
     public static final String KIT_BUNDLE_ISSUED            = "KIT_BUNDLE_ISSUED";
 
-    // ---------- APPEALS (GĐ4 DQ) ----------
-    public static final String APPEAL_SUBMIT                = "APPEAL_SUBMIT";
-    public static final String APPEAL_CLAIM                 = "APPEAL_CLAIM";
-    public static final String APPEAL_APPROVE               = "APPEAL_APPROVE";
-    public static final String APPEAL_REJECT                = "APPEAL_REJECT";
-    public static final String APPEAL_EXPIRE                = "APPEAL_EXPIRE";
-    public static final String APPEAL_WINDOW_OPEN           = "APPEAL_WINDOW_OPEN";
-    public static final String APPEAL_WINDOW_SHRUNK         = "APPEAL_WINDOW_SHRUNK";
-    public static final String APPEAL_WINDOW_SKIPPED        = "APPEAL_WINDOW_SKIPPED";
-    public static final String APPEAL_WINDOW_CLOSE_EARLY    = "APPEAL_WINDOW_CLOSE_EARLY";
-    public static final String APPEAL_FINAL_DELAY           = "APPEAL_FINAL_DELAY";
-    public static final String HACKATHON_APPEAL_WINDOW_UPDATE = "HACKATHON_APPEAL_WINDOW_UPDATE";
-    public static final String TEAM_REINSTATE_APPEAL        = "TEAM_REINSTATE_APPEAL";
     public static final String ROUND_REPUBLISH              = "ROUND_REPUBLISH";
 
     // ---------- WARNINGS ----------

@@ -29,7 +29,7 @@ class RoundScheduleValidatorRescheduleGapTest {
     @Test
     void requireReschedulePrelimGap_rejectsTooSoon() {
         LocalDate regEnd = LocalDate.of(2026, 7, 20);
-        Hackathon h = Hackathon.builder().id(1).registrationEnd(regEnd).build();
+        Hackathon h = Hackathon.builder().id(1).registrationEnd(regEnd.atTime(23, 59)).build();
         Round prelim = Round.builder().id(3).isFinal(false).hackathon(h).build();
         LocalDateTime tooSoon = regEnd.plusDays(2).atTime(8, 0);
 
@@ -41,7 +41,7 @@ class RoundScheduleValidatorRescheduleGapTest {
     @Test
     void requireReschedulePrelimGap_allowsRegEndPlusThree() {
         LocalDate regEnd = LocalDate.of(2026, 7, 20);
-        Hackathon h = Hackathon.builder().id(1).registrationEnd(regEnd).build();
+        Hackathon h = Hackathon.builder().id(1).registrationEnd(regEnd.atTime(23, 59)).build();
         Round prelim = Round.builder().id(3).isFinal(false).hackathon(h).build();
         LocalDateTime ok = regEnd.plusDays(RoundScheduleSeedUtil.DAYS_REG_END_TO_EVENT_START).atTime(8, 0);
 
@@ -52,7 +52,7 @@ class RoundScheduleValidatorRescheduleGapTest {
     @Test
     void requireReschedulePrelimGap_skipsFinalRound() {
         LocalDate regEnd = LocalDate.of(2026, 7, 20);
-        Hackathon h = Hackathon.builder().id(1).registrationEnd(regEnd).build();
+        Hackathon h = Hackathon.builder().id(1).registrationEnd(regEnd.atTime(23, 59)).build();
         Round finals = Round.builder().id(4).isFinal(true).hackathon(h).build();
         LocalDateTime soon = regEnd.plusDays(1).atTime(8, 0);
 

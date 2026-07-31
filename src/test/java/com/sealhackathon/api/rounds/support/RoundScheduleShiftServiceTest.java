@@ -55,7 +55,7 @@ class RoundScheduleShiftServiceTest {
     void setUp() {
         hackathon = Hackathon.builder()
                 .id(9)
-                .registrationEnd(LocalDate.now().minusDays(1))
+                .registrationEnd(LocalDate.now().minusDays(1).atTime(23, 59))
                 .eventStart(LocalDate.now().plusDays(10))
                 .eventEnd(LocalDate.now().plusDays(12))
                 .build();

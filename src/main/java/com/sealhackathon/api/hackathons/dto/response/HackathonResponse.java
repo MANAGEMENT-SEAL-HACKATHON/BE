@@ -2,6 +2,7 @@ package com.sealhackathon.api.hackathons.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
+import com.sealhackathon.api.hackathons.value_object.RegistrationPhase;
 import com.sealhackathon.api.hackathons.value_object.Season;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -25,11 +26,13 @@ public class HackathonResponse {
     private final Season season;
     private final Integer year;
     private final HackathonStatus status;
+    /** Giai đoạn đăng ký dẫn xuất — không thay {@link HackathonStatus}. */
+    private final RegistrationPhase registrationPhase;
     private final String description;
     private final String rules;
     private final String bannerUrl;
-    private final LocalDate registrationStart;
-    private final LocalDate registrationEnd;
+    private final LocalDateTime registrationStart;
+    private final LocalDateTime registrationEnd;
     private final LocalDateTime registrationClosedEarlyAt;
     private final Integer registrationExtensionCount;
     private final LocalDateTime registrationExtendedAt;
@@ -43,7 +46,6 @@ public class HackathonResponse {
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;
     private final Integer maxParticipants;
-    private final Integer appealWindowMinutes;
     private final Integer clonedFromHackathonId;
     private final String clonedFromHackathonName;
     private final LocalDateTime clonedAt;

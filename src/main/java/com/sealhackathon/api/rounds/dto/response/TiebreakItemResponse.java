@@ -21,4 +21,6 @@ public class TiebreakItemResponse {
     private String reason;
     private Boolean requiresManualReorder;
     private List<Integer> suggestedOrderedTeamIds;
+    private String resolvedTier;
+    private String resolvedReasonLabel;
 }

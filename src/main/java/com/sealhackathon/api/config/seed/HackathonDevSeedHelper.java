@@ -523,12 +523,12 @@ public class HackathonDevSeedHelper {
 
     private boolean syncHackathonFields(Hackathon hackathon, SeedDates dates) {
         boolean changed = false;
-        if (!dates.regStart().equals(hackathon.getRegistrationStart())) {
-            hackathon.setRegistrationStart(dates.regStart());
+        if (!dates.regStart().atTime(0, 0).equals(hackathon.getRegistrationStart())) {
+            hackathon.setRegistrationStart(dates.regStart().atTime(0, 0));
             changed = true;
         }
-        if (!dates.regEnd().equals(hackathon.getRegistrationEnd())) {
-            hackathon.setRegistrationEnd(dates.regEnd());
+        if (!dates.regEnd().atTime(23, 59).equals(hackathon.getRegistrationEnd())) {
+            hackathon.setRegistrationEnd(dates.regEnd().atTime(23, 59));
             changed = true;
         }
         if (!dates.eventStart().equals(hackathon.getEventStart())) {
@@ -937,8 +937,8 @@ public class HackathonDevSeedHelper {
                         .year(dates.eventStart().getYear())
                         .status(status)
                         .description(description)
-                        .registrationStart(dates.regStart())
-                        .registrationEnd(dates.regEnd())
+                        .registrationStart(dates.regStart().atTime(0, 0))
+                        .registrationEnd(dates.regEnd().atTime(23, 59))
                         .registrationClosedEarlyAt(
                                 dates.regEnd() != null && !dates.regEnd().isAfter(LocalDate.now())
                                         ? dates.regEnd().atTime(23, 59)
@@ -1312,15 +1312,22 @@ public class HackathonDevSeedHelper {
                     "Mức độ hoàn thiện demo, tính năng chạy được và chất lượng triển khai thực tế.\n"
                             + "Gợi ý (thang 0–10): 9–10 demo đầy đủ, ổn định; 7–8 phần lớn chạy tốt; 5–6 demo cơ bản; ≤4 gần như không chạy."
                 });
+        boolean priorityAssigned = false;
         for (String[] row : rows) {
+            CriteriaType type = CriteriaType.valueOf(row[1]);
+            boolean isPriority = !priorityAssigned && type != CriteriaType.PENALTY;
+            if (isPriority) {
+                priorityAssigned = true;
+            }
             criteriaRepository.save(Criteria.builder()
                     .track(track)
                     .name(row[0])
-                    .type(CriteriaType.valueOf(row[1]))
+                    .type(type)
                     .weight(Float.parseFloat(row[2]))
                     .maxScore(10)
                     .displayOrder(Integer.parseInt(row[3]))
                     .description(row[4])
+                    .isTiebreakerPriority(isPriority)
                     .build());
         }
     }
@@ -1336,12 +1343,66 @@ public class HackathonDevSeedHelper {
                 .weight(1.0f)
                 .maxScore(10)
                 .displayOrder(1)
+                .isTiebreakerPriority(true)
                 .description(
                         "Đánh giá tổng thể phần trình bày và sản phẩm ở vòng Chung kết "
                                 + "(nội dung, demo, trả lời giám khảo).\n"
                                 + "Gợi ý (thang 0–10): 9–10 xuất sắc toàn diện; 7–8 tốt, còn điểm cần cải thiện; "
                                 + "5–6 đạt mức trung bình; ≤4 chưa sẵn sàng cho chung kết.")
                 .build());
+    }
+
+    /**
+     * Idempotent — gán {@code is_tiebreaker_priority} cho track/final chưa có flag.
+     * Chỉ UPDATE boolean; không đụng scores/lottery. An toàn khi E2E flow frozen.
+     */
+    @Transactional
+    public void backfillTiebreakerPriorityFlags() {
+        int updated = 0;
+        for (Track track : trackRepository.findAll()) {
+            List<Criteria> list = criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(track.getId());
+            if (list.isEmpty()) {
+                continue;
+            }
+            if (list.stream().anyMatch(c -> Boolean.TRUE.equals(c.getIsTiebreakerPriority()))) {
+                continue;
+            }
+            Optional<Criteria> pick = list.stream()
+                    .filter(c -> c.getType() != CriteriaType.PENALTY)
+                    .findFirst();
+            if (pick.isPresent()) {
+                Criteria c = pick.get();
+                c.setIsTiebreakerPriority(true);
+                criteriaRepository.save(c);
+                updated++;
+            }
+        }
+        for (Round round : roundRepository.findAll()) {
+            if (!Boolean.TRUE.equals(round.getIsFinal())) {
+                continue;
+            }
+            List<Criteria> list =
+                    criteriaRepository.findByFinalRoundIdOrderByDisplayOrderAsc(round.getId());
+            if (list.isEmpty()) {
+                continue;
+            }
+            if (list.stream().anyMatch(c -> Boolean.TRUE.equals(c.getIsTiebreakerPriority()))) {
+                continue;
+            }
+            Optional<Criteria> pick = list.stream()
+                    .filter(c -> c.getType() != CriteriaType.PENALTY)
+                    .findFirst();
+            if (pick.isPresent()) {
+                Criteria c = pick.get();
+                c.setIsTiebreakerPriority(true);
+                criteriaRepository.save(c);
+                updated++;
+            }
+        }
+        if (updated > 0) {
+            log.info("[HackathonDevSeedHelper] backfillTiebreakerPriority: {} track/final scopes",
+                    updated);
+        }
     }
 
     /**
@@ -1561,7 +1622,9 @@ public class HackathonDevSeedHelper {
      */
     @Transactional
     public int ensureMilestoneEventsExcluding(Hackathon hackathon, User coordinator, Set<EventType> exclude) {
-        LocalDate regEnd = hackathon.getRegistrationEnd();
+        LocalDate regEnd = hackathon.getRegistrationEnd() != null
+                ? hackathon.getRegistrationEnd().toLocalDate()
+                : null;
         LocalDate eventStart = hackathon.getEventStart();
         LocalDate eventEnd = hackathon.getEventEnd() != null ? hackathon.getEventEnd() : eventStart;
         if (regEnd == null || eventStart == null) {
@@ -2915,7 +2978,7 @@ public class HackathonDevSeedHelper {
         seedFinalRoundProblem(finalRound);
     }
 
-    /** Xóa prizes / appeals / export_jobs / tiebreak khi tua về GĐ2. */
+    /** Xóa prizes / export_jobs / tiebreak khi tua về GĐ2. */
     @Transactional
     public void clearWorkflowArtifactsForGd2Reset(Integer hackathonId) {
         jdbcTemplate.update("""
@@ -2924,11 +2987,6 @@ public class HackathonDevSeedHelper {
                 WHERE r.hackathon_id = ?
                 """, hackathonId);
         jdbcTemplate.update("DELETE FROM prizes WHERE hackathon_id = ?", hackathonId);
-        jdbcTemplate.update("""
-                DELETE a FROM appeals a
-                INNER JOIN teams t ON t.id = a.team_id
-                WHERE t.hackathon_id = ?
-                """, hackathonId);
         jdbcTemplate.update("DELETE FROM export_jobs WHERE hackathon_id = ?", hackathonId);
         jdbcTemplate.update("""
                 DELETE ir FROM individual_rankings ir

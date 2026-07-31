@@ -72,7 +72,7 @@ public class HackathonLotteryServiceImpl implements HackathonLotteryService {
             if (!HackathonRegistrationSupport.isRegistrationPeriodEnded(hackathon)) {
                 throw new BusinessRuleException(ErrorCode.REGISTRATION_CLOSED,
                         "Chưa thể bốc thăm: giai đoạn đăng ký chưa kết thúc. "
-                                + "Hết hạn tự nhiên thì bốc thăm từ ngày sau registrationEnd; "
+                                + "Hết hạn tự nhiên thì bốc thăm ngay sau registrationEnd; "
                                 + "hoặc dùng «Kết thúc đăng ký sớm» để bốc thăm ngay.");
             }
             throw new BusinessRuleException(ErrorCode.ACTIVE_TEAMS_NOT_LOCKED,

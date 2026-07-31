@@ -14,6 +14,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 /**
  * FR-01 PUT /api/v1/hackathons/{id}
@@ -52,9 +53,9 @@ public class UpdateHackathonRequest {
 
     private String rules;
 
-    private LocalDate registrationStart;
+    private LocalDateTime registrationStart;
 
-    private LocalDate registrationEnd;
+    private LocalDateTime registrationEnd;
 
     private LocalDate eventStart;
 
@@ -66,7 +67,4 @@ public class UpdateHackathonRequest {
 
     @Min(value = 1, message = "Số lượng người đăng ký tối đa phải lớn hơn 0")
     private Integer maxParticipants;
-
-    @Min(value = 0, message = "Thời gian khiếu nại phải >= 0")
-    private Integer appealWindowMinutes;
 }

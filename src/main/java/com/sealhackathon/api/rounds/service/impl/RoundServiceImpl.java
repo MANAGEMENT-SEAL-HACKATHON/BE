@@ -408,7 +408,7 @@ public class RoundServiceImpl implements RoundService {
             return;
         }
 
-        java.time.LocalDate minPrelimExamDate = hackathon.getRegistrationEnd()
+        java.time.LocalDate minPrelimExamDate = hackathon.getRegistrationEnd().toLocalDate()
                 .plusDays(MIN_DAYS_FROM_REG_END_TO_PRELIM_EXAM);
         if (examAt.toLocalDate().isBefore(minPrelimExamDate)) {
             throw new BusinessRuleException(ErrorCode.ROUND_PRELIM_EXAM_ORDER,

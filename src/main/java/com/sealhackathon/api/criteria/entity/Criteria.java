@@ -74,4 +74,11 @@ public class Criteria {
     @Builder.Default
     @Column(name = "display_order", nullable = false)
     private Integer displayOrder = 1;
+
+    /**
+     * Tiêu chí ưu tiên khi tie-break (tối đa 1 / track hoặc 1 / final round; không dùng cho PENALTY).
+     */
+    @Builder.Default
+    @Column(name = "is_tiebreaker_priority", nullable = false)
+    private Boolean isTiebreakerPriority = false;
 }

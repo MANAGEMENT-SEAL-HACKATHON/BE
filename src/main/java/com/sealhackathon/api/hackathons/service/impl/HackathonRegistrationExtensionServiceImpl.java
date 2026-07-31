@@ -59,7 +59,7 @@ public class HackathonRegistrationExtensionServiceImpl implements HackathonRegis
 
     @Override
     @Transactional(readOnly = true)
-    public RegistrationExtensionPreviewResponse preview(Integer hackathonId, LocalDate newRegistrationEnd) {
+    public RegistrationExtensionPreviewResponse preview(Integer hackathonId, LocalDateTime newRegistrationEnd) {
         Hackathon h = hackathonRepository.findById(hackathonId)
                 .orElseThrow(() -> new ResourceNotFoundException("Hackathon", hackathonId));
         return buildPreview(h, newRegistrationEnd);
@@ -75,7 +75,7 @@ public class HackathonRegistrationExtensionServiceImpl implements HackathonRegis
         Hackathon h = hackathonRepository.findByIdForUpdate(hackathonId)
                 .orElseThrow(() -> new ResourceNotFoundException("Hackathon", hackathonId));
 
-        LocalDate newEnd = request.getNewRegistrationEnd();
+        LocalDateTime newEnd = request.getNewRegistrationEnd();
         int max = Math.max(0, hackathonProperties.getMaxRegistrationExtensions());
         int count = extensionCountOf(h);
         String hardBlock = hardBlockReason(h, newEnd, count, max);
@@ -116,7 +116,7 @@ public class HackathonRegistrationExtensionServiceImpl implements HackathonRegis
             }
         }
 
-        LocalDate oldEnd = h.getRegistrationEnd();
+        LocalDateTime oldEnd = h.getRegistrationEnd();
         LocalDateTime now = LocalDateTime.now();
 
         h.setRegistrationEnd(newEnd);
@@ -142,10 +142,10 @@ public class HackathonRegistrationExtensionServiceImpl implements HackathonRegis
         return buildPreview(hackathonRepository.findById(hackathonId).orElse(h), newEnd);
     }
 
-    private RegistrationExtensionPreviewResponse buildPreview(Hackathon h, LocalDate newEnd) {
+    private RegistrationExtensionPreviewResponse buildPreview(Hackathon h, LocalDateTime newEnd) {
         int max = Math.max(0, hackathonProperties.getMaxRegistrationExtensions());
         int count = extensionCountOf(h);
-        LocalDate currentEnd = h.getRegistrationEnd();
+        LocalDateTime currentEnd = h.getRegistrationEnd();
         TeamStats teamStats = loadTeamStats(h.getId());
 
         String hardBlock = hardBlockReason(h, newEnd, count, max);
@@ -155,12 +155,13 @@ public class HackathonRegistrationExtensionServiceImpl implements HackathonRegis
         List<String> suggestions = new ArrayList<>();
         boolean hasViolation = milestones.stream().anyMatch(m -> "VIOLATION".equals(m.getStatus()));
         if (hasViolation) {
-            LocalDate minPrelim = newEnd.plusDays(RoundScheduleSeedUtil.DAYS_REG_END_TO_EVENT_START);
-            LocalDate recommended = newEnd.plusDays(RoundScheduleValidator.MIN_DAYS_FROM_REG_END_TO_PRELIM_EXAM);
+            LocalDate newEndDay = newEnd.toLocalDate();
+            LocalDate minPrelim = newEndDay.plusDays(RoundScheduleSeedUtil.DAYS_REG_END_TO_EVENT_START);
+            LocalDate recommended = newEndDay.plusDays(RoundScheduleValidator.MIN_DAYS_FROM_REG_END_TO_PRELIM_EXAM);
             suggestions.add("Đặt Workshop vào ngày %s (registrationEnd + 1)."
-                    .formatted(newEnd.plusDays(1).format(DATE_FMT)));
+                    .formatted(newEndDay.plusDays(1).format(DATE_FMT)));
             suggestions.add("Đặt Khai mạc vào ngày %s (registrationEnd + 2)."
-                    .formatted(newEnd.plusDays(2).format(DATE_FMT)));
+                    .formatted(newEndDay.plusDays(2).format(DATE_FMT)));
             suggestions.add("Dời thi Sơ loại / eventStart từ %s trở đi (tối thiểu +%d ngày; khuyến nghị +%d → %s)."
                     .formatted(minPrelim.format(DATE_FMT),
                             RoundScheduleSeedUtil.DAYS_REG_END_TO_EVENT_START,
@@ -201,7 +202,7 @@ public class HackathonRegistrationExtensionServiceImpl implements HackathonRegis
                 .build();
     }
 
-    private String hardBlockReason(Hackathon h, LocalDate newEnd, int count, int max) {
+    private String hardBlockReason(Hackathon h, LocalDateTime newEnd, int count, int max) {
         if (h.getStatus() != HackathonStatus.ONGOING) {
             return "Chỉ dời hạn đăng ký khi Hackathon đang ONGOING.";
         }
@@ -211,18 +212,18 @@ public class HackathonRegistrationExtensionServiceImpl implements HackathonRegis
         if (newEnd == null) {
             return "Cần chọn ngày hết hạn đăng ký mới.";
         }
-        LocalDate today = LocalDate.now();
-        LocalDate currentEnd = h.getRegistrationEnd();
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime currentEnd = h.getRegistrationEnd();
         // Sau khi đã apply, preview báo cáo với newEnd == currentEnd — không coi là invalid.
         boolean sameAsCurrent = currentEnd != null && newEnd.equals(currentEnd);
         if (!sameAsCurrent) {
             if (currentEnd != null && !newEnd.isAfter(currentEnd)) {
                 return "Ngày hết hạn mới phải sau hạn hiện tại (%s)."
-                        .formatted(currentEnd.format(DATE_FMT));
+                        .formatted(currentEnd.toLocalDate().format(DATE_FMT));
             }
-            if (!newEnd.isAfter(today)) {
-                return "Ngày hết hạn mới phải sau hôm nay (%s)."
-                        .formatted(today.format(DATE_FMT));
+            if (!newEnd.isAfter(now)) {
+                return "Ngày hết hạn mới phải sau thời điểm hiện tại (%s)."
+                        .formatted(now.toLocalDate().format(DATE_FMT));
             }
         }
         if (count >= max) {
@@ -231,17 +232,19 @@ public class HackathonRegistrationExtensionServiceImpl implements HackathonRegis
         return null;
     }
 
-    private List<MilestoneItem> buildMilestones(Hackathon h, LocalDate newRegEnd) {
+    private List<MilestoneItem> buildMilestones(Hackathon h, LocalDateTime newRegEnd) {
         List<MilestoneItem> items = new ArrayList<>();
+        LocalDate newRegEndDay = newRegEnd.toLocalDate();
 
         Optional<Event> ws = firstEvent(h.getId(), EventType.WORKSHOP);
         LocalDate wsDate = ws.map(Event::getStartsAt).map(LocalDateTime::toLocalDate).orElse(null);
-        items.add(milestone("WORKSHOP", "Workshop", wsDate, newRegEnd, gapStatusForWorkshopKickoff(wsDate, newRegEnd, h.getEventStart())));
+        items.add(milestone("WORKSHOP", "Workshop", wsDate, newRegEndDay,
+                gapStatusForWorkshopKickoff(wsDate, newRegEndDay, h.getEventStart())));
 
         Optional<Event> ko = firstEvent(h.getId(), EventType.KICKOFF);
         LocalDate koDate = ko.map(Event::getStartsAt).map(LocalDateTime::toLocalDate).orElse(null);
-        items.add(milestone("KICKOFF", "Khai mạc (Kickoff)", koDate, newRegEnd,
-                gapStatusForWorkshopKickoff(koDate, newRegEnd, h.getEventStart())));
+        items.add(milestone("KICKOFF", "Khai mạc (Kickoff)", koDate, newRegEndDay,
+                gapStatusForWorkshopKickoff(koDate, newRegEndDay, h.getEventStart())));
 
         Round prelim = roundRepository.findPreliminaryLikeByHackathonId(h.getId()).stream()
                 .findFirst()
@@ -249,11 +252,11 @@ public class HackathonRegistrationExtensionServiceImpl implements HackathonRegis
         LocalDate prelimDate = prelim != null && prelim.getExamAt() != null
                 ? prelim.getExamAt().toLocalDate()
                 : null;
-        items.add(milestone("PRELIM", "Thi Sơ loại", prelimDate, newRegEnd, gapStatusForPrelim(prelimDate, newRegEnd)));
+        items.add(milestone("PRELIM", "Thi Sơ loại", prelimDate, newRegEndDay, gapStatusForPrelim(prelimDate, newRegEndDay)));
 
         LocalDate eventStart = h.getEventStart();
-        items.add(milestone("EVENT_START", "Ngày bắt đầu sự kiện", eventStart, newRegEnd,
-                gapStatusForPrelim(eventStart, newRegEnd)));
+        items.add(milestone("EVENT_START", "Ngày bắt đầu sự kiện", eventStart, newRegEndDay,
+                gapStatusForPrelim(eventStart, newRegEndDay)));
 
         return items;
     }
@@ -358,9 +361,9 @@ public class HackathonRegistrationExtensionServiceImpl implements HackathonRegis
         return new BusinessRuleException(ErrorCode.VALIDATION_FAILED, reason);
     }
 
-    private void broadcastExtension(Hackathon h, LocalDate oldEnd, LocalDate newEnd) {
-        String oldStr = oldEnd != null ? oldEnd.format(DATE_FMT) : "—";
-        String newStr = newEnd != null ? newEnd.format(DATE_FMT) : "—";
+    private void broadcastExtension(Hackathon h, LocalDateTime oldEnd, LocalDateTime newEnd) {
+        String oldStr = oldEnd != null ? oldEnd.toLocalDate().format(DATE_FMT) : "—";
+        String newStr = newEnd != null ? newEnd.toLocalDate().format(DATE_FMT) : "—";
         String title = "Đã dời hạn đăng ký hackathon";
         String body = "BTC đã dời hạn đăng ký sự kiện \"" + h.getName() + "\".\n"
                 + "• Hạn cũ: " + oldStr + "\n"

@@ -42,7 +42,7 @@ public class WorkshopWindowRule implements EventWindowRule {
         }
 
         LocalDate startDate = startsAt.toLocalDate();
-        LocalDate regEnd = h.getRegistrationEnd();
+        LocalDate regEnd = h.getRegistrationEnd() != null ? h.getRegistrationEnd().toLocalDate() : null;
         LocalDate eventStart = h.getEventStart();
 
         if (regEnd != null && !startDate.isAfter(regEnd)) {

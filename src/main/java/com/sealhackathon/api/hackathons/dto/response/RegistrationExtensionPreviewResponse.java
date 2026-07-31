@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Getter
@@ -12,8 +13,8 @@ import java.util.List;
 @AllArgsConstructor
 public class RegistrationExtensionPreviewResponse {
 
-    private final LocalDate currentEnd;
-    private final LocalDate newEnd;
+    private final LocalDateTime currentEnd;
+    private final LocalDateTime newEnd;
     private final int extensionCount;
     private final int maxExtensions;
     private final TeamStats teamStats;

@@ -1,7 +1,5 @@
 package com.sealhackathon.api.export_jobs.support;
 
-import com.sealhackathon.api.appeals.entity.Appeal;
-import com.sealhackathon.api.appeals.repository.AppealRepository;
 import com.sealhackathon.api.chapters.entity.Chapter;
 import com.sealhackathon.api.chapters.entity.ChapterRanking;
 import com.sealhackathon.api.chapters.repository.ChapterRankingRepository;
@@ -98,7 +96,6 @@ public class ExportCsvBuilder {
     public static final String SECTION_CHAPTER_RANKINGS = "# SECTION: CHAPTER_RANKINGS";
     public static final String SECTION_INDIVIDUAL_RANKINGS = "# SECTION: INDIVIDUAL_RANKINGS";
     public static final String SECTION_PRIZES = "# SECTION: PRIZES";
-    public static final String SECTION_APPEALS = "# SECTION: APPEALS";
 
     public static final String HEADER_TEAMS =
             "team_id,team_name,status,chapter_code,chapter_name,leader_id,leader_name,leader_email,"
@@ -121,9 +118,6 @@ public class ExportCsvBuilder {
             "rank,user_id,full_name,email,score_this_hackathon,cumulative_score";
     public static final String HEADER_PRIZES =
             "prize_id,prize_name,prize_rank,prize_value,team_id,team_name,round_id,track_id,awarded_at";
-    public static final String HEADER_APPEALS =
-            "appeal_id,team_id,team_name,round_id,status,reason,submitted_by_id,submitted_by_name,"
-                    + "reviewed_by_id,decision_note,created_at,reviewed_at";
 
     private final TeamRepository teamRepository;
     private final TeamMemberRepository teamMemberRepository;
@@ -136,7 +130,6 @@ public class ExportCsvBuilder {
     private final ChapterRankingRepository chapterRankingRepository;
     private final IndividualRankingRepository individualRankingRepository;
     private final PrizeRepository prizeRepository;
-    private final AppealRepository appealRepository;
     private final RoundRankingQueryService roundRankingQueryService;
     private final RblDashboardService rblDashboardService;
 
@@ -491,10 +484,6 @@ public class ExportCsvBuilder {
         appendPrizesSection(sb, hackathon.getId());
         sb.append('\n');
 
-        sb.append(SECTION_APPEALS).append('\n');
-        appendAppealsSection(sb, rounds, teamsById);
-        sb.append('\n');
-
         sb.append(SECTION_SCORES_ANONYMIZED).append('\n');
         sb.append(new String(buildScoresCsv(hackathon, true, false), StandardCharsets.UTF_8)).append('\n');
 
@@ -667,31 +656,6 @@ public class ExportCsvBuilder {
                     .append(prize.getRound() != null ? prize.getRound().getId() : "").append(',')
                     .append(prize.getTrack() != null ? prize.getTrack().getId() : "").append(',')
                     .append(prize.getAwardedAt() != null ? prize.getAwardedAt() : "").append('\n');
-        }
-    }
-
-    private void appendAppealsSection(StringBuilder sb, List<Round> rounds, Map<Integer, Team> teamsById) {
-        sb.append(HEADER_APPEALS).append('\n');
-        for (Round round : rounds) {
-            for (Appeal appeal : appealRepository.findByRound_IdOrderByCreatedAtDesc(round.getId())) {
-                Team team = appeal.getTeam() != null
-                        ? teamsById.getOrDefault(appeal.getTeam().getId(), appeal.getTeam())
-                        : null;
-                User submittedBy = appeal.getSubmittedBy();
-                User reviewedBy = appeal.getReviewedBy();
-                sb.append(appeal.getId()).append(',')
-                        .append(team != null ? team.getId() : "").append(',')
-                        .append(csv(team != null ? team.getTeamName() : "")).append(',')
-                        .append(round.getId()).append(',')
-                        .append(appeal.getStatus() != null ? appeal.getStatus().name() : "").append(',')
-                        .append(csv(appeal.getReason())).append(',')
-                        .append(submittedBy != null ? submittedBy.getId() : "").append(',')
-                        .append(csv(submittedBy != null ? submittedBy.getFullName() : "")).append(',')
-                        .append(reviewedBy != null ? reviewedBy.getId() : "").append(',')
-                        .append(csv(appeal.getDecisionNote())).append(',')
-                        .append(appeal.getCreatedAt() != null ? appeal.getCreatedAt() : "").append(',')
-                        .append(appeal.getReviewedAt() != null ? appeal.getReviewedAt() : "").append('\n');
-            }
         }
     }
 

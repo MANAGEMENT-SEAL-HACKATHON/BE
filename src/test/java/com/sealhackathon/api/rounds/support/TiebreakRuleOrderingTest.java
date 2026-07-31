@@ -1,6 +1,5 @@
 package com.sealhackathon.api.rounds.support;
 
-import com.sealhackathon.api.rounds.value_object.TiebreakRule;
 import com.sealhackathon.api.submissions.value_object.SubmissionStatus;
 import org.junit.jupiter.api.Test;
 
@@ -16,75 +15,82 @@ class TiebreakRuleOrderingTest {
     private static final LocalDateTime T2 = LocalDateTime.of(2026, 3, 1, 11, 0);
 
     @Test
-    void tc1_bothOnTimeEarlierSubmittedAtWins() {
+    void priorityCriterion_higherScoreWins() {
         List<TiebreakRuleOrdering.TiebreakCandidate> candidates = List.of(
-                candidate(1, SubmissionStatus.SUBMITTED, T2, 0.0, 8.0),
-                candidate(2, SubmissionStatus.SUBMITTED, T1, 0.0, 8.0));
+                candidate(1, SubmissionStatus.SUBMITTED, T1, 7.0, "Creativity"),
+                candidate(2, SubmissionStatus.SUBMITTED, T2, 8.5, "Creativity"));
 
-        Optional<List<Integer>> order =
-                TiebreakRuleOrdering.orderByRule(TiebreakRule.SUBMISSION_TIME, candidates);
+        Optional<TiebreakRuleOrdering.WaterfallResult> result =
+                TiebreakRuleOrdering.resolveWaterfall(candidates);
 
-        assertThat(order).contains(List.of(2, 1));
-        assertThat(TiebreakRuleOrdering.canFullySeparate(TiebreakRule.SUBMISSION_TIME, candidates)).isTrue();
+        assertThat(result).isPresent();
+        assertThat(result.get().resolvedTier()).isEqualTo(TiebreakRuleOrdering.TIER_PRIORITY_CRITERION);
+        assertThat(result.get().orderedTeamIds()).containsExactly(2, 1);
+        assertThat(result.get().resolvedReasonLabel())
+                .isEqualTo("Thắng do điểm tiêu chí phụ \"Creativity\" cao hơn");
+        assertThat(TiebreakRuleOrdering.canFullySeparatePriority(candidates)).isTrue();
     }
 
     @Test
-    void tc2_onTimeSubmittedBeatsLateApprovedEvenIfLater() {
+    void equalPriority_fallsThroughToSubmissionTime() {
         List<TiebreakRuleOrdering.TiebreakCandidate> candidates = List.of(
-                candidate(1, SubmissionStatus.LATE_APPROVED, T1, 0.0, 8.0),
-                candidate(2, SubmissionStatus.SUBMITTED, T2, 0.0, 8.0));
+                candidate(1, SubmissionStatus.SUBMITTED, T2, 8.0, "Creativity"),
+                candidate(2, SubmissionStatus.SUBMITTED, T1, 8.0, "Creativity"));
 
-        Optional<List<Integer>> order =
-                TiebreakRuleOrdering.orderByRule(TiebreakRule.SUBMISSION_TIME, candidates);
+        Optional<TiebreakRuleOrdering.WaterfallResult> result =
+                TiebreakRuleOrdering.resolveWaterfall(candidates);
 
-        assertThat(order).contains(List.of(2, 1));
+        assertThat(result).isPresent();
+        assertThat(result.get().resolvedTier()).isEqualTo(TiebreakRuleOrdering.TIER_SUBMISSION_TIME);
+        assertThat(result.get().orderedTeamIds()).containsExactly(2, 1);
+        assertThat(result.get().resolvedReasonLabel()).isEqualTo("Thắng do nộp sớm hơn");
+        assertThat(TiebreakRuleOrdering.canFullySeparatePriority(candidates)).isFalse();
+        assertThat(TiebreakRuleOrdering.canFullySeparateSubmissionTime(candidates)).isTrue();
     }
 
     @Test
-    void tc3_lowerPenaltyScoreWins() {
+    void nullPriority_skipsToSubmissionTime_onTimeBeatsLate() {
         List<TiebreakRuleOrdering.TiebreakCandidate> candidates = List.of(
-                candidate(1, SubmissionStatus.SUBMITTED, T1, 0.5, 8.0),
-                candidate(2, SubmissionStatus.SUBMITTED, T2, 0.1, 8.0));
+                candidate(1, SubmissionStatus.LATE_APPROVED, T1, null, null),
+                candidate(2, SubmissionStatus.SUBMITTED, T2, null, null));
 
-        Optional<List<Integer>> order =
-                TiebreakRuleOrdering.orderByRule(TiebreakRule.PENALTY_SCORE, candidates);
+        Optional<TiebreakRuleOrdering.WaterfallResult> result =
+                TiebreakRuleOrdering.resolveWaterfall(candidates);
 
-        assertThat(order).contains(List.of(2, 1));
+        assertThat(result).isPresent();
+        assertThat(result.get().resolvedTier()).isEqualTo(TiebreakRuleOrdering.TIER_SUBMISSION_TIME);
+        assertThat(result.get().orderedTeamIds()).containsExactly(2, 1);
     }
 
     @Test
-    void tc6c_identicalKeysCannotSeparate() {
+    void identicalSubmissionKeys_returnsManual() {
         List<TiebreakRuleOrdering.TiebreakCandidate> candidates = List.of(
-                candidate(1, SubmissionStatus.SUBMITTED, T1, 0.0, 8.0),
-                candidate(2, SubmissionStatus.SUBMITTED, T1, 0.0, 8.0));
+                candidate(1, SubmissionStatus.SUBMITTED, T1, 8.0, "Creativity"),
+                candidate(2, SubmissionStatus.SUBMITTED, T1, 8.0, "Creativity"));
 
-        assertThat(TiebreakRuleOrdering.orderByRule(TiebreakRule.SUBMISSION_TIME, candidates)).isEmpty();
-        assertThat(TiebreakRuleOrdering.canFullySeparate(TiebreakRule.SUBMISSION_TIME, candidates)).isFalse();
+        Optional<TiebreakRuleOrdering.WaterfallResult> result =
+                TiebreakRuleOrdering.resolveWaterfall(candidates);
 
-        List<TiebreakRuleOrdering.TiebreakCandidate> penaltyTie = List.of(
-                candidate(1, SubmissionStatus.SUBMITTED, T1, 0.2, 8.0),
-                candidate(2, SubmissionStatus.SUBMITTED, T2, 0.2, 8.0));
-
-        assertThat(TiebreakRuleOrdering.orderByRule(TiebreakRule.PENALTY_SCORE, penaltyTie)).isEmpty();
-        assertThat(TiebreakRuleOrdering.canFullySeparate(TiebreakRule.PENALTY_SCORE, penaltyTie)).isFalse();
+        assertThat(result).isPresent();
+        assertThat(result.get().resolvedTier()).isEqualTo(TiebreakRuleOrdering.TIER_MANUAL);
+        assertThat(result.get().orderedTeamIds()).isNull();
+        assertThat(result.get().resolvedReasonLabel()).isEqualTo("Cần Ban tổ chức phân xử");
+        assertThat(TiebreakRuleOrdering.canFullySeparateSubmissionTime(candidates)).isFalse();
     }
 
     @Test
-    void coordinatorDecisionReturnsEmpty() {
-        List<TiebreakRuleOrdering.TiebreakCandidate> candidates = List.of(
-                candidate(1, SubmissionStatus.SUBMITTED, T1, 0.0, 8.0),
-                candidate(2, SubmissionStatus.SUBMITTED, T2, 0.0, 8.0));
-
-        assertThat(TiebreakRuleOrdering.orderByRule(TiebreakRule.COORDINATOR_DECISION, candidates)).isEmpty();
-        assertThat(TiebreakRuleOrdering.canFullySeparate(TiebreakRule.COORDINATOR_DECISION, candidates)).isFalse();
+    void fewerThanTwoCandidates_returnsEmpty() {
+        assertThat(TiebreakRuleOrdering.resolveWaterfall(List.of(
+                candidate(1, SubmissionStatus.SUBMITTED, T1, 8.0, "X")))).isEmpty();
     }
 
     private static TiebreakRuleOrdering.TiebreakCandidate candidate(
             int teamId,
             SubmissionStatus status,
             LocalDateTime submittedAt,
-            double penalty,
-            double totalScore) {
-        return new TiebreakRuleOrdering.TiebreakCandidate(teamId, status, submittedAt, penalty, totalScore);
+            Double priorityScore,
+            String priorityName) {
+        return new TiebreakRuleOrdering.TiebreakCandidate(
+                teamId, status, submittedAt, 0.0, 8.0, priorityScore, priorityName);
     }
 }

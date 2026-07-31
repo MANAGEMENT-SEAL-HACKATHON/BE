@@ -109,6 +109,10 @@ public final class ErrorCode {
     public static final String CRITERIA_CLONE_SOURCE_EMPTY = "CRITERIA_CLONE_SOURCE_EMPTY";
     public static final String CRITERIA_CLONE_CROSS_SCOPE = "CRITERIA_CLONE_CROSS_SCOPE";
     public static final String CRITERIA_TARGET_HAS_EXISTING = "CRITERIA_TARGET_HAS_EXISTING";
+    /** Đã có criterion khác trên cùng track/final với is_tiebreaker_priority=true. */
+    public static final String TIEBREAKER_PRIORITY_ALREADY_EXISTS = "TIEBREAKER_PRIORITY_ALREADY_EXISTS";
+    /** PENALTY không được đánh dấu tiebreaker priority. */
+    public static final String TIEBREAKER_PRIORITY_PENALTY_NOT_ALLOWED = "TIEBREAKER_PRIORITY_PENALTY_NOT_ALLOWED";
 
     // ---------- FR-06B ROUND ACTIVATE ----------
     public static final String ROUND_NO_CRITERIA        = "ROUND_NO_CRITERIA";
@@ -287,6 +291,8 @@ public final class ErrorCode {
     public static final String TIEBREAK_UNRESOLVED                         = "TIEBREAK_UNRESOLVED";
     public static final String TEAM_NOT_ACCEPTING_INVITES                 = "TEAM_NOT_ACCEPTING_INVITES";
     public static final String LATE_PENDING_NOT_ALLOWED                   = "LATE_PENDING_NOT_ALLOWED";
+    /** Đã quay số thuyết trình — không cho nộp / duyệt muộn. */
+    public static final String SUBMISSION_LOCKED_AFTER_SHUFFLE            = "SUBMISSION_LOCKED_AFTER_SHUFFLE";
     public static final String SUBMISSION_ALREADY_CLOSED                  = "SUBMISSION_ALREADY_CLOSED";
     /** Close-early: còn đội eligible chưa nộp bài. */
     public static final String TEAMS_NOT_ALL_SUBMITTED                   = "TEAMS_NOT_ALL_SUBMITTED";
@@ -334,22 +340,4 @@ public final class ErrorCode {
     public static final String KIT_BUNDLE_EMPTY                             = "KIT_BUNDLE_EMPTY";
     public static final String KIT_ITEM_IN_BUNDLE                           = "KIT_ITEM_IN_BUNDLE";
     public static final String KIT_ITEM_NAME_REQUIRED                       = "KIT_ITEM_NAME_REQUIRED";
-
-    // ---------- APPEALS (GĐ4 DQ) ----------
-    public static final String APPEAL_WINDOW_NOT_OPEN                       = "APPEAL_WINDOW_NOT_OPEN";
-    public static final String APPEAL_WINDOW_CLOSED                         = "APPEAL_WINDOW_CLOSED";
-    public static final String APPEAL_DEADLINE_EXPIRED                      = "APPEAL_DEADLINE_EXPIRED";
-    public static final String APPEAL_ALREADY_SUBMITTED                     = "APPEAL_ALREADY_SUBMITTED";
-    public static final String APPEAL_EVIDENCE_REQUIRED                     = "APPEAL_EVIDENCE_REQUIRED";
-    public static final String APPEAL_NOT_PENDING                           = "APPEAL_NOT_PENDING";
-    public static final String APPEAL_PENDING_BLOCKS_ADVANCE                = "APPEAL_PENDING_BLOCKS_ADVANCE";
-    public static final String APPEAL_APPROVE_AFTER_ADVANCE                 = "APPEAL_APPROVE_AFTER_ADVANCE";
-    public static final String APPEAL_DECISION_NOTE_REQUIRED                = "APPEAL_DECISION_NOTE_REQUIRED";
-    public static final String APPEAL_WINDOW_HAS_PENDING                    = "APPEAL_WINDOW_HAS_PENDING";
-    public static final String APPEAL_DELAY_LIMIT_EXCEEDED                  = "APPEAL_DELAY_LIMIT_EXCEEDED";
-    public static final String APPEAL_DELAY_NOT_APPLICABLE                  = "APPEAL_DELAY_NOT_APPLICABLE";
-    public static final String APPEAL_WINDOW_DOES_NOT_FIT                   = "APPEAL_WINDOW_DOES_NOT_FIT";
-    public static final String APPEAL_WINDOW_BELOW_MINIMUM                  = "APPEAL_WINDOW_BELOW_MINIMUM";
-    public static final String APPEAL_WINDOW_SKIP_REASON_REQUIRED           = "APPEAL_WINDOW_SKIP_REASON_REQUIRED";
-    public static final String APPEAL_WINDOW_LOCKED_AFTER_PUBLISH           = "APPEAL_WINDOW_LOCKED_AFTER_PUBLISH";
 }

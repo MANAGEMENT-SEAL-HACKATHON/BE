@@ -121,8 +121,6 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
     private final com.sealhackathon.api.announcements.service.AnnouncementService announcementService;
     private final com.sealhackathon.api.live_scoring.PresentationQueuePublisher presentationQueuePublisher;
     private final RoundLockScoringService roundLockScoringService;
-    private final com.sealhackathon.api.appeals.service.AppealWindowService appealWindowService;
-    private final com.sealhackathon.api.appeals.repository.AppealRepository appealRepository;
     private final com.sealhackathon.api.events.repository.EventRepository eventRepository;
     private final com.sealhackathon.api.events.repository.BuffetMenuItemRepository buffetMenuItemRepository;
 
@@ -403,12 +401,6 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
 
     @Override
     public RoundSummaryResponse publish(Integer roundId) {
-        return publish(roundId, null);
-    }
-
-    @Override
-    public RoundSummaryResponse publish(Integer roundId,
-                                        com.sealhackathon.api.appeals.dto.request.PublishWithAppealWindowRequest request) {
         Round round = roundAccessGuard.requireRound(roundId);
         if (Boolean.TRUE.equals(round.getIsFinal())) {
             throw new BusinessRuleException(ErrorCode.INVALID_STATE,
@@ -424,19 +416,22 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                     "Kết quả round đã được công bố");
         }
 
+        autoApplyResolvableTiebreaks(roundId);
+        List<TiebreakItemResponse> unresolvedTiebreaks = tiebreak(roundId).stream()
+                .filter(item -> Boolean.TRUE.equals(item.getRequiresManualReorder()))
+                .toList();
+        if (!unresolvedTiebreaks.isEmpty()) {
+            throw new BusinessRuleException(ErrorCode.TIEBREAK_REQUIRED,
+                    "Vẫn còn đội đồng điểm tại ranh giới. Vui lòng giải quyết Tiebreak trước khi công bố kết quả.",
+                    java.util.Map.of("unresolvedCount", unresolvedTiebreaks.size()));
+        }
+
         User publisher = userRepository.findById(currentUserAccessor.currentUserId()).orElseThrow();
         LocalDateTime publishedAt = LocalDateTime.now();
         round.setIsPublished(true);
         round.setPublishedAt(publishedAt);
         round.setPublishedBy(publisher);
-        if (round.getPublishRevision() == null || round.getPublishRevision() < 1) {
-            round.setPublishRevision(1);
-        }
         Round saved = roundRepository.save(round);
-
-        // Open appeal window (one-shot); may delay final / shrink / skip when late
-        appealWindowService.openOnFirstPublish(saved, request, publishedAt);
-        saved = roundRepository.findById(roundId).orElse(saved);
 
         auditService.log(AuditAction.ROUND_PUBLISH, "rounds", roundId,
                 java.util.Map.of("hackathonId", round.getHackathon().getId()));
@@ -707,11 +702,9 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                 .collect(Collectors.groupingBy(
                         te -> te.getTeam().getId(),
                         Collectors.summingDouble(TiebreakEvaluation::getPenaltyScore)));
-        Map<Integer, Double> totalScoreByTeam = roundRankingQueryService.rankingForRound(round.getId(), false).stream()
-                .collect(Collectors.toMap(
-                        RoundRankingItemResponse::getTeamId,
-                        RoundRankingItemResponse::getTotalScore,
-                        (a, b) -> a));
+        Map<Integer, RoundRankingItemResponse> rankingByTeam = roundRankingQueryService.rankingForRound(round.getId(), false).stream()
+                .filter(r -> r.getTeamId() != null)
+                .collect(Collectors.toMap(RoundRankingItemResponse::getTeamId, r -> r, (a, b) -> a));
 
         List<TiebreakItemResponse> enriched = new ArrayList<>();
         for (TiebreakItemResponse item : rawItems) {
@@ -720,17 +713,25 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                             teamId,
                             submissionByTeam.get(teamId),
                             penaltyByTeam.getOrDefault(teamId, 0.0),
-                            totalScoreByTeam.get(teamId)))
+                            rankingByTeam.get(teamId)))
                     .toList();
 
-            Optional<List<Integer>> suggestedOrder = TiebreakRuleOrdering.orderByRule(rule, candidates);
-            boolean requiresManual = rule == TiebreakRule.COORDINATOR_DECISION || suggestedOrder.isEmpty();
-            String reason = null;
-            if (rule == TiebreakRule.COORDINATOR_DECISION) {
-                reason = "COORDINATOR_DECISION";
-            } else if (suggestedOrder.isEmpty()) {
-                reason = "DEEP_TIE";
-            }
+            Optional<TiebreakRuleOrdering.WaterfallResult> waterfall =
+                    TiebreakRuleOrdering.resolveWaterfall(candidates);
+            String resolvedTier = waterfall.map(TiebreakRuleOrdering.WaterfallResult::resolvedTier)
+                    .orElse(TiebreakRuleOrdering.TIER_MANUAL);
+            String resolvedReasonLabel = waterfall.map(TiebreakRuleOrdering.WaterfallResult::resolvedReasonLabel)
+                    .orElse("Cần Ban tổ chức phân xử");
+            List<Integer> suggestedOrder = waterfall
+                    .map(TiebreakRuleOrdering.WaterfallResult::orderedTeamIds)
+                    .orElse(null);
+            boolean requiresManual = TiebreakRuleOrdering.TIER_MANUAL.equals(resolvedTier)
+                    || suggestedOrder == null
+                    || suggestedOrder.isEmpty();
+
+            String reason = requiresManual
+                    ? (TiebreakRuleOrdering.TIER_MANUAL.equals(resolvedTier) ? "DEEP_TIE" : resolvedTier)
+                    : resolvedTier;
 
             enriched.add(TiebreakItemResponse.builder()
                     .partitionKey(item.getPartitionKey())
@@ -739,7 +740,9 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                     .tiebreakRule(rule)
                     .reason(reason)
                     .requiresManualReorder(requiresManual)
-                    .suggestedOrderedTeamIds(suggestedOrder.orElse(null))
+                    .suggestedOrderedTeamIds(requiresManual ? null : suggestedOrder)
+                    .resolvedTier(resolvedTier)
+                    .resolvedReasonLabel(resolvedReasonLabel)
                     .build());
         }
         return enriched;
@@ -764,13 +767,16 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
             Integer teamId,
             Submission submission,
             double penaltyScore,
-            Double totalScore) {
+            RoundRankingItemResponse ranking) {
         return new TiebreakRuleOrdering.TiebreakCandidate(
                 teamId,
                 submission != null ? submission.getStatus() : null,
-                submission != null ? submission.getSubmittedAt() : null,
+                submission != null ? submission.getSubmittedAt()
+                        : (ranking != null ? ranking.getSubmittedAt() : null),
                 penaltyScore,
-                totalScore);
+                ranking != null ? ranking.getTotalScore() : null,
+                ranking != null ? ranking.getPriorityCriterionScore() : null,
+                ranking != null ? ranking.getPriorityCriterionName() : null);
     }
 
     @Override
@@ -794,8 +800,8 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
             if (orderedIds == null || orderedIds.isEmpty()) {
                 continue;
             }
-            applyTiebreakOrder(round, orderedIds, actor,
-                    "Auto-resolved by " + item.getTiebreakRule().name());
+            int level = TiebreakRuleOrdering.TIER_PRIORITY_CRITERION.equals(item.getResolvedTier()) ? 1 : 2;
+            applyTiebreakOrder(round, orderedIds, actor, item.getResolvedReasonLabel(), level);
         }
     }
 
@@ -810,6 +816,9 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         if (!Boolean.TRUE.equals(round.getScoringLocked())) {
             throw new BusinessRuleException(ErrorCode.ROUND_NOT_SCORING_LOCKED, "Phải khóa chấm điểm trước khi giải quyết Tiebreak");
         }
+        if (!StringUtils.hasText(req.getNote())) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED, "note bắt buộc khi resolve tiebreak thủ công");
+        }
 
         User coordinator = userRepository.findById(currentUserAccessor.currentUserId()).orElseThrow();
         List<Integer> orderedIds = req.getOrderedTeamIds();
@@ -820,9 +829,21 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                     "orderedTeamIds không được trùng lặp",
                     java.util.Map.of("orderedTeamIds", orderedIds));
         }
-        boolean matchesTiedGroup = tiebreak(roundId).stream()
-                .anyMatch(item -> orderedSet.equals(new java.util.HashSet<>(item.getCandidateTeamIds())));
-        if (!matchesTiedGroup) {
+
+        List<TiebreakItemResponse> unresolved = tiebreak(roundId);
+        Optional<TiebreakItemResponse> matched = unresolved.stream()
+                .filter(item -> orderedSet.equals(new java.util.HashSet<>(item.getCandidateTeamIds())))
+                .findFirst();
+
+        if (matched.isPresent() && !Boolean.TRUE.equals(matched.get().getRequiresManualReorder())) {
+            throw new ConflictException(ErrorCode.TIEBREAK_ALREADY_RESOLVED,
+                    "Nhóm đồng điểm này có thể tự phân xử theo waterfall — không cần resolve thủ công",
+                    java.util.Map.of("orderedTeamIds", orderedIds, "roundId", roundId,
+                            "resolvedTier", matched.get().getResolvedTier() != null
+                                    ? matched.get().getResolvedTier() : ""));
+        }
+
+        if (matched.isEmpty()) {
             // Có thể race: coordinator khác vừa resolve nhóm này
             boolean alreadyResolved = orderedIds.stream().anyMatch(teamId ->
                     tiebreakEvaluationRepository.findByRound_IdAndTeam_Id(roundId, teamId).stream()
@@ -847,12 +868,16 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                     java.util.Map.of("orderedTeamIds", orderedIds, "roundId", roundId));
         }
 
-        applyTiebreakOrder(round, orderedIds, coordinator, req.getNote());
+        applyTiebreakOrder(round, orderedIds, coordinator, req.getNote(), 2);
 
         return roundRankingQueryService.rankingForRound(roundId, false);
     }
 
     private void applyTiebreakOrder(Round round, List<Integer> orderedIds, User judge, String note) {
+        applyTiebreakOrder(round, orderedIds, judge, note, 2);
+    }
+
+    private void applyTiebreakOrder(Round round, List<Integer> orderedIds, User judge, String note, int tiebreakLevel) {
         Integer roundId = round.getId();
         float penaltyIncrement = 0.01f;
         float currentPenalty = 0.0f;
@@ -872,7 +897,7 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                         .judge(judge)
                         .penaltyScore(currentPenalty)
                         .isCastingVote(true)
-                        .tiebreakLevel(2)
+                        .tiebreakLevel(tiebreakLevel)
                         .notes(note)
                         .evaluatedAt(LocalDateTime.now())
                         .build());
@@ -899,24 +924,11 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         Round round = requirePreliminaryRoundForProgression(roundId);
         requireScoringLockedAndPublished(round);
 
-        // Lazy-expire pending appeals if window closed, then block if any still open
-        appealWindowService.expireOpenAppealsForRound(roundId);
-        if (appealRepository.existsByRound_IdAndStatusIn(roundId,
-                java.util.EnumSet.of(
-                        com.sealhackathon.api.appeals.value_object.AppealStatus.PENDING,
-                        com.sealhackathon.api.appeals.value_object.AppealStatus.UNDER_REVIEW))) {
-            long pending = appealRepository.countByRound_IdAndStatus(roundId,
-                    com.sealhackathon.api.appeals.value_object.AppealStatus.PENDING);
-            long underReview = appealRepository.countByRound_IdAndStatus(roundId,
-                    com.sealhackathon.api.appeals.value_object.AppealStatus.UNDER_REVIEW);
-            throw new BusinessRuleException(ErrorCode.APPEAL_PENDING_BLOCKS_ADVANCE,
-                    "Còn đơn khiếu nại chưa xử lý — không thể chốt chuyển vòng",
-                    java.util.Map.of("pendingCount", pending, "underReviewCount", underReview));
-        }
-
         autoApplyResolvableTiebreaks(roundId);
 
-        List<TiebreakItemResponse> unresolvedTiebreaks = tiebreak(roundId);
+        List<TiebreakItemResponse> unresolvedTiebreaks = tiebreak(roundId).stream()
+                .filter(item -> Boolean.TRUE.equals(item.getRequiresManualReorder()))
+                .toList();
         if (!unresolvedTiebreaks.isEmpty()) {
             throw new BusinessRuleException(ErrorCode.TIEBREAK_REQUIRED,
                     "Vẫn còn đội đồng điểm tại ranh giới thăng vòng. Vui lòng giải quyết Tiebreak trước khi Advance.",
@@ -1129,15 +1141,13 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                         : ParticipationStatus.ELIMINATED.name();
                 if (status.equals(ParticipationStatus.ADVANCED.name())) {
                     reasonCode = "TOP_N";
-                    reasonLabel = topNVal > 0
-                            ? "Top " + topNVal + (group != null ? " — " + group : "")
-                            : "Top N";
+                    reasonLabel = formatTopRankLabel(rank, group);
                 } else if (isDq) {
                     reasonCode = "DQ";
                     reasonLabel = "Loại kỷ luật / DQ";
                 } else {
                     reasonCode = "OUT";
-                    reasonLabel = "Không vào Top N";
+                    reasonLabel = "Không vào Top";
                 }
             } else {
                 // Preview after publish
@@ -1148,11 +1158,11 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                 } else if (previewTopN.contains(team.getId())) {
                     status = ParticipationStatus.ADVANCED.name();
                     reasonCode = "TOP_N";
-                    reasonLabel = "Top " + topNVal + (group != null ? " — " + group : "");
+                    reasonLabel = formatTopRankLabel(rank, group);
                 } else {
                     status = ParticipationStatus.ELIMINATED.name();
                     reasonCode = "OUT";
-                    reasonLabel = "Không vào Top N";
+                    reasonLabel = "Không vào Top";
                 }
             }
 
@@ -1170,6 +1180,8 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                     .build());
         }
 
+        fillMissingTopRanksInGroup(items);
+
         items.sort(Comparator
                 .comparing((AdvanceRosterItemResponse i) ->
                         ParticipationStatus.ADVANCED.name().equals(i.getStatus()) ? 0 : 1)
@@ -1178,6 +1190,46 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                 .thenComparing(AdvanceRosterItemResponse::getTeamName, Comparator.nullsLast(String::compareTo)));
 
         return items;
+    }
+
+    private static String formatTopRankLabel(Integer rank, String group) {
+        if (rank == null) {
+            return group != null ? "Top — " + group : "Top";
+        }
+        return "Top " + rank + (group != null ? " — " + group : "");
+    }
+
+    /**
+     * Khi rank null (đội ADVANCED không có trong ranking map), gán thứ tự trong bảng
+     * theo totalScore giảm dần để tránh hai đội cùng hiện "Top 2".
+     */
+    private static void fillMissingTopRanksInGroup(List<AdvanceRosterItemResponse> items) {
+        Map<String, List<AdvanceRosterItemResponse>> byGroup = new LinkedHashMap<>();
+        Map<String, Integer> maxRankByGroup = new LinkedHashMap<>();
+        for (AdvanceRosterItemResponse item : items) {
+            if (!ParticipationStatus.ADVANCED.name().equals(item.getStatus())) {
+                continue;
+            }
+            String key = item.getAssignedGroup() != null ? item.getAssignedGroup()
+                    : (item.getTrackId() != null ? "T" + item.getTrackId() : "default");
+            if (item.getRank() != null) {
+                maxRankByGroup.merge(key, item.getRank(), Math::max);
+                continue;
+            }
+            byGroup.computeIfAbsent(key, k -> new ArrayList<>()).add(item);
+        }
+        for (Map.Entry<String, List<AdvanceRosterItemResponse>> entry : byGroup.entrySet()) {
+            List<AdvanceRosterItemResponse> groupItems = entry.getValue();
+            groupItems.sort(Comparator
+                    .comparing(AdvanceRosterItemResponse::getTotalScore, Comparator.nullsLast(Comparator.reverseOrder()))
+                    .thenComparing(AdvanceRosterItemResponse::getTeamId, Comparator.nullsLast(Integer::compareTo)));
+            int nextRank = maxRankByGroup.getOrDefault(entry.getKey(), 0) + 1;
+            for (AdvanceRosterItemResponse item : groupItems) {
+                item.setRank(nextRank);
+                item.setReasonLabel(formatTopRankLabel(nextRank, item.getAssignedGroup()));
+                nextRank++;
+            }
+        }
     }
 
     @Override

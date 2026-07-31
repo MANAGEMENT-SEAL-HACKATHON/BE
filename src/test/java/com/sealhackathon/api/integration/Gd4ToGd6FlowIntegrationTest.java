@@ -138,8 +138,8 @@ class Gd4ToGd6FlowIntegrationTest {
                 .season(Season.Spring)
                 .year(2026)
                 .status(HackathonStatus.ONGOING)
-                .registrationStart(LocalDate.now().minusDays(30))
-                .registrationEnd(LocalDate.now().minusDays(1))
+                .registrationStart(LocalDate.now().minusDays(30).atTime(0, 0))
+                .registrationEnd(LocalDate.now().minusDays(1).atTime(23, 59))
                 .eventStart(LocalDate.now())
                 .eventEnd(LocalDate.now().plusDays(7))
                 .individualRankingEnabled(false)
@@ -271,11 +271,7 @@ class Gd4ToGd6FlowIntegrationTest {
                 .andExpect(status().isOk());
 
         mockMvc.perform(patch("/api/v1/rounds/{id}/publish", prelimRound.getId())
-                        .header("Authorization", "Bearer " + coordToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"appealWindowMode":"SKIP","skipReason":"integration-test no appeal window"}
-                                """))
+                        .header("Authorization", "Bearer " + coordToken))
                 .andExpect(status().isOk());
 
         String advanceBody = """

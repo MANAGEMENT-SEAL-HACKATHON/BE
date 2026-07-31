@@ -65,8 +65,8 @@ class EventScheduleValidatorImplTest {
 
         hackathon = Hackathon.builder()
                 .id(1)
-                .registrationStart(LocalDate.of(2026, 4, 1))
-                .registrationEnd(LocalDate.of(2026, 4, 8))
+                .registrationStart(LocalDate.of(2026, 4, 1).atTime(0, 0))
+                .registrationEnd(LocalDate.of(2026, 4, 8).atTime(23, 59))
                 .eventStart(LocalDate.of(2026, 4, 11))
                 .eventEnd(LocalDate.of(2026, 4, 12))
                 .build();
@@ -222,8 +222,8 @@ class EventScheduleValidatorImplTest {
                         .build()));
         Hackathon h = Hackathon.builder()
                 .id(1)
-                .registrationStart(LocalDate.of(2026, 5, 24))
-                .registrationEnd(LocalDate.of(2026, 6, 5))
+                .registrationStart(LocalDate.of(2026, 5, 24).atTime(0, 0))
+                .registrationEnd(LocalDate.of(2026, 6, 5).atTime(23, 59))
                 .eventStart(LocalDate.of(2026, 6, 10))
                 .eventEnd(LocalDate.of(2026, 6, 10))
                 .build();

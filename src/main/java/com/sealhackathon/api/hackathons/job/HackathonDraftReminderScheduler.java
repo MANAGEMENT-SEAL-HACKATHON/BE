@@ -16,7 +16,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -43,7 +42,7 @@ public class HackathonDraftReminderScheduler {
     @Scheduled(cron = "${app.draft-reminder.scheduler.cron:0 0 8 * * *}")
     @Transactional
     public void runDraftReminders() {
-        LocalDate threshold = LocalDate.now().plusDays(leadDays);
+        LocalDateTime threshold = LocalDateTime.now().plusDays(leadDays).toLocalDate().atTime(23, 59);
         List<Hackathon> drafts = hackathonRepository
                 .findByStatusAndDraftReminderSentAtIsNull(HackathonStatus.DRAFT).stream()
                 .filter(h -> h.getRegistrationStart() == null

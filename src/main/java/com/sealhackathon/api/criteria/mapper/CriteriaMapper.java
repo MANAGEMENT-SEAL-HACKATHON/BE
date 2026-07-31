@@ -22,6 +22,7 @@ public class CriteriaMapper {
                 .description(req.getDescription())
                 .rubricUrl(req.getRubricUrl())
                 .displayOrder(req.getDisplayOrder() == null ? 1 : req.getDisplayOrder())
+                .isTiebreakerPriority(Boolean.TRUE.equals(req.getIsTiebreakerPriority()))
                 .build();
     }
 
@@ -36,6 +37,7 @@ public class CriteriaMapper {
                 .description(req.getDescription())
                 .rubricUrl(req.getRubricUrl())
                 .displayOrder(req.getDisplayOrder() == null ? 1 : req.getDisplayOrder())
+                .isTiebreakerPriority(Boolean.TRUE.equals(req.getIsTiebreakerPriority()))
                 .build();
     }
 
@@ -50,6 +52,7 @@ public class CriteriaMapper {
 
     /**
      * Sao chép nội dung sang track đích — không gắn {@code source_criteria_id} để từng dòng xóa/sửa độc lập.
+     * Không copy {@code isTiebreakerPriority} — clone luôn false.
      */
     public Criteria toCloneForTrack(Criteria source, Track targetTrack, int displayOrder) {
         return Criteria.builder()
@@ -63,6 +66,7 @@ public class CriteriaMapper {
                 .description(source.getDescription())
                 .rubricUrl(source.getRubricUrl())
                 .displayOrder(displayOrder)
+                .isTiebreakerPriority(false)
                 .build();
     }
 
@@ -78,6 +82,7 @@ public class CriteriaMapper {
                 .description(source.getDescription())
                 .rubricUrl(source.getRubricUrl())
                 .displayOrder(displayOrder)
+                .isTiebreakerPriority(false)
                 .build();
     }
 
@@ -90,6 +95,9 @@ public class CriteriaMapper {
         entity.setRubricUrl(req.getRubricUrl());
         if (req.getDisplayOrder() != null) {
             entity.setDisplayOrder(req.getDisplayOrder());
+        }
+        if (req.getIsTiebreakerPriority() != null) {
+            entity.setIsTiebreakerPriority(req.getIsTiebreakerPriority());
         }
     }
 
@@ -109,6 +117,7 @@ public class CriteriaMapper {
                 .description(e.getDescription())
                 .rubricUrl(e.getRubricUrl())
                 .displayOrder(e.getDisplayOrder())
+                .isTiebreakerPriority(Boolean.TRUE.equals(e.getIsTiebreakerPriority()))
                 .build();
     }
 }
