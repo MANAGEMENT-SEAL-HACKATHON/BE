@@ -123,6 +123,8 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
     private final RoundLockScoringService roundLockScoringService;
     private final com.sealhackathon.api.appeals.service.AppealWindowService appealWindowService;
     private final com.sealhackathon.api.appeals.repository.AppealRepository appealRepository;
+    private final com.sealhackathon.api.events.repository.EventRepository eventRepository;
+    private final com.sealhackathon.api.events.repository.BuffetMenuItemRepository buffetMenuItemRepository;
 
     private static final int ADVANCE_ROSTER_DEFAULT_PAGE_SIZE = 50;
 
@@ -323,7 +325,7 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                     round.getHackathon().getId(),
                     roundId,
                     "Kết quả sơ loại đã công bố",
-                    "Kết quả vòng «" + round.getName() + "» đã được công bố. Xem bảng xếp hạng.");
+                    buildPrelimPublishAnnouncementBody(round));
         } catch (Exception ignored) {
             // durable flag already set; announcement is best-effort
         }
@@ -335,6 +337,46 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         }
 
         return roundMapper.toSummary(saved, 0, 0, 0f);
+    }
+
+    private String buildPrelimPublishAnnouncementBody(Round round) {
+        StringBuilder body = new StringBuilder(
+                "Kết quả vòng «" + round.getName() + "» đã được công bố. Xem bảng xếp hạng.");
+        Integer hackathonId = round.getHackathon() != null ? round.getHackathon().getId() : null;
+        if (hackathonId == null) {
+            return body.toString();
+        }
+        eventRepository.findByHackathonIdAndType(hackathonId,
+                        com.sealhackathon.api.events.value_object.EventType.BUFFET)
+                .stream()
+                .findFirst()
+                .ifPresent(buffet -> {
+                    body.append("\n\nBuffet");
+                    if (buffet.getLocation() != null && !buffet.getLocation().isBlank()) {
+                        body.append(": ").append(buffet.getLocation());
+                    }
+                    body.append(" (").append(buffet.getStartsAt());
+                    if (buffet.getEndsAt() != null) {
+                        body.append(" – ").append(buffet.getEndsAt());
+                    }
+                    body.append(")");
+                    var menu = buffetMenuItemRepository
+                            .findByEvent_IdOrderByDisplayOrderAscIdAsc(buffet.getId());
+                    if (!menu.isEmpty()) {
+                        body.append("\nThực đơn: ");
+                        body.append(menu.stream()
+                                .limit(5)
+                                .map(item -> item.getName()
+                                        + (item.getQuantity() != null ? " ×" + item.getQuantity() : "")
+                                        + (item.getUnit() != null && !item.getUnit().isBlank()
+                                        ? " " + item.getUnit() : ""))
+                                .collect(java.util.stream.Collectors.joining(", ")));
+                        if (menu.size() > 5) {
+                            body.append(", …");
+                        }
+                    }
+                });
+        return body.toString();
     }
 
     /** Fan-out in-app notify to accepted team members of the published round. */

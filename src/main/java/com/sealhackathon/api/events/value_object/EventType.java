@@ -11,5 +11,7 @@ public enum EventType {
     WORKSHOP,
     PRESENTATION,
     AWARDS,
+    /** Buffet trong cửa sổ nghỉ sơ loại → chung kết (không thuộc MILESTONE_TYPES). */
+    BUFFET,
     OTHER
 }

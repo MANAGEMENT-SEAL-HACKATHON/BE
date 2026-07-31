@@ -39,7 +39,7 @@ Hackathon
 - **BC-06** `submissions`: XOR FK như criteria. Status thêm `LATE_APPROVED`.
 - **BC-07** `judge_assignments`: XOR FK + `assignment_type` thêm `FINAL_EXTERNAL`.
 - **BC-08** `mentor_assignments`: giữ nguyên struct.
-- **BC-09** `events`: bỏ `TEAM_MEETING` khỏi enum `type`.
+- **BC-09** `events`: bỏ `TEAM_MEETING` khỏi enum `type`; thêm `BUFFET` + bảng `buffet_menu_items` (Phase 12).
 - **BC-10** ~~`wildcard_reviews`~~: **Removed (Phase 9)** — không còn bảng/cột wildcard hay certificates.
 - **BC-11** Triggers DB-layer: 9 triggers chính ([5.1-5.9](mdc:docs/db/schema-v3.0-mysql.md)).
 
@@ -54,6 +54,14 @@ Hackathon
 - `appeal_evidences` — bảng mới (`url`, `type` ∈ IMAGE|VIDEO|LINK, `caption`, `display_order`).
 - `AppealStatus` + `EXPIRED` (cùng PENDING, UNDER_REVIEW, APPROVED, REJECTED).
 - Manual migrate: `src/main/resources/db/manual/V20260731_appeal_dq_window.sql`.
+
+### Phase 12 — Buffet break window (additive)
+
+- `EventType.BUFFET` — không thuộc `MILESTONE_TYPES`; khung [prelimEnd, final.examAt].
+- Drop cột `buffet_location` / `buffet_starts_at` / `buffet_ends_at` trên `events`.
+- `buffet_menu_items` — `event_id`, `name`, `quantity`, `unit`, `note`, `display_order`.
+- Lock sửa/xóa BUFFET + menu sau prelim publish (`BUFFET_LOCKED_AFTER_PUBLISH`).
+- Manual migrate: `src/main/resources/db/manual/V20260731_buffet_break_window.sql`.
 
 ## 3. JPA convention bắt buộc
 

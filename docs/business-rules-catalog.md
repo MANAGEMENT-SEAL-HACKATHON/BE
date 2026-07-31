@@ -345,6 +345,9 @@ Catalog thống nhất các business rules đang được enforce trong backend,
 | BR-EVENT-016 | FR-06A | Event | SideEffect | isPublic=true → fan-out EVENT_REMINDER tới APPROVED; đổi startsAt reset reminderSentAt | create/update public | sendBatch | N/A | TC public event notify | Implemented | events/service/impl/EventServiceImpl.java |
 | BR-EVENT-017 | FR-06A | Event | Invariant | Sau create/update/delete KICKOFF: assertAllRoundsExamAtValid (ném violation đầu tiên) | KICKOFF mutation | Reject timeline code | ROUND_EXAM_BEFORE_KICKOFF; EVENT_OUT_OF_HACKATHON | TC KO change breaks examAt | Implemented | events/service/impl/EventServiceImpl.java; HackathonTimelineServiceImpl.java |
 | BR-EVENT-018 | FR-06A | Event | Gate | Thiếu event PRESENTATION khi readiness yêu cầu (nếu còn path) | Readiness/timeline check presentation | Blocker hoặc reject | EVENT_PRESENTATION_MISSING | Readiness target needing presentation | Partial | events / HackathonReadinessServiceImpl (may be soft-skipped) |
+| BR-EVENT-019 | FR-06A | Event | Validation | BUFFET trong [prelimEnd, final.examAt]; cần SL+CK có examAt; max 1/hackathon; bắt buộc endsAt | BuffetWindowRule / validateSingleBuffet | Reject | EVENT_BUFFET_OUT_OF_BREAK; EVENT_BUFFET_ROUNDS_MISSING; EVENT_BUFFET_DUPLICATE; EVENT_BUFFET_OUT_OF_WINDOW | EventScheduleValidatorImplTest buffet | Implemented | events/service/impl/window/BuffetWindowRule.java |
+| BR-EVENT-020 | FR-06A | Event | Gate | Không sửa/xóa BUFFET hoặc thực đơn sau prelim publish | BuffetEditGuard | Reject | BUFFET_LOCKED_AFTER_PUBLISH | BuffetEditGuardTest | Implemented | events/support/BuffetEditGuard.java |
+| BR-EVENT-021 | FR-06A | Event | SideEffect | Dời lịch SL/CK → clamp BUFFET vào cửa sổ nghỉ mới; announce publish SL kèm buffet | repositionBuffetBetweenRounds / publishResults body | Clamp / append | N/A | MilestoneEventRescheduleServiceBuffetTest | Implemented | MilestoneEventRescheduleService; RoundProgressionServiceImpl |
 
 ## TempJudge
 

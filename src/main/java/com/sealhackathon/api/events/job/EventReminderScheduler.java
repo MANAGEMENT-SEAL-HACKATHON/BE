@@ -65,25 +65,9 @@ public class EventReminderScheduler {
     }
 
     static String buildBody(Event event) {
-        StringBuilder body = new StringBuilder("Thời gian: %s%s".formatted(
+        return "Thời gian: %s%s".formatted(
                 event.getStartsAt(),
                 event.getLocation() == null || event.getLocation().isBlank()
-                        ? "" : " — " + event.getLocation()));
-        boolean hasBuffetLocation = event.getBuffetLocation() != null && !event.getBuffetLocation().isBlank();
-        boolean hasBuffetTime = event.getBuffetStartsAt() != null || event.getBuffetEndsAt() != null;
-        if (hasBuffetLocation || hasBuffetTime) {
-            body.append("\nBuffet");
-            if (hasBuffetLocation) {
-                body.append(": ").append(event.getBuffetLocation());
-            }
-            if (hasBuffetTime) {
-                body.append(" (")
-                        .append(event.getBuffetStartsAt() != null ? event.getBuffetStartsAt() : "…")
-                        .append(" – ")
-                        .append(event.getBuffetEndsAt() != null ? event.getBuffetEndsAt() : "…")
-                        .append(")");
-            }
-        }
-        return body.toString();
+                        ? "" : " — " + event.getLocation());
     }
 }

@@ -513,7 +513,7 @@ Trường	Kiểu / Ràng buộc	Ghi chú nghiệp vụ	Thay đổi v3.0
 id	SERIAL PK	Auto-increment	—
 hackathon_id	INT FK hackathons.id ON DELETE CASCADE NOT NULL	Sự kiện thuộc kỳ thi	—
 title	VARCHAR(300) NOT NULL	Tên sự kiện	—
-type	VARCHAR(30) NOT NULL CHECK IN ('KICKOFF','WORKSHOP','PRESENTATION','AWARDS','OTHER')	[BC-09] Bỏ TEAM_MEETING. 4 loại chính + OTHER	SỬA ENUM
+type	VARCHAR(30) NOT NULL CHECK IN ('KICKOFF','WORKSHOP','PRESENTATION','AWARDS','BUFFET','OTHER')	[BC-09] Bỏ TEAM_MEETING. Thêm BUFFET (break SL→CK) + OTHER	SỬA ENUM
 description	TEXT	Mô tả nội dung; tuỳ chọn	—
 location	VARCHAR(300)	Địa điểm vật lý (offline). NULL nếu online	—
 meet_url	TEXT	Link Zoom/Teams/Meet. NULL nếu offline	—
@@ -558,7 +558,7 @@ Có round sơ loại → bắt buộc PRESENTATION	App	422 EVENT_PRESENTATION_MI
 Có round CK → AWARDS (checklist GĐ6 / `readiness?target=AWARDS`, không block ONGOING)	App	422 tại target AWARDS
 DELETE milestone → revalidate round.examAt	App	422 ROUND_EXAM_* / EVENT_*_MISSING
 round.examAt vs events (readiness)	App	422 ROUND_EXAM_*
-type chỉ trong ('KICKOFF','WORKSHOP','PRESENTATION','AWARDS','OTHER')	DB (CHECK)	DB reject
+type chỉ trong ('KICKOFF','WORKSHOP','PRESENTATION','AWARDS','BUFFET','OTHER')	DB (CHECK)	DB reject
 TEAM_MEETING không còn tồn tại	DB (CHECK)	DB reject nếu cố dùng
 Gửi REMINDER đến tất cả APPROVED users khi tạo event public	App (sync)	`NotificationService` insert đồng bộ trong transaction (có thể chuyển async sau)
 ≥1 event type=KICKOFF phải tồn tại trước khi chuyển ONGOING	App (Gate FR-07)	422 tại Gate DRAFT→ONGOING

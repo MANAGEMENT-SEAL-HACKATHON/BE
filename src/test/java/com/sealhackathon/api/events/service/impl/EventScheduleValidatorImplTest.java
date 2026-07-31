@@ -6,6 +6,7 @@ import com.sealhackathon.api.events.dto.request.CreateEventRequest;
 import com.sealhackathon.api.events.entity.Event;
 import com.sealhackathon.api.events.repository.EventRepository;
 import com.sealhackathon.api.events.service.impl.window.AwardsWindowRule;
+import com.sealhackathon.api.events.service.impl.window.BuffetWindowRule;
 import com.sealhackathon.api.events.service.impl.window.KickoffWindowRule;
 import com.sealhackathon.api.events.service.impl.window.WorkshopWindowRule;
 import com.sealhackathon.api.events.support.EventTimeline;
@@ -53,9 +54,14 @@ class EventScheduleValidatorImplTest {
         WorkshopWindowRule workshop = new WorkshopWindowRule(eventRepository);
         KickoffWindowRule kickoff = new KickoffWindowRule();
         AwardsWindowRule awards = new AwardsWindowRule();
-        validator = new EventScheduleValidatorImpl(eventRepository, roundRepository, workshop, kickoff, awards);
+        BuffetWindowRule buffet = new BuffetWindowRule(roundRepository);
+        validator = new EventScheduleValidatorImpl(
+                eventRepository, roundRepository, workshop, kickoff, awards, buffet);
         validator.initRules();
         when(roundRepository.findPreliminaryLikeByHackathonId(1)).thenReturn(Collections.emptyList());
+        when(roundRepository.findByHackathon_IdAndIsFinalTrue(1)).thenReturn(Optional.empty());
+        when(roundRepository.findByHackathon_IdOrderByExamAtAsc(1)).thenReturn(Collections.emptyList());
+        when(eventRepository.existsByHackathonIdAndType(1, EventType.BUFFET)).thenReturn(false);
 
         hackathon = Hackathon.builder()
                 .id(1)
@@ -354,39 +360,73 @@ class EventScheduleValidatorImplTest {
                         () -> validator.validateBlocking(hackathon, req, 0)).getCode());
     }
 
-    // ------------ BUFFET (KICKOFF) ------------
+    // ------------ BUFFET (break window) ------------
 
     @Test
-    void allowsKickoffBuffetInsideEventWindow() {
-        CreateEventRequest req = kickoff(
-                LocalDateTime.of(2026, 4, 10, 8, 0),
-                LocalDateTime.of(2026, 4, 10, 17, 0));
-        req.setBuffetLocation("Canteen");
-        req.setBuffetStartsAt(LocalDateTime.of(2026, 4, 10, 11, 0));
-        req.setBuffetEndsAt(LocalDateTime.of(2026, 4, 10, 12, 30));
+    void allowsBuffetInsideBreakWindow() {
+        stubBreakRounds(
+                LocalDateTime.of(2026, 4, 11, 8, 0), 7,
+                LocalDateTime.of(2026, 4, 11, 17, 0));
+        // prelimEnd = 08:00+7h = 15:00; final exam = 17:00
+        CreateEventRequest req = buffet(
+                LocalDateTime.of(2026, 4, 11, 15, 0),
+                LocalDateTime.of(2026, 4, 11, 15, 45));
 
         assertDoesNotThrow(() -> validator.validateBlocking(hackathon, req, 0));
     }
 
     @Test
-    void blocksBuffetOnNonKickoff() {
-        CreateEventRequest req = workshop(
-                LocalDateTime.of(2026, 4, 9, 20, 0),
-                LocalDateTime.of(2026, 4, 9, 21, 0));
-        req.setBuffetLocation("Canteen");
+    void blocksBuffetOutsideBreakWindow() {
+        stubBreakRounds(
+                LocalDateTime.of(2026, 4, 11, 8, 0), 7,
+                LocalDateTime.of(2026, 4, 11, 17, 0));
+        CreateEventRequest req = buffet(
+                LocalDateTime.of(2026, 4, 11, 14, 0),
+                LocalDateTime.of(2026, 4, 11, 14, 45));
 
-        assertEquals(ErrorCode.EVENT_BUFFET_NOT_KICKOFF,
+        assertEquals(ErrorCode.EVENT_BUFFET_OUT_OF_BREAK,
                 assertThrows(BusinessRuleException.class,
                         () -> validator.validateBlocking(hackathon, req, 0)).getCode());
     }
 
     @Test
-    void blocksBuffetOutsideEventWindow() {
-        CreateEventRequest req = kickoff(
-                LocalDateTime.of(2026, 4, 10, 8, 0),
-                LocalDateTime.of(2026, 4, 10, 17, 0));
-        req.setBuffetStartsAt(LocalDateTime.of(2026, 4, 10, 18, 0));
-        req.setBuffetEndsAt(LocalDateTime.of(2026, 4, 10, 19, 0));
+    void blocksBuffetWhenRoundsMissing() {
+        CreateEventRequest req = buffet(
+                LocalDateTime.of(2026, 4, 11, 15, 0),
+                LocalDateTime.of(2026, 4, 11, 15, 45));
+
+        assertEquals(ErrorCode.EVENT_BUFFET_ROUNDS_MISSING,
+                assertThrows(BusinessRuleException.class,
+                        () -> validator.validateBlocking(hackathon, req, 0)).getCode());
+    }
+
+    @Test
+    void blocksDuplicateBuffet() {
+        stubBreakRounds(
+                LocalDateTime.of(2026, 4, 11, 8, 0), 7,
+                LocalDateTime.of(2026, 4, 11, 17, 0));
+        when(eventRepository.findByHackathonIdAndType(1, EventType.BUFFET))
+                .thenReturn(List.of(Event.builder().id(99).type(EventType.BUFFET)
+                        .startsAt(LocalDateTime.of(2026, 4, 11, 15, 0))
+                        .endsAt(LocalDateTime.of(2026, 4, 11, 15, 45)).build()));
+
+        CreateEventRequest req = buffet(
+                LocalDateTime.of(2026, 4, 11, 15, 10),
+                LocalDateTime.of(2026, 4, 11, 15, 40));
+
+        assertEquals(ErrorCode.EVENT_BUFFET_DUPLICATE,
+                assertThrows(BusinessRuleException.class,
+                        () -> validator.validateBlocking(hackathon, req, 0)).getCode());
+    }
+
+    @Test
+    void blocksBuffetEndsBeforeStarts() {
+        stubBreakRounds(
+                LocalDateTime.of(2026, 4, 11, 8, 0), 7,
+                LocalDateTime.of(2026, 4, 11, 17, 0));
+        CreateEventRequest req = buffet(
+                LocalDateTime.of(2026, 4, 11, 16, 0),
+                LocalDateTime.of(2026, 4, 11, 15, 0));
 
         assertEquals(ErrorCode.EVENT_BUFFET_OUT_OF_WINDOW,
                 assertThrows(BusinessRuleException.class,
@@ -394,19 +434,39 @@ class EventScheduleValidatorImplTest {
     }
 
     @Test
-    void blocksBuffetEndsBeforeBuffetStarts() {
-        CreateEventRequest req = kickoff(
-                LocalDateTime.of(2026, 4, 10, 8, 0),
-                LocalDateTime.of(2026, 4, 10, 17, 0));
-        req.setBuffetStartsAt(LocalDateTime.of(2026, 4, 10, 12, 0));
-        req.setBuffetEndsAt(LocalDateTime.of(2026, 4, 10, 11, 0));
+    void blocksBuffetWithoutEndsAt() {
+        stubBreakRounds(
+                LocalDateTime.of(2026, 4, 11, 8, 0), 7,
+                LocalDateTime.of(2026, 4, 11, 17, 0));
+        CreateEventRequest req = CreateEventRequest.builder()
+                .title("Buffet").type(EventType.BUFFET).location("Sảnh")
+                .startsAt(LocalDateTime.of(2026, 4, 11, 15, 0))
+                .build();
 
-        assertEquals(ErrorCode.EVENT_BUFFET_OUT_OF_WINDOW,
+        assertEquals(ErrorCode.EVENT_END_REQUIRED,
                 assertThrows(BusinessRuleException.class,
                         () -> validator.validateBlocking(hackathon, req, 0)).getCode());
     }
 
     // ------------ helpers ------------
+
+    private void stubBreakRounds(LocalDateTime prelimExamAt, int prelimHours,
+                                 LocalDateTime finalExamAt) {
+        Round prelim = Round.builder()
+                .id(10)
+                .isFinal(false)
+                .examAt(prelimExamAt)
+                .codingDurationHours(prelimHours)
+                .build();
+        Round finalRound = Round.builder()
+                .id(11)
+                .isFinal(true)
+                .examAt(finalExamAt)
+                .codingDurationHours(2)
+                .build();
+        when(roundRepository.findPreliminaryLikeByHackathonId(1)).thenReturn(List.of(prelim));
+        when(roundRepository.findByHackathon_IdAndIsFinalTrue(1)).thenReturn(Optional.of(finalRound));
+    }
 
     private static Event kickoffEvent(int id, LocalDateTime start, LocalDateTime end) {
         return Event.builder().id(id).type(EventType.KICKOFF).startsAt(start).endsAt(end).build();
@@ -424,6 +484,11 @@ class EventScheduleValidatorImplTest {
 
     private static CreateEventRequest awards(LocalDateTime start, LocalDateTime end) {
         return CreateEventRequest.builder().title("Trao giải").type(EventType.AWARDS).location("Hall")
+                .startsAt(start).endsAt(end).build();
+    }
+
+    private static CreateEventRequest buffet(LocalDateTime start, LocalDateTime end) {
+        return CreateEventRequest.builder().title("Buffet").type(EventType.BUFFET).location("Sảnh")
                 .startsAt(start).endsAt(end).build();
     }
 }

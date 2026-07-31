@@ -150,10 +150,16 @@ public final class ErrorCode {
     public static final String EVENT_AWARDS_MISSING       = "EVENT_AWARDS_MISSING";
     public static final String EVENT_ORDER_VIOLATION    = "EVENT_ORDER_VIOLATION";
     public static final String EVENT_LOCATION_REQUIRED  = "EVENT_LOCATION_REQUIRED";
-    /** Buffet fields only allowed on KICKOFF events. */
-    public static final String EVENT_BUFFET_NOT_KICKOFF  = "EVENT_BUFFET_NOT_KICKOFF";
-    /** Buffet window must lie within the event [startsAt, endsAt]. */
+    /** Buffet endsAt must be >= startsAt. */
     public static final String EVENT_BUFFET_OUT_OF_WINDOW = "EVENT_BUFFET_OUT_OF_WINDOW";
+    /** Buffet must lie within [prelimEnd, final.examAt]. */
+    public static final String EVENT_BUFFET_OUT_OF_BREAK = "EVENT_BUFFET_OUT_OF_BREAK";
+    /** At most one BUFFET event per hackathon. */
+    public static final String EVENT_BUFFET_DUPLICATE = "EVENT_BUFFET_DUPLICATE";
+    /** Prelim/final rounds (with examAt) required to place BUFFET. */
+    public static final String EVENT_BUFFET_ROUNDS_MISSING = "EVENT_BUFFET_ROUNDS_MISSING";
+    /** Buffet event/menu locked after prelim results are published. */
+    public static final String BUFFET_LOCKED_AFTER_PUBLISH = "BUFFET_LOCKED_AFTER_PUBLISH";
     public static final String EVENT_MILESTONE_DUPLICATE = "EVENT_MILESTONE_DUPLICATE";
     public static final String EVENT_CONFLICTS_WITH_MILESTONE = "EVENT_CONFLICTS_WITH_MILESTONE";
     public static final String AWARDS_NEEDS_COMPETITION       = "AWARDS_NEEDS_COMPETITION";

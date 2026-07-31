@@ -139,6 +139,77 @@ public class MilestoneEventRescheduleService {
         return updateExistingTimes(hackathon.getId(), EventType.AWARDS, awardsStart, awardsEnd);
     }
 
+    /**
+     * Clamp BUFFET vào khung nghỉ mới {@code [prelimEnd, final.examAt]} khi dời lịch round.
+     *
+     * @return số event BUFFET đã đổi giờ
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public int repositionBuffetBetweenRounds(Hackathon hackathon, Round prelim, Round finalRound) {
+        if (hackathon == null || hackathon.getId() == null || prelim == null || finalRound == null) {
+            return 0;
+        }
+        if (prelim.getExamAt() == null || finalRound.getExamAt() == null) {
+            return 0;
+        }
+        int hours = prelim.getCodingDurationHours() != null && prelim.getCodingDurationHours() > 0
+                ? prelim.getCodingDurationHours()
+                : RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS;
+        LocalDateTime windowStart = RoundScheduleSeedUtil.prelimEndAt(prelim.getExamAt(), hours);
+        LocalDateTime windowEnd = finalRound.getExamAt();
+        if (!windowStart.isBefore(windowEnd)) {
+            log.warn("[MilestoneReschedule] hackathonId={} buffet window invalid [{} → {}]",
+                    hackathon.getId(), windowStart, windowEnd);
+            return 0;
+        }
+
+        List<Event> buffets = eventRepository.findByHackathonIdAndType(hackathon.getId(), EventType.BUFFET);
+        if (buffets.isEmpty()) {
+            return 0;
+        }
+        int count = 0;
+        for (Event event : buffets) {
+            LocalDateTime start = event.getStartsAt();
+            LocalDateTime end = event.getEndsAt() != null
+                    ? event.getEndsAt()
+                    : start.plusMinutes(45);
+            long durationMinutes = Math.max(1, java.time.Duration.between(start, end).toMinutes());
+
+            LocalDateTime newStart = start;
+            LocalDateTime newEnd = end;
+            if (newStart.isBefore(windowStart)) {
+                newStart = windowStart;
+                newEnd = newStart.plusMinutes(durationMinutes);
+            }
+            if (newEnd.isAfter(windowEnd)) {
+                newEnd = windowEnd;
+                newStart = newEnd.minusMinutes(durationMinutes);
+            }
+            if (newStart.isBefore(windowStart)) {
+                newStart = windowStart;
+                newEnd = windowEnd;
+            }
+
+            boolean changed = false;
+            if (!newStart.equals(event.getStartsAt())) {
+                event.setStartsAt(newStart);
+                event.setReminderSentAt(null);
+                changed = true;
+            }
+            if (!newEnd.equals(event.getEndsAt())) {
+                event.setEndsAt(newEnd);
+                changed = true;
+            }
+            if (changed) {
+                eventRepository.save(event);
+                count++;
+                log.info("[MilestoneReschedule] buffet eventId={} → {} – {}",
+                        event.getId(), newStart, newEnd);
+            }
+        }
+        return count;
+    }
+
     private int updateExistingTimes(Integer hackathonId, EventType type,
                                     LocalDateTime startsAt, LocalDateTime endsAt) {
         List<Event> existing = eventRepository.findByHackathonIdAndType(hackathonId, type);

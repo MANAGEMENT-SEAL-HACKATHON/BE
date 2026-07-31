@@ -9,6 +9,7 @@ import com.sealhackathon.api.events.entity.Event;
 import com.sealhackathon.api.events.repository.EventRepository;
 import com.sealhackathon.api.events.service.EventScheduleValidator;
 import com.sealhackathon.api.events.service.impl.window.AwardsWindowRule;
+import com.sealhackathon.api.events.service.impl.window.BuffetWindowRule;
 import com.sealhackathon.api.events.service.impl.window.EventWindowRule;
 import com.sealhackathon.api.events.service.impl.window.KickoffWindowRule;
 import com.sealhackathon.api.events.service.impl.window.WorkshopWindowRule;
@@ -34,6 +35,7 @@ import java.util.Map;
  * <p>POST order: KICKOFF → WORKSHOP → AWARDS (KICKOFF làm gốc). Trên lịch: WORKSHOP → KICKOFF → AWARDS.
  * PRESENTATION không còn là milestone —
  * validate như event phụ (OTHER) trong [eventStart, eventEnd].
+ * BUFFET nằm trong khung nghỉ [prelimEnd, final.examAt] (không thuộc MILESTONE_TYPES).
  *
  * <p>Hackathon → Round → Track/Criteria. Event thuộc Hackathon, không ràng buộc chéo validation với Round qua validator này.
  */
@@ -47,6 +49,7 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
     private final WorkshopWindowRule workshopRule;
     private final KickoffWindowRule kickoffRule;
     private final AwardsWindowRule awardsRule;
+    private final BuffetWindowRule buffetRule;
 
     private final EnumMap<EventType, EventWindowRule> windowRules =
             new EnumMap<>(EventType.class);
@@ -56,20 +59,17 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
         windowRules.put(EventType.WORKSHOP, workshopRule);
         windowRules.put(EventType.KICKOFF, kickoffRule);
         windowRules.put(EventType.AWARDS, awardsRule);
+        windowRules.put(EventType.BUFFET, buffetRule);
     }
 
     @Override
     public void validateBlocking(Hackathon hackathon, CreateEventRequest req, Integer excludeEventId) {
-        validateBuffet(req.getType(), req.getStartsAt(), req.getEndsAt(),
-                req.getBuffetLocation(), req.getBuffetStartsAt(), req.getBuffetEndsAt());
         validateBlockingCommon(hackathon, req.getType(), req.getStartsAt(), req.getEndsAt(),
                 req.getLocation(), req.getMeetUrl(), excludeEventId);
     }
 
     @Override
     public void validateBlocking(Hackathon hackathon, UpdateEventRequest req, Integer excludeEventId) {
-        validateBuffet(req.getType(), req.getStartsAt(), req.getEndsAt(),
-                req.getBuffetLocation(), req.getBuffetStartsAt(), req.getBuffetEndsAt());
         validateBlockingCommon(hackathon, req.getType(), req.getStartsAt(), req.getEndsAt(),
                 req.getLocation(), req.getMeetUrl(), excludeEventId);
     }
@@ -84,7 +84,8 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
 
         validateLocationOrMeetUrl(location, meetUrl);
 
-        if (EventTimeline.isMilestone(type) && endsAt == null) {
+        boolean requiresEnd = EventTimeline.isMilestone(type) || type == EventType.BUFFET;
+        if (requiresEnd && endsAt == null) {
             throw new BusinessRuleException(ErrorCode.EVENT_END_REQUIRED,
                     "Sự kiện %s bắt buộc có endsAt — giai đoạn phải có thời điểm kết thúc"
                             .formatted(type.name()),
@@ -92,9 +93,18 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
         }
 
         if (endsAt != null && endsAt.isBefore(startsAt)) {
+            if (type == EventType.BUFFET) {
+                throw new BusinessRuleException(ErrorCode.EVENT_BUFFET_OUT_OF_WINDOW,
+                        "endsAt (%s) phải >= startsAt (%s)".formatted(endsAt, startsAt),
+                        Map.of("startsAt", startsAt, "endsAt", endsAt, "type", "BUFFET"));
+            }
             throw new BusinessRuleException(ErrorCode.EVENT_END_BEFORE_START,
                     "endsAt (%s) phải >= startsAt (%s)".formatted(endsAt, startsAt),
                     Map.of("startsAt", startsAt, "endsAt", endsAt));
+        }
+
+        if (type == EventType.BUFFET) {
+            validateSingleBuffet(h.getId(), excludeEventId);
         }
 
         LocalDateTime effectiveEnd = EventTimeline.effectiveEnd(startsAt, endsAt);
@@ -135,6 +145,18 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
         validateLayer3Ordering(h.getId(), type, startsAt, effectiveEnd, excludeEventId);
         validateWorkshopKickoffDifferentDays(h.getId(), type, startsAt, effectiveEnd, excludeEventId);
         validateAwardsAfterFinalSubmissionDeadline(h, type, startsAt);
+    }
+
+    private void validateSingleBuffet(Integer hackathonId, Integer excludeEventId) {
+        int ex = (excludeEventId == null) ? 0 : excludeEventId;
+        for (Event existing : eventRepository.findByHackathonIdAndType(hackathonId, EventType.BUFFET)) {
+            if (!existing.getId().equals(ex)) {
+                throw new BusinessRuleException(ErrorCode.EVENT_BUFFET_DUPLICATE,
+                        "Mỗi hackathon chỉ có một sự kiện BUFFET (đã có id=%d)"
+                                .formatted(existing.getId()),
+                        Map.of("existingEventId", existing.getId(), "hackathonId", hackathonId));
+            }
+        }
     }
 
     /**
@@ -263,54 +285,6 @@ public class EventScheduleValidatorImpl implements EventScheduleValidator {
                     "Phải cung cấp địa điểm (offline) hoặc link họp (online)",
                     Map.of());
         }
-    }
-
-    /**
-     * Buffet fields are Kickoff-only and must lie within the event window [startsAt, endsAt].
-     */
-    private void validateBuffet(EventType type, LocalDateTime startsAt, LocalDateTime endsAt,
-                                String buffetLocation, LocalDateTime buffetStartsAt,
-                                LocalDateTime buffetEndsAt) {
-        boolean hasLocation = buffetLocation != null && !buffetLocation.isBlank();
-        boolean anyBuffet = hasLocation || buffetStartsAt != null || buffetEndsAt != null;
-        if (!anyBuffet) {
-            return;
-        }
-        if (type != EventType.KICKOFF) {
-            throw new BusinessRuleException(ErrorCode.EVENT_BUFFET_NOT_KICKOFF,
-                    "Thông tin buffet chỉ áp dụng cho sự kiện Khai mạc (KICKOFF)",
-                    Map.of("type", type == null ? "null" : type.name()));
-        }
-        if (startsAt == null) {
-            return;
-        }
-        LocalDateTime windowEnd = EventTimeline.effectiveEnd(startsAt, endsAt);
-        if (buffetStartsAt != null
-                && (buffetStartsAt.isBefore(startsAt) || buffetStartsAt.isAfter(windowEnd))) {
-            throw buffetOutOfWindow(startsAt, windowEnd, buffetStartsAt, buffetEndsAt);
-        }
-        if (buffetEndsAt != null
-                && (buffetEndsAt.isBefore(startsAt) || buffetEndsAt.isAfter(windowEnd))) {
-            throw buffetOutOfWindow(startsAt, windowEnd, buffetStartsAt, buffetEndsAt);
-        }
-        if (buffetStartsAt != null && buffetEndsAt != null && buffetEndsAt.isBefore(buffetStartsAt)) {
-            throw new BusinessRuleException(ErrorCode.EVENT_BUFFET_OUT_OF_WINDOW,
-                    "buffetEndsAt (%s) phải >= buffetStartsAt (%s)"
-                            .formatted(buffetEndsAt, buffetStartsAt),
-                    Map.of("buffetStartsAt", buffetStartsAt, "buffetEndsAt", buffetEndsAt,
-                            "startsAt", startsAt, "endsAt", windowEnd));
-        }
-    }
-
-    private static BusinessRuleException buffetOutOfWindow(LocalDateTime startsAt,
-                                                           LocalDateTime windowEnd,
-                                                           LocalDateTime buffetStartsAt,
-                                                           LocalDateTime buffetEndsAt) {
-        return new BusinessRuleException(ErrorCode.EVENT_BUFFET_OUT_OF_WINDOW,
-                "Khung giờ buffet phải nằm trong [%s, %s]".formatted(startsAt, windowEnd),
-                Map.of("startsAt", startsAt, "endsAt", windowEnd,
-                        "buffetStartsAt", buffetStartsAt == null ? "null" : buffetStartsAt,
-                        "buffetEndsAt", buffetEndsAt == null ? "null" : buffetEndsAt));
     }
 
     private void validateLayer3Ordering(Integer hackathonId, EventType newType,

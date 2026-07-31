@@ -37,7 +37,7 @@ import java.util.Map;
  * FR-06A — Event controller. Validate 3 lớp ở {@link EventScheduleValidator}.
  * GET list/detail: Coordinator hoặc Student (APPROVED). Mutations: Coordinator only.
  */
-@Tag(name = "Events", description = "FR-06 — Lịch sự kiện (WORKSHOP, KICKOFF, …)")
+@Tag(name = "Events", description = "FR-06 — Lịch sự kiện (WORKSHOP, KICKOFF, BUFFET, …)")
 @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
 @RequestMapping("/api/v1")

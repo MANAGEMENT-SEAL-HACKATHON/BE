@@ -69,24 +69,6 @@ class EventReminderSchedulerTest {
     }
 
     @Test
-    void buildBody_includesBuffetLinesWhenPresent() {
-        Event event = Event.builder()
-                .title("Kickoff")
-                .startsAt(LocalDateTime.of(2026, 8, 5, 8, 0))
-                .location("Hall A")
-                .buffetLocation("Canteen B")
-                .buffetStartsAt(LocalDateTime.of(2026, 8, 5, 11, 0))
-                .buffetEndsAt(LocalDateTime.of(2026, 8, 5, 12, 0))
-                .build();
-
-        String body = EventReminderScheduler.buildBody(event);
-
-        org.junit.jupiter.api.Assertions.assertTrue(body.contains("Hall A"));
-        org.junit.jupiter.api.Assertions.assertTrue(body.contains("Buffet: Canteen B"));
-        org.junit.jupiter.api.Assertions.assertTrue(body.contains("11:00"));
-    }
-
-    @Test
     void runUpcomingEventReminders_noDueEvents_skipsSend() {
         when(eventRepository.findPublicUpcomingWithoutReminder(any(), any())).thenReturn(List.of());
 

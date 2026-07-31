@@ -28,7 +28,7 @@
 
 | Hạng mục | Nội dung |
 |----------|----------|
-| Phạm vi | Tạo/cấu hình hackathon: vòng, bảng, tiêu chí, nhân sự, lịch sự kiện (+ buffet KICKOFF), kit, `individual_ranking` / `appeal_window_minutes`, readiness, kích hoạt ONGOING |
+| Phạm vi | Tạo/cấu hình hackathon: vòng, bảng, tiêu chí, nhân sự, lịch sự kiện (+ BUFFET trong break SL→CK), kit, `individual_ranking` / `appeal_window_minutes`, readiness, kích hoạt ONGOING |
 | Gate vào | Student APPROVED (Phase 0) |
 | Gate ra | `PATCH status → ONGOING` |
 | Thời lượng | Bối cảnh 2p + Happy 12p + Sabotage 5p + Code map 3p |
@@ -66,7 +66,7 @@ flowchart TD
   C --> D[Tiêu chí weight=1.0]
   D --> E[Nhân sự Judge/Mentor SL]
   E --> F[Lịch KICKOFF WORKSHOP AWARDS]
-  F --> F2[Buffet tuỳ chọn trên KICKOFF]
+  F --> F2[BUFFET tuỳ chọn trong break SL→CK]
   F2 --> K[Vật phẩm & Kit + Kit desk]
   K --> G[Readiness pass]
   G --> H[Xác nhận Kích hoạt]
@@ -103,7 +103,7 @@ flowchart TD
 | G1-H08 | Happy | Student | `/student/results` | Login archive `student.archive.fall2025@` | BXH/giải read-only; không nút mutate | — | `StudentResultsPage` | `HackathonClosureController` (GET) |
 | G1-H09 | Happy | Coord | `setup?tab=kits` | **Vật phẩm & Kit** — thêm món + upsert tồn kho theo size | Inventory list; stock theo size | — (`KIT_*` nếu lỗi) | `KitInventoryPage` | `KitController` |
 | G1-H10 | Happy | Coord | `/coordinator/kit-desk` | Chọn SV ACCEPTED → **Phát** / **Thu hồi** kit | Allocation cập nhật; toast OK | — (`KIT_OUT_OF_STOCK` / `KIT_ALREADY_ISSUED`) | `KitDistributionPage` | `KitController` |
-| G1-H11 | Happy | Coord | `setup?tab=events` | Trên **KICKOFF**: điền buffet location + starts/ends trong khung sự kiện | Subtitle buffet trên timeline | — (`EVENT_BUFFET_*`) | `EventManagementPage` | `EventController` |
+| G1-H11 | Happy | Coord | `setup?tab=events` | Tạo **BUFFET** trong [prelimEnd, final.examAt] + PUT thực đơn | Timeline buffet + menu | — (`EVENT_BUFFET_*`) | `EventManagementPage` | `EventController` / `BuffetMenuController` |
 | G1-H12 | Happy | Coord | `setup?tab=general` | Bật/tắt **individual_ranking_enabled** (DRAFT) → **Lưu** | Flag lưu; GĐ6 mới tính BXH cá nhân nếu bật | — | `HackathonForm` / `HackathonGeneralConfig` | `HackathonController` |
 | G1-H13 | Happy | Coord | `setup?tab=general` | Đặt **appeal_window_minutes** (default 30, min 10, **0 = tắt**) | Giá trị lưu; ONGOING: PATCH riêng trước prelim publish | — (`APPEAL_WINDOW_BELOW_MINIMUM`) | `HackathonForm` / `HackathonGeneralConfig` | `PATCH /hackathons/{id}/appeal-window-minutes` |
 
@@ -131,7 +131,7 @@ flowchart TD
 | G1-B03 | Bad | Coord | Setup header | Thiếu KICKOFF → click Kích hoạt | Nút **disabled** + tooltip blockers | `READINESS_NOT_PASSED` | `HackathonSetupPage` | `ReadinessService` |
 | G1-B04 | Bad | Coord | `setup?tab=criteria` | Tổng weight ≠ 1.0 → Lưu | Validation đỏ / không pass readiness | — | `CriteriaManagementPage` | `CriteriaController` |
 | G1-B05 | Bad | Coord | `setup?tab=rounds` | Xóa vòng CK → readiness | Blocker `MISSING_FINAL_ROUND` | `MISSING_FINAL_ROUND` | `RoundManagementPage` | `ReadinessService` |
-| G1-B06 | Bad | Coord | `setup?tab=events` | Gắn buffet (location/giờ) lên **WORKSHOP** | Toast 422 | `EVENT_BUFFET_NOT_KICKOFF` | `EventManagementPage` | `EventController` |
+| G1-B06 | Bad | Coord | `setup?tab=events` | Đặt BUFFET ngoài khung nghỉ SL→CK | Toast 422 | `EVENT_BUFFET_OUT_OF_BREAK` | `EventManagementPage` | `EventController` / `BuffetWindowRule` |
 
 ---
 
@@ -155,13 +155,13 @@ flowchart TD
 |-------|------------|
 | FE Setup | `features/hackathons/pages/HackathonSetupPage.jsx` |
 | FE General / form | `HackathonForm.jsx`, `HackathonGeneralConfig.jsx` (`individual_ranking_enabled`, `appeal_window_minutes`) |
-| FE Events | `features/events/pages/EventManagementPage.jsx` (buffet KICKOFF) |
+| FE Events | `features/events/pages/EventManagementPage.jsx` (EventType.BUFFET + menu) |
 | FE Rounds/Tracks/Criteria | `RoundManagementPage`, `TrackManagementPage`, `CriteriaManagementPage` |
 | FE People | `PeopleManagementPage` |
 | FE Kits | `KitInventoryPage` (`?tab=kits`), `KitDistributionPage` (`/coordinator/kit-desk`) |
 | BE Hackathon | `HackathonController` (create/update + `PATCH /{id}/appeal-window-minutes`), `HackathonStatusController` |
 | BE Readiness | `ReadinessService` / `GET .../readiness?target=ONGOING` → `READINESS_NOT_PASSED` |
-| BE Events | `EventController` + buffet validators (`EVENT_BUFFET_NOT_KICKOFF`, `EVENT_BUFFET_OUT_OF_WINDOW`); thay đổi event → `StakeholderBroadcastService` |
+| BE Events | `EventController` + `BuffetMenuController` + `BuffetWindowRule` (`EVENT_BUFFET_OUT_OF_BREAK`, `EVENT_BUFFET_DUPLICATE`, `BUFFET_LOCKED_AFTER_PUBLISH`); thay đổi event → `StakeholderBroadcastService` |
 | BE Kits | `KitController` (`KIT_OUT_OF_STOCK`, `KIT_ALREADY_ISSUED`) |
 | BE Rounds/Tracks/Criteria | `RoundController`, `TrackController`, `CriteriaController` |
 
@@ -192,4 +192,4 @@ flowchart TD
 | Certificates còn không? | **Không** — đã xóa (Phase 9). Không còn phát/certificate API. |
 | Ranking cá nhân / giải năm? | **Còn** — `individual_ranking_enabled` (GĐ1 config) + annual awards (portal SV); không phụ thuộc certificates. |
 | `appeal_window_minutes`? | Cấu hình độ dài cửa sổ khiếu nại DQ **sau publish SL (GĐ4)**. Default **30**; min **10** khi bật; **0 = tắt**. ONGOING: `PATCH /hackathons/{id}/appeal-window-minutes` trước prelim publish. |
-| Buffet? | Chỉ trên **KICKOFF**; WORKSHOP/AWARDS → `EVENT_BUFFET_NOT_KICKOFF`. |
+| Buffet? | `EventType.BUFFET` trong [prelimEnd, final.examAt]; max 1/hackathon; khóa sau prelim publish (`BUFFET_LOCKED_AFTER_PUBLISH`). |

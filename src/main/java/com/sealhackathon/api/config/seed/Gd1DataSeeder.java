@@ -6,7 +6,9 @@ import com.sealhackathon.api.chapters.value_object.ChapterStatus;
 import com.sealhackathon.api.criteria.entity.Criteria;
 import com.sealhackathon.api.criteria.repository.CriteriaRepository;
 import com.sealhackathon.api.criteria.value_object.CriteriaType;
+import com.sealhackathon.api.events.entity.BuffetMenuItem;
 import com.sealhackathon.api.events.entity.Event;
+import com.sealhackathon.api.events.repository.BuffetMenuItemRepository;
 import com.sealhackathon.api.events.repository.EventRepository;
 import com.sealhackathon.api.events.value_object.EventType;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
@@ -63,6 +65,7 @@ public class Gd1DataSeeder {
     private final MentorAssignmentRepository mentorAssignmentRepository;
     private final JudgeAssignmentRepository judgeAssignmentRepository;
     private final EventRepository eventRepository;
+    private final BuffetMenuItemRepository buffetMenuItemRepository;
     private final PasswordEncoder passwordEncoder;
 
     public boolean isAlreadySeeded() {
@@ -1003,6 +1006,32 @@ public class Gd1DataSeeder {
                 EventType.AWARDS, "FPT HCM — Hội trường A",
                 dates.awardsStart(), dates.awardsEnd()));
         eventRepository.saveAll(events);
+        seedBuffetIfMissing(hackathon, createdBy, dates);
+    }
+
+    private void seedBuffetIfMissing(Hackathon hackathon, User createdBy, SeedDates dates) {
+        if (eventRepository.existsByHackathonIdAndType(hackathon.getId(), EventType.BUFFET)) {
+            return;
+        }
+        LocalDateTime buffetStart = RoundScheduleSeedUtil.prelimEndAt(
+                dates.prelimExamAt(), RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS);
+        LocalDateTime buffetEnd = buffetStart.plusMinutes(45);
+        LocalDateTime finalExam = dates.finalExamAt();
+        if (buffetEnd.isAfter(finalExam)) {
+            buffetEnd = finalExam;
+        }
+        Event buffet = eventRepository.save(event(hackathon, createdBy,
+                "Buffet nghỉ giữa sơ loại và chung kết",
+                EventType.BUFFET, "Sảnh buffet tầng 1",
+                buffetStart, buffetEnd));
+        buffetMenuItemRepository.saveAll(List.of(
+                BuffetMenuItem.builder().event(buffet).name("Bánh mì").quantity(80)
+                        .unit("phần").displayOrder(0).build(),
+                BuffetMenuItem.builder().event(buffet).name("Nước suối").quantity(100)
+                        .unit("chai").displayOrder(1).build(),
+                BuffetMenuItem.builder().event(buffet).name("Trái cây").quantity(40)
+                        .unit("phần").note("Theo mùa").displayOrder(2).build()
+        ));
     }
 
     private static Event event(Hackathon hackathon, User createdBy, String title, EventType type,
@@ -1183,7 +1212,25 @@ public class Gd1DataSeeder {
                 updated++;
             }
         }
+        User createdBy = hackathon.getCreatedBy();
+        if (createdBy != null
+                && !eventRepository.existsByHackathonIdAndType(hackathon.getId(), EventType.BUFFET)) {
+            seedBuffetIfMissing(hackathon, createdBy, dates);
+            updated++;
+        } else {
+            updated += repairBuffetIfPresent(hackathon, dates);
+        }
         return updated;
+    }
+
+    private int repairBuffetIfPresent(Hackathon hackathon, SeedDates dates) {
+        LocalDateTime buffetStart = RoundScheduleSeedUtil.prelimEndAt(
+                dates.prelimExamAt(), RoundScheduleSeedUtil.DEFAULT_PRELIM_CODING_HOURS);
+        LocalDateTime buffetEnd = buffetStart.plusMinutes(45);
+        if (buffetEnd.isAfter(dates.finalExamAt())) {
+            buffetEnd = dates.finalExamAt();
+        }
+        return repairEventIfPresent(hackathon, EventType.BUFFET, buffetStart, buffetEnd);
     }
 
     private int repairEventsForHackathon(Hackathon hackathon, SeedDates dates) {

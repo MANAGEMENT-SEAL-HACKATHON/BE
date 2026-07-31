@@ -12,11 +12,12 @@ import com.sealhackathon.api.events.dto.request.UpdateEventRequest;
 import com.sealhackathon.api.events.dto.response.EventResponse;
 import com.sealhackathon.api.events.entity.Event;
 import com.sealhackathon.api.events.mapper.EventMapper;
+import com.sealhackathon.api.events.repository.BuffetMenuItemRepository;
 import com.sealhackathon.api.events.repository.EventRepository;
 import com.sealhackathon.api.events.service.EventScheduleValidator;
 import com.sealhackathon.api.events.service.EventService;
 import com.sealhackathon.api.events.service.HackathonTimelineService;
-import com.sealhackathon.api.events.support.EventTimeline;
+import com.sealhackathon.api.events.support.BuffetEditGuard;
 import com.sealhackathon.api.events.value_object.EventType;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
@@ -61,6 +62,8 @@ public class EventServiceImpl implements EventService {
     private final CurrentUserAccessor currentUserAccessor;
     private final HackathonArchiveGuard archiveGuard;
     private final StakeholderBroadcastService stakeholderBroadcastService;
+    private final BuffetEditGuard buffetEditGuard;
+    private final BuffetMenuItemRepository buffetMenuItemRepository;
 
     @Override
     public CreateResult create(Integer hackathonId, CreateEventRequest req) {
@@ -128,15 +131,15 @@ public class EventServiceImpl implements EventService {
                 .orElseThrow(() -> new ResourceNotFoundException("Event", id));
         Hackathon h = e.getHackathon();
         archiveGuard.assertNotArchived(h);
+        if (e.getType() == EventType.BUFFET || req.getType() == EventType.BUFFET) {
+            buffetEditGuard.assertEditable(h.getId());
+        }
         scheduleValidator.validateBlocking(h, req, id);
         List<Warning> warnings = scheduleValidator.computeLayer3Warnings(h, req);
 
         EventResponse before = eventMapper.toResponse(e);
         LocalDateTime prevStart = e.getStartsAt();
         String prevLocation = e.getLocation();
-        String prevBuffetLocation = e.getBuffetLocation();
-        LocalDateTime prevBuffetStartsAt = e.getBuffetStartsAt();
-        LocalDateTime prevBuffetEndsAt = e.getBuffetEndsAt();
         eventMapper.applyUpdate(e, req);
         if (!e.getStartsAt().equals(prevStart)) {
             e.setReminderSentAt(null);
@@ -152,12 +155,9 @@ public class EventServiceImpl implements EventService {
         }
         boolean startsChanged = !saved.getStartsAt().equals(prevStart);
         boolean locationChanged = !Objects.equals(saved.getLocation(), prevLocation);
-        boolean buffetChanged = !Objects.equals(saved.getBuffetLocation(), prevBuffetLocation)
-                || !Objects.equals(saved.getBuffetStartsAt(), prevBuffetStartsAt)
-                || !Objects.equals(saved.getBuffetEndsAt(), prevBuffetEndsAt);
         if (Boolean.TRUE.equals(saved.getIsPublic())) {
             if (isStakeholderMilestone(saved.getType())) {
-                fanoutReminder(saved, startsChanged || locationChanged || buffetChanged);
+                fanoutReminder(saved, startsChanged || locationChanged);
             } else if (startsChanged) {
                 fanoutReminder(saved, false);
             }
@@ -173,6 +173,9 @@ public class EventServiceImpl implements EventService {
         Event e = eventRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Event", id));
         archiveGuard.assertNotArchived(e.getHackathon());
+        if (e.getType() == EventType.BUFFET) {
+            buffetEditGuard.assertEditable(e.getHackathon().getId());
+        }
         assertDeleteDependencies(e);
         EventResponse snapshot = eventMapper.toResponse(e);
         Integer hackathonId = e.getHackathon().getId();
@@ -180,6 +183,9 @@ public class EventServiceImpl implements EventService {
         List<Notification> stale = notificationRepository.findByReferenceTypeAndReferenceId("events", id);
         if (!stale.isEmpty()) {
             notificationRepository.deleteAll(stale);
+        }
+        if (e.getType() == EventType.BUFFET) {
+            buffetMenuItemRepository.deleteByEvent_Id(id);
         }
         eventRepository.delete(e);
 
@@ -228,7 +234,7 @@ public class EventServiceImpl implements EventService {
                 }
             }
             default -> {
-                // AWARDS và các loại khác — cho phép xóa
+                // AWARDS / BUFFET / OTHER — cho phép xóa (BUFFET đã check lock riêng)
             }
         }
     }
@@ -263,35 +269,16 @@ public class EventServiceImpl implements EventService {
     }
 
     static String buildReminderBody(Event event) {
-        StringBuilder body = new StringBuilder("Thời gian: %s%s".formatted(
+        return "Thời gian: %s%s".formatted(
                 event.getStartsAt(),
                 event.getLocation() == null || event.getLocation().isBlank()
-                        ? "" : " — " + event.getLocation()));
-        if (hasBuffetInfo(event)) {
-            body.append("\nBuffet");
-            if (event.getBuffetLocation() != null && !event.getBuffetLocation().isBlank()) {
-                body.append(": ").append(event.getBuffetLocation());
-            }
-            if (event.getBuffetStartsAt() != null || event.getBuffetEndsAt() != null) {
-                body.append(" (")
-                        .append(event.getBuffetStartsAt() != null ? event.getBuffetStartsAt() : "…")
-                        .append(" – ")
-                        .append(event.getBuffetEndsAt() != null ? event.getBuffetEndsAt() : "…")
-                        .append(")");
-            }
-        }
-        return body.toString();
-    }
-
-    private static boolean hasBuffetInfo(Event event) {
-        return (event.getBuffetLocation() != null && !event.getBuffetLocation().isBlank())
-                || event.getBuffetStartsAt() != null
-                || event.getBuffetEndsAt() != null;
+                        ? "" : " — " + event.getLocation());
     }
 
     private static boolean isStakeholderMilestone(EventType type) {
         return type == EventType.KICKOFF
                 || type == EventType.WORKSHOP
-                || type == EventType.AWARDS;
+                || type == EventType.AWARDS
+                || type == EventType.BUFFET;
     }
 }

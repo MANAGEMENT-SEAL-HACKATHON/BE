@@ -33,14 +33,6 @@ public class UpdateEventRequest {
 
     private String meetUrl;
 
-    /** Kickoff-only buffet venue; ignored / rejected for other types. */
-    @Size(max = 300)
-    private String buffetLocation;
-
-    private LocalDateTime buffetStartsAt;
-
-    private LocalDateTime buffetEndsAt;
-
     @NotNull
     private LocalDateTime startsAt;
 

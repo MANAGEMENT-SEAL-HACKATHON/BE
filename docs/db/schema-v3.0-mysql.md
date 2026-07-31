@@ -23,7 +23,7 @@
 | **BC-06** | `submissions` | XOR FK: `track_id` (Sơ loại) hoặc `round_id` (Chung kết) + partial UNIQUE (mô phỏng bằng generated column trên MySQL). Status thêm `LATE_APPROVED`. |
 | **BC-07** | `judge_assignments` | XOR FK như criteria. Thêm `FINAL_EXTERNAL` vào `assignment_type` (bắt buộc ở Chung kết). |
 | **BC-08** | `mentor_assignments` | Giữ nguyên — `track_id` tự mang ngữ cảnh Round qua FK mới. |
-| **BC-09** | `events` | Bỏ `TEAM_MEETING` khỏi enum `type`. |
+| **BC-09** | `events` | Bỏ `TEAM_MEETING` khỏi enum `type`. Thêm `BUFFET` (break SL→CK); bảng `buffet_menu_items`. |
 | **BC-10** | ~~`wildcard_reviews`~~ | **Removed (Phase 9)** — bảng `wildcard_reviews` / `wildcard_override_history` / `certificates` và cột `wildcard_enabled` / `wildcard_proposal_confirmed_at` đã xóa. Advance = Top-N only. |
 | **BC-11** | Triggers | 3 trigger DB-layer mới: `fn_check_mentor_judge_conflict`, `fn_check_judge_mentor_conflict`, `fn_prevent_track_in_final_round` + các trigger guard mới (`fn_check_submission_round_is_final`, `fn_check_criteria_round_is_final`, `fn_check_team_track_same_hackathon`). |
 
@@ -38,6 +38,16 @@ Additive (không đảo FK). Manual SQL: `src/main/resources/db/manual/V20260731
 | `appeals` | + `reviewed_by`, `reviewed_at`, `decision_note`, `updated_at`, `version`; UNIQUE `(team_id, round_id)` |
 | `appeal_evidences` | **Bảng mới** — minh chứng đính kèm appeal |
 | `AppealStatus` | + `EXPIRED` (cùng `PENDING`, `UNDER_REVIEW`, `APPROVED`, `REJECTED`) |
+
+### Phase 12 addendum — Buffet break window (2026-07-31)
+
+Additive. Manual SQL: `src/main/resources/db/manual/V20260731_buffet_break_window.sql`.
+
+| Bảng / enum | Thay đổi |
+|-------------|----------|
+| `events.type` | CHECK thêm `'BUFFET'`; drop cột `buffet_location` / `buffet_starts_at` / `buffet_ends_at` |
+| `buffet_menu_items` | **Bảng mới** — thực đơn gắn `event_id` (ON DELETE CASCADE) |
+| `EventType` | + `BUFFET` (không thuộc `MILESTONE_TYPES`) |
 
 ---
 
@@ -461,9 +471,20 @@ CREATE TABLE events (
     ends_at      DATETIME,
     is_public    BOOLEAN      NOT NULL DEFAULT TRUE,
     created_by   INT,
-    CONSTRAINT chk_events_type    CHECK (type IN ('KICKOFF','WORKSHOP','PRESENTATION','AWARDS','OTHER')),
+    CONSTRAINT chk_events_type    CHECK (type IN ('KICKOFF','WORKSHOP','PRESENTATION','AWARDS','BUFFET','OTHER')),
     CONSTRAINT fk_events_hackathon FOREIGN KEY (hackathon_id) REFERENCES hackathons(id) ON DELETE CASCADE,
     CONSTRAINT fk_events_creator   FOREIGN KEY (created_by)   REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE buffet_menu_items (
+    id            INT          NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    event_id      INT          NOT NULL,
+    name          VARCHAR(200) NOT NULL,
+    quantity      INT          NOT NULL,
+    unit          VARCHAR(30),
+    note          VARCHAR(500),
+    display_order INT,
+    CONSTRAINT fk_buffet_menu_event FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
@@ -1460,7 +1481,7 @@ Submission.java  :: track + round XOR FK (BC-06) — entity mới
 JudgeAssignment.java :: round nullable=true; add @ManyToOne Track track nullable=true (BC-07)
                        enum thêm FINAL_EXTERNAL, HEAD, CALIBRATION
 MentorAssignment.java:: giữ nguyên (BC-08)
-Event.java       :: enum EventType bỏ TEAM_MEETING (BC-09)
+Event.java       :: enum EventType bỏ TEAM_MEETING; thêm BUFFET (BC-09 / Phase 12)
 ~~WildcardReview.java~~ :: **Removed (Phase 9)** — không còn entity wildcard / certificates
 User.java        :: thêm isDeptHead (FIX-02)
 Team.java        :: bỏ 3 cột registration/assigned, thêm hackathonId (BC-05) — entity mới

@@ -21,9 +21,6 @@ public class EventResponse {
     private final String description;
     private final String location;
     private final String meetUrl;
-    private final String buffetLocation;
-    private final LocalDateTime buffetStartsAt;
-    private final LocalDateTime buffetEndsAt;
     private final LocalDateTime startsAt;
     private final LocalDateTime endsAt;
     private final Boolean isPublic;

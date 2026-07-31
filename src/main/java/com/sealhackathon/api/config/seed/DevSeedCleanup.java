@@ -165,6 +165,11 @@ public class DevSeedCleanup {
         jdbcTemplate.update("DELETE FROM rounds WHERE hackathon_id = ?", hackathonId);
 
         // Hackathon-scoped misc
+        jdbcTemplate.update("""
+                DELETE bmi FROM buffet_menu_items bmi
+                INNER JOIN events e ON e.id = bmi.event_id
+                WHERE e.hackathon_id = ?
+                """, hackathonId);
         jdbcTemplate.update("DELETE FROM events WHERE hackathon_id = ?", hackathonId);
         jdbcTemplate.update("DELETE FROM invitations WHERE hackathon_id = ?", hackathonId);
         jdbcTemplate.update("DELETE FROM export_jobs WHERE hackathon_id = ?", hackathonId);

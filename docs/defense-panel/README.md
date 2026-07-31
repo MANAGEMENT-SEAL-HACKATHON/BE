@@ -186,7 +186,7 @@ flowchart LR
 
 | Person | Playbook | Phạm vi | Thời lượng | Standby (test UI) |
 |--------|----------|---------|------------|-------------------|
-| **1** | [gd1-defense-playbook.md](gd1-defense-playbook.md) | Setup → ONGOING (+ kits, buffet, appeal window cfg) | ~17 ph | P2 chuẩn bị `/teams` |
+| **1** | [gd1-defense-playbook.md](gd1-defense-playbook.md) | Setup → ONGOING (+ kits, BUFFET break, appeal window cfg) | ~17 ph | P2 chuẩn bị `/teams` |
 | **2** | [gd2-defense-playbook.md](gd2-defense-playbook.md) | Teams, đóng ĐK, lottery, activate SL | ~15 ph | P3 mở `seal-gd3-prelim-open` |
 | **3** | [gd3-defense-playbook.md](gd3-defense-playbook.md) | Sơ loại live (queue, timer, chấm) | ~18 ph | P4 mở `seal-gd4-advance-ready` |
 | **4** | [gd4-defense-playbook.md](gd4-defense-playbook.md) | Kết quả SL → appeal → Top-N → CK (**chỉ** `seal-gd4-advance-ready`) | ~16 ph | P5 mở `seal-gd5-final-active` |

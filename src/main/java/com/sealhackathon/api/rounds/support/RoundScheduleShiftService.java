@@ -175,6 +175,8 @@ public class RoundScheduleShiftService {
         Round finalForAwards = cascadedFinal != null ? cascadedFinal : finalOpt.orElse(null);
         if (finalForAwards != null) {
             milestones += milestoneEventRescheduleService.repositionAwardsAfterFinal(h, finalForAwards);
+            milestones += milestoneEventRescheduleService.repositionBuffetBetweenRounds(
+                    h, prelim, finalForAwards);
         }
         meta.put("milestonesUpdated", milestones);
         if (h.getEventStart() != null) {
@@ -197,6 +199,16 @@ public class RoundScheduleShiftService {
             Hackathon h = hackathonRepository.findById(hackathonId).orElse(null);
             if (h != null) {
                 int awards = milestoneEventRescheduleService.repositionAwardsAfterFinal(h, finalRound);
+                Round prelim = roundRepository.findPreliminaryLikeByHackathonId(hackathonId).stream()
+                        .findFirst()
+                        .orElseGet(() -> roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathonId).stream()
+                                .filter(r -> !Boolean.TRUE.equals(r.getIsFinal()))
+                                .findFirst()
+                                .orElse(null));
+                if (prelim != null) {
+                    awards += milestoneEventRescheduleService.repositionBuffetBetweenRounds(
+                            h, prelim, finalRound);
+                }
                 meta.put("milestonesUpdated", awards);
                 if (h.getEventEnd() != null) {
                     meta.put("eventEnd", h.getEventEnd().toString());
