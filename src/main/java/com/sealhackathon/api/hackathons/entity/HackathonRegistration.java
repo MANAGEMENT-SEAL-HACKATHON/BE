@@ -37,4 +37,8 @@ public class HackathonRegistration {
     /** Preferred kit shirt size: XS, S, M, L, XL, XXL. */
     @Column(name = "preferred_shirt_size", length = 10)
     private String preferredShirtSize;
+
+    /** Preferred kit shirt fit: UNISEX, MALE, FEMALE (default UNISEX at issue time). */
+    @Column(name = "preferred_shirt_fit", length = 20)
+    private String preferredShirtFit;
 }

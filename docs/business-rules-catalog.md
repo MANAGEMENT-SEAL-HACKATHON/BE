@@ -349,6 +349,16 @@ Catalog thống nhất các business rules đang được enforce trong backend,
 | BR-EVENT-020 | FR-06A | Event | Gate | Không sửa/xóa BUFFET hoặc thực đơn sau prelim publish | BuffetEditGuard | Reject | BUFFET_LOCKED_AFTER_PUBLISH | BuffetEditGuardTest | Implemented | events/support/BuffetEditGuard.java |
 | BR-EVENT-021 | FR-06A | Event | SideEffect | Dời lịch SL/CK → clamp BUFFET vào cửa sổ nghỉ mới; announce publish SL kèm buffet | repositionBuffetBetweenRounds / publishResults body | Clamp / append | N/A | MilestoneEventRescheduleServiceBuffetTest | Implemented | MilestoneEventRescheduleService; RoundProgressionServiceImpl |
 
+## Kits
+
+| Rule ID | Related Req ID | Module | Rule Type | Business Rule Statement | Condition / Trigger | System Action / Expected Result | Exception / Error Message | Test Case / Example Data | Status | Evidence Link / Note |
+|---------|-----------------|--------|-----------|-------------------------|---------------------|---------------------------------|---------------------------|--------------------------|--------|----------------------|
+| BR-KIT-001 | FR-Kit | Kits | Invariant | Tồn kho áo keyed theo `(fit, size)`; fit mặc định UNISEX; món không phải SHIRT dùng fitKey rỗng | upsertStock / issue | Lookup `findByKitItem_IdAndFitKeyAndSizeKey` | KIT_OUT_OF_STOCK | KitServiceImplIssueTest | Implemented | kits/entity/KitStock.java; ShirtFit.java |
+| BR-KIT-002 | FR-Kit | Kits | StateTransition | Phát combo nguyên tử: pre-check toàn bộ tồn kho; món đã ISSUED → skipped; tất cả đã phát → 409 | POST issue-bundle | issued[] + skipped[]; rollback nếu thiếu kho | KIT_OUT_OF_STOCK; KIT_ALREADY_ISSUED; KIT_BUNDLE_EMPTY | KitServiceImplIssueTest issueBundle_* | Implemented | KitServiceImpl.issueBundle |
+| BR-KIT-003 | FR-Kit | Kits | Validation | type=OTHER bắt buộc tên cụ thể (không "khác"/"other") | createItem / updateItem | Reject | KIT_ITEM_NAME_REQUIRED | Manual / create OTHER | Implemented | KitServiceImpl.validateItemName |
+| BR-KIT-004 | FR-Kit | Kits | Gate | Không xóa kit item đang nằm trong combo | deleteItem | Reject | KIT_ITEM_IN_BUNDLE | Manual | Implemented | KitServiceImpl.deleteItem |
+| BR-KIT-005 | FR-Kit | Kits | SideEffect | Reconciliation gom nhu cầu theo `(preferredShirtFit, preferredShirtSize)`; shortfall = eligible − total; banner beforeKickoff | GET reconciliation | KitReconciliationResponse | N/A (soft warning kickoff khi issue) | KitServiceImplIssueTest reconciliation_* | Implemented | KitServiceImpl.reconciliation |
+
 ## TempJudge
 
 | Rule ID | Related Req ID | Module | Rule Type | Business Rule Statement | Condition / Trigger | System Action / Expected Result | Exception / Error Message | Test Case / Example Data | Status | Evidence Link / Note |

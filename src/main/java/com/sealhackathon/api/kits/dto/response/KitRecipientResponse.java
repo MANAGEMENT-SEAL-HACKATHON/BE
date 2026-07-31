@@ -19,5 +19,6 @@ public class KitRecipientResponse {
     private Integer teamId;
     private String teamName;
     private String preferredShirtSize;
+    private String preferredShirtFit;
     private List<KitAllocationResponse> allocations;
 }

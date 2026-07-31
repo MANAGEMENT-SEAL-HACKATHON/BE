@@ -22,9 +22,19 @@ public interface KitService {
 
     IssueResult issue(Integer hackathonId, IssueKitRequest req);
 
+    BundleIssueResult issueBundle(Integer hackathonId, IssueKitBundleRequest req);
+
     KitAllocationResponse revoke(Integer allocationId, RevokeKitRequest req);
 
-    List<KitReconciliationLineResponse> reconciliation(Integer hackathonId);
+    KitReconciliationResponse reconciliation(Integer hackathonId);
+
+    List<KitBundleResponse> listBundles(Integer hackathonId);
+
+    KitBundleResponse createBundle(Integer hackathonId, UpsertKitBundleRequest req);
+
+    KitBundleResponse updateBundle(Integer bundleId, UpsertKitBundleRequest req);
+
+    void deleteBundle(Integer bundleId);
 
     ShirtSizeResponse updateMyShirtSize(Integer hackathonId, UpdateShirtSizeRequest req);
 
@@ -33,4 +43,6 @@ public interface KitService {
     List<ShirtSizeResponse> listMyShirtSizes();
 
     record IssueResult(KitAllocationResponse allocation, List<Warning> warnings) {}
+
+    record BundleIssueResult(IssueKitBundleResponse body, List<Warning> warnings) {}
 }

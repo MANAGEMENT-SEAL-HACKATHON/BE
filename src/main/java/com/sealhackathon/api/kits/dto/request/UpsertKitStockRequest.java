@@ -12,6 +12,10 @@ import lombok.*;
 @Builder
 public class UpsertKitStockRequest {
 
+    /** Null/blank for non-SHIRT items. SHIRT defaults to UNISEX. */
+    @Size(max = 20)
+    private String fit;
+
     /** Null/blank for items without size. */
     @Size(max = 10)
     private String size;

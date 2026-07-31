@@ -101,8 +101,8 @@ flowchart TD
 | G1-H06 | Happy | Coord | `setup?tab=events` | **Thêm** KICKOFF → WORKSHOP → (khuyến nghị) AWARDS | Timeline 3 milestone; POST order đúng | — | `EventManagementPage` | `EventController` |
 | G1-H07 | Happy | Coord | Setup header | Hover readiness → **Xác nhận Kích hoạt** | Toast success; banner **Đang diễn ra** | — | `HackathonSetupPage` | `HackathonStatusController` |
 | G1-H08 | Happy | Student | `/student/results` | Login archive `student.archive.fall2025@` | BXH/giải read-only; không nút mutate | — | `StudentResultsPage` | `HackathonClosureController` (GET) |
-| G1-H09 | Happy | Coord | `setup?tab=kits` | **Vật phẩm & Kit** — thêm món + upsert tồn kho theo size | Inventory list; stock theo size | — (`KIT_*` nếu lỗi) | `KitInventoryPage` | `KitController` |
-| G1-H10 | Happy | Coord | `/coordinator/kit-desk` | Chọn SV ACCEPTED → **Phát** / **Thu hồi** kit | Allocation cập nhật; toast OK | — (`KIT_OUT_OF_STOCK` / `KIT_ALREADY_ISSUED`) | `KitDistributionPage` | `KitController` |
+| G1-H09 | Happy | Coord | `setup?tab=kits` | **Vật phẩm & Kit** — thêm món (+ dáng UNISEX cho áo) + upsert tồn kho theo `(fit,size)` + tạo **combo** mặc định | Inventory + combo list; stock theo dáng/size | — (`KIT_*` / `KIT_ITEM_NAME_REQUIRED`) | `KitInventoryPage` | `KitController` |
+| G1-H10 | Happy | Coord | `/coordinator/kit-desk` | Chọn SV ACCEPTED → **Phát combo** (hoặc món lẻ) / **Thu hồi**; xem đối chiếu nhu cầu | Allocation cập nhật; toast issued/skipped | — (`KIT_OUT_OF_STOCK` / `KIT_ALREADY_ISSUED`) | `KitDistributionPage` | `KitController` (`issue` / `issue-bundle` / `reconciliation`) |
 | G1-H11 | Happy | Coord | `setup?tab=events` | Tạo **BUFFET** trong [prelimEnd, final.examAt] + PUT thực đơn | Timeline buffet + menu | — (`EVENT_BUFFET_*`) | `EventManagementPage` | `EventController` / `BuffetMenuController` |
 | G1-H12 | Happy | Coord | `setup?tab=general` | Bật/tắt **individual_ranking_enabled** (DRAFT) → **Lưu** | Flag lưu; GĐ6 mới tính BXH cá nhân nếu bật | — | `HackathonForm` / `HackathonGeneralConfig` | `HackathonController` |
 | G1-H13 | Happy | Coord | `setup?tab=general` | Đặt **appeal_window_minutes** (default 30, min 10, **0 = tắt**) | Giá trị lưu; ONGOING: PATCH riêng trước prelim publish | — (`APPEAL_WINDOW_BELOW_MINIMUM`) | `HackathonForm` / `HackathonGeneralConfig` | `PATCH /hackathons/{id}/appeal-window-minutes` |
@@ -158,11 +158,11 @@ flowchart TD
 | FE Events | `features/events/pages/EventManagementPage.jsx` (EventType.BUFFET + menu) |
 | FE Rounds/Tracks/Criteria | `RoundManagementPage`, `TrackManagementPage`, `CriteriaManagementPage` |
 | FE People | `PeopleManagementPage` |
-| FE Kits | `KitInventoryPage` (`?tab=kits`), `KitDistributionPage` (`/coordinator/kit-desk`) |
+| FE Kits | `KitInventoryPage` (`?tab=kits` — combo + reconciliation), `KitDistributionPage` (`/coordinator/kit-desk` — phát combo) |
 | BE Hackathon | `HackathonController` (create/update + `PATCH /{id}/appeal-window-minutes`), `HackathonStatusController` |
 | BE Readiness | `ReadinessService` / `GET .../readiness?target=ONGOING` → `READINESS_NOT_PASSED` |
 | BE Events | `EventController` + `BuffetMenuController` + `BuffetWindowRule` (`EVENT_BUFFET_OUT_OF_BREAK`, `EVENT_BUFFET_DUPLICATE`, `BUFFET_LOCKED_AFTER_PUBLISH`); thay đổi event → `StakeholderBroadcastService` |
-| BE Kits | `KitController` (`KIT_OUT_OF_STOCK`, `KIT_ALREADY_ISSUED`) |
+| BE Kits | `KitController` (`issue` / `issue-bundle` / `reconciliation`; `KIT_OUT_OF_STOCK`, `KIT_ALREADY_ISSUED`, `KIT_BUNDLE_EMPTY`, `KIT_ITEM_IN_BUNDLE`, `KIT_ITEM_NAME_REQUIRED`) |
 | BE Rounds/Tracks/Criteria | `RoundController`, `TrackController`, `CriteriaController` |
 
 ---
@@ -173,7 +173,7 @@ flowchart TD
 - [ ] FE `localhost:5173` OK
 - [ ] Coord login + banner hiện đúng kỳ
 - [ ] `seal-e2e-2026` setup mở được
-- [ ] Tab **Vật phẩm & Kit** + `/coordinator/kit-desk` mở được (nếu `app.kits.enabled`)
+- [ ] Tab **Vật phẩm & Kit** + `/coordinator/kit-desk` mở được (nếu `app.kits.enabled`); seed có combo + tồn UNISEX
 - [ ] Nút **Xác nhận Kích hoạt** sáng (hoặc biết blocker để demo B03)
 - [ ] Ghi `hackathonId` lên phiếu
 - [ ] Person 2 đã login sẵn tab `/teams`

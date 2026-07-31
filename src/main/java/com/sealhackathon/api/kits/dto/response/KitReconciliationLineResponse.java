@@ -11,6 +11,7 @@ public class KitReconciliationLineResponse {
 
     private Integer kitItemId;
     private String kitItemName;
+    private String fit;
     private String size;
     private Integer quantityTotal;
     private Integer quantityIssued;
@@ -18,4 +19,6 @@ public class KitReconciliationLineResponse {
     private Integer eligibleCount;
     /** issued - eligible (negative = under-issued). */
     private Integer variance;
+    /** eligibleCount - quantityTotal (positive = need to order more). */
+    private Integer shortfall;
 }

@@ -14,4 +14,8 @@ public class UpdateShirtSizeRequest {
     @NotBlank
     @Size(max = 10)
     private String preferredShirtSize;
+
+    /** Optional; defaults to UNISEX when blank. */
+    @Size(max = 20)
+    private String preferredShirtFit;
 }

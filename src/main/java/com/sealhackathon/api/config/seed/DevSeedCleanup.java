@@ -175,6 +175,22 @@ public class DevSeedCleanup {
         jdbcTemplate.update("DELETE FROM export_jobs WHERE hackathon_id = ?", hackathonId);
         jdbcTemplate.update("DELETE FROM chapter_rankings WHERE hackathon_id = ?", hackathonId);
         jdbcTemplate.update("DELETE FROM individual_rankings WHERE hackathon_id = ?", hackathonId);
+
+        // Kits (FK order: allocations → bundle_items → bundles → stocks → items)
+        jdbcTemplate.update("DELETE FROM kit_allocations WHERE hackathon_id = ?", hackathonId);
+        jdbcTemplate.update("""
+                DELETE kbi FROM kit_bundle_items kbi
+                INNER JOIN kit_bundles kb ON kb.id = kbi.bundle_id
+                WHERE kb.hackathon_id = ?
+                """, hackathonId);
+        jdbcTemplate.update("DELETE FROM kit_bundles WHERE hackathon_id = ?", hackathonId);
+        jdbcTemplate.update("""
+                DELETE ks FROM kit_stocks ks
+                INNER JOIN kit_items ki ON ki.id = ks.kit_item_id
+                WHERE ki.hackathon_id = ?
+                """, hackathonId);
+        jdbcTemplate.update("DELETE FROM kit_items WHERE hackathon_id = ?", hackathonId);
+
         jdbcTemplate.update("DELETE FROM hackathon_registrations WHERE hackathon_id = ?", hackathonId);
         jdbcTemplate.update("DELETE FROM hackathon_registration_withdrawals WHERE hackathon_id = ?", hackathonId);
         jdbcTemplate.update("""

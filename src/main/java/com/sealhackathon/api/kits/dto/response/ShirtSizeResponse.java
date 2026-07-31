@@ -11,4 +11,5 @@ public class ShirtSizeResponse {
 
     private Integer hackathonId;
     private String preferredShirtSize;
+    private String preferredShirtFit;
 }

@@ -42,6 +42,10 @@ public class KitAllocation {
     @Column(name = "size", length = 10)
     private String size;
 
+    /** Shirt fit when item is SHIRT (UNISEX / MALE / FEMALE). */
+    @Column(name = "fit", length = 20)
+    private String fit;
+
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)

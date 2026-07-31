@@ -9,19 +9,19 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class IssueKitRequest {
+public class IssueKitBundleRequest {
 
     @NotNull
     private Integer userId;
 
     @NotNull
-    private Integer kitItemId;
+    private Integer bundleId;
 
-    /** Optional override when preferred size is missing or wrong at desk. */
+    /** Applied only to SHIRT items in the bundle. */
     @Size(max = 10)
     private String size;
 
-    /** Optional override when preferred fit is missing or wrong at desk. */
+    /** Applied only to SHIRT items in the bundle. */
     @Size(max = 20)
     private String fit;
 

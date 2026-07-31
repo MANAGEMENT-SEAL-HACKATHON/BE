@@ -15,7 +15,7 @@ public interface KitStockRepository extends JpaRepository<KitStock, Integer> {
 
     List<KitStock> findByKitItem_IdIn(Collection<Integer> kitItemIds);
 
-    Optional<KitStock> findByKitItem_IdAndSizeKey(Integer kitItemId, String sizeKey);
+    Optional<KitStock> findByKitItem_IdAndFitKeyAndSizeKey(Integer kitItemId, String fitKey, String sizeKey);
 
     void deleteByKitItem_Id(Integer kitItemId);
 }

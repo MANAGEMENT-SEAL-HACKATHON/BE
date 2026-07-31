@@ -20,6 +20,7 @@ public class KitAllocationResponse {
     private String kitItemName;
     private KitItemType kitItemType;
     private String size;
+    private String fit;
     private KitAllocationStatus status;
     private LocalDateTime issuedAt;
     private Integer issuedById;

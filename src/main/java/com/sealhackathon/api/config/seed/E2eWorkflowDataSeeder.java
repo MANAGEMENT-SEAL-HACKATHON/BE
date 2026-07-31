@@ -194,6 +194,8 @@ public class E2eWorkflowDataSeeder {
             hackathonRegistrationRepository.save(HackathonRegistration.builder()
                     .hackathon(hackathon)
                     .user(user)
+                    .preferredShirtSize("M")
+                    .preferredShirtFit("UNISEX")
                     .build());
         }
     }

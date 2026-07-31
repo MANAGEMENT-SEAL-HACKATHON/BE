@@ -19,15 +19,20 @@ import com.sealhackathon.api.hackathons.support.HackathonArchiveGuard;
 import com.sealhackathon.api.kits.dto.request.*;
 import com.sealhackathon.api.kits.dto.response.*;
 import com.sealhackathon.api.kits.entity.KitAllocation;
+import com.sealhackathon.api.kits.entity.KitBundle;
+import com.sealhackathon.api.kits.entity.KitBundleItem;
 import com.sealhackathon.api.kits.entity.KitItem;
 import com.sealhackathon.api.kits.entity.KitStock;
 import com.sealhackathon.api.kits.mapper.KitMapper;
 import com.sealhackathon.api.kits.repository.KitAllocationRepository;
+import com.sealhackathon.api.kits.repository.KitBundleItemRepository;
+import com.sealhackathon.api.kits.repository.KitBundleRepository;
 import com.sealhackathon.api.kits.repository.KitItemRepository;
 import com.sealhackathon.api.kits.repository.KitStockRepository;
 import com.sealhackathon.api.kits.service.KitService;
 import com.sealhackathon.api.kits.value_object.KitAllocationStatus;
 import com.sealhackathon.api.kits.value_object.KitItemType;
+import com.sealhackathon.api.kits.value_object.ShirtFit;
 import com.sealhackathon.api.kits.value_object.ShirtSize;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.entity.TeamMember;
@@ -56,6 +61,8 @@ public class KitServiceImpl implements KitService {
     private final KitItemRepository kitItemRepository;
     private final KitStockRepository kitStockRepository;
     private final KitAllocationRepository kitAllocationRepository;
+    private final KitBundleRepository kitBundleRepository;
+    private final KitBundleItemRepository kitBundleItemRepository;
     private final HackathonRepository hackathonRepository;
     private final HackathonRegistrationRepository hackathonRegistrationRepository;
     private final TeamRepository teamRepository;
@@ -80,10 +87,11 @@ public class KitServiceImpl implements KitService {
         Hackathon hackathon = requireHackathon(hackathonId);
         archiveGuard.assertNotArchived(hackathon);
 
+        String name = validateItemName(req.getType(), req.getName());
         boolean hasSize = resolveHasSize(req.getType(), req.getHasSize());
         KitItem saved = kitItemRepository.save(KitItem.builder()
                 .hackathon(hackathon)
-                .name(req.getName().trim())
+                .name(name)
                 .type(req.getType())
                 .hasSize(hasSize)
                 .build());
@@ -95,7 +103,7 @@ public class KitServiceImpl implements KitService {
         KitItem item = requireItem(itemId);
         archiveGuard.assertNotArchived(item.getHackathon());
 
-        item.setName(req.getName().trim());
+        item.setName(validateItemName(req.getType(), req.getName()));
         item.setType(req.getType());
         item.setHasSize(resolveHasSize(req.getType(), req.getHasSize()));
         KitItem saved = kitItemRepository.save(item);
@@ -107,6 +115,11 @@ public class KitServiceImpl implements KitService {
     public void deleteItem(Integer itemId) {
         KitItem item = requireItem(itemId);
         archiveGuard.assertNotArchived(item.getHackathon());
+        if (kitBundleItemRepository.existsByKitItem_Id(itemId)) {
+            throw new BusinessRuleException(ErrorCode.KIT_ITEM_IN_BUNDLE,
+                    "Không thể xóa món đang nằm trong combo kit",
+                    Map.of("kitItemId", itemId));
+        }
         kitAllocationRepository.deleteByKitItem_Id(itemId);
         kitStockRepository.deleteByKitItem_Id(itemId);
         kitItemRepository.delete(item);
@@ -119,9 +132,17 @@ public class KitServiceImpl implements KitService {
 
         String size = normalizeStockSize(item, req.getSize());
         String sizeKey = size == null ? "" : size;
+        String fit = normalizeStockFit(item, req.getFit());
+        String fitKey = fit == null ? "" : fit;
 
-        KitStock stock = kitStockRepository.findByKitItem_IdAndSizeKey(itemId, sizeKey)
-                .orElseGet(() -> KitStock.builder().kitItem(item).size(size).sizeKey(sizeKey).build());
+        KitStock stock = kitStockRepository.findByKitItem_IdAndFitKeyAndSizeKey(itemId, fitKey, sizeKey)
+                .orElseGet(() -> KitStock.builder()
+                        .kitItem(item)
+                        .fit(fit)
+                        .fitKey(fitKey)
+                        .size(size)
+                        .sizeKey(sizeKey)
+                        .build());
 
         int issued = stock.getQuantityIssued() == null ? 0 : stock.getQuantityIssued();
         if (req.getQuantityTotal() < issued) {
@@ -130,6 +151,8 @@ public class KitServiceImpl implements KitService {
                     Map.of("quantityIssued", issued, "quantityTotal", req.getQuantityTotal()));
         }
         stock.setQuantityTotal(req.getQuantityTotal());
+        stock.setFit(fit);
+        stock.setFitKey(fitKey);
         stock.setSize(size);
         stock.setSizeKey(sizeKey);
         return kitMapper.toStockResponse(kitStockRepository.save(stock));
@@ -145,7 +168,7 @@ public class KitServiceImpl implements KitService {
             rows = rows.stream().filter(r -> matchesQuery(r, q)).toList();
         }
 
-        Map<Integer, String> shirtByUser = loadShirtSizes(hackathonId,
+        Map<Integer, ShirtPrefs> shirtByUser = loadShirtPrefs(hackathonId,
                 rows.stream().map(r -> r.user().getId()).toList());
 
         List<Integer> userIds = rows.stream().map(r -> r.user().getId()).toList();
@@ -157,6 +180,7 @@ public class KitServiceImpl implements KitService {
         List<KitRecipientResponse> result = new ArrayList<>();
         for (RecipientRow row : rows) {
             Integer uid = row.user().getId();
+            ShirtPrefs prefs = shirtByUser.getOrDefault(uid, ShirtPrefs.empty());
             List<KitAllocationResponse> allocations = allocByUser.getOrDefault(uid, List.of()).stream()
                     .map(kitMapper::toAllocationResponse)
                     .toList();
@@ -168,7 +192,8 @@ public class KitServiceImpl implements KitService {
                     .phone(row.user().getPhone())
                     .teamId(row.team().getId())
                     .teamName(row.team().getTeamName())
-                    .preferredShirtSize(shirtByUser.get(uid))
+                    .preferredShirtSize(prefs.size())
+                    .preferredShirtFit(prefs.fit())
                     .allocations(allocations)
                     .build());
         }
@@ -208,13 +233,15 @@ public class KitServiceImpl implements KitService {
         }
 
         String size = resolveIssueSize(item, recipient.getId(), hackathonId, req.getSize());
-        KitStock stock = requireStockForIssue(item, size);
+        String fit = resolveIssueFit(item, recipient.getId(), hackathonId, req.getFit());
+        KitStock stock = requireStockForIssue(item, fit, size);
 
         if (stock.remaining() <= 0) {
             throw new BusinessRuleException(ErrorCode.KIT_OUT_OF_STOCK,
                     "Hết tồn kho cho món/size này",
                     Map.of(
                             "kitItemId", item.getId(),
+                            "fit", fit == null ? "" : fit,
                             "size", size == null ? "" : size,
                             "quantityTotal", stock.getQuantityTotal(),
                             "quantityIssued", stock.getQuantityIssued()));
@@ -225,6 +252,7 @@ public class KitServiceImpl implements KitService {
 
         User issuer = userRepository.findById(currentUserAccessor.currentUserId()).orElse(null);
         allocation.setSize(size);
+        allocation.setFit(fit);
         allocation.setStatus(KitAllocationStatus.ISSUED);
         allocation.setIssuedAt(LocalDateTime.now());
         allocation.setIssuedBy(issuer);
@@ -237,23 +265,149 @@ public class KitServiceImpl implements KitService {
         audit.put("hackathonId", hackathonId);
         audit.put("userId", recipient.getId());
         audit.put("kitItemId", item.getId());
+        audit.put("fit", fit);
         audit.put("size", size);
         audit.put("issuedAt", saved.getIssuedAt());
         auditService.log(AuditAction.KIT_ISSUED, "kit_allocations", saved.getId(), audit);
+
+        List<Warning> warnings = kickoffWarnings(hackathonId, saved.getId(), recipient.getId(), item.getId());
+        return new IssueResult(kitMapper.toAllocationResponse(saved), warnings);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public BundleIssueResult issueBundle(Integer hackathonId, IssueKitBundleRequest req) {
+        Hackathon hackathon = requireHackathon(hackathonId);
+        archiveGuard.assertNotArchived(hackathon);
+
+        User recipient = userRepository.findById(req.getUserId())
+                .orElseThrow(() -> new ResourceNotFoundException("User", req.getUserId()));
+        assertEligibleRecipient(hackathonId, recipient.getId());
+
+        KitBundle bundle = requireBundle(req.getBundleId());
+        if (!Objects.equals(bundle.getHackathon().getId(), hackathonId)) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE, "Combo không thuộc hackathon này");
+        }
+        if (bundle.getItems() == null || bundle.getItems().isEmpty()) {
+            throw new BusinessRuleException(ErrorCode.KIT_BUNDLE_EMPTY, "Combo không có món nào");
+        }
+
+        List<KitBundleItem> toIssue = new ArrayList<>();
+        List<KitAllocation> skipped = new ArrayList<>();
+        for (KitBundleItem bi : bundle.getItems()) {
+            KitItem item = bi.getKitItem();
+            KitAllocation existing = kitAllocationRepository
+                    .findByHackathon_IdAndUser_IdAndKitItem_Id(hackathonId, recipient.getId(), item.getId())
+                    .orElse(null);
+            if (existing != null && existing.getStatus() == KitAllocationStatus.ISSUED) {
+                skipped.add(existing);
+            } else {
+                toIssue.add(bi);
+            }
+        }
+
+        if (toIssue.isEmpty()) {
+            throw new ConflictException(ErrorCode.KIT_ALREADY_ISSUED,
+                    "Sinh viên đã nhận đủ mọi món trong combo",
+                    Map.of("userId", recipient.getId(), "bundleId", bundle.getId()));
+        }
+
+        List<Map<String, Object>> missing = new ArrayList<>();
+        Map<Integer, PreparedIssue> prepared = new LinkedHashMap<>();
+        for (KitBundleItem bi : toIssue) {
+            KitItem item = bi.getKitItem();
+            int qty = bi.getQuantity() == null || bi.getQuantity() < 1 ? 1 : bi.getQuantity();
+            String size = item.getType() == KitItemType.SHIRT
+                    ? resolveIssueSize(item, recipient.getId(), hackathonId, req.getSize())
+                    : null;
+            String fit = item.getType() == KitItemType.SHIRT
+                    ? resolveIssueFit(item, recipient.getId(), hackathonId, req.getFit())
+                    : null;
+            try {
+                KitStock stock = requireStockForIssue(item, fit, size);
+                if (stock.remaining() < qty) {
+                    missing.add(missingEntry(item, fit, size, stock, qty));
+                } else {
+                    prepared.put(item.getId(), new PreparedIssue(bi, item, stock, fit, size, qty));
+                }
+            } catch (BusinessRuleException ex) {
+                if (ErrorCode.KIT_OUT_OF_STOCK.equals(ex.getCode())
+                        || ErrorCode.VALIDATION_FAILED.equals(ex.getCode())) {
+                    missing.add(Map.of(
+                            "kitItemId", item.getId(),
+                            "kitItemName", item.getName(),
+                            "fit", fit == null ? "" : fit,
+                            "size", size == null ? "" : size,
+                            "needed", qty,
+                            "reason", ex.getMessage()));
+                } else {
+                    throw ex;
+                }
+            }
+        }
+
+        if (!missing.isEmpty()) {
+            throw new BusinessRuleException(ErrorCode.KIT_OUT_OF_STOCK,
+                    "Thiếu tồn kho cho một hoặc nhiều món trong combo — không trừ kho",
+                    Map.of("missing", missing));
+        }
+
+        User issuer = userRepository.findById(currentUserAccessor.currentUserId()).orElse(null);
+        List<KitAllocationResponse> issuedResponses = new ArrayList<>();
+        List<Integer> issuedIds = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
+
+        for (PreparedIssue prep : prepared.values()) {
+            KitStock stock = prep.stock();
+            stock.setQuantityIssued(stock.getQuantityIssued() + prep.qty());
+            kitStockRepository.save(stock);
+
+            KitAllocation allocation = kitAllocationRepository
+                    .findByHackathon_IdAndUser_IdAndKitItem_Id(hackathonId, recipient.getId(), prep.item().getId())
+                    .orElseGet(() -> KitAllocation.builder()
+                            .hackathon(hackathon)
+                            .user(recipient)
+                            .kitItem(prep.item())
+                            .status(KitAllocationStatus.PENDING)
+                            .build());
+            allocation.setSize(prep.size());
+            allocation.setFit(prep.fit());
+            allocation.setStatus(KitAllocationStatus.ISSUED);
+            allocation.setIssuedAt(now);
+            allocation.setIssuedBy(issuer);
+            if (StringUtils.hasText(req.getNote())) {
+                allocation.setNote(req.getNote().trim());
+            }
+            KitAllocation saved = kitAllocationRepository.save(allocation);
+            issuedIds.add(saved.getId());
+            issuedResponses.add(kitMapper.toAllocationResponse(saved));
+        }
+
+        Map<String, Object> audit = new LinkedHashMap<>();
+        audit.put("hackathonId", hackathonId);
+        audit.put("userId", recipient.getId());
+        audit.put("bundleId", bundle.getId());
+        audit.put("issuedAllocationIds", issuedIds);
+        audit.put("skippedItemIds", skipped.stream().map(a -> a.getKitItem().getId()).toList());
+        auditService.log(AuditAction.KIT_BUNDLE_ISSUED, "kit_bundles", bundle.getId(), audit);
 
         List<Warning> warnings = new ArrayList<>();
         if (!isInsideKickoffWindow(hackathonId)) {
             Warning w = Warning.of(WARNING_OUTSIDE_KICKOFF,
                     "Phát kit ngoài khung giờ Kickoff — đã ghi audit, không chặn thao tác");
             warnings.add(w);
-            auditService.log(AuditAction.KIT_ISSUED, "kit_allocations", saved.getId(), Map.of(
+            auditService.log(AuditAction.KIT_BUNDLE_ISSUED, "kit_bundles", bundle.getId(), Map.of(
                     "warning", WARNING_OUTSIDE_KICKOFF,
                     "hackathonId", hackathonId,
                     "userId", recipient.getId(),
-                    "kitItemId", item.getId()));
+                    "bundleId", bundle.getId()));
         }
 
-        return new IssueResult(kitMapper.toAllocationResponse(saved), warnings);
+        IssueKitBundleResponse body = IssueKitBundleResponse.builder()
+                .issued(issuedResponses)
+                .skipped(skipped.stream().map(kitMapper::toAllocationResponse).toList())
+                .build();
+        return new BundleIssueResult(body, warnings);
     }
 
     @Override
@@ -269,7 +423,8 @@ public class KitServiceImpl implements KitService {
 
         KitItem item = allocation.getKitItem();
         String sizeKey = allocation.getSize() == null ? "" : allocation.getSize();
-        KitStock stock = kitStockRepository.findByKitItem_IdAndSizeKey(item.getId(), sizeKey)
+        String fitKey = allocation.getFit() == null ? "" : allocation.getFit();
+        KitStock stock = kitStockRepository.findByKitItem_IdAndFitKeyAndSizeKey(item.getId(), fitKey, sizeKey)
                 .orElse(null);
         if (stock != null && stock.getQuantityIssued() != null && stock.getQuantityIssued() > 0) {
             stock.setQuantityIssued(stock.getQuantityIssued() - 1);
@@ -284,6 +439,7 @@ public class KitServiceImpl implements KitService {
                 "hackathonId", allocation.getHackathon().getId(),
                 "userId", allocation.getUser().getId(),
                 "kitItemId", item.getId(),
+                "fit", allocation.getFit() == null ? "" : allocation.getFit(),
                 "size", allocation.getSize() == null ? "" : allocation.getSize(),
                 "reason", req.getReason().trim()));
 
@@ -292,15 +448,21 @@ public class KitServiceImpl implements KitService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<KitReconciliationLineResponse> reconciliation(Integer hackathonId) {
+    public KitReconciliationResponse reconciliation(Integer hackathonId) {
         requireHackathon(hackathonId);
         List<RecipientRow> recipients = collectEligibleRecipients(hackathonId);
-        Map<Integer, String> shirtByUser = loadShirtSizes(hackathonId,
+        Map<Integer, ShirtPrefs> shirtByUser = loadShirtPrefs(hackathonId,
                 recipients.stream().map(r -> r.user().getId()).toList());
 
         int eligibleTotal = recipients.size();
+        Map<String, Long> fitSizeCounts = shirtByUser.values().stream()
+                .collect(Collectors.groupingBy(
+                        p -> fitSizeKey(p.fitOrDefault(), p.size() == null ? "" : p.size()),
+                        Collectors.counting()));
         Map<String, Long> sizeCounts = shirtByUser.values().stream()
-                .collect(Collectors.groupingBy(s -> s == null ? "" : s, Collectors.counting()));
+                .collect(Collectors.groupingBy(
+                        p -> p.size() == null ? "" : p.size(),
+                        Collectors.counting()));
 
         List<KitItem> items = kitItemRepository.findByHackathon_IdOrderByIdAsc(hackathonId);
         List<KitReconciliationLineResponse> lines = new ArrayList<>();
@@ -308,67 +470,126 @@ public class KitServiceImpl implements KitService {
             List<KitStock> stocks = kitStockRepository.findByKitItem_IdOrderBySizeAsc(item.getId());
             if (stocks.isEmpty()) {
                 int eligible = Boolean.TRUE.equals(item.getHasSize()) ? 0 : eligibleTotal;
-                lines.add(KitReconciliationLineResponse.builder()
-                        .kitItemId(item.getId())
-                        .kitItemName(item.getName())
-                        .size(null)
-                        .quantityTotal(0)
-                        .quantityIssued(0)
-                        .remaining(0)
-                        .eligibleCount(eligible)
-                        .variance(-eligible)
-                        .build());
+                lines.add(line(item, null, null, 0, 0, 0, eligible));
                 continue;
             }
             for (KitStock stock : stocks) {
                 int eligible;
-                if (Boolean.TRUE.equals(item.getHasSize())) {
+                if (item.getType() == KitItemType.SHIRT) {
+                    String fit = stock.getFit() == null ? "" : stock.getFit();
+                    String size = stock.getSize() == null ? "" : stock.getSize();
+                    eligible = fitSizeCounts.getOrDefault(fitSizeKey(fit, size), 0L).intValue();
+                } else if (Boolean.TRUE.equals(item.getHasSize())) {
                     String key = stock.getSize() == null ? "" : stock.getSize();
                     eligible = sizeCounts.getOrDefault(key, 0L).intValue();
                 } else {
                     eligible = eligibleTotal;
                 }
                 int issued = stock.getQuantityIssued() == null ? 0 : stock.getQuantityIssued();
-                lines.add(KitReconciliationLineResponse.builder()
-                        .kitItemId(item.getId())
-                        .kitItemName(item.getName())
-                        .size(stock.getSize())
-                        .quantityTotal(stock.getQuantityTotal())
-                        .quantityIssued(issued)
-                        .remaining(stock.remaining())
-                        .eligibleCount(eligible)
-                        .variance(issued - eligible)
-                        .build());
+                int total = stock.getQuantityTotal() == null ? 0 : stock.getQuantityTotal();
+                lines.add(line(item, stock.getFit(), stock.getSize(), total, issued, stock.remaining(), eligible));
             }
         }
-        return lines;
+
+        LocalDateTime kickoffStartsAt = earliestKickoffStartsAt(hackathonId);
+        boolean beforeKickoff = kickoffStartsAt == null || LocalDateTime.now().isBefore(kickoffStartsAt);
+        return KitReconciliationResponse.builder()
+                .lines(lines)
+                .kickoffStartsAt(kickoffStartsAt)
+                .beforeKickoff(beforeKickoff)
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<KitBundleResponse> listBundles(Integer hackathonId) {
+        requireHackathon(hackathonId);
+        return kitBundleRepository.findByHackathon_IdOrderByIdAsc(hackathonId).stream()
+                .map(kitMapper::toBundleResponse)
+                .toList();
+    }
+
+    @Override
+    public KitBundleResponse createBundle(Integer hackathonId, UpsertKitBundleRequest req) {
+        Hackathon hackathon = requireHackathon(hackathonId);
+        archiveGuard.assertNotArchived(hackathon);
+        if (req.getItems() == null || req.getItems().isEmpty()) {
+            throw new BusinessRuleException(ErrorCode.KIT_BUNDLE_EMPTY, "Combo phải có ít nhất một món");
+        }
+
+        KitBundle bundle = KitBundle.builder()
+                .hackathon(hackathon)
+                .name(req.getName().trim())
+                .isDefault(Boolean.TRUE.equals(req.getIsDefault()))
+                .build();
+        applyBundleItems(bundle, hackathonId, req.getItems());
+        if (Boolean.TRUE.equals(bundle.getIsDefault())) {
+            clearOtherDefaults(hackathonId, null);
+        }
+        return kitMapper.toBundleResponse(kitBundleRepository.save(bundle));
+    }
+
+    @Override
+    public KitBundleResponse updateBundle(Integer bundleId, UpsertKitBundleRequest req) {
+        KitBundle bundle = requireBundle(bundleId);
+        archiveGuard.assertNotArchived(bundle.getHackathon());
+        if (req.getItems() == null || req.getItems().isEmpty()) {
+            throw new BusinessRuleException(ErrorCode.KIT_BUNDLE_EMPTY, "Combo phải có ít nhất một món");
+        }
+
+        bundle.setName(req.getName().trim());
+        if (req.getIsDefault() != null) {
+            bundle.setIsDefault(req.getIsDefault());
+        }
+        bundle.getItems().clear();
+        applyBundleItems(bundle, bundle.getHackathon().getId(), req.getItems());
+        if (Boolean.TRUE.equals(bundle.getIsDefault())) {
+            clearOtherDefaults(bundle.getHackathon().getId(), bundle.getId());
+        }
+        return kitMapper.toBundleResponse(kitBundleRepository.save(bundle));
+    }
+
+    @Override
+    public void deleteBundle(Integer bundleId) {
+        KitBundle bundle = requireBundle(bundleId);
+        archiveGuard.assertNotArchived(bundle.getHackathon());
+        kitBundleRepository.delete(bundle);
     }
 
     @Override
     public ShirtSizeResponse updateMyShirtSize(Integer hackathonId, UpdateShirtSizeRequest req) {
         Integer userId = currentUserAccessor.currentUserId();
         String size = parseShirtSize(req.getPreferredShirtSize());
+        String fit = parseShirtFit(req.getPreferredShirtFit());
         HackathonRegistration reg = hackathonRegistrationRepository
                 .findByHackathon_IdAndUser_Id(hackathonId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("HackathonRegistration", hackathonId));
         reg.setPreferredShirtSize(size);
+        reg.setPreferredShirtFit(fit);
         hackathonRegistrationRepository.save(reg);
-        return ShirtSizeResponse.builder().hackathonId(hackathonId).preferredShirtSize(size).build();
+        return ShirtSizeResponse.builder()
+                .hackathonId(hackathonId)
+                .preferredShirtSize(size)
+                .preferredShirtFit(fit)
+                .build();
     }
 
     @Override
     public List<ShirtSizeResponse> updateMyShirtSizeAll(UpdateShirtSizeRequest req) {
         Integer userId = currentUserAccessor.currentUserId();
         String size = parseShirtSize(req.getPreferredShirtSize());
+        String fit = parseShirtFit(req.getPreferredShirtFit());
         List<HackathonRegistration> regs = hackathonRegistrationRepository.findAllByUser_Id(userId);
         for (HackathonRegistration reg : regs) {
             reg.setPreferredShirtSize(size);
+            reg.setPreferredShirtFit(fit);
         }
         hackathonRegistrationRepository.saveAll(regs);
         return regs.stream()
                 .map(r -> ShirtSizeResponse.builder()
                         .hackathonId(r.getHackathon().getId())
                         .preferredShirtSize(size)
+                        .preferredShirtFit(fit)
                         .build())
                 .toList();
     }
@@ -381,11 +602,48 @@ public class KitServiceImpl implements KitService {
                 .map(r -> ShirtSizeResponse.builder()
                         .hackathonId(r.getHackathon().getId())
                         .preferredShirtSize(r.getPreferredShirtSize())
+                        .preferredShirtFit(r.getPreferredShirtFit() == null
+                                ? ShirtFit.DEFAULT : r.getPreferredShirtFit())
                         .build())
                 .toList();
     }
 
     // ---------- helpers ----------
+
+    private void applyBundleItems(KitBundle bundle, Integer hackathonId,
+                                  List<UpsertKitBundleRequest.BundleItemRequest> items) {
+        Set<Integer> seen = new HashSet<>();
+        for (UpsertKitBundleRequest.BundleItemRequest row : items) {
+            if (!seen.add(row.getKitItemId())) {
+                throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                        "Mỗi món chỉ được thêm một lần trong combo",
+                        Map.of("kitItemId", row.getKitItemId()));
+            }
+            KitItem item = requireItem(row.getKitItemId());
+            if (!Objects.equals(item.getHackathon().getId(), hackathonId)) {
+                throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                        "Kit item không thuộc hackathon này",
+                        Map.of("kitItemId", item.getId()));
+            }
+            int qty = row.getQuantity() == null || row.getQuantity() < 1 ? 1 : row.getQuantity();
+            KitBundleItem bi = KitBundleItem.builder()
+                    .bundle(bundle)
+                    .kitItem(item)
+                    .quantity(qty)
+                    .build();
+            bundle.getItems().add(bi);
+        }
+    }
+
+    private void clearOtherDefaults(Integer hackathonId, Integer keepBundleId) {
+        for (KitBundle other : kitBundleRepository.findByHackathon_IdAndIsDefaultTrue(hackathonId)) {
+            if (keepBundleId != null && Objects.equals(other.getId(), keepBundleId)) {
+                continue;
+            }
+            other.setIsDefault(false);
+            kitBundleRepository.save(other);
+        }
+    }
 
     private List<KitItemResponse> toItemResponses(List<KitItem> items) {
         if (items.isEmpty()) {
@@ -409,11 +667,30 @@ public class KitServiceImpl implements KitService {
                 .orElseThrow(() -> new ResourceNotFoundException("KitItem", itemId));
     }
 
+    private KitBundle requireBundle(Integer bundleId) {
+        return kitBundleRepository.findById(bundleId)
+                .orElseThrow(() -> new ResourceNotFoundException("KitBundle", bundleId));
+    }
+
     private boolean resolveHasSize(KitItemType type, Boolean hasSize) {
         if (hasSize != null) {
             return hasSize;
         }
         return type == KitItemType.SHIRT;
+    }
+
+    private String validateItemName(KitItemType type, String raw) {
+        String name = raw == null ? "" : raw.trim();
+        if (type == KitItemType.OTHER) {
+            String lower = name.toLowerCase(Locale.ROOT);
+            if (!StringUtils.hasText(name) || "khác".equals(lower) || "other".equals(lower)) {
+                throw new BusinessRuleException(ErrorCode.KIT_ITEM_NAME_REQUIRED,
+                        "Món loại OTHER cần tên cụ thể (không dùng \"khác\"/\"other\")");
+            }
+        } else if (!StringUtils.hasText(name)) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED, "Tên món kit bắt buộc");
+        }
+        return name;
     }
 
     private String normalizeStockSize(KitItem item, String raw) {
@@ -432,6 +709,18 @@ public class KitServiceImpl implements KitService {
         }
     }
 
+    private String normalizeStockFit(KitItem item, String raw) {
+        if (item.getType() != KitItemType.SHIRT) {
+            return null;
+        }
+        try {
+            return ShirtFit.normalizeOrDefault(raw);
+        } catch (IllegalArgumentException ex) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                    "Dáng áo không hợp lệ. Cho phép: " + ShirtFit.allowedList());
+        }
+    }
+
     private String parseShirtSize(String raw) {
         try {
             String size = ShirtSize.normalizeOrNull(raw);
@@ -443,6 +732,15 @@ public class KitServiceImpl implements KitService {
         } catch (IllegalArgumentException ex) {
             throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
                     "Size không hợp lệ. Cho phép: " + ShirtSize.allowedList());
+        }
+    }
+
+    private String parseShirtFit(String raw) {
+        try {
+            return ShirtFit.normalizeOrDefault(raw);
+        } catch (IllegalArgumentException ex) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                    "Dáng áo không hợp lệ. Cho phép: " + ShirtFit.allowedList());
         }
     }
 
@@ -477,14 +775,14 @@ public class KitServiceImpl implements KitService {
         }
     }
 
-    private Map<Integer, String> loadShirtSizes(Integer hackathonId, List<Integer> userIds) {
+    private Map<Integer, ShirtPrefs> loadShirtPrefs(Integer hackathonId, List<Integer> userIds) {
         if (userIds.isEmpty()) {
             return Map.of();
         }
-        Map<Integer, String> map = new HashMap<>();
+        Map<Integer, ShirtPrefs> map = new HashMap<>();
         for (HackathonRegistration reg : hackathonRegistrationRepository.findAllByHackathon_Id(hackathonId)) {
             if (reg.getUser() != null && userIds.contains(reg.getUser().getId())) {
-                map.put(reg.getUser().getId(), reg.getPreferredShirtSize());
+                map.put(reg.getUser().getId(), new ShirtPrefs(reg.getPreferredShirtSize(), reg.getPreferredShirtFit()));
             }
         }
         return map;
@@ -521,16 +819,58 @@ public class KitServiceImpl implements KitService {
                 .orElse(null);
     }
 
-    private KitStock requireStockForIssue(KitItem item, String size) {
+    private String resolveIssueFit(KitItem item, Integer userId, Integer hackathonId, String override) {
+        if (item.getType() != KitItemType.SHIRT) {
+            return null;
+        }
+        if (StringUtils.hasText(override)) {
+            try {
+                return ShirtFit.normalizeOrNull(override);
+            } catch (IllegalArgumentException ex) {
+                throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                        "Dáng áo không hợp lệ. Cho phép: " + ShirtFit.allowedList());
+            }
+        }
+        return hackathonRegistrationRepository.findByHackathon_IdAndUser_Id(hackathonId, userId)
+                .map(HackathonRegistration::getPreferredShirtFit)
+                .filter(StringUtils::hasText)
+                .map(v -> {
+                    try {
+                        return ShirtFit.normalizeOrNull(v);
+                    } catch (IllegalArgumentException ex) {
+                        return ShirtFit.DEFAULT;
+                    }
+                })
+                .orElse(ShirtFit.DEFAULT);
+    }
+
+    private KitStock requireStockForIssue(KitItem item, String fit, String size) {
         if (Boolean.TRUE.equals(item.getHasSize()) && !StringUtils.hasText(size)) {
             throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
                     "Chưa có size áo — chọn size tại quầy trước khi phát");
         }
         String sizeKey = size == null ? "" : size;
-        return kitStockRepository.findByKitItem_IdAndSizeKey(item.getId(), sizeKey)
+        String fitKey = fit == null ? "" : fit;
+        return kitStockRepository.findByKitItem_IdAndFitKeyAndSizeKey(item.getId(), fitKey, sizeKey)
                 .orElseThrow(() -> new BusinessRuleException(ErrorCode.KIT_OUT_OF_STOCK,
-                        "Chưa khai báo tồn kho cho món/size này",
-                        Map.of("kitItemId", item.getId(), "size", sizeKey)));
+                        "Chưa khai báo tồn kho cho món/dáng/size này",
+                        Map.of("kitItemId", item.getId(), "fit", fitKey, "size", sizeKey)));
+    }
+
+    private List<Warning> kickoffWarnings(Integer hackathonId, Integer allocationId,
+                                          Integer userId, Integer kitItemId) {
+        List<Warning> warnings = new ArrayList<>();
+        if (!isInsideKickoffWindow(hackathonId)) {
+            Warning w = Warning.of(WARNING_OUTSIDE_KICKOFF,
+                    "Phát kit ngoài khung giờ Kickoff — đã ghi audit, không chặn thao tác");
+            warnings.add(w);
+            auditService.log(AuditAction.KIT_ISSUED, "kit_allocations", allocationId, Map.of(
+                    "warning", WARNING_OUTSIDE_KICKOFF,
+                    "hackathonId", hackathonId,
+                    "userId", userId,
+                    "kitItemId", kitItemId));
+        }
+        return warnings;
     }
 
     private boolean isInsideKickoffWindow(Integer hackathonId) {
@@ -549,5 +889,58 @@ public class KitServiceImpl implements KitService {
         return false;
     }
 
+    private LocalDateTime earliestKickoffStartsAt(Integer hackathonId) {
+        return eventRepository.findByHackathonIdAndType(hackathonId, EventType.KICKOFF).stream()
+                .map(Event::getStartsAt)
+                .filter(Objects::nonNull)
+                .min(LocalDateTime::compareTo)
+                .orElse(null);
+    }
+
+    private static KitReconciliationLineResponse line(KitItem item, String fit, String size,
+                                                      int total, int issued, int remaining, int eligible) {
+        return KitReconciliationLineResponse.builder()
+                .kitItemId(item.getId())
+                .kitItemName(item.getName())
+                .fit(fit)
+                .size(size)
+                .quantityTotal(total)
+                .quantityIssued(issued)
+                .remaining(remaining)
+                .eligibleCount(eligible)
+                .variance(issued - eligible)
+                .shortfall(eligible - total)
+                .build();
+    }
+
+    private static String fitSizeKey(String fit, String size) {
+        return (fit == null ? "" : fit) + "|" + (size == null ? "" : size);
+    }
+
+    private static Map<String, Object> missingEntry(KitItem item, String fit, String size,
+                                                    KitStock stock, int needed) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("kitItemId", item.getId());
+        m.put("kitItemName", item.getName());
+        m.put("fit", fit == null ? "" : fit);
+        m.put("size", size == null ? "" : size);
+        m.put("needed", needed);
+        m.put("remaining", stock.remaining());
+        return m;
+    }
+
     private record RecipientRow(User user, Team team) {}
+
+    private record ShirtPrefs(String size, String fit) {
+        static ShirtPrefs empty() {
+            return new ShirtPrefs(null, null);
+        }
+
+        String fitOrDefault() {
+            return StringUtils.hasText(fit) ? fit : ShirtFit.DEFAULT;
+        }
+    }
+
+    private record PreparedIssue(KitBundleItem bundleItem, KitItem item, KitStock stock,
+                                 String fit, String size, int qty) {}
 }

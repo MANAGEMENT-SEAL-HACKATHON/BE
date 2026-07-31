@@ -10,6 +10,7 @@ import lombok.*;
 public class KitStockResponse {
 
     private Integer id;
+    private String fit;
     private String size;
     private Integer quantityTotal;
     private Integer quantityIssued;

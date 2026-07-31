@@ -325,6 +325,9 @@ public final class ErrorCode {
     // ---------- KITS ----------
     public static final String KIT_OUT_OF_STOCK                             = "KIT_OUT_OF_STOCK";
     public static final String KIT_ALREADY_ISSUED                           = "KIT_ALREADY_ISSUED";
+    public static final String KIT_BUNDLE_EMPTY                             = "KIT_BUNDLE_EMPTY";
+    public static final String KIT_ITEM_IN_BUNDLE                           = "KIT_ITEM_IN_BUNDLE";
+    public static final String KIT_ITEM_NAME_REQUIRED                       = "KIT_ITEM_NAME_REQUIRED";
 
     // ---------- APPEALS (GĐ4 DQ) ----------
     public static final String APPEAL_WINDOW_NOT_OPEN                       = "APPEAL_WINDOW_NOT_OPEN";

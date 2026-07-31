@@ -49,6 +49,17 @@ Additive. Manual SQL: `src/main/resources/db/manual/V20260731_buffet_break_windo
 | `buffet_menu_items` | **Bảng mới** — thực đơn gắn `event_id` (ON DELETE CASCADE) |
 | `EventType` | + `BUFFET` (không thuộc `MILESTONE_TYPES`) |
 
+### Phase 13 addendum — Kit combo + shirt fit (2026-07-31)
+
+Additive. Manual SQL: `src/main/resources/db/manual/V20260731_kit_bundle_and_fit.sql`.
+
+| Bảng / cột | Thay đổi |
+|------------|----------|
+| `kit_stocks` | + `fit`, `fit_key`; unique `uk_kit_stock_item_fit_size (kit_item_id, fit_key, size_key)` (thay `uk_kit_stock_item_size`) |
+| `kit_allocations` | + `fit` |
+| `hackathon_registrations` | + `preferred_shirt_fit` |
+| `kit_bundles` / `kit_bundle_items` | **Bảng mới** — combo phát kit nguyên tử |
+
 ---
 
 ## 1. Mapping PostgreSQL → MySQL (Cheat Sheet)
@@ -485,6 +496,70 @@ CREATE TABLE buffet_menu_items (
     note          VARCHAR(500),
     display_order INT,
     CONSTRAINT fk_buffet_menu_event FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- NHÓM 5b: KIT INVENTORY + COMBO (Phase 4/13)
+-- ============================================================
+-- preferred_shirt_size / preferred_shirt_fit trên hackathon_registrations (xem bảng registrations)
+
+CREATE TABLE kit_items (
+    id            INT          NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    hackathon_id  INT          NOT NULL,
+    name          VARCHAR(200) NOT NULL,
+    type          VARCHAR(30)  NOT NULL,
+    has_size      TINYINT(1)   NOT NULL DEFAULT 0,
+    CONSTRAINT fk_kit_items_hackathon FOREIGN KEY (hackathon_id) REFERENCES hackathons(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE kit_stocks (
+    id               INT         NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    kit_item_id      INT         NOT NULL,
+    fit              VARCHAR(20) NULL,
+    fit_key          VARCHAR(20) NOT NULL DEFAULT '',
+    size             VARCHAR(10) NULL,
+    size_key         VARCHAR(10) NOT NULL DEFAULT '',
+    quantity_total   INT         NOT NULL DEFAULT 0,
+    quantity_issued  INT         NOT NULL DEFAULT 0,
+    version          BIGINT      NOT NULL DEFAULT 0,
+    CONSTRAINT fk_kit_stocks_item FOREIGN KEY (kit_item_id) REFERENCES kit_items(id),
+    CONSTRAINT uk_kit_stock_item_fit_size UNIQUE (kit_item_id, fit_key, size_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE kit_allocations (
+    id            INT           NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    hackathon_id  INT           NOT NULL,
+    user_id       INT           NOT NULL,
+    kit_item_id   INT           NOT NULL,
+    size          VARCHAR(10)   NULL,
+    fit           VARCHAR(20)   NULL,
+    status        VARCHAR(20)   NOT NULL,
+    issued_at     DATETIME      NULL,
+    issued_by     INT           NULL,
+    note          VARCHAR(1000) NULL,
+    CONSTRAINT fk_kit_alloc_hackathon FOREIGN KEY (hackathon_id) REFERENCES hackathons(id),
+    CONSTRAINT fk_kit_alloc_user FOREIGN KEY (user_id) REFERENCES users(id),
+    CONSTRAINT fk_kit_alloc_item FOREIGN KEY (kit_item_id) REFERENCES kit_items(id),
+    CONSTRAINT fk_kit_alloc_issuer FOREIGN KEY (issued_by) REFERENCES users(id),
+    CONSTRAINT uk_kit_alloc_hackathon_user_item UNIQUE (hackathon_id, user_id, kit_item_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE kit_bundles (
+    id            INT          NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    hackathon_id  INT          NOT NULL,
+    name          VARCHAR(200) NOT NULL,
+    is_default    TINYINT(1)   NOT NULL DEFAULT 0,
+    CONSTRAINT fk_kit_bundles_hackathon FOREIGN KEY (hackathon_id) REFERENCES hackathons(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE kit_bundle_items (
+    id           INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    bundle_id    INT NOT NULL,
+    kit_item_id  INT NOT NULL,
+    quantity     INT NOT NULL DEFAULT 1,
+    CONSTRAINT fk_kit_bundle_items_bundle FOREIGN KEY (bundle_id) REFERENCES kit_bundles(id) ON DELETE CASCADE,
+    CONSTRAINT fk_kit_bundle_items_item FOREIGN KEY (kit_item_id) REFERENCES kit_items(id),
+    CONSTRAINT uk_kit_bundle_item UNIQUE (bundle_id, kit_item_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 

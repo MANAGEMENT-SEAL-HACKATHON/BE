@@ -1636,6 +1636,8 @@ public class HackathonDevSeedHelper {
             hackathonRegistrationRepository.save(HackathonRegistration.builder()
                     .hackathon(hackathon)
                     .user(student)
+                    .preferredShirtSize("M")
+                    .preferredShirtFit("UNISEX")
                     .build());
         }
     }

@@ -12,12 +12,24 @@ import com.sealhackathon.api.events.repository.BuffetMenuItemRepository;
 import com.sealhackathon.api.events.repository.EventRepository;
 import com.sealhackathon.api.events.value_object.EventType;
 import com.sealhackathon.api.hackathons.entity.Hackathon;
+import com.sealhackathon.api.hackathons.entity.HackathonRegistration;
+import com.sealhackathon.api.hackathons.repository.HackathonRegistrationRepository;
 import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.hackathons.value_object.Season;
 import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
+import com.sealhackathon.api.kits.entity.KitBundle;
+import com.sealhackathon.api.kits.entity.KitBundleItem;
+import com.sealhackathon.api.kits.entity.KitItem;
+import com.sealhackathon.api.kits.entity.KitStock;
+import com.sealhackathon.api.kits.repository.KitBundleRepository;
+import com.sealhackathon.api.kits.repository.KitItemRepository;
+import com.sealhackathon.api.kits.repository.KitStockRepository;
+import com.sealhackathon.api.kits.value_object.KitItemType;
+import com.sealhackathon.api.kits.value_object.ShirtFit;
+import com.sealhackathon.api.kits.value_object.ShirtSize;
 import com.sealhackathon.api.mentors.entity.MentorAssignment;
 import com.sealhackathon.api.mentors.repository.MentorAssignmentRepository;
 import com.sealhackathon.api.rounds.entity.Round;
@@ -66,6 +78,10 @@ public class Gd1DataSeeder {
     private final JudgeAssignmentRepository judgeAssignmentRepository;
     private final EventRepository eventRepository;
     private final BuffetMenuItemRepository buffetMenuItemRepository;
+    private final KitItemRepository kitItemRepository;
+    private final KitStockRepository kitStockRepository;
+    private final KitBundleRepository kitBundleRepository;
+    private final HackathonRegistrationRepository hackathonRegistrationRepository;
     private final PasswordEncoder passwordEncoder;
 
     public boolean isAlreadySeeded() {
@@ -99,6 +115,9 @@ public class Gd1DataSeeder {
             if (!Gd1SeedConstants.SLUG_FINISHED.equals(slug)) {
                 events += ensureOrRepairEvents(h, dates);
                 rounds += repairRoundsForHackathon(h, dates);
+            }
+            if (Gd1SeedConstants.SLUG_ONGOING.equals(slug)) {
+                seedKitsIfMissing(h);
             }
         }
         if (hackathons > 0 || events > 0 || rounds > 0) {
@@ -708,6 +727,9 @@ public class Gd1DataSeeder {
         Track track3 = structure.track3();
 
         seedEvents(hackathon, users.coordinator(), dates);
+        if (Gd1SeedConstants.SLUG_ONGOING.equals(slug)) {
+            seedKitsIfMissing(hackathon);
+        }
 
         return new FullHackathonSeed(hackathon, prelim, finalRound, track1, track2, track3);
     }
@@ -1032,6 +1054,82 @@ public class Gd1DataSeeder {
                 BuffetMenuItem.builder().event(buffet).name("Trái cây").quantity(40)
                         .unit("phần").note("Theo mùa").displayOrder(2).build()
         ));
+    }
+
+    /** Idempotent kit inventory + default combo for seal-e2e-2026 demo (G1-H09/H10). */
+    private void seedKitsIfMissing(Hackathon hackathon) {
+        if (kitItemRepository.existsByHackathon_Id(hackathon.getId())) {
+            backfillPreferredShirtOnRegistrations(hackathon.getId());
+            return;
+        }
+
+        KitItem shirt = kitItemRepository.save(KitItem.builder()
+                .hackathon(hackathon)
+                .name("Áo hackathon")
+                .type(KitItemType.SHIRT)
+                .hasSize(true)
+                .build());
+        KitItem lanyard = kitItemRepository.save(KitItem.builder()
+                .hackathon(hackathon)
+                .name("Dây đeo")
+                .type(KitItemType.LANYARD)
+                .hasSize(false)
+                .build());
+
+        List<String> sizes = ShirtSize.ALLOWED.stream().sorted().toList();
+        for (String size : sizes) {
+            kitStockRepository.save(KitStock.builder()
+                    .kitItem(shirt)
+                    .fit(ShirtFit.DEFAULT)
+                    .fitKey(ShirtFit.DEFAULT)
+                    .size(size)
+                    .sizeKey(size)
+                    .quantityTotal(50)
+                    .quantityIssued(0)
+                    .build());
+        }
+        kitStockRepository.save(KitStock.builder()
+                .kitItem(lanyard)
+                .fit(null)
+                .fitKey("")
+                .size(null)
+                .sizeKey("")
+                .quantityTotal(200)
+                .quantityIssued(0)
+                .build());
+
+        KitBundle bundle = KitBundle.builder()
+                .hackathon(hackathon)
+                .name("Combo Kickoff")
+                .isDefault(true)
+                .build();
+        bundle.getItems().add(KitBundleItem.builder().bundle(bundle).kitItem(shirt).quantity(1).build());
+        bundle.getItems().add(KitBundleItem.builder().bundle(bundle).kitItem(lanyard).quantity(1).build());
+        kitBundleRepository.save(bundle);
+
+        backfillPreferredShirtOnRegistrations(hackathon.getId());
+        log.info("[Gd1DataSeeder] Seeded kits for slug={} (shirt+lanyard+default bundle)", hackathon.getSlug());
+    }
+
+    private void backfillPreferredShirtOnRegistrations(Integer hackathonId) {
+        String[] cycle = {"S", "M", "L", "XL"};
+        List<HackathonRegistration> regs = hackathonRegistrationRepository.findAllByHackathon_Id(hackathonId);
+        int i = 0;
+        boolean changed = false;
+        for (HackathonRegistration reg : regs) {
+            if (reg.getPreferredShirtSize() == null || reg.getPreferredShirtSize().isBlank()) {
+                reg.setPreferredShirtSize(cycle[i % cycle.length]);
+                changed = true;
+            }
+            if (reg.getPreferredShirtFit() == null || reg.getPreferredShirtFit().isBlank()) {
+                reg.setPreferredShirtFit(ShirtFit.DEFAULT);
+                changed = true;
+            }
+            i++;
+        }
+        if (changed) {
+            hackathonRegistrationRepository.saveAll(regs);
+        }
     }
 
     private static Event event(Hackathon hackathon, User createdBy, String title, EventType type,

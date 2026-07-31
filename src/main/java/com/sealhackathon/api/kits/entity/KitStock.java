@@ -7,8 +7,8 @@ import lombok.*;
 @Table(
         name = "kit_stocks",
         uniqueConstraints = @UniqueConstraint(
-                name = "uk_kit_stock_item_size",
-                columnNames = {"kit_item_id", "size_key"}
+                name = "uk_kit_stock_item_fit_size",
+                columnNames = {"kit_item_id", "fit_key", "size_key"}
         )
 )
 @Getter
@@ -25,6 +25,18 @@ public class KitStock {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "kit_item_id", nullable = false)
     private KitItem kitItem;
+
+    /** Display fit (nullable when item is not SHIRT). */
+    @Column(name = "fit", length = 20)
+    private String fit;
+
+    /**
+     * Unique companion for nullable fit — empty string when fit is null
+     * (MySQL UNIQUE allows multiple NULLs).
+     */
+    @Builder.Default
+    @Column(name = "fit_key", nullable = false, length = 20)
+    private String fitKey = "";
 
     /** Display size (nullable when item has no size). */
     @Column(name = "size", length = 10)
@@ -55,6 +67,7 @@ public class KitStock {
     @PreUpdate
     void syncSizeKey() {
         this.sizeKey = size == null ? "" : size;
+        this.fitKey = fit == null ? "" : fit;
     }
 
     public int remaining() {

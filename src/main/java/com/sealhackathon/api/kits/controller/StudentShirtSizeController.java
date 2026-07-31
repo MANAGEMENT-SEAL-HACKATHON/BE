@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@Tag(name = "Kits — Student shirt size", description = "Sinh viên khai size áo trên đăng ký hackathon")
+@Tag(name = "Kits — Student shirt size", description = "Sinh viên khai size + dáng áo trên đăng ký hackathon")
 @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 @RestController
 @RequestMapping("/api/v1/me")
@@ -29,20 +29,20 @@ public class StudentShirtSizeController {
     private final KitService kitService;
 
     @GetMapping("/shirt-sizes")
-    @Operation(summary = "Size áo trên mọi đăng ký hackathon của tôi")
+    @Operation(summary = "Size/dáng áo trên mọi đăng ký hackathon của tôi")
     public ResponseEntity<ApiResponse<List<ShirtSizeResponse>>> listMine() {
         return ResponseEntity.ok(ApiResponse.ok(kitService.listMyShirtSizes()));
     }
 
     @PutMapping("/shirt-size")
-    @Operation(summary = "Cập nhật preferredShirtSize trên mọi đăng ký của tôi (onboarding)")
+    @Operation(summary = "Cập nhật preferredShirtSize (+ fit, mặc định UNISEX) trên mọi đăng ký (onboarding)")
     public ResponseEntity<ApiResponse<List<ShirtSizeResponse>>> updateAll(
             @Valid @RequestBody UpdateShirtSizeRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(kitService.updateMyShirtSizeAll(req)));
     }
 
     @PutMapping("/hackathons/{hackathonId}/shirt-size")
-    @Operation(summary = "Cập nhật preferredShirtSize cho một hackathon")
+    @Operation(summary = "Cập nhật preferredShirtSize (+ fit) cho một hackathon")
     public ResponseEntity<ApiResponse<ShirtSizeResponse>> updateOne(
             @PathVariable Integer hackathonId,
             @Valid @RequestBody UpdateShirtSizeRequest req) {

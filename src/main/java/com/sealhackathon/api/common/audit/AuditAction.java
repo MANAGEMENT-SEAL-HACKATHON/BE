@@ -144,6 +144,7 @@ public final class AuditAction {
     // ---------- KITS ----------
     public static final String KIT_ISSUED                   = "KIT_ISSUED";
     public static final String KIT_REVOKED                  = "KIT_REVOKED";
+    public static final String KIT_BUNDLE_ISSUED            = "KIT_BUNDLE_ISSUED";
 
     // ---------- APPEALS (GĐ4 DQ) ----------
     public static final String APPEAL_SUBMIT                = "APPEAL_SUBMIT";
