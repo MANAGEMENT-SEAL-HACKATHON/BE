@@ -18,6 +18,12 @@ public interface KitService {
 
     KitStockResponse upsertStock(Integer itemId, UpsertKitStockRequest req);
 
+    List<KitStockResponse> batchUpsertStock(Integer itemId, BatchUpsertKitStockRequest req);
+
+    KitCloneSourcesResponse listCloneSources(Integer targetHackathonId);
+
+    CloneKitsResponse cloneFromSource(Integer targetHackathonId, CloneKitsRequest req);
+
     List<KitRecipientResponse> listRecipients(Integer hackathonId, String query);
 
     IssueResult issue(Integer hackathonId, IssueKitRequest req);

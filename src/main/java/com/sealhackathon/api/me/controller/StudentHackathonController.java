@@ -4,11 +4,13 @@ import com.sealhackathon.api.common.response.ApiResponse;
 import com.sealhackathon.api.common.security.StudentOnly;
 import com.sealhackathon.api.config.OpenApiConfig;
 import com.sealhackathon.api.hackathons.service.HackathonRegistrationService;
+import com.sealhackathon.api.hackathons.dto.request.RegisterHackathonRequest;
 import com.sealhackathon.api.me.student.dto.response.StudentHackathonBrowseItemResponse;
 import com.sealhackathon.api.me.student.service.StudentPortalService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -34,9 +36,11 @@ public class StudentHackathonController {
     }
 
     @PostMapping("/{hackathonId}/register")
-    @Operation(summary = "FR-U-06 — Đăng ký hackathon")
-    public ResponseEntity<ApiResponse<Void>> register(@PathVariable Integer hackathonId) {
-        hackathonRegistrationService.register(hackathonId);
+    @Operation(summary = "FR-U-06 — Đăng ký hackathon (body tùy chọn: preferredShirtSize/Fit)")
+    public ResponseEntity<ApiResponse<Void>> register(
+            @PathVariable Integer hackathonId,
+            @Valid @RequestBody(required = false) RegisterHackathonRequest body) {
+        hackathonRegistrationService.register(hackathonId, body);
         return ResponseEntity.ok(ApiResponse.ok(null, "Registered"));
     }
 

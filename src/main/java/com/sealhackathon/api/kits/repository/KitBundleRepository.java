@@ -12,4 +12,6 @@ public interface KitBundleRepository extends JpaRepository<KitBundle, Integer> {
     List<KitBundle> findByHackathon_IdOrderByIdAsc(Integer hackathonId);
 
     List<KitBundle> findByHackathon_IdAndIsDefaultTrue(Integer hackathonId);
+
+    long countByHackathon_Id(Integer hackathonId);
 }

@@ -95,7 +95,15 @@ public class KitServiceImpl implements KitService {
                 .type(req.getType())
                 .hasSize(hasSize)
                 .build());
-        return kitMapper.toItemResponse(saved, List.of());
+
+        List<KitStock> stocks = List.of();
+        if (req.getStocks() != null && !req.getStocks().isEmpty()) {
+            stocks = new ArrayList<>();
+            for (UpsertKitStockRequest line : req.getStocks()) {
+                stocks.add(applyStockLine(saved, line));
+            }
+        }
+        return kitMapper.toItemResponse(saved, stocks);
     }
 
     @Override
@@ -129,13 +137,171 @@ public class KitServiceImpl implements KitService {
     public KitStockResponse upsertStock(Integer itemId, UpsertKitStockRequest req) {
         KitItem item = requireItem(itemId);
         archiveGuard.assertNotArchived(item.getHackathon());
+        return kitMapper.toStockResponse(applyStockLine(item, req));
+    }
 
+    @Override
+    public List<KitStockResponse> batchUpsertStock(Integer itemId, BatchUpsertKitStockRequest req) {
+        KitItem item = requireItem(itemId);
+        archiveGuard.assertNotArchived(item.getHackathon());
+        List<KitStockResponse> result = new ArrayList<>();
+        for (UpsertKitStockRequest line : req.getStocks()) {
+            result.add(kitMapper.toStockResponse(applyStockLine(item, line)));
+        }
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public KitCloneSourcesResponse listCloneSources(Integer targetHackathonId) {
+        requireHackathon(targetHackathonId);
+        List<Integer> ids = kitItemRepository.findDistinctHackathonIdsWithKitsExcluding(targetHackathonId);
+        List<KitCloneSourcesResponse.Source> sources = new ArrayList<>();
+        for (Integer hid : ids) {
+            Hackathon h = hackathonRepository.findById(hid).orElse(null);
+            if (h == null) {
+                continue;
+            }
+            sources.add(KitCloneSourcesResponse.Source.builder()
+                    .hackathonId(hid)
+                    .hackathonName(h.getName())
+                    .itemCount((int) kitItemRepository.countByHackathon_Id(hid))
+                    .bundleCount((int) kitBundleRepository.countByHackathon_Id(hid))
+                    .build());
+        }
+        sources.sort(Comparator.comparing(KitCloneSourcesResponse.Source::getHackathonName,
+                Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)));
+        return KitCloneSourcesResponse.builder()
+                .targetHackathonId(targetHackathonId)
+                .sources(sources)
+                .build();
+    }
+
+    @Override
+    public CloneKitsResponse cloneFromSource(Integer targetHackathonId, CloneKitsRequest req) {
+        Hackathon target = requireHackathon(targetHackathonId);
+        archiveGuard.assertNotArchived(target);
+        if (req.getSourceHackathonId() == null) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED, "sourceHackathonId bắt buộc");
+        }
+        if (Objects.equals(req.getSourceHackathonId(), targetHackathonId)) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                    "Hackathon nguồn phải khác hackathon đích",
+                    Map.of("hackathonId", targetHackathonId));
+        }
+        Hackathon source = requireHackathon(req.getSourceHackathonId());
+        boolean includeQty = Boolean.TRUE.equals(req.getIncludeStockQuantities());
+        boolean includeBundles = req.getIncludeBundles() == null || Boolean.TRUE.equals(req.getIncludeBundles());
+
+        List<KitItem> sourceItems = kitItemRepository.findByHackathon_IdOrderByIdAsc(source.getId());
+        Map<String, KitItem> targetByName = kitItemRepository.findByHackathon_IdOrderByIdAsc(targetHackathonId)
+                .stream()
+                .filter(i -> i.getName() != null)
+                .collect(Collectors.toMap(
+                        i -> i.getName().toLowerCase(Locale.ROOT),
+                        i -> i,
+                        (a, b) -> a));
+        Map<Integer, KitItem> sourceIdToTarget = new HashMap<>();
+        List<Integer> newItemIds = new ArrayList<>();
+        int skipped = 0;
+
+        for (KitItem src : sourceItems) {
+            String key = src.getName() == null ? "" : src.getName().toLowerCase(Locale.ROOT);
+            KitItem existing = targetByName.get(key);
+            if (existing != null) {
+                skipped++;
+                sourceIdToTarget.put(src.getId(), existing);
+                continue;
+            }
+            KitItem cloned = kitItemRepository.save(KitItem.builder()
+                    .hackathon(target)
+                    .name(src.getName())
+                    .type(src.getType())
+                    .hasSize(src.getHasSize())
+                    .build());
+            sourceIdToTarget.put(src.getId(), cloned);
+            targetByName.put(key, cloned);
+            newItemIds.add(cloned.getId());
+
+            List<KitStock> srcStocks = kitStockRepository.findByKitItem_IdOrderBySizeAsc(src.getId());
+            for (KitStock ss : srcStocks) {
+                int qty = includeQty && ss.getQuantityTotal() != null ? ss.getQuantityTotal() : 0;
+                UpsertKitStockRequest line = UpsertKitStockRequest.builder()
+                        .fit(ss.getFit())
+                        .size(ss.getSize())
+                        .quantityTotal(qty)
+                        .build();
+                applyStockLine(cloned, line);
+            }
+        }
+
+        List<Integer> newBundleIds = new ArrayList<>();
+        int bundlesCloned = 0;
+        if (includeBundles) {
+            boolean targetHasDefault = !kitBundleRepository
+                    .findByHackathon_IdAndIsDefaultTrue(targetHackathonId).isEmpty();
+            for (KitBundle srcBundle : kitBundleRepository.findByHackathon_IdOrderByIdAsc(source.getId())) {
+                List<UpsertKitBundleRequest.BundleItemRequest> bundleItems = new ArrayList<>();
+                boolean allMapped = true;
+                for (KitBundleItem bi : srcBundle.getItems()) {
+                    KitItem mapped = sourceIdToTarget.get(bi.getKitItem().getId());
+                    if (mapped == null) {
+                        allMapped = false;
+                        break;
+                    }
+                    bundleItems.add(UpsertKitBundleRequest.BundleItemRequest.builder()
+                            .kitItemId(mapped.getId())
+                            .quantity(bi.getQuantity() == null ? 1 : bi.getQuantity())
+                            .build());
+                }
+                if (!allMapped || bundleItems.isEmpty()) {
+                    continue;
+                }
+                boolean asDefault = Boolean.TRUE.equals(srcBundle.getIsDefault()) && !targetHasDefault;
+                KitBundle created = KitBundle.builder()
+                        .hackathon(target)
+                        .name(srcBundle.getName())
+                        .isDefault(asDefault)
+                        .build();
+                applyBundleItems(created, targetHackathonId, bundleItems);
+                KitBundle saved = kitBundleRepository.save(created);
+                if (asDefault) {
+                    clearOtherDefaults(targetHackathonId, saved.getId());
+                    targetHasDefault = true;
+                }
+                newBundleIds.add(saved.getId());
+                bundlesCloned++;
+            }
+        }
+
+        auditService.log(AuditAction.KIT_CLONE, "hackathons", targetHackathonId, Map.of(
+                "sourceHackathonId", source.getId(),
+                "itemsCloned", newItemIds.size(),
+                "itemsSkipped", skipped,
+                "bundlesCloned", bundlesCloned,
+                "includeStockQuantities", includeQty));
+
+        return CloneKitsResponse.builder()
+                .sourceHackathonId(source.getId())
+                .targetHackathonId(targetHackathonId)
+                .itemsCloned(newItemIds.size())
+                .itemsSkipped(skipped)
+                .bundlesCloned(bundlesCloned)
+                .newItemIds(newItemIds)
+                .newBundleIds(newBundleIds)
+                .build();
+    }
+
+    private KitStock applyStockLine(KitItem item, UpsertKitStockRequest req) {
+        if (req.getQuantityTotal() == null) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED, "quantityTotal bắt buộc");
+        }
         String size = normalizeStockSize(item, req.getSize());
         String sizeKey = size == null ? "" : size;
         String fit = normalizeStockFit(item, req.getFit());
         String fitKey = fit == null ? "" : fit;
 
-        KitStock stock = kitStockRepository.findByKitItem_IdAndFitKeyAndSizeKey(itemId, fitKey, sizeKey)
+        KitStock stock = kitStockRepository.findByKitItem_IdAndFitKeyAndSizeKey(item.getId(), fitKey, sizeKey)
                 .orElseGet(() -> KitStock.builder()
                         .kitItem(item)
                         .fit(fit)
@@ -155,7 +321,7 @@ public class KitServiceImpl implements KitService {
         stock.setFitKey(fitKey);
         stock.setSize(size);
         stock.setSizeKey(sizeKey);
-        return kitMapper.toStockResponse(kitStockRepository.save(stock));
+        return kitStockRepository.save(stock);
     }
 
     @Override
@@ -567,6 +733,7 @@ public class KitServiceImpl implements KitService {
         reg.setPreferredShirtSize(size);
         reg.setPreferredShirtFit(fit);
         hackathonRegistrationRepository.save(reg);
+        persistUserShirtDefaults(userId, size, fit);
         return ShirtSizeResponse.builder()
                 .hackathonId(hackathonId)
                 .preferredShirtSize(size)
@@ -579,6 +746,7 @@ public class KitServiceImpl implements KitService {
         Integer userId = currentUserAccessor.currentUserId();
         String size = parseShirtSize(req.getPreferredShirtSize());
         String fit = parseShirtFit(req.getPreferredShirtFit());
+        persistUserShirtDefaults(userId, size, fit);
         List<HackathonRegistration> regs = hackathonRegistrationRepository.findAllByUser_Id(userId);
         for (HackathonRegistration reg : regs) {
             reg.setPreferredShirtSize(size);
@@ -594,11 +762,19 @@ public class KitServiceImpl implements KitService {
                 .toList();
     }
 
+    private void persistUserShirtDefaults(Integer userId, String size, String fit) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        user.setDefaultShirtSize(size);
+        user.setDefaultShirtFit(fit);
+        userRepository.save(user);
+    }
+
     @Override
     @Transactional(readOnly = true)
     public List<ShirtSizeResponse> listMyShirtSizes() {
         Integer userId = currentUserAccessor.currentUserId();
-        return hackathonRegistrationRepository.findAllByUser_Id(userId).stream()
+        List<ShirtSizeResponse> fromRegs = hackathonRegistrationRepository.findAllByUser_Id(userId).stream()
                 .map(r -> ShirtSizeResponse.builder()
                         .hackathonId(r.getHackathon().getId())
                         .preferredShirtSize(r.getPreferredShirtSize())
@@ -606,6 +782,19 @@ public class KitServiceImpl implements KitService {
                                 ? ShirtFit.DEFAULT : r.getPreferredShirtFit())
                         .build())
                 .toList();
+        if (!fromRegs.isEmpty()) {
+            return fromRegs;
+        }
+        User user = userRepository.findById(userId).orElse(null);
+        if (user != null && StringUtils.hasText(user.getDefaultShirtSize())) {
+            return List.of(ShirtSizeResponse.builder()
+                    .hackathonId(null)
+                    .preferredShirtSize(user.getDefaultShirtSize())
+                    .preferredShirtFit(user.getDefaultShirtFit() == null
+                            ? ShirtFit.DEFAULT : user.getDefaultShirtFit())
+                    .build());
+        }
+        return List.of();
     }
 
     // ---------- helpers ----------

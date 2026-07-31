@@ -73,6 +73,29 @@ public class KitController {
         return ResponseEntity.ok(ApiResponse.ok(kitService.upsertStock(id, req)));
     }
 
+    @PutMapping("/kit-items/{id}/stocks")
+    @Operation(summary = "Upsert hàng loạt tồn kho (nhiều dáng/size)")
+    public ResponseEntity<ApiResponse<List<KitStockResponse>>> batchUpsertStock(
+            @PathVariable Integer id,
+            @Valid @RequestBody BatchUpsertKitStockRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(kitService.batchUpsertStock(id, req)));
+    }
+
+    @GetMapping("/hackathons/{hackathonId}/kits/clone-sources")
+    @Operation(summary = "Danh sách hackathon có kit để sao chép")
+    public ResponseEntity<ApiResponse<KitCloneSourcesResponse>> listCloneSources(
+            @PathVariable Integer hackathonId) {
+        return ResponseEntity.ok(ApiResponse.ok(kitService.listCloneSources(hackathonId)));
+    }
+
+    @PostMapping("/hackathons/{hackathonId}/kits/clone")
+    @Operation(summary = "Sao chép kit từ hackathon khác (append-only, skip trùng tên)")
+    public ResponseEntity<ApiResponse<CloneKitsResponse>> cloneKits(
+            @PathVariable Integer hackathonId,
+            @Valid @RequestBody CloneKitsRequest req) {
+        return ResponseEntity.status(201).body(ApiResponse.created(kitService.cloneFromSource(hackathonId, req)));
+    }
+
     @GetMapping("/hackathons/{hackathonId}/kit-bundles")
     @Operation(summary = "Danh sách combo kit")
     public ResponseEntity<ApiResponse<List<KitBundleResponse>>> listBundles(@PathVariable Integer hackathonId) {

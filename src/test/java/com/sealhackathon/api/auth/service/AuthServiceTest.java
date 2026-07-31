@@ -3,6 +3,7 @@ package com.sealhackathon.api.auth.service;
 import com.sealhackathon.api.auth.config.JwtProperties;
 import com.sealhackathon.api.auth.dto.request.ChangePasswordRequest;
 import com.sealhackathon.api.auth.dto.request.LoginRequest;
+import com.sealhackathon.api.auth.dto.response.AuthTokenResponse;
 import com.sealhackathon.api.common.audit.AuditAction;
 import com.sealhackathon.api.common.audit.AuditService;
 import com.sealhackathon.api.common.exception.AuthException;
@@ -136,19 +137,27 @@ class AuthServiceTest {
         when(invitationRepository.findFirstByEmailAndRoleAndAcceptedAtIsNullOrderByCreatedAtDesc(
                 user.getEmail(), UserRole.JUDGE))
                 .thenReturn(Optional.of(inv));
+        when(jwtTokenService.createAccessToken(user)).thenReturn("access-after-change");
+        when(userSessionService.createSession(any(), any(), any()))
+                .thenReturn(new UserSessionService.RefreshTokenPair("refresh-after", null));
+        when(jwtProperties.getAccessTtlMinutes()).thenReturn(30);
 
         ChangePasswordRequest req = new ChangePasswordRequest();
         req.setCurrentPassword("oldPass12");
         req.setNewPassword("newPass123");
 
-        authService.changePassword(req);
+        AuthTokenResponse tokens = authService.changePassword(req, null);
 
         assertThat(user.getMustChangePassword()).isFalse();
         assertThat(user.getStatus()).isEqualTo(UserStatus.APPROVED);
         assertThat(user.getPasswordHash()).isEqualTo("new-hash");
         assertThat(inv.getAcceptedAt()).isNotNull();
+        assertThat(tokens.getAccessToken()).isEqualTo("access-after-change");
+        assertThat(tokens.getRefreshToken()).isEqualTo("refresh-after");
+        assertThat(tokens.isMustChangePassword()).isFalse();
         verify(invitationRepository).save(inv);
         verify(userSessionService).revokeAllForUser(10);
+        verify(userSessionService).createSession(any(), any(), any());
     }
 
     @Test

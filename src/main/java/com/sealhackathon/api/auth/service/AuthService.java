@@ -81,7 +81,7 @@ public class AuthService {
     }
 
     @Transactional
-    public void changePassword(ChangePasswordRequest req) {
+    public AuthTokenResponse changePassword(ChangePasswordRequest req, HttpServletRequest httpRequest) {
         Integer userId = currentUserAccessor.currentUserId();
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new AuthException(ErrorCode.UNAUTHORIZED,
@@ -108,6 +108,7 @@ public class AuthService {
             user.setStatus(UserStatus.APPROVED);
         }
         user.setUpdatedAt(now);
+        user.setLastLoginAt(now);
         userRepository.save(user);
 
         invitationRepository
@@ -118,10 +119,25 @@ public class AuthService {
                     invitationRepository.save(inv);
                 });
 
+        // Revoke old sessions then issue fresh tokens with APPROVED status in JWT
         userSessionService.revokeAllForUser(userId);
+
+        String access = jwtTokenService.createAccessToken(user);
+        UserSessionService.RefreshTokenPair refresh = userSessionService.createSession(
+                user,
+                httpRequest != null ? httpRequest.getRemoteAddr() : null,
+                httpRequest != null ? httpRequest.getHeader("User-Agent") : null);
 
         auditService.log(AuditAction.ACCOUNT_PASSWORD_CHANGED, "users", user.getId(),
                 Map.of("email", user.getEmail()));
+
+        return AuthTokenResponse.builder()
+                .accessToken(access)
+                .refreshToken(refresh.rawToken())
+                .tokenType("Bearer")
+                .expiresInSeconds(jwtProperties.getAccessTtlMinutes() * 60L)
+                .mustChangePassword(false)
+                .build();
     }
 
     @Transactional

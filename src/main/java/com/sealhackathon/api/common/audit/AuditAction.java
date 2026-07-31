@@ -143,6 +143,7 @@ public final class AuditAction {
     public static final String KIT_ISSUED                   = "KIT_ISSUED";
     public static final String KIT_REVOKED                  = "KIT_REVOKED";
     public static final String KIT_BUNDLE_ISSUED            = "KIT_BUNDLE_ISSUED";
+    public static final String KIT_CLONE                    = "KIT_CLONE";
 
     public static final String ROUND_REPUBLISH              = "ROUND_REPUBLISH";
 

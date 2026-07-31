@@ -76,8 +76,11 @@ public class SubmissionMetadataServiceImpl implements SubmissionMetadataService 
         }
         List<SubmissionMetadata> pending = submissionMetadataRepository
                 .findTop50ByMetadataFetchStatusOrderBySubmissionIdAsc(MetadataFetchStatus.PENDING);
+        if (pending.isEmpty()) {
+            return 0;
+        }
         int processed = 0;
-        int max = Math.max(1, Math.min(limit, pending.size()));
+        int max = Math.min(Math.max(1, limit), pending.size());
         for (int i = 0; i < max; i++) {
             if (fetchAndPersist(pending.get(i).getSubmissionId())) {
                 processed++;

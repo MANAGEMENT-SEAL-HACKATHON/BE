@@ -86,6 +86,14 @@ public class User {
     @Column(name = "phone", length = 30)
     private String phone;
 
+    /** Default kit shirt size (XS–XXL) — copied into new hackathon registrations. */
+    @Column(name = "default_shirt_size", length = 10)
+    private String defaultShirtSize;
+
+    /** Default kit shirt fit (UNISEX/MALE/FEMALE). */
+    @Column(name = "default_shirt_fit", length = 20)
+    private String defaultShirtFit;
+
     @Column(name = "avatar_url", columnDefinition = "TEXT")
     private String avatarUrl;
 

@@ -22,6 +22,12 @@ import com.sealhackathon.api.hackathons.service.HackathonReadinessService;
 import com.sealhackathon.api.hackathons.value_object.ReadinessTarget;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.judge_assignments.value_object.JudgeAssignmentType;
+import com.sealhackathon.api.kits.dto.response.KitReconciliationLineResponse;
+import com.sealhackathon.api.kits.dto.response.KitReconciliationResponse;
+import com.sealhackathon.api.kits.repository.KitBundleRepository;
+import com.sealhackathon.api.kits.repository.KitItemRepository;
+import com.sealhackathon.api.kits.repository.KitStockRepository;
+import com.sealhackathon.api.kits.service.KitService;
 import com.sealhackathon.api.mentors.repository.MentorAssignmentRepository;
 import com.sealhackathon.api.rounds.entity.Round;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
@@ -63,6 +69,10 @@ public class HackathonReadinessServiceImpl implements HackathonReadinessService 
     private final HackathonTimelineService hackathonTimelineService;
     private final AuditService auditService;
     private final TeamRoundParticipationRepository teamRoundParticipationRepository;
+    private final KitItemRepository kitItemRepository;
+    private final KitStockRepository kitStockRepository;
+    private final KitBundleRepository kitBundleRepository;
+    private final KitService kitService;
 
     @Override
     public HackathonReadinessResponse check(Integer hackathonId, ReadinessTarget target) {
@@ -185,6 +195,7 @@ public class HackathonReadinessServiceImpl implements HackathonReadinessService 
 
         validateMilestoneEventsGate(h, hackathonId, blockers);
         validateRoundsExamAtGate(hackathonId, blockers);
+        addKitInventoryWarnings(hackathonId, warnings, summary);
 
         summary.put("tracksCount", trackCount);
         summary.put("roundsCount", preliminaryRounds.size() + (int) finalCount);
@@ -307,6 +318,64 @@ public class HackathonReadinessServiceImpl implements HackathonReadinessService 
             }
             blockers.add(blocker(code, ex.getMessage(),
                     ex.getDetails() == null ? Map.of("hackathonId", hackathonId) : ex.getDetails()));
+        }
+    }
+
+    private void addKitInventoryWarnings(Integer hackathonId, List<Warning> warnings,
+                                         Map<String, Object> summary) {
+        boolean hasKickoff = eventRepository.existsByHackathonIdAndType(hackathonId, EventType.KICKOFF);
+        long itemCount = kitItemRepository.countByHackathon_Id(hackathonId);
+        summary.put("kitItemCount", itemCount);
+
+        if (hasKickoff && itemCount == 0) {
+            warnings.add(Warning.of(CODE_READINESS_WARNING,
+                    "Khuyến nghị — chưa khai món kit (áo/dây đeo) trước Kickoff. Không chặn kích hoạt.",
+                    Map.of("hackathonId", hackathonId, "kitHint", "NO_ITEMS")));
+            return;
+        }
+        if (itemCount == 0) {
+            return;
+        }
+
+        var items = kitItemRepository.findByHackathon_IdOrderByIdAsc(hackathonId);
+        var stocks = kitStockRepository.findByKitItem_IdIn(items.stream().map(i -> i.getId()).toList());
+        int totalQty = stocks.stream()
+                .mapToInt(s -> s.getQuantityTotal() == null ? 0 : s.getQuantityTotal())
+                .sum();
+        summary.put("kitStockTotal", totalQty);
+        if (totalQty == 0) {
+            warnings.add(Warning.of(CODE_READINESS_WARNING,
+                    "Khuyến nghị — đã có món kit nhưng tổng tồn kho = 0. Không chặn kích hoạt.",
+                    Map.of("hackathonId", hackathonId, "kitHint", "ZERO_STOCK")));
+        }
+
+        boolean hasDefaultBundle = !kitBundleRepository.findByHackathon_IdAndIsDefaultTrue(hackathonId).isEmpty();
+        summary.put("kitHasDefaultBundle", hasDefaultBundle);
+        if (!hasDefaultBundle) {
+            warnings.add(Warning.of(CODE_READINESS_WARNING,
+                    "Khuyến nghị — chưa có combo kit mặc định để phát nhanh tại quầy. Không chặn kích hoạt.",
+                    Map.of("hackathonId", hackathonId, "kitHint", "NO_DEFAULT_BUNDLE")));
+        }
+
+        try {
+            KitReconciliationResponse recon = kitService.reconciliation(hackathonId);
+            int shortfall = 0;
+            if (recon.getLines() != null) {
+                for (KitReconciliationLineResponse line : recon.getLines()) {
+                    if (line.getShortfall() != null && line.getShortfall() > 0) {
+                        shortfall += line.getShortfall();
+                    }
+                }
+            }
+            summary.put("kitShortfallTotal", shortfall);
+            if (shortfall > 0) {
+                warnings.add(Warning.of(CODE_READINESS_WARNING,
+                        "Khuyến nghị — tồn kho thiếu %d đơn vị so với nhu cầu (size/dáng). Không chặn kích hoạt."
+                                .formatted(shortfall),
+                        Map.of("hackathonId", hackathonId, "kitHint", "SHORTFALL", "shortfall", shortfall)));
+            }
+        } catch (Exception ex) {
+            log.debug("Kit reconciliation skipped in readiness: {}", ex.getMessage());
         }
     }
 

@@ -12,6 +12,7 @@ import com.sealhackathon.api.auth.dto.request.ResendVerificationRequest;
 import com.sealhackathon.api.auth.dto.request.ResetPasswordRequest;
 import com.sealhackathon.api.auth.dto.request.VerifyEmailRequest;
 import com.sealhackathon.api.common.security.ApprovedOnly;
+import com.sealhackathon.api.common.security.AuthenticatedOnly;
 import com.sealhackathon.api.auth.dto.response.AuthTokenResponse;
 import com.sealhackathon.api.auth.dto.response.ForgotPasswordResponse;
 import com.sealhackathon.api.auth.dto.response.OAuthLinkStatusResponse;
@@ -174,11 +175,12 @@ public class AuthController {
     }
 
     @PostMapping("/change-password")
-    @ApprovedOnly
-    @Operation(summary = "Đổi mật khẩu (bắt buộc judge khách lần đầu)")
-    public ResponseEntity<ApiResponse<Void>> changePassword(
-            @Valid @RequestBody ChangePasswordRequest req) {
-        authService.changePassword(req);
-        return ResponseEntity.ok(ApiResponse.ok(null, "Mật khẩu đã được cập nhật"));
+    @AuthenticatedOnly
+    @Operation(summary = "Đổi mật khẩu (bắt buộc judge khách lần đầu; cho phép PENDING temp judge)")
+    public ResponseEntity<ApiResponse<AuthTokenResponse>> changePassword(
+            @Valid @RequestBody ChangePasswordRequest req,
+            HttpServletRequest httpRequest) {
+        AuthTokenResponse tokens = authService.changePassword(req, httpRequest);
+        return ResponseEntity.ok(ApiResponse.ok(tokens, "Mật khẩu đã được cập nhật"));
     }
 }

@@ -358,6 +358,11 @@ Catalog thống nhất các business rules đang được enforce trong backend,
 | BR-KIT-003 | FR-Kit | Kits | Validation | type=OTHER bắt buộc tên cụ thể (không "khác"/"other") | createItem / updateItem | Reject | KIT_ITEM_NAME_REQUIRED | Manual / create OTHER | Implemented | KitServiceImpl.validateItemName |
 | BR-KIT-004 | FR-Kit | Kits | Gate | Không xóa kit item đang nằm trong combo | deleteItem | Reject | KIT_ITEM_IN_BUNDLE | Manual | Implemented | KitServiceImpl.deleteItem |
 | BR-KIT-005 | FR-Kit | Kits | SideEffect | Reconciliation gom nhu cầu theo `(preferredShirtFit, preferredShirtSize)`; shortfall = eligible − total; banner beforeKickoff | GET reconciliation | KitReconciliationResponse | N/A (soft warning kickoff khi issue) | KitServiceImplIssueTest reconciliation_* | Implemented | KitServiceImpl.reconciliation |
+| BR-KIT-006 | FR-Kit | Kits | SideEffect | Clone kit append-only từ hackathon khác: skip món trùng tên; bundle clone ép `isDefault=false` nếu đích đã có default | POST …/kits/clone | CloneKitsResponse | VALIDATION_FAILED | Manual | Implemented | KitServiceImpl.cloneFromSource |
+| BR-KIT-007 | FR-Kit | Kits | Validation | createItem nhận `stocks[]` optional (fit/size/qty); batch PUT …/stocks | createItem / batchUpsertStock | KitItemResponse + stocks | VALIDATION_FAILED | Manual | Implemented | CreateKitItemRequest; KitServiceImpl.applyStockLine |
+| BR-KIT-008 | FR-Kit | Kits | SideEffect | Đăng ký hackathon: body optional size/fit; fallback `User.defaultShirt*`; onboarding ghi luôn User defaults | POST me/hackathons/{id}/register; PUT me/shirt-size | HackathonRegistration preferred* | N/A | Manual | Implemented | HackathonRegistrationServiceImpl; KitServiceImpl |
+| BR-KIT-009 | FR-Kit | Kits | SoftGate | Readiness ONGOING: warnings kit (no items / zero stock / no default combo / shortfall) — **không** blockers | checkOngoingReadiness | warnings[] | N/A | Manual | Implemented | HackathonReadinessServiceImpl.addKitInventoryWarnings |
+| BR-KIT-010 | FR-Kit | Kits | Invariant | Người nhận kit / reconciliation = thành viên **ACCEPTED** của đội **ACTIVE** only | listRecipients / issue / reconciliation | Eligible set | FORBIDDEN | Manual | Implemented | KitServiceImpl.collectEligibleRecipients |
 
 ## TempJudge
 

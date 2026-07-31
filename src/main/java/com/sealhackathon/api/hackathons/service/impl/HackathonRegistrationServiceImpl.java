@@ -5,6 +5,7 @@ import com.sealhackathon.api.common.exception.ConflictException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
+import com.sealhackathon.api.hackathons.dto.request.RegisterHackathonRequest;
 import com.sealhackathon.api.hackathons.entity.HackathonRegistration;
 import com.sealhackathon.api.hackathons.entity.HackathonRegistrationWithdrawal;
 import com.sealhackathon.api.hackathons.repository.HackathonRegistrationRepository;
@@ -35,6 +36,11 @@ public class HackathonRegistrationServiceImpl implements HackathonRegistrationSe
 
     @Override
     public void register(Integer hackathonId) {
+        register(hackathonId, null);
+    }
+
+    @Override
+    public void register(Integer hackathonId, RegisterHackathonRequest request) {
         Integer userId = currentUserAccessor.currentUserId();
         Hackathon hackathon = hackathonRepository.findById(hackathonId)
                 .orElseThrow(() -> new ResourceNotFoundException("Hackathon", hackathonId));
@@ -79,9 +85,30 @@ public class HackathonRegistrationServiceImpl implements HackathonRegistrationSe
 
         User user = userRepository.findById(userId).orElseThrow();
 
+        String size = null;
+        String fit = null;
+        if (request != null) {
+            if (request.getPreferredShirtSize() != null && !request.getPreferredShirtSize().isBlank()) {
+                size = request.getPreferredShirtSize().trim().toUpperCase();
+            }
+            if (request.getPreferredShirtFit() != null && !request.getPreferredShirtFit().isBlank()) {
+                fit = request.getPreferredShirtFit().trim().toUpperCase();
+            }
+        }
+        if (size == null && user.getDefaultShirtSize() != null && !user.getDefaultShirtSize().isBlank()) {
+            size = user.getDefaultShirtSize();
+        }
+        if (fit == null && user.getDefaultShirtFit() != null && !user.getDefaultShirtFit().isBlank()) {
+            fit = user.getDefaultShirtFit();
+        } else if (size != null && fit == null) {
+            fit = "UNISEX";
+        }
+
         hackathonRegistrationRepository.save(HackathonRegistration.builder()
                 .hackathon(hackathon)
                 .user(user)
+                .preferredShirtSize(size)
+                .preferredShirtFit(fit)
                 .build());
     }
 
