@@ -247,6 +247,10 @@ public final class ErrorCode {
     public static final String TEAM_MEMBER_FULL                         = "TEAM_MEMBER_FULL";
     public static final String INVITEE_NOT_APPROVED                     = "INVITEE_NOT_APPROVED";
     public static final String INVITEE_INVALID_ROLE                     = "INVITEE_INVALID_ROLE";
+    /** Leader chưa đăng ký hackathon — không tạo đội / mời. */
+    public static final String LEADER_NOT_REGISTERED                    = "LEADER_NOT_REGISTERED";
+    /** Người được mời chưa đăng ký cùng hackathon. */
+    public static final String INVITEE_NOT_REGISTERED                   = "INVITEE_NOT_REGISTERED";
     public static final String NOT_IMPLEMENTED                          = "NOT_IMPLEMENTED";
 
     // ---------- MF-03 GĐ3–GĐ5 (GD03 v4.1 §7) ----------
@@ -284,6 +288,8 @@ public final class ErrorCode {
     public static final String TEAM_NOT_ACCEPTING_INVITES                 = "TEAM_NOT_ACCEPTING_INVITES";
     public static final String LATE_PENDING_NOT_ALLOWED                   = "LATE_PENDING_NOT_ALLOWED";
     public static final String SUBMISSION_ALREADY_CLOSED                  = "SUBMISSION_ALREADY_CLOSED";
+    /** Close-early: còn đội eligible chưa nộp bài. */
+    public static final String TEAMS_NOT_ALL_SUBMITTED                   = "TEAMS_NOT_ALL_SUBMITTED";
     /** Còn trong cửa sổ nộp — không cho shuffle. */
     public static final String SUBMISSION_NOT_CLOSED_FOR_SHUFFLE          = "SUBMISSION_NOT_CLOSED_FOR_SHUFFLE";
     public static final String SUBMISSION_NOT_STARTED                     = "SUBMISSION_NOT_STARTED";

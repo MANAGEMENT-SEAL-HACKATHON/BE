@@ -12,6 +12,13 @@ import com.sealhackathon.api.rounds.mapper.RoundMapper;
 import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.query.ScoringProgressQueryService;
 import com.sealhackathon.api.rounds.value_object.RoundType;
+import com.sealhackathon.api.submissions.entity.Submission;
+import com.sealhackathon.api.teams.entity.Team;
+import com.sealhackathon.api.teams.entity.TeamMember;
+import com.sealhackathon.api.teams.entity.TeamRoundTrack;
+import com.sealhackathon.api.teams.value_object.TeamMemberStatus;
+import com.sealhackathon.api.teams.value_object.TeamStatus;
+import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,12 +30,17 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyFloat;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -68,6 +80,8 @@ class RoundProgressionServiceImplCloseSubmissionEarlyTest {
     private RoundProgressionServiceImpl service;
 
     private Round round;
+    private Team team1;
+    private Team team2;
 
     @BeforeEach
     void setUp() {
@@ -81,12 +95,30 @@ class RoundProgressionServiceImplCloseSubmissionEarlyTest {
                 .roundType(RoundType.PRELIMINARY)
                 .name("Sơ loại")
                 .isActive(true)
+                .isFinal(false)
                 .isPublished(false)
                 .problemReleasedAt(pastExam.minusMinutes(5))
                 .examAt(pastExam)
                 .submissionOpen(pastExam)
                 .submissionDeadline(LocalDateTime.now().plusHours(2))
                 .build();
+
+        team1 = Team.builder().id(101).teamName("Alpha").status(TeamStatus.ACTIVE).build();
+        team2 = Team.builder().id(102).teamName("Beta").status(TeamStatus.ACTIVE).build();
+    }
+
+    private void stubAllTeamsSubmitted() {
+        when(teamRoundTrackRepository.findByTrack_Round_Id(10)).thenReturn(List.of(
+                TeamRoundTrack.builder().team(team1).build(),
+                TeamRoundTrack.builder().team(team2).build()));
+        when(submissionRepository.findByRound_Id(10)).thenReturn(List.of(
+                Submission.builder().team(team1).round(round).build(),
+                Submission.builder().team(team2).round(round).build()));
+        User student = User.builder().id(501).email("sv@test.edu").fullName("SV").build();
+        when(teamMemberRepository.findByTeam_Id(101)).thenReturn(List.of(
+                TeamMember.builder().user(student).status(TeamMemberStatus.ACCEPTED).build()));
+        when(teamMemberRepository.findByTeam_Id(102)).thenReturn(List.of());
+        when(trackRepository.findByRoundIdOrderBySequenceOrderAsc(10)).thenReturn(List.of());
     }
 
     @Test
@@ -95,6 +127,7 @@ class RoundProgressionServiceImplCloseSubmissionEarlyTest {
         when(roundRepository.save(any(Round.class))).thenAnswer(inv -> inv.getArgument(0));
         when(roundMapper.toSummary(any(Round.class), anyInt(), anyInt(), anyFloat()))
                 .thenReturn(null);
+        stubAllTeamsSubmitted();
 
         CloseSubmissionEarlyResponse response = service.closeSubmissionEarly(10);
 
@@ -108,6 +141,39 @@ class RoundProgressionServiceImplCloseSubmissionEarlyTest {
         assertThat(saved.getSubmissionClosedEarlyAt()).isNotNull();
         assertThat(saved.getSubmissionDeadline()).isBeforeOrEqualTo(saved.getSubmissionClosedEarlyAt());
         assertThat(saved.getExamAt()).isEqualTo(round.getExamAt());
+        verify(notificationService, atLeastOnce()).sendBatch(
+                anyList(), eq("SUBMISSION_CLOSED_EARLY"), anyString(), anyString(), eq("rounds"), eq(10));
+    }
+
+    @Test
+    void closeSubmissionEarly_missingSubmission_rejectsWithTeamsNotAllSubmitted() {
+        when(roundAccessGuard.requireActiveRoundForUpdate(10)).thenReturn(round);
+        when(teamRoundTrackRepository.findByTrack_Round_Id(10)).thenReturn(List.of(
+                TeamRoundTrack.builder().team(team1).build(),
+                TeamRoundTrack.builder().team(team2).build()));
+        when(submissionRepository.findByRound_Id(10)).thenReturn(List.of(
+                Submission.builder().team(team1).round(round).build()));
+
+        assertThatThrownBy(() -> service.closeSubmissionEarly(10))
+                .isInstanceOf(BusinessRuleException.class)
+                .satisfies(ex -> {
+                    BusinessRuleException bre = (BusinessRuleException) ex;
+                    assertThat(bre.getCode()).isEqualTo(ErrorCode.TEAMS_NOT_ALL_SUBMITTED);
+                    assertThat(bre.getDetails()).containsEntry("submitted", 1);
+                    assertThat(bre.getDetails()).containsEntry("total", 2);
+                    assertThat(bre.getDetails().get("missingTeamIds")).isEqualTo(List.of(102));
+                });
+    }
+
+    @Test
+    void closeSubmissionEarly_noEligibleTeams_rejects() {
+        when(roundAccessGuard.requireActiveRoundForUpdate(10)).thenReturn(round);
+        when(teamRoundTrackRepository.findByTrack_Round_Id(10)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.closeSubmissionEarly(10))
+                .isInstanceOf(BusinessRuleException.class)
+                .satisfies(ex -> assertThat(((BusinessRuleException) ex).getCode())
+                        .isEqualTo(ErrorCode.INVALID_STATE));
     }
 
     /** TC-GATE-01 */
@@ -163,6 +229,7 @@ class RoundProgressionServiceImplCloseSubmissionEarlyTest {
         when(roundRepository.save(any(Round.class))).thenAnswer(inv -> inv.getArgument(0));
         when(roundMapper.toSummary(any(Round.class), anyInt(), anyInt(), anyFloat()))
                 .thenReturn(null);
+        stubAllTeamsSubmitted();
 
         CloseSubmissionEarlyResponse response = service.closeSubmissionEarly(10);
 
@@ -184,6 +251,7 @@ class RoundProgressionServiceImplCloseSubmissionEarlyTest {
         when(roundRepository.save(any(Round.class))).thenAnswer(inv -> inv.getArgument(0));
         when(roundMapper.toSummary(any(Round.class), anyInt(), anyInt(), anyFloat()))
                 .thenReturn(null);
+        stubAllTeamsSubmitted();
 
         service.closeSubmissionEarly(10);
 

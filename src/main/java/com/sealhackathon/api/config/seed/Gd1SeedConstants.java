@@ -52,8 +52,9 @@ public final class Gd1SeedConstants {
 
     public static final String SLUG_INCOMPLETE = "seal-gd1-incomplete";
     public static final String SLUG_READY = "seal-gd1-ready";
-    /** Hackathon E2E GĐ1→GĐ6 — 7 đội + 3 orphan. */
+    /** Hackathon E2E GĐ1→GĐ6 — 6 đội × 2 track (GĐ2 pre-lottery). */
     public static final String SLUG_ONGOING = "seal-e2e-2026";
+    /** @deprecated archive slug — purged via DEPRECATED_SLUGS */
     public static final String SLUG_FINISHED = "seal-fall-2025-finished";
 
     /** SUPERADMIN dev — dùng cho unlock-scoring (@SuperAdminOnly) + login UI. */

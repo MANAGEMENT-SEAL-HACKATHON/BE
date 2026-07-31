@@ -6,9 +6,7 @@ package com.sealhackathon.api.config.seed;
  * <p>Doc: {@code docs/testing/dev-seed-guide.md} · {@code docs/testing/dev-seed-slugs-guide.md}
  *
  * <ul>
- *   <li>{@link #SLUG_E2E_ONGOING} — GĐ1–GĐ2 happy + continuous</li>
- *   <li>{@link #SLUG_ARCHIVE_FINISHED} — FINISHED archive duy nhất</li>
- *   <li>GĐ3–GĐ6: mỗi giai đoạn một happy slug</li>
+ *   <li>{@link #SLUG_E2E_ONGOING} — duy nhất: GĐ1 structure + GĐ2 pre-lottery → continuous GĐ2→GĐ6</li>
  * </ul>
  */
 public final class DevSeedCatalog {
@@ -21,28 +19,13 @@ public final class DevSeedCatalog {
     /** Số thành viên ACCEPTED tối thiểu mỗi đội seed. */
     public static final int MEMBERS_PER_TEAM = 3;
 
+    /** 3 SV APPROVED chưa ĐK sự kiện / chưa vào đội — test ĐK + mời trên sự kiện mới. */
     public static final int ORPHAN_COUNT = 3;
 
     public static final String SLUG_E2E_ONGOING = Gd1SeedConstants.SLUG_ONGOING;
 
-    public static final String SLUG_ARCHIVE_FINISHED = Gd1SeedConstants.SLUG_FINISHED;
-
-    public static final String SLUG_GD3_PRELIM_OPEN = Gd3SeedConstants.SLUG_GD3_PRELIM_OPEN;
-
-    public static final String SLUG_GD4_ADVANCE_READY = Gd4SeedConstants.SLUG_GD4_ADVANCE_READY;
-
-    public static final String SLUG_GD4_TIEBREAK_SUBMISSION_TIME =
-            Gd4TiebreakSeedConstants.SLUG_GD4_TIEBREAK_SUBMISSION_TIME;
-
-    public static final String SLUG_GD4_TIEBREAK_MANUAL =
-            Gd4TiebreakSeedConstants.SLUG_GD4_TIEBREAK_MANUAL;
-
-    public static final String SLUG_GD5_FINAL_ACTIVE = Gd5SeedConstants.SLUG_GD5_FINAL_ACTIVE;
-
-    public static final String SLUG_GD6_PENDING_CONFIRM = Gd6SeedConstants.SLUG_GD6_PENDING_CONFIRM;
-
     /**
-     * Slug seed cũ / bad / mid-stage — xóa khi start profile {@code dev}.
+     * Slug seed cũ / bad / mid-stage / former happy snapshots — xóa khi start profile {@code dev}.
      */
     public static final String[] DEPRECATED_SLUGS = {
             // legacy spring / ready
@@ -52,7 +35,7 @@ public final class DevSeedCatalog {
             "seal-spring-2026-gd4",
             "seal-spring-2026-gd5",
             "seal-spring-2026-gd6",
-            // GĐ1 bad/gate
+            // GĐ1 bad/gate + incomplete
             Gd1SeedConstants.SLUG_INCOMPLETE,
             "seal-gd1-no-kickoff",
             "seal-gd1-no-awards",
@@ -66,6 +49,12 @@ public final class DevSeedCatalog {
             "seal-gd2-lottery-not-locked",
             "seal-gd2-round-active",
             "seal-fall-ongoing-2026",
+            // former happy archive + GĐ3–GĐ6 snapshots (chỉ còn seal-e2e-2026)
+            "seal-fall-2025-finished",
+            "seal-gd3-prelim-open",
+            "seal-gd4-advance-ready",
+            "seal-gd5-final-active",
+            "seal-gd6-pending-confirm",
             // GĐ3 mid/bad
             "seal-gd3-late-review",
             "seal-gd3-scoring-live",
@@ -108,18 +97,14 @@ public final class DevSeedCatalog {
             "seal-gd6-prize-duplicate",
     };
 
-    /** Happy-path hackathon slugs seed khi start {@code dev}. */
+    /** Happy-path hackathon slugs seed khi start {@code dev} — chỉ 1. */
     public static final String[] ALL_DEV_HACKATHON_SLUGS = {
             SLUG_E2E_ONGOING,
-            SLUG_ARCHIVE_FINISHED,
-            SLUG_GD3_PRELIM_OPEN,
-            SLUG_GD4_ADVANCE_READY,
-            SLUG_GD5_FINAL_ACTIVE,
-            SLUG_GD6_PENDING_CONFIRM,
     };
 
+    /** 6 đội × 2 track (3+3 sau lottery), topNAdvance=2 → minTeamsFinal=4. */
     public static final SnapshotProfile PROFILE_E2E = new SnapshotProfile(
-            "e2e", "E2E-", 7, 3, 2);
+            "e2e", "E2E-", 6, 2, 2);
 
     public static final String TEAM_MARKER = PROFILE_E2E.teamMarker();
 

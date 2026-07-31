@@ -2,7 +2,7 @@
 
 > **Doc sync:** 2026-07-31 — Phases 0–11
 
-> **Person 4** · ~16–18 phút · Slug live: **`seal-gd4-advance-ready` only**  
+> **Person 4** · ~16–18 phút · Slug live: **`seal-e2e-2026`** (sau scoring lock SL)  
 > **Gate vào:** SL `scoring_locked=true` · **Gate ra GĐ5:** CK `is_active=true`, SL published, teams ADVANCED (sau khi cửa sổ khiếu nại đóng / hết PENDING|UNDER_REVIEW)
 
 ---
@@ -13,19 +13,21 @@
 
 - **Trạng thái kỳ vọng:** Person 3 vừa **Khóa chấm điểm** (SL) — scoring locked, chưa publish.
 - **Câu bàn giao:** «Sơ loại đã khóa chấm. Em bắt từ trang **Kết quả Sơ loại** — stepper công bố, cửa sổ khiếu nại, chuyển vòng, cấu hình CK, kích hoạt Chung kết.»
-- **Mode A:** Mở `seal-gd4-advance-ready`.
-- **Mode B:** Tiếp hackathon sau lock SL GĐ3.
+- **Mode A:** Tiếp `seal-e2e-2026` sau scoring lock (không mở snapshot riêng).
+- **Mode B:** Tiếp hackathon sau lock SL GĐ3 (cùng slug).
 
 ### Điểm RA (Person 4 → bàn giao Person 5)
 
 - **Thao tác UI cuối:** Tab **Vòng thi** / Cấu hình CK → **Kích hoạt Vòng thi** (Chung kết) → xác nhận **KEEP** → Xác nhận.
 - **Verify:** CK **Active**; đội ADVANCED; SL `isPublished=true`; **không** cần Phát đề CK (tự release).
 - **Câu chốt:** «Chung kết đã active — SV có thể nộp bài CK. Xin mời Person 5.»  
-- **Mode A Person 5:** Mở `seal-gd5-final-active`.
+- **Mode A Person 5:** Tiếp **cùng** `seal-e2e-2026` sau activate CK.
 
 **Không còn slug phụ live:** `seal-gd4-tiebreak-submission-time`, `seal-gd4-tiebreak-manual`, `seal-gd4-wildcard-gap` — **DEPRECATED / purged**. Seeder `Gd4TiebreakWildcardDataSeeder` **đã xóa**. Không dành thời gian Person cho «3 slug phụ».
 
-**Tiebreak trên `advance-ready`:** nếu seed có đồng điểm biên Top-N → demo tab **Đồng điểm** (`TiebreakPanel`) khi banner xuất hiện; nếu không có tie → bỏ qua bước resolve. Hành vi Top-N gap (`availableSlots` / `minTeamsFinal`) vẫn trong `RoundProgressionServiceImpl` — **không** cần slug riêng.
+**~~`seal-gd4-advance-ready` / `Gd4AdvanceReadyDataSeeder`~~** — **không còn primary seed**; GĐ4 chạy continuous trên `seal-e2e-2026`.
+
+**Tiebreak:** nếu có đồng điểm biên Top-N → demo tab **Đồng điểm** (`TiebreakPanel`) khi banner xuất hiện; nếu không có tie → bỏ qua bước resolve. Hành vi Top-N gap (`availableSlots` / `minTeamsFinal`) vẫn trong `RoundProgressionServiceImpl` — **không** cần slug riêng.
 
 ---
 
@@ -52,9 +54,9 @@
 
 | Slug | Mục đích | Account |
 |------|----------|---------|
-| `seal-gd4-advance-ready` | Happy full flow (publish → appeal → advance → activate CK) | `coord@fpt.edu.vn`, `student.gd4a.leader01@`…`leader08@` |
+| `seal-e2e-2026` | Happy full flow sau lock SL (publish → appeal → advance → activate CK) | `coord@fpt.edu.vn`, leaders `student.e2e.t0N.leader@` |
 
-~~`seal-gd4-tiebreak-submission-time` / `seal-gd4-tiebreak-manual` / `seal-gd4-wildcard-gap`~~ — **không dùng live demo** (purged).
+~~`seal-gd4-advance-ready`~~ / ~~`seal-gd4-tiebreak-*` / `seal-gd4-wildcard-gap`~~ — **không dùng live demo** (purged).
 
 Password: `Coordinator@dev1` / `Student@dev1`. Guest (cho CK): `guestjudge@gmail.com` / `GuestJudge@dev1`.
 
@@ -62,13 +64,13 @@ Password: `Coordinator@dev1` / `Student@dev1`. Guest (cho CK): `guestjudge@gmail
 
 ## 3. DataInitializer & seeders
 
-| Seeder | Slug |
-|--------|------|
-| `Gd4AdvanceReadyDataSeeder` | `seal-gd4-advance-ready` — SL locked, unpublished, 8 đội |
+| Seeder | Ghi chú |
+|--------|---------|
+| *(không seeder GĐ4 riêng)* | State = continuous trên `seal-e2e-2026` sau GĐ3 lock |
 
-~~`Gd4TiebreakWildcardDataSeeder`~~ — **deleted**.
-
-Flag: `app.seed.gd4.enabled=true`.
+~~`Gd4AdvanceReadyDataSeeder`~~ — **đã gỡ** (không còn primary seed).  
+~~`Gd4TiebreakWildcardDataSeeder`~~ — **deleted**.  
+~~`app.seed.gd4.enabled`~~ — **đã gỡ**.
 
 ---
 
@@ -268,13 +270,13 @@ flowchart TD
 | BE Tiebreak / advance | `RoundProgressionController`, `RoundProgressionServiceImpl` (`availableSlots` / `minTeamsFinal`) |
 | BE Judges | `JudgeAssignmentController` |
 
-**Không còn:** `WildcardReviewController` / wildcard endpoints (Phase 9). **Không còn:** `Gd4TiebreakWildcardDataSeeder` / 3 slug phụ live. **Không còn:** START_NOW trên activate.
+**Không còn:** `WildcardReviewController` / wildcard endpoints (Phase 9). **Không còn:** `Gd4AdvanceReadyDataSeeder` / `Gd4TiebreakWildcardDataSeeder` / snapshot slug GĐ4. **Không còn:** START_NOW trên activate.
 
 ---
 
 ## 11. Checklist smoke
 
-- [ ] `seal-gd4-advance-ready` SL locked, unpublished
+- [ ] `seal-e2e-2026` SL locked, unpublished (sau GĐ3)
 - [ ] Stepper: Công bố → **Khiếu nại** → Chốt CK → Cấu hình CK
 - [ ] Tabs sau publish gồm **Khiếu nại**
 - [ ] Publish → `PublishAppealWindowModal` + `AppealCountdownBar` (2 markers nếu window &gt; 0)
@@ -283,7 +285,7 @@ flowchart TD
 - [ ] T-5 `FinalDelayModal` **trong** window (không sau activate)
 - [ ] Activate CK **KEEP only** (không START_NOW)
 - [ ] Guest judge accounts login OK
-- [ ] Person 5 mở `seal-gd5-final-active`
+- [ ] Person 5 sẵn sàng tiếp cùng slug sau activate CK
 - [ ] Verify 0 UI «Vé vớt»; advance chỉ Top-N
 - [ ] **Không** mở 3 slug tiebreak/wildcard-gap
 
@@ -294,7 +296,8 @@ flowchart TD
 | Câu hỏi | Trả lời |
 |---------|---------|
 | Vé vớt còn không? | **Không** — đã xóa (Phase 9). Advance chỉ **Top-N** mỗi bảng (+ `availableSlots`/`minTeamsFinal` nếu cấu hình). |
-| 3 slug tiebreak đâu? | **Purged** — demo tiebreak trên `advance-ready` nếu seed có đồng điểm; không có slug phụ. |
+| 3 slug tiebreak đâu? | **Purged** — demo tiebreak trên continuous `seal-e2e-2026` nếu có đồng điểm; không có slug phụ. |
+| `seal-gd4-advance-ready`? | **Purged** — GĐ4 chạy continuous sau scoring trên `seal-e2e-2026`. |
 | Publish có hoàn tác? | One-way `isPublished=true`. Republish sau approve **không** reset cửa sổ khiếu nại. |
 | Cửa sổ khiếu nại? | Mở **một lần** lúc first publish; countdown 2 markers; advance chờ hết PENDING/UNDER_REVIEW. |
 | T-5 khi nào? | Trong appeal window khi ≤5′ tới CK còn đơn pending — **không** sau activate. |

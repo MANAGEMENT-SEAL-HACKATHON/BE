@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class DevSeedCatalogTest {
 
-    private static final int EXPECTED_SLUG_COUNT = 9;
+    private static final int EXPECTED_SLUG_COUNT = 1;
 
     @Test
     void catalogHasExpectedSlugCount() {
@@ -42,6 +42,15 @@ class DevSeedCatalogTest {
         }
     }
 
+    @Test
+    void profileE2eIsSixTeamsTwoTracks() {
+        assertEquals(6, DevSeedCatalog.PROFILE_E2E.teamCount());
+        assertEquals(2, DevSeedCatalog.PROFILE_E2E.trackCount());
+        assertEquals(2, DevSeedCatalog.PROFILE_E2E.topNAdvance());
+        assertEquals(3, DevSeedCatalog.ORPHAN_COUNT);
+        assertEquals("6 đội × 2 track (3+3)", DevSeedCatalog.PROFILE_E2E.distributionLabel());
+    }
+
     private static Set<String> collectSlugConstantsFromSeedPackage() throws Exception {
         ClassPathScanningCandidateComponentProvider scanner =
                 new ClassPathScanningCandidateComponentProvider(false);
@@ -58,10 +67,8 @@ class DevSeedCatalogTest {
                     continue;
                 }
                 String name = field.getName();
-                if (!name.startsWith("SLUG") && !name.equals("SLUG_E2E_ONGOING") && !name.equals("SLUG_ARCHIVE_FINISHED")) {
-                    if (!name.contains("SLUG")) {
-                        continue;
-                    }
+                if (!name.startsWith("SLUG") && !name.contains("SLUG")) {
+                    continue;
                 }
                 field.setAccessible(true);
                 Object value = field.get(null);
@@ -71,7 +78,6 @@ class DevSeedCatalogTest {
             }
         }
         slugs.add(DevSeedCatalog.SLUG_E2E_ONGOING);
-        slugs.add(DevSeedCatalog.SLUG_ARCHIVE_FINISHED);
         return slugs;
     }
 }

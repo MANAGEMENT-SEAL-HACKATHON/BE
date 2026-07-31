@@ -172,6 +172,13 @@ public class TeamServiceImpl implements TeamService {
         }
     }
 
+    private void assertRegisteredForHackathon(Integer hackathonId, Integer userId,
+                                              String errorCode, String message) {
+        if (!hackathonRegistrationRepository.existsByHackathon_IdAndUser_Id(hackathonId, userId)) {
+            throw new BusinessRuleException(errorCode, message);
+        }
+    }
+
     @Override
     public TeamResponse createTeam(CreateTeamRequest req) {
         // 1. Kiểm tra User đang đăng nhập
@@ -191,9 +198,16 @@ public class TeamServiceImpl implements TeamService {
             throw new BusinessRuleException(ErrorCode.HACKATHON_NOT_ONGOING, "Hackathon chưa mở đăng ký (không phải ONGOING)");
         }
 
-        if (HackathonRegistrationSupport.isRegistrationClosed(hackathon)) {
+        if (!HackathonRegistrationSupport.isRegistrationWindowOpen(hackathon)) {
+            if (HackathonRegistrationSupport.isRegistrationNotYetOpen(hackathon)) {
+                throw new BusinessRuleException(ErrorCode.REGISTRATION_CLOSED, "Chưa đến thời gian mở đăng ký.");
+            }
             throw new BusinessRuleException(ErrorCode.REGISTRATION_CLOSED, "Đã quá hạn đăng ký tham gia Hackathon");
         }
+
+        assertRegisteredForHackathon(hackathon.getId(), leader.getId(),
+                ErrorCode.LEADER_NOT_REGISTERED,
+                "Bạn phải đăng ký sự kiện trước khi tạo đội.");
 
         // 3. Kiểm tra tính hợp lệ của Đội và Leader
         if (teamRepository.existsByHackathon_IdAndTeamNameIgnoreCase(hackathon.getId(), req.getTeamName().trim())) {
@@ -605,11 +619,19 @@ public class TeamServiceImpl implements TeamService {
         if (!team.getLeader().getId().equals(currentUserAccessor.currentUserId())) {
             throw new BusinessRuleException(ErrorCode.FORBIDDEN, "Chỉ nhóm trưởng mới có quyền mời thành viên");
         }
-        if (HackathonRegistrationSupport.isRegistrationClosed(team.getHackathon())) {
+        Hackathon inviteHackathon = team.getHackathon();
+        if (!HackathonRegistrationSupport.isRegistrationWindowOpen(inviteHackathon)) {
+            if (HackathonRegistrationSupport.isRegistrationNotYetOpen(inviteHackathon)) {
+                throw new BusinessRuleException(ErrorCode.REGISTRATION_CLOSED,
+                        "Chưa đến thời gian mở đăng ký, không thể mời thành viên.");
+            }
             throw new BusinessRuleException(ErrorCode.REGISTRATION_CLOSED,
                     "Đã hết hạn đăng ký, không thể mời thêm thành viên.");
         }
         assertLeaderCanChangeMembership(team);
+        assertRegisteredForHackathon(inviteHackathon.getId(), currentUserAccessor.currentUserId(),
+                ErrorCode.LEADER_NOT_REGISTERED,
+                "Bạn phải đăng ký sự kiện trước khi mời thành viên.");
 
         User invitee = userRepository.findByEmail(req.getEmail().trim().toLowerCase())
                 .orElseThrow(() -> new ResourceNotFoundException("User", req.getEmail()));
@@ -620,6 +642,9 @@ public class TeamServiceImpl implements TeamService {
         if (invitee.getStatus() != com.sealhackathon.api.users.value_object.UserStatus.APPROVED) {
             throw new BusinessRuleException(ErrorCode.INVITEE_NOT_APPROVED, "Tài khoản của người được mời chưa được BTC duyệt");
         }
+        assertRegisteredForHackathon(inviteHackathon.getId(), invitee.getId(),
+                ErrorCode.INVITEE_NOT_REGISTERED,
+                "Chỉ mời được sinh viên đã đăng ký cùng sự kiện này.");
 
         java.util.List<com.sealhackathon.api.teams.entity.TeamMember> currentMembers = teamMemberRepository.findByTeam_Id(teamId);
         HackathonTeamSizeResolver.TeamSizeLimits inviteLimits = limitsFor(team);
@@ -713,6 +738,9 @@ public class TeamServiceImpl implements TeamService {
                 throw new ConflictException(ErrorCode.TEAM_NOT_ACCEPTING_INVITES,
                         "Đội không còn nhận lời mời (đã bị từ chối/giải tán hoặc không còn PENDING/ACTIVE)");
             }
+            assertRegisteredForHackathon(freshTeam.getHackathon().getId(), userId,
+                    ErrorCode.INVITEE_NOT_REGISTERED,
+                    "Bạn phải đăng ký cùng sự kiện trước khi chấp nhận lời mời vào đội.");
             boolean alreadyInTeam = teamMemberRepository.existsAcceptedInActiveOrPendingTeam(
                     userId,
                     freshTeam.getHackathon().getId(),

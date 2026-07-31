@@ -12,19 +12,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "app.seed")
 public class DevSeedProperties {
 
-    /**
-     * Bật seed hackathon {@link Gd5SeedConstants#SLUG_GD5_FINAL_ACTIVE}. Mặc định {@code true}.
-     */
-    private boolean gd5Enabled = true;
+    /** Bật seed {@code seal-e2e-2026} (E2eWorkflowDataSeeder). */
+    private boolean e2eEnabled = true;
 
     /**
-     * Bật seed hackathon {@link Gd6SeedConstants#SLUG_GD6_PENDING_CONFIRM}. Mặc định {@code true}.
+     * Ép reset {@code seal-e2e-2026} về GĐ2 baseline dù đang GĐ3+.
+     * Mặc định {@code false} — bảo vệ demo hội đồng A–Z.
      */
-    private boolean gd6Enabled = true;
-
-    /** Bật seed {@link Gd3SeedConstants#SLUG_GD3_PRELIM_OPEN}. */
-    private boolean gd3Enabled = true;
-
-    /** Bật seed {@link Gd4SeedConstants#SLUG_GD4_ADVANCE_READY}. */
-    private boolean gd4Enabled = true;
+    private boolean e2eForceGd2Reset = false;
 }

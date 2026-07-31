@@ -93,6 +93,26 @@ public interface UserRepository extends JpaRepository<User, Integer> {
 
     @Query("""
             SELECT u FROM User u
+            WHERE u.role = com.sealhackathon.api.users.value_object.UserRole.STUDENT
+              AND u.status = com.sealhackathon.api.users.value_object.UserStatus.APPROVED
+              AND u.id <> :excludeUserId
+              AND EXISTS (
+                    SELECT 1 FROM com.sealhackathon.api.hackathons.entity.HackathonRegistration hr
+                    WHERE hr.user.id = u.id AND hr.hackathon.id = :hackathonId
+              )
+              AND (LOWER(u.email) LIKE LOWER(CONCAT('%', :q, '%'))
+                   OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :q, '%'))
+                   OR LOWER(COALESCE(u.studentCode, '')) LIKE LOWER(CONCAT('%', :q, '%')))
+            ORDER BY u.fullName ASC
+            """)
+    org.springframework.data.domain.Page<User> searchRegisteredStudentsForHackathonInvite(
+            @Param("q") String q,
+            @Param("hackathonId") Integer hackathonId,
+            @Param("excludeUserId") Integer excludeUserId,
+            Pageable pageable);
+
+    @Query("""
+            SELECT u FROM User u
             WHERE u.status = com.sealhackathon.api.users.value_object.UserStatus.APPROVED
               AND u.role IN (com.sealhackathon.api.users.value_object.UserRole.JUDGE,
                              com.sealhackathon.api.users.value_object.UserRole.MENTOR)

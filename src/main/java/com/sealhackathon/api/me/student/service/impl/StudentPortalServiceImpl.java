@@ -136,6 +136,8 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                     boolean registrationWithdrawn = hackathonRegistrationWithdrawalRepository
                             .existsByHackathon_IdAndUser_Id(h.getId(), userId);
                     boolean registeredElsewhere = !isRegistered && hasOngoingRegistration;
+                    boolean notYetOpen = HackathonRegistrationSupport.isRegistrationNotYetOpen(h);
+                    boolean windowOpen = HackathonRegistrationSupport.isRegistrationWindowOpen(h);
                     return StudentHackathonBrowseItemResponse.builder()
                             .id(h.getId())
                             .name(h.getName())
@@ -152,7 +154,31 @@ public class StudentPortalServiceImpl implements StudentPortalService {
                             .eventStart(h.getEventStart())
                             .eventEnd(h.getEventEnd())
                             .maxParticipants(h.getMaxParticipants())
+                            .registrationNotYetOpen(notYetOpen)
+                            .registrationWindowOpen(windowOpen)
                             .build();
+                })
+                .sorted((a, b) -> {
+                    // Đã ĐK trước → đang mở ĐK → registrationStart asc → tên
+                    int regCmp = Boolean.compare(Boolean.TRUE.equals(b.getRegistered()),
+                            Boolean.TRUE.equals(a.getRegistered()));
+                    if (regCmp != 0) return regCmp;
+                    int openCmp = Boolean.compare(Boolean.TRUE.equals(b.getRegistrationWindowOpen()),
+                            Boolean.TRUE.equals(a.getRegistrationWindowOpen()));
+                    if (openCmp != 0) return openCmp;
+                    java.time.LocalDate as = a.getRegistrationStart();
+                    java.time.LocalDate bs = b.getRegistrationStart();
+                    if (as != null && bs != null) {
+                        int startCmp = as.compareTo(bs);
+                        if (startCmp != 0) return startCmp;
+                    } else if (as != null) {
+                        return -1;
+                    } else if (bs != null) {
+                        return 1;
+                    }
+                    String an = a.getName() == null ? "" : a.getName();
+                    String bn = b.getName() == null ? "" : b.getName();
+                    return an.compareToIgnoreCase(bn);
                 })
                 .toList();
     }

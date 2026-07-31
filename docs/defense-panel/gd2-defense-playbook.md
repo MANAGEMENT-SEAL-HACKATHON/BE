@@ -13,7 +13,7 @@
 
 - **Trạng thái kỳ vọng:** Person 1 vừa **Xác nhận Kích hoạt** — hackathon `ONGOING`, đăng ký mở, vòng SL chưa active.
 - **Câu bàn giao:** «Hackathon đã ONGOING. Em tiếp từ **Quản lý đội** — duyệt đội, đóng đăng ký, bốc thăm, kích hoạt Sơ loại.»
-- **Mode A:** Tiếp `seal-e2e-2026` (7 đội ACTIVE seed sẵn).
+- **Mode A:** Tiếp `seal-e2e-2026` (**6 đội** ACTIVE seed sẵn).
 - **Mode B:** Cùng hackathon Person 1 vừa tạo — hoặc `seal-e2e-2026`.
 
 ### Điểm RA (Person 2 → bàn giao Person 3)
@@ -21,7 +21,7 @@
 - **Thao tác UI cuối:** Tab **Vòng thi** → **Kích hoạt Vòng thi** (Sơ loại) → modal xác nhận **KEEP** (examAt ≤ now; nếu còn future thì dùng «Dời lịch thi» trước). → Xác nhận.
 - **Verify:** Round Sơ loại badge **Active**; đội `is_locked=true`; lottery đã gán track/bảng.
 - **Câu chốt:** «Vòng Sơ loại đã active — chưa phát đề / chưa nộp bài. Xin mời Person 3 phần thi Sơ loại.»  
-- **Mode A Person 3:** Mở slug `seal-gd3-prelim-open`.
+- **Mode A Person 3:** Tiếp **cùng** `seal-e2e-2026` (không mở slug snapshot riêng).
 
 ---
 
@@ -29,7 +29,7 @@
 
 | Hạng mục | Nội dung |
 |----------|----------|
-| Phạm vi | SV tạo đội, mời thành viên, Coord duyệt, orphan, đóng ĐK sớm, dời hạn ĐK, lottery, activate prelim |
+| Phạm vi | SV tạo đội, mời thành viên, Coord duyệt, đóng ĐK sớm, dời hạn ĐK, lottery, activate prelim |
 | Gate vào | G-2.1 ONGOING; G-2.2 registration mở; G-2.3 prelim chưa active |
 | Gate ra | G-3.2 `PATCH /rounds/{prelimId}/activate` |
 | Thời lượng | 2p + 12p + 5p + 3p |
@@ -40,9 +40,8 @@
 
 | Slug | Teams | Account |
 |------|-------|---------|
-| `seal-e2e-2026` | `E2E-T01`…`T07` ACTIVE; 3 orphan | Coord: `coord@fpt.edu.vn` |
-| | | SV leader: `student.e2e.t01.leader@fpt.edu.vn` |
-| | | Orphan: `student.e2e.orphan1@fpt.edu.vn` |
+| `seal-e2e-2026` | `E2E-T01`…`T06` ACTIVE (6 đội × 2 track); **không** orphan seed | Coord: `coord@fpt.edu.vn` |
+| | | SV leader: `student.e2e.t01.leader@fpt.edu.vn` … `t06` |
 
 Password: `Coordinator@dev1` / `Student@dev1`.
 
@@ -52,12 +51,13 @@ Password: `Coordinator@dev1` / `Student@dev1`.
 
 | Seeder | Vai trò |
 |--------|---------|
-| `E2eWorkflowDataSeeder` | 7 đội + 3 orphan; chưa lock, chưa lottery |
+| `E2eWorkflowDataSeeder` | **6 đội**; chưa lock, chưa lottery |
+| `E2eDevFlowGuard` | Sau activate / lottery → freeze repair (`force-gd2-reset=false`) |
 | `HackathonRegistrationCloseServiceImpl` | Close-reg + preview lịch |
 | `HackathonRegistrationExtensionServiceImpl` | Dời hạn đăng ký (+ cascade tùy chọn) |
 | `CompetitionScheduleAdjustService` | Dời lịch thi (optional) |
 
-`repairForGd2Testing()` — registration còn mở sau restart.
+`repairForGd2Testing()` — registration còn mở sau restart **chỉ khi** chưa freeze.
 
 ---
 
@@ -92,10 +92,10 @@ flowchart TD
 
 | ID | Loại | Role | URL | Thao tác UI | Kết quả UI | ErrorCode | FE | BE |
 |----|------|------|-----|-------------|------------|-----------|----|----|
-| G2-H01 | Happy | Student | Student portal | **Tạo đội** → điền tên | Status **Chờ duyệt** (PENDING) | — | `StudentTeamPage` | `StudentTeamController` |
-| G2-H02 | Happy | Student | Invite flow | Mời email thành viên → member **Chấp nhận** | Roster đủ người | — | `InvitationCard` / student invitations | `InvitationController` |
+| G2-H01 | Happy | Student | Student portal | **Đăng ký sự kiện** → **Tạo đội** → điền tên | Status **Chờ duyệt** (PENDING) | — | `StudentTeamPage` | `StudentTeamController` |
+| G2-H02 | Happy | Student | Invite flow | Mời email SV **đã ĐK cùng slug** → member **Chấp nhận** | Roster đủ người | — | `InvitationCard` / student invitations | `TeamController` |
 | G2-H03 | Happy | Coord | `/teams` | Chọn đội PENDING → **Duyệt** | Tag **ACTIVE** | — | `CoordinatorTeamPage` | `TeamController` |
-| G2-H04 | Happy | Student | Orphan login | Orphan accept invite vào `E2E-T01` | Vào roster đội | — | `InvitationCard` / student invitations | `InvitationController` |
+| G2-H04 | Happy | Student | Portal | Free-agent orphan ĐK sự kiện → accept invite vào `E2E-T01` | Vào roster đội | — | `InvitationCard` / student invitations | `TeamController` |
 | G2-H05 | Happy | Coord | `setup?tab=general` | **Kết thúc đăng ký sớm** → chọn giờ SL → preview (Collapse quy tắc) → **Xác nhận** | Modal kết quả; thẻ số đội | — | `HackathonGeneralConfig` | `HackathonRegistrationCloseServiceImpl` |
 | G2-H06 | Happy | Coord | Modal kết quả | **Xử lý N đội đang chờ** (nếu có) → duyệt/từ chối | Không còn PENDING blocking | — | inline `Modal` trong `HackathonGeneralConfig` | `TeamController` |
 | G2-H07 | Happy | Coord | Tab **Bốc thăm** | **Bốc thăm Tự động** (Cho đội chưa có) | Track + `assignedGroup` hiển thị | — | `LotteryManagementPage` | `HackathonLotteryServiceImpl` |
@@ -116,7 +116,7 @@ flowchart TD
 |----|-------|---------|
 | G2-A01 | Re-lottery trước activate | Đổi track được |
 | G2-A02 | Modal đóng ĐK — Collapse «Quy tắc lịch» | UX hiển thị quy tắc |
-| G2-A03 | Seed 7 đội sẵn Mode A | Bỏ H01–H03, bắt từ H05 |
+| G2-A03 | Seed 6 đội sẵn Mode A | Bỏ H01–H03, bắt từ H05 |
 | G2-A04 | (Tuỳ chọn) Judge/Mentor decline assignment **trước** round active | `PATCH /me/judge/assignments/{id}/decline`, `/me/mentor/assignments/{id}/decline`, `/me/mentor/team-assignments/{id}/decline` — OK; sau activate → `ASSIGNMENT_DECLINE_TOO_LATE` |
 
 ---
@@ -130,8 +130,12 @@ flowchart TD
 | G2-B03 | Bad | Coord | Lottery | Re-lottery sau activate SL | 422 toast | `ROUND_ALREADY_ACTIVE` | `LotteryManagementPage` | `HackathonLotteryServiceImpl` |
 | G2-B04 | Bad | Student | Portal | Tạo đội sau đóng ĐK | Toast reject | `REGISTRATION_CLOSED` | `StudentTeamPage` | `StudentTeamController` |
 | G2-B05 | Bad | Coord | Lottery | Bốc thăm khi chưa lock roster ACTIVE | Gate message | `ACTIVE_TEAMS_NOT_LOCKED` | `LotteryManagementPage` | `HackathonLotteryServiceImpl` / `canRunLottery` |
+| G2-B06 | Bad | Student | Portal | Tạo đội khi chưa đăng ký sự kiện | Toast reject | `LEADER_NOT_REGISTERED` | `StudentTeamPage` | `TeamServiceImpl` |
+| G2-B07 | Bad | Student | Invite | Mời SV chưa ĐK / ĐK sự kiện khác | Toast reject | `INVITEE_NOT_REGISTERED` | `TeamMemberManager` | `TeamServiceImpl` |
 
 **Lottery gates (tóm tắt):** `TEAMS_PENDING_APPROVAL` (còn PENDING), `ACTIVE_TEAMS_NOT_LOCKED` (ACTIVE chưa lock), `REGISTRATION_CLOSED` (giai đoạn ĐK chưa kết thúc — tên code lịch sử), `ROUND_ALREADY_ACTIVE` (re-lottery sau activate). Per-team unlock khi gửi assignment tay: `TEAM_NOT_LOCKED`.
+
+**Chủ đề bảng đấu:** nhập ở tab **Bảng đấu** (GĐ1); tab **Bốc thăm** (GĐ2) chủ yếu **hiển thị** chủ đề — nút «Gán Chủ đề» chỉ hiện khi còn trống.
 
 ---
 
@@ -172,9 +176,9 @@ flowchart TD
 ## 11. Checklist smoke
 
 - [ ] `seal-e2e-2026` ONGOING, prelim inactive
-- [ ] 7 đội ACTIVE (hoặc demo tạo mới H01–H03)
+- [ ] 6 đội ACTIVE (hoặc demo tạo mới H01–H03)
 - [ ] Tab Bốc thăm hiện sau close-reg
-- [ ] Person 3 đã mở `seal-gd3-prelim-open` (Mode A)
+- [ ] Person 3 sẵn sàng tiếp **cùng** `seal-e2e-2026` (continuous)
 - [ ] Ghi `prelimRoundId`
 
 ---
@@ -183,7 +187,7 @@ flowchart TD
 
 | Câu hỏi | Trả lời |
 |---------|---------|
-| Tại sao không slug GĐ2 riêng? | GĐ1–2 cùng `seal-e2e-2026`; E2eWorkflowDataSeeder tách state GĐ2. |
+| Tại sao không slug GĐ2 riêng? | GĐ1–GĐ6 cùng `seal-e2e-2026`; E2eWorkflowDataSeeder = baseline GĐ2; `E2eDevFlowGuard` giữ continuous. |
 | Track vs Bảng? | Track = chủ đề; `assignedGroup` = bảng trong track. |
 | KEEP vs «Dời lịch thi»? | KEEP = kích hoạt giữ lịch đã xếp (examAt ≤ now). Muốn giờ sớm hơn → toolbar «Dời lịch thi» (1 lần). ~~START_NOW đã gỡ (phase 2).~~ |
 | Close-reg có hoàn tác? | Không — modal cảnh báo trước khi xác nhận. |

@@ -1,6 +1,7 @@
 package com.sealhackathon.api.hackathons.support;
 
 import com.sealhackathon.api.hackathons.entity.Hackathon;
+import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import com.sealhackathon.api.teams.entity.Team;
 import com.sealhackathon.api.teams.value_object.TeamStatus;
 
@@ -11,6 +12,35 @@ import java.util.List;
 public final class HackathonRegistrationSupport {
 
     private HackathonRegistrationSupport() {}
+
+    /** Chưa tới ngày mở đăng ký ({@code registrationStart}). */
+    public static boolean isRegistrationNotYetOpen(Hackathon hackathon) {
+        if (hackathon == null) {
+            return true;
+        }
+        LocalDate start = hackathon.getRegistrationStart();
+        if (start == null) {
+            return false;
+        }
+        return LocalDate.now().isBefore(start);
+    }
+
+    /**
+     * Cửa sổ đăng ký đang mở: ONGOING, đã tới {@code registrationStart},
+     * chưa hết hạn / chưa đóng sớm.
+     */
+    public static boolean isRegistrationWindowOpen(Hackathon hackathon) {
+        if (hackathon == null) {
+            return false;
+        }
+        if (hackathon.getStatus() != HackathonStatus.ONGOING) {
+            return false;
+        }
+        if (isRegistrationNotYetOpen(hackathon)) {
+            return false;
+        }
+        return !isRegistrationClosed(hackathon);
+    }
 
     public static boolean isRegistrationClosed(Hackathon hackathon) {
         if (hackathon == null) {

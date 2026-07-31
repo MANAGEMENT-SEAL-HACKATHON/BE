@@ -1,37 +1,45 @@
 package com.sealhackathon.api.hackathons.support;
 
 import com.sealhackathon.api.hackathons.entity.Hackathon;
-import com.sealhackathon.api.teams.entity.Team;
-import com.sealhackathon.api.teams.value_object.TeamStatus;
+import com.sealhackathon.api.hackathons.value_object.HackathonStatus;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class HackathonRegistrationSupportTest {
 
     @Test
-    void canRunLotteryRequiresRegistrationEndedAndAllActiveLocked() {
-        Hackathon hackathon = Hackathon.builder()
-                .registrationEnd(LocalDate.now().minusDays(1))
+    void isRegistrationNotYetOpen_whenStartInFuture() {
+        Hackathon h = Hackathon.builder()
+                .status(HackathonStatus.ONGOING)
+                .registrationStart(LocalDate.now().plusDays(2))
+                .registrationEnd(LocalDate.now().plusDays(10))
                 .build();
-        List<Team> teams = List.of(
-                Team.builder().status(TeamStatus.ACTIVE).isLocked(true).build(),
-                Team.builder().status(TeamStatus.PENDING).isLocked(false).build());
-
-        assertThat(HackathonRegistrationSupport.canRunLottery(hackathon, teams)).isTrue();
+        assertThat(HackathonRegistrationSupport.isRegistrationNotYetOpen(h)).isTrue();
+        assertThat(HackathonRegistrationSupport.isRegistrationWindowOpen(h)).isFalse();
     }
 
     @Test
-    void canRunLotteryBlocksWhenActiveTeamNotLocked() {
-        Hackathon hackathon = Hackathon.builder()
+    void isRegistrationWindowOpen_whenWithinWindow() {
+        Hackathon h = Hackathon.builder()
+                .status(HackathonStatus.ONGOING)
+                .registrationStart(LocalDate.now().minusDays(1))
+                .registrationEnd(LocalDate.now().plusDays(5))
+                .build();
+        assertThat(HackathonRegistrationSupport.isRegistrationNotYetOpen(h)).isFalse();
+        assertThat(HackathonRegistrationSupport.isRegistrationWindowOpen(h)).isTrue();
+    }
+
+    @Test
+    void isRegistrationWindowOpen_falseWhenClosed() {
+        Hackathon h = Hackathon.builder()
+                .status(HackathonStatus.ONGOING)
+                .registrationStart(LocalDate.now().minusDays(10))
                 .registrationEnd(LocalDate.now().minusDays(1))
                 .build();
-        List<Team> teams = List.of(
-                Team.builder().status(TeamStatus.ACTIVE).isLocked(false).build());
-
-        assertThat(HackathonRegistrationSupport.canRunLottery(hackathon, teams)).isFalse();
+        assertThat(HackathonRegistrationSupport.isRegistrationWindowOpen(h)).isFalse();
+        assertThat(HackathonRegistrationSupport.isRegistrationClosed(h)).isTrue();
     }
 }

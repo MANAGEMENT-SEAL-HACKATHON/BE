@@ -271,7 +271,11 @@ class Gd4ToGd6FlowIntegrationTest {
                 .andExpect(status().isOk());
 
         mockMvc.perform(patch("/api/v1/rounds/{id}/publish", prelimRound.getId())
-                        .header("Authorization", "Bearer " + coordToken))
+                        .header("Authorization", "Bearer " + coordToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"appealWindowMode":"SKIP","skipReason":"integration-test no appeal window"}
+                                """))
                 .andExpect(status().isOk());
 
         String advanceBody = """

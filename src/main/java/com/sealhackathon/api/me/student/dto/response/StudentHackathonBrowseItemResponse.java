@@ -32,4 +32,8 @@ public class StudentHackathonBrowseItemResponse {
     private LocalDate eventStart;
     private LocalDate eventEnd;
     private Integer maxParticipants;
+    /** Chưa tới registrationStart. */
+    private Boolean registrationNotYetOpen;
+    /** Cửa sổ đăng ký đang mở (start ≤ today ≤ end, chưa đóng sớm). */
+    private Boolean registrationWindowOpen;
 }

@@ -2,7 +2,7 @@
 
 > **Doc sync:** 2026-07-31 — Phases 0–11
 
-> **Person 3** · ~18 phút · Slug: `seal-gd3-prelim-open`  
+> **Person 3** · ~18 phút · Slug: `seal-e2e-2026` (continuous sau activate SL)  
 > **Gate vào:** lottery xong, round SL active, đề có thể release · **Gate ra GĐ4:** SL `scoring_locked=true`
 
 ---
@@ -13,15 +13,14 @@
 
 - **Trạng thái kỳ vọng:** Person 2 vừa **Kích hoạt Vòng thi (Sơ loại)** — round Active, đội locked, lottery xong.
 - **Câu bàn giao:** «Vòng Sơ loại đã active. Em bắt từ **Phát đề** / SV **Nộp bài Sơ loại**, rồi queue, chấm, khóa.»
-- **Mode A:** Mở `seal-gd3-prelim-open` (prelim active, 5/6 đã nộp, mentor gán).
-- **Mode B:** Tiếp hackathon continuous sau GĐ2.
+- **Mode A / Mode B:** Cả hai trên **`seal-e2e-2026` continuous** (sau GĐ2). ~~`seal-gd3-prelim-open` / `Gd3PrelimOpenDataSeeder`~~ — **đã gỡ**.
 
 ### Điểm RA (Person 3 → bàn giao Person 4)
 
 - **Thao tác UI cuối:** Tab **Vòng thi** → **Khóa chấm điểm** → **Xác nhận Khóa**.
 - **Verify:** SL scoring locked; nút lock disabled; không còn chấm mới.
 - **Câu chốt:** «Sơ loại đã khóa chấm — chưa công bố kết quả. Xin mời Person 4 phần chuyển vòng và Chung kết.»  
-- **Mode A Person 4:** Mở `seal-gd4-advance-ready`.
+- **Mode A Person 4:** Tiếp **cùng** `seal-e2e-2026` sau lock SL.
 
 ---
 
@@ -44,8 +43,8 @@
 
 | Slug | State | Account |
 |------|-------|---------|
-| `seal-gd3-prelim-open` | Prelim active, 5/6 SUBMITTED, chưa queue | Coord: `coord@fpt.edu.vn` |
-| | GD3-06 chưa nộp (demo) | `student.gd3.leader06@fpt.edu.vn` |
+| `seal-e2e-2026` | Prelim active (sau GĐ2); 6 đội × 2 track | Coord: `coord@fpt.edu.vn` |
+| | Leaders nộp | `student.e2e.t01.leader@` … `t06` |
 | | Judges | `judge1@`…`judge4@` / `Judge@dev1` |
 | | Mentors | `mentor@`…`mentor3@` / `Mentor@dev1` |
 
@@ -55,10 +54,10 @@
 
 | Seeder | Vai trò |
 |--------|---------|
-| `Gd3PrelimOpenDataSeeder` | 6 đội, prelim active, problem released, mentors gán |
-| `repairForFeTesting()` | Deadline = now + 8h |
+| *(không seeder GĐ3 riêng)* | State GĐ3 = continuous trên `seal-e2e-2026` sau activate SL |
+| `E2eDevFlowGuard` | Bảo vệ không reset về GĐ2 khi restart |
 
-Flag: `app.seed.gd3.enabled=true`.
+~~`Gd3PrelimOpenDataSeeder`~~ / ~~`app.seed.gd3.enabled`~~ — **đã gỡ**.
 
 ---
 
@@ -82,7 +81,7 @@ flowchart TD
 |------|------------|
 | Phát đề | Tab **Vòng thi** — **Phát đề bài** / **Phát tất cả** |
 | Nộp SV | `/student/submit` tab **Sơ loại** — **Nộp bài Sơ loại** |
-| End-early | **Kết thúc thời gian thi sớm** → Xác nhận KHÔNG HOÀN TÁC (`POST /rounds/{id}/close-submission-early`) |
+| End-early | **Kết thúc thời gian thi sớm** → confirm khi **mọi đội đã nộp** (`POST /rounds/{id}/close-submission-early`); notify SV/judge/mentor |
 | Queue | `/presentation/queue?roundId=` — **Khởi Động Máy Quay Số** |
 | Controller | **Chuyển quyền điều phối đồng hồ** |
 | Judge | `/judge/dashboard` — **Vào phòng chấm thi** |
@@ -100,7 +99,7 @@ flowchart TD
 |----|------|------|-----|-------------|------------|-----------|----|----|
 | G3-H01 | Happy | Coord | Vòng thi | **Phát đề bài** / **Phát tất cả** | SV thấy đề; early-wait → disabled đến giờ | — | `RoundManagementPage` | `RoundProgressionController` |
 | G3-H02 | Happy | Student | `/student/submit` | Tab **Sơ loại** → repo + PDF → **Nộp bài Sơ loại** | Toast success; status SUBMITTED | — | `StudentSubmissionPage` | `SubmissionController` |
-| G3-H03 | Happy | Coord | Vòng thi | **Kết thúc thời gian thi sớm** → confirm | Modal KHÔNG HOÀN TÁC; cổng đóng | — | `RoundManagementPage` | `RoundProgressionController` — `POST /rounds/{id}/close-submission-early` |
+| G3-H03 | Happy | Coord | Vòng thi | **Kết thúc thời gian thi sớm** → confirm (đủ nộp) | Modal KHÔNG HOÀN TÁC; cổng đóng; notify | — | `RoundManagementPage` | `RoundProgressionController` — `POST /rounds/{id}/close-submission-early` |
 | G3-H04 | Happy | Coord | `/presentation/queue` | **Khởi Động Máy Quay Số** | Queue order hiển thị | — | `PresentationQueuePage` | `PresentationQueueController` |
 | G3-H05 | Happy | Coord | Queue | **Chuyển quyền điều phối đồng hồ** | Judge nhận quyền controller | — | `PresentationQueuePage` | `PresentationTimerController` |
 | G3-H06 | Happy | Judge | `/judge/dashboard` | **Vào phòng** → **Bắt đầu tính giờ** | Timer PRESENTING | — | `JudgeScoringWorkspace` | `PresentationTimerController` |
@@ -121,7 +120,7 @@ flowchart TD
 |----|-------|---------|
 | G3-A01 | Skip no-show | **Bỏ qua đội** trên queue |
 | G3-A02 | Q&A warning | Alert khi ≤ 1/3 thời lượng Q&A còn lại |
-| G3-A03 | Mode A skip nộp | 5/6 đã nộp — chỉ demo leader06 |
+| G3-A03 | Continuous skip nộp | Đã nộp một phần — chỉ demo leader còn lại |
 
 ---
 
@@ -136,6 +135,7 @@ flowchart TD
 | G3-B05 | Bad | Student | Submit | Repo platform sai (drive.google) | Toast 422 | `INVALID_REPO_PLATFORM` | `StudentSubmissionPage` | `GitHubRepoValidator` |
 | G3-B06 | Bad | Student | Submit | Thiếu PDF slide | Toast 422 | `SLIDE_FILE_REQUIRED` | `StudentSubmissionPage` | `SubmissionController` |
 | G3-B07 | Bad | Judge / Mentor | Portal | Decline assignment **sau** round active / đề đã phát | 422 toast | `ASSIGNMENT_DECLINE_TOO_LATE` | Judge/Mentor portal | `AssignmentResponseService` — `PATCH /me/judge/assignments/{id}/decline`, `/me/mentor/assignments/{id}/decline`, team-assignments decline |
+| G3-B08 | Bad | Coord | Vòng thi | Kết thúc sớm khi còn đội chưa nộp | OK disabled / 422 | `TEAMS_NOT_ALL_SUBMITTED` | `RoundManagementPage` | `RoundProgressionServiceImpl#closeSubmissionEarly` |
 
 ---
 
@@ -177,11 +177,11 @@ flowchart TD
 
 ## 11. Checklist smoke
 
-- [ ] `seal-gd3-prelim-open` prelim active
-- [ ] `student.gd3.leader06@` login OK
+- [ ] `seal-e2e-2026` prelim active (sau GĐ2)
+- [ ] Leader E2E login OK (`student.e2e.t0N.leader@`)
 - [ ] Judge1 login + dashboard có slot
 - [ ] Queue URL có `roundId`
-- [ ] Person 4 mở `seal-gd4-advance-ready`
+- [ ] Person 4 sẵn sàng tiếp cùng slug sau lock SL
 - [ ] (Optional) superadmin unlock path tested
 
 ---

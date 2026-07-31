@@ -2,7 +2,7 @@
 
 > **Doc sync:** 2026-07-31 — Phases 0–11
 
-> **Person 1** · ~17 phút · Slug: `seal-e2e-2026` (Mode B) · `seal-fall-2025-finished` (archive)  
+> **Person 1** · ~17 phút · Slug: `seal-e2e-2026` (1 happy slug — GĐ1–GĐ6 continuous)  
 > **Gate:** DRAFT → readiness pass → `ONGOING` · **Gate ra GĐ2:** status `ONGOING`, prelim inactive
 
 ---
@@ -39,8 +39,9 @@
 
 | Slug | Mục đích | Account |
 |------|----------|---------|
-| `seal-e2e-2026` | Verify setup / Mode B continuous | `coord@fpt.edu.vn` |
-| `seal-fall-2025-finished` | Archive read-only (cuối demo) | `student.archive.fall2025@fpt.edu.vn` |
+| `seal-e2e-2026` | Verify setup / continuous GĐ1–GĐ6 (6 đội × 2 track) | `coord@fpt.edu.vn` |
+
+~~`seal-fall-2025-finished`~~ — **purged** (không còn archive snapshot).
 
 ---
 
@@ -48,12 +49,13 @@
 
 | Seeder | Vai trò |
 |--------|---------|
-| `DataInitializer` | Orchestrate **6** happy slugs (`DevSeedCatalog.ALL_DEV_HACKATHON_SLUGS`) |
-| `Gd1DataSeeder` | Structure `seal-e2e-2026`: 2 rounds, 3 tracks, criteria, events |
-| `E2eWorkflowDataSeeder` | 7 đội + 3 orphan (GĐ2, chưa chạy ở GĐ1) |
-| `HackathonDevSeedHelper` | Repair timeline theo `LocalDate.now()` |
+| `DataInitializer` | Orchestrate **1** happy slug (`DevSeedCatalog.ALL_DEV_HACKATHON_SLUGS`) |
+| `Gd1DataSeeder` | Structure `seal-e2e-2026`: 2 rounds, **2 tracks**, criteria, events |
+| `E2eWorkflowDataSeeder` | **6 đội** ACTIVE (GĐ2 baseline; chưa lock / lottery) |
+| `E2eDevFlowGuard` | Freeze repair khi đã GĐ3+ (`force-gd2-reset=false`) |
+| `HackathonDevSeedHelper` | Repair timeline theo `LocalDate.now()` (nếu chưa freeze) |
 
-Restart BE → log `6 happy slugs: seal-e2e-2026, seal-fall-2025-finished, …`; `repairForFeTesting()` sync lịch; không hard-code ngày.
+Restart BE → log `1 happy slug: seal-e2e-2026`; sync lịch khi chưa freeze; không hard-code ngày.
 
 ---
 
@@ -95,12 +97,12 @@ flowchart TD
 |----|------|------|----------------|-------------|-------------------|-----------|----|----|
 | G1-H01 | Happy | Coord | `/hackathons/create` | Điền tên, mùa, **năm editable**, slug → **Lưu** | Redirect setup; status **Bản nháp** | — | `HackathonCreatePage` | `HackathonController.create` |
 | G1-H02 | Happy | Coord | `setup?tab=rounds` | **Thêm vòng thi** ×2: Sơ loại + Chung kết → **Lưu** | 2 vòng hiển thị; CK shell có criteria placeholder | — | `RoundManagementPage` | `RoundController` |
-| G1-H03 | Happy | Coord | `setup?tab=tracks` | **Thêm bảng** + **Upload PDF** đề SL | Track list; PDF icon/link | — | `TrackManagementPage` | `TrackController` |
+| G1-H03 | Happy | Coord | `setup?tab=tracks` | **Thêm bảng** (tên + **chủ đề** bắt buộc) + **Upload PDF** đề SL | Track list có cột Chủ đề; PDF icon/link | — | `TrackManagementPage` / `TrackFormModal` | `TrackController` |
 | G1-H04 | Happy | Coord | `setup?tab=criteria` | Thêm tiêu chí; Collapse mô tả; tổng **trọng số = 1.0** | Tag xanh 100%; **Lưu** OK | — | `CriteriaManagementPage` | `CriteriaController` |
 | G1-H05 | Happy | Coord | `setup?tab=people` | Gán Judge **INTERNAL** + Mentor vào track SL | Bảng nhân sự cập nhật | — | `PeopleManagementPage` | `JudgeAssignmentController` |
 | G1-H06 | Happy | Coord | `setup?tab=events` | **Thêm** KICKOFF → WORKSHOP → (khuyến nghị) AWARDS | Timeline 3 milestone; POST order đúng | — | `EventManagementPage` | `EventController` |
 | G1-H07 | Happy | Coord | Setup header | Hover readiness → **Xác nhận Kích hoạt** | Toast success; banner **Đang diễn ra** | — | `HackathonSetupPage` | `HackathonStatusController` |
-| G1-H08 | Happy | Student | `/student/results` | Login archive `student.archive.fall2025@` | BXH/giải read-only; không nút mutate | — | `StudentResultsPage` | `HackathonClosureController` (GET) |
+| G1-H08 | Happy | Student | `/student/results` | (Sau FINISHED / Mode B) xem BXH/giải read-only | Không nút mutate khi FINISHED | — | `StudentResultsPage` | `HackathonClosureController` (GET) |
 | G1-H09 | Happy | Coord | `setup?tab=kits` | **Vật phẩm & Kit** — thêm món (+ dáng UNISEX cho áo) + upsert tồn kho theo `(fit,size)` + tạo **combo** mặc định | Inventory + combo list; stock theo dáng/size | — (`KIT_*` / `KIT_ITEM_NAME_REQUIRED`) | `KitInventoryPage` | `KitController` |
 | G1-H10 | Happy | Coord | `/coordinator/kit-desk` | Chọn SV ACCEPTED → **Phát combo** (hoặc món lẻ) / **Thu hồi**; xem đối chiếu nhu cầu | Allocation cập nhật; toast issued/skipped | — (`KIT_OUT_OF_STOCK` / `KIT_ALREADY_ISSUED`) | `KitDistributionPage` | `KitController` (`issue` / `issue-bundle` / `reconciliation`) |
 | G1-H11 | Happy | Coord | `setup?tab=events` | Tạo **BUFFET** trong [prelimEnd, final.examAt] + PUT thực đơn | Timeline buffet + menu | — (`EVENT_BUFFET_*`) | `EventManagementPage` | `EventController` / `BuffetMenuController` |
@@ -169,7 +171,7 @@ flowchart TD
 
 ## 11. Checklist smoke trước bục
 
-- [ ] BE log `6 happy slugs`
+- [ ] BE log `1 happy slug: seal-e2e-2026`
 - [ ] FE `localhost:5173` OK
 - [ ] Coord login + banner hiện đúng kỳ
 - [ ] `seal-e2e-2026` setup mở được

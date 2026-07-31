@@ -56,6 +56,7 @@ class TrackServiceImplCreateSequenceTest {
         Round round = Round.builder().id(10).hackathon(hackathon).isFinal(false).build();
         CreateTrackRequest req = CreateTrackRequest.builder()
                 .name("EVSWAP2")
+                .topic("Domain topic")
                 .minTeamSize(1)
                 .maxTeamSize(5)
                 .build();
@@ -80,6 +81,7 @@ class TrackServiceImplCreateSequenceTest {
         Round round = Round.builder().id(10).hackathon(hackathon).isFinal(false).build();
         CreateTrackRequest req = CreateTrackRequest.builder()
                 .name("EVSWAP2")
+                .topic("Domain topic")
                 .sequenceOrder(1)
                 .minTeamSize(1)
                 .maxTeamSize(5)
@@ -104,6 +106,7 @@ class TrackServiceImplCreateSequenceTest {
         Round round = Round.builder().id(10).hackathon(hackathon).isFinal(false).build();
         CreateTrackRequest req = CreateTrackRequest.builder()
                 .name("EVSWAP1")
+                .topic("Domain topic")
                 .minTeamSize(1)
                 .maxTeamSize(5)
                 .build();

@@ -1,12 +1,15 @@
 # Master slug test matrix (SSOT)
 
-**Cập nhật:** 2026-07-14  
-**Nguồn code:** `DevSeedCatalog.ALL_DEV_HACKATHON_SLUGS` (**6 slug**)  
+**Cập nhật:** 2026-07-31  
+**Nguồn code:** `DevSeedCatalog.ALL_DEV_HACKATHON_SLUGS` (**1 slug** continuous)  
 **Mirror FE:** `seal-hackathon-fe/e2e/helpers/devSeedCatalogSlugs.js`, `seedRegistry.js`
 
 **Mô tả chi tiết:** [dev-seed-slugs-guide.md](dev-seed-slugs-guide.md)  
 **Lỗi cố tình (tái tạo tay):** [intentional-errors-catalog.md](intentional-errors-catalog.md)  
-**UI playbook:** [manual-ui-playbook-gd1-gd6.md](manual-ui-playbook-gd1-gd6.md)
+**UI playbook:** [manual-ui-playbook-gd1-gd6.md](manual-ui-playbook-gd1-gd6.md)  
+**Defense:** [../defense-panel/README.md](../defense-panel/README.md)
+
+**Tóm tắt:** Demo / test happy path = **`seal-e2e-2026` continuous GĐ1→GĐ6**. Mode A snapshot slug đã **deprecated/purged**. Guard: `E2eDevFlowGuard` + `app.seed.e2e.force-gd2-reset=false`.
 
 ---
 
@@ -16,9 +19,9 @@
 |-------|------|---------|
 | L1 Unit | `cd BE && mvn test` | service, gate helpers |
 | L2 Integration | `cd BE && mvn test -Dtest="*IntegrationTest"` | Fixture-based gate ITs (không phụ thuộc bad seed) |
-| L3 API probe | `cd seal-hackathon-fe && npm run probe:seeds` | **6** slug + negative probes trên happy |
-| L4 Matrix UI | `npm run test:e2e:parity && npm run test:e2e:matrix` | **6** slug read-only |
-| L5 Dedicated e2e | dedicated specs còn maps tới happy | Deep happy |
+| L3 API probe | `cd seal-hackathon-fe && npm run probe:seeds` | **1** slug + negative probes trên happy |
+| L4 Matrix UI | `npm run test:e2e:parity && npm run test:e2e:matrix` | **1** slug read-only |
+| L5 Dedicated e2e | dedicated specs còn maps tới happy | Deep happy / continuous |
 
 ---
 
@@ -26,24 +29,27 @@
 
 | GĐ | Happy slug | Negative |
 |----|------------|----------|
-| GĐ1–2 | `seal-e2e-2026` | [intentional-errors-catalog.md](intentional-errors-catalog.md) §GĐ1–2 |
-| Archive | `seal-fall-2025-finished` | — |
-| GĐ3 | `seal-gd3-prelim-open` | catalog §GĐ3 |
-| GĐ4 | `seal-gd4-advance-ready` | catalog §GĐ4 |
-| GĐ5 | `seal-gd5-final-active` | catalog §GĐ5 |
-| GĐ6 | `seal-gd6-pending-confirm` | catalog §GĐ6 |
+| GĐ1–GĐ6 | `seal-e2e-2026` (continuous) | [intentional-errors-catalog.md](intentional-errors-catalog.md) |
 
 ---
 
-## Ma trận 6 slug
+## Ma trận 1 slug
 
-| slug | gd | status | seeder | primary_roles |
-|------|-----|--------|--------|---------------|
-| seal-e2e-2026 | GĐ1–2 | ONGOING | Gd1DataSeeder + E2eWorkflow | coord, student |
-| seal-fall-2025-finished | Archive | FINISHED | Gd1DataSeeder | coord, student.archive |
-| seal-gd3-prelim-open | GĐ3 | ONGOING | Gd3PrelimOpenDataSeeder | student, coord, mentor, judge |
-| seal-gd4-advance-ready | GĐ4 | ONGOING | Gd4AdvanceReadyDataSeeder | coord |
-| seal-gd5-final-active | GĐ5 | ONGOING | Gd5FinalRoundDataSeeder | student, guest judge |
-| seal-gd6-pending-confirm | GĐ6 | PENDING_CONFIRM | Gd6PendingConfirmDataSeeder | coord |
+| slug | gd | status (baseline) | seeder | primary_roles |
+|------|-----|-------------------|--------|---------------|
+| seal-e2e-2026 | GĐ1–GĐ6 continuous | ONGOING, prelim inactive | Gd1DataSeeder + E2eWorkflow (+ E2eDevFlowGuard) | coord, student.e2e, judge, mentor, guest |
 
-Slug cũ (~47) → `DevSeedCatalog.DEPRECATED_SLUGS` (purge mỗi start `dev`).
+---
+
+## Former happy — deprecated / purged
+
+| slug | gd (cũ) | trạng thái |
+|------|---------|------------|
+| seal-fall-2025-finished | Archive | **purged** (`DEPRECATED_SLUGS`) |
+| seal-gd3-prelim-open | GĐ3 | **purged** |
+| seal-gd4-advance-ready | GĐ4 | **purged** |
+| seal-gd5-final-active | GĐ5 | **purged** |
+| seal-gd6-pending-confirm | GĐ6 | **purged** |
+| seal-gd4-tiebreak-* / wildcard-gap | GĐ4 phụ | **purged** |
+
+Slug cũ (~47) khác → `DevSeedCatalog.DEPRECATED_SLUGS` (purge mỗi start `dev`).

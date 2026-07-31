@@ -3,7 +3,7 @@
 > **Doc sync:** 2026-07-31 — Phases 0–11
 
 > **Person 5** · ~25 phút (Phần A ~12p + Phần B ~10p + handoff 3p)  
-> **Slug A:** `seal-gd5-final-active` · **Slug B:** `seal-gd6-pending-confirm`
+> **Slug:** `seal-e2e-2026` continuous (GĐ5 → GĐ6 trên cùng kỳ)
 
 ---
 
@@ -13,15 +13,14 @@
 
 - **Trạng thái kỳ vọng:** Person 4 vừa **Kích hoạt Vòng thi (Chung kết)** — CK Active, đội ADVANCED, SL published.
 - **Câu bàn giao:** «Chung kết đã active. Em bắt từ SV **Gửi Bài Dự Thi Chung Kết**, queue, guest chấm, khóa CK.»
-- **Mode A:** Mở `seal-gd5-final-active`.
-- **Mode B:** Tiếp hackathon sau activate CK GĐ4 (**KEEP only** — START_NOW đã gỡ phase 2).
+- **Mode A / Mode B:** Tiếp `seal-e2e-2026` sau activate CK (**KEEP only** — START_NOW đã gỡ phase 2). ~~`seal-gd5-final-active`~~ — purged.
 
 ## VÁCH NGĂN — RA PHẦN A / VÀO PHẦN B (nội bộ Person 5)
 
 - **Thao tác UI cuối Phần A:** **Khóa chấm điểm** (CK) → Xác nhận.
 - **Verify:** Banner **Chờ chốt sổ** (`PENDING_CONFIRM`); CK `scoring_locked=true`.
 - **Câu chốt:** «CK đã khóa — sang phần trao giải và đóng giải.»  
-- **Mode A Phần B:** Đổi slug → `seal-gd6-pending-confirm` (hoặc reload `/results` nếu Mode B lock trên cùng slug).
+- **Mode A / B Phần B:** Reload `/results` trên **cùng** `seal-e2e-2026` (không đổi slug). ~~`seal-gd6-pending-confirm`~~ — purged.
 
 **Khác biệt GĐ5 vs GĐ3:** Guest judge chấm CK **không** bị gate `SCORING_NOT_OPEN` (round `isFinal=true`).
 
@@ -43,7 +42,7 @@
 
 | Slug | State | Account |
 |------|-------|---------|
-| `seal-gd5-final-active` | CK active, 4 ADVANCED, mixed submit/score | `student.gd5.leader01@`…`leader04@` |
+| `seal-e2e-2026` | CK active (sau GĐ4), đội ADVANCED | Leaders `student.e2e.t0N.leader@` (finalists) |
 | | Guest judges | `guestjudge@gmail.com`, `guestjudge2@gmail.com` / `GuestJudge@dev1` |
 | | HEAD CK | `judge1@fpt.edu.vn` / `Judge@dev1` |
 
@@ -51,7 +50,8 @@
 
 ## A.3 Seeders GĐ5
 
-`Gd5FinalRoundDataSeeder` — flag `app.seed.gd5.enabled=true`.
+*(không seeder GĐ5 riêng)* — continuous trên `seal-e2e-2026`.  
+~~`Gd5FinalRoundDataSeeder` / `app.seed.gd5.enabled`~~ — **đã gỡ**.
 
 ---
 
@@ -111,9 +111,8 @@ flowchart TD
 
 ## VÁCH NGĂN — VÀO PHẦN B
 
-- **Trạng thái:** `PENDING_CONFIRM`, CK locked, ≥1 prize (seed có FIRST).
-- **Mode A:** `seal-gd6-pending-confirm`.
-- **Mode B:** Sau G5-H07 trên cùng hackathon.
+- **Trạng thái:** `PENDING_CONFIRM`, CK locked, ≥1 prize (sau trao giải demo).
+- **Mode A / B:** Sau G5-H07 trên cùng `seal-e2e-2026`.
 
 ## VÁCH NGĂN — KẾT THÚC DEMO (Person 5 dừng)
 
@@ -139,14 +138,15 @@ flowchart TD
 
 | Slug | State | Account |
 |------|-------|---------|
-| `seal-gd6-pending-confirm` | PENDING_CONFIRM, 3 ADVANCED, FIRST prize seed | `coord@fpt.edu.vn` |
-| | Students | `student.gd6.leader01@`…`leader03@` |
+| `seal-e2e-2026` | PENDING_CONFIRM sau lock CK | `coord@fpt.edu.vn` |
+| | Students finalists | `student.e2e.t0N.leader@` |
 
 ---
 
 ## B.3 Seeders GĐ6
 
-`Gd6PendingConfirmDataSeeder` — flag `app.seed.gd6.enabled=true`. Restart BE reset về PENDING_CONFIRM.
+*(không seeder GĐ6 riêng)* — continuous; restart **không** reset về PENDING_CONFIRM nếu `force-gd2-reset=false` (`E2eDevFlowGuard`).  
+~~`Gd6PendingConfirmDataSeeder` / `app.seed.gd6.enabled`~~ — **đã gỡ**.
 
 ---
 
@@ -267,8 +267,9 @@ flowchart TD
 
 | Mode | GĐ5 → GĐ6 |
 |------|-----------|
-| **Live (B)** | Lock trên `seal-gd5-final-active` → navigate `/results` cùng hackathon |
-| **Snapshot (A)** | Mở sẵn `seal-gd6-pending-confirm` (đã PENDING_CONFIRM + FIRST prize) |
+| **Live / Continuous** | Lock CK trên `seal-e2e-2026` → navigate `/results` cùng hackathon |
+
+~~Snapshot slug `seal-gd5-final-active` / `seal-gd6-pending-confirm`~~ — purged.
 
 ---
 
@@ -296,10 +297,10 @@ flowchart TD
 
 ## B.11 Checklist smoke (cả GĐ5+6)
 
-- [ ] `seal-gd5-final-active` CK active
+- [ ] `seal-e2e-2026` CK active (sau GĐ4)
 - [ ] `GitHubRepoPanel` trên submit SV + judge controls
 - [ ] Guest judges login OK
-- [ ] `seal-gd6-pending-confirm` PENDING_CONFIRM
+- [ ] Sau lock CK → PENDING_CONFIRM trên cùng slug
 - [ ] Modal **Trao giải** hiện BXH finalist only
 - [ ] **Xem bản in** → `PrizePrintPage`
 - [ ] Confirm → FINISHED → tab **Bài viết & Vinh danh** (`ShowcaseEditorPanel`)

@@ -29,10 +29,11 @@ public class UserLookupController {
 
     @GetMapping("/lookup")
     @ApprovedOnly
-    @Operation(summary = "Tìm sinh viên theo email / tên / mã SV (mời đội)")
+    @Operation(summary = "Tìm sinh viên đã đăng ký cùng hackathon (mời đội)")
     public ResponseEntity<ApiResponse<List<UserInviteLookupResponse>>> lookup(
-            @RequestParam("q") String q) {
-        return ResponseEntity.ok(ApiResponse.ok(userLookupService.lookupInviteCandidates(q)));
+            @RequestParam("q") String q,
+            @RequestParam("hackathonId") Integer hackathonId) {
+        return ResponseEntity.ok(ApiResponse.ok(userLookupService.lookupInviteCandidates(q, hackathonId)));
     }
 
     @GetMapping("/lookup/coordinator")

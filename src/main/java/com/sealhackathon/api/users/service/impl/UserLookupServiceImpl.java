@@ -4,6 +4,7 @@ import com.sealhackathon.api.common.exception.BusinessRuleException;
 import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
 import com.sealhackathon.api.common.security.CurrentUserStub;
+import com.sealhackathon.api.hackathons.repository.HackathonRepository;
 import com.sealhackathon.api.users.dto.response.UserInviteLookupResponse;
 import com.sealhackathon.api.users.entity.User;
 import com.sealhackathon.api.users.repository.UserRepository;
@@ -24,23 +25,32 @@ public class UserLookupServiceImpl implements UserLookupService {
     private static final int MIN_QUERY_LENGTH = 2;
 
     private final UserRepository userRepository;
+    private final HackathonRepository hackathonRepository;
     private final CurrentUserAccessor currentUserAccessor;
 
     @Override
     @Transactional(readOnly = true)
-    public List<UserInviteLookupResponse> lookupInviteCandidates(String q) {
+    public List<UserInviteLookupResponse> lookupInviteCandidates(String q, Integer hackathonId) {
         CurrentUserStub actor = currentUserAccessor.currentUser();
         if (actor == null || actor.getRole() != UserRole.STUDENT) {
             throw new BusinessRuleException(ErrorCode.FORBIDDEN,
                     "Chỉ sinh viên đã duyệt mới được tìm tài khoản để mời vào đội");
+        }
+        if (hackathonId == null) {
+            throw new BusinessRuleException(ErrorCode.VALIDATION_FAILED,
+                    "hackathonId là bắt buộc — chỉ tìm sinh viên đã đăng ký cùng sự kiện");
+        }
+        if (!hackathonRepository.existsById(hackathonId)) {
+            throw new BusinessRuleException(ErrorCode.RESOURCE_NOT_FOUND,
+                    "Hackathon không tồn tại");
         }
         String trimmed = q == null ? "" : q.trim();
         if (trimmed.length() < MIN_QUERY_LENGTH) {
             return List.of();
         }
         Integer excludeId = actor.getUserId();
-        return userRepository.searchApprovedStudentsForInvite(trimmed, excludeId,
-                        PageRequest.of(0, MAX_RESULTS))
+        return userRepository.searchRegisteredStudentsForHackathonInvite(
+                        trimmed, hackathonId, excludeId, PageRequest.of(0, MAX_RESULTS))
                 .stream()
                 .map(this::toResponse)
                 .toList();

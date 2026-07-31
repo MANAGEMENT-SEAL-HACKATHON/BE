@@ -648,8 +648,18 @@ public class HackathonDevSeedHelper {
 
     @Transactional
     public void repairAllDevHackathonRoundSchedules() {
+        repairAllDevHackathonRoundSchedules(false);
+    }
+
+    /**
+     * @param skipE2eWhenFrozen khi true và E2E đang GĐ3+, bỏ qua slug e2e (giữ lịch tay / sau tua giờ máy).
+     */
+    public void repairAllDevHackathonRoundSchedules(boolean skipE2eWhenFrozen) {
         int fixed = 0;
         for (String slug : DevSeedCatalog.ALL_DEV_HACKATHON_SLUGS) {
+            if (skipE2eWhenFrozen && DevSeedCatalog.SLUG_E2E_ONGOING.equals(slug)) {
+                continue;
+            }
             var hackathon = hackathonRepository.findBySlug(slug);
             if (hackathon.isPresent()) {
                 fixed += repairHackathonRounds(hackathon.get().getId());
@@ -1248,7 +1258,7 @@ public class HackathonDevSeedHelper {
                 .round(prelim)
                 .name("Track " + sequence + " — " + suffix)
                 .description("Seed track " + sequence)
-                .topic("Seed topic " + sequence)
+                .topic(null)
                 .maxTeams(8)
                 .maxTeamsPerGroup(8)
                 .minTeamSize(3)
@@ -1518,10 +1528,17 @@ public class HackathonDevSeedHelper {
      * Milestone đủ KO+WS+AWARDS; lịch WS → KO (gap sau regEnd, trước eventStart).
      */
     @Transactional
-    public int repairAllDevHackathonMilestoneEvents() {
+    public void repairAllDevHackathonMilestoneEvents() {
+        repairAllDevHackathonMilestoneEvents(false);
+    }
+
+    public int repairAllDevHackathonMilestoneEvents(boolean skipE2eWhenFrozen) {
         List<String> slugs = List.of(DevSeedCatalog.ALL_DEV_HACKATHON_SLUGS);
         int fixed = 0;
         for (String slug : slugs) {
+            if (skipE2eWhenFrozen && DevSeedCatalog.SLUG_E2E_ONGOING.equals(slug)) {
+                continue;
+            }
             Optional<Hackathon> maybe = hackathonRepository.findBySlug(slug);
             if (maybe.isEmpty()) {
                 continue;
@@ -2845,25 +2862,47 @@ public class HackathonDevSeedHelper {
     @Transactional
     public void repairHackathonForGd2Retest(Hackathon hackathon, Round prelim, Round finalRound) {
         User coordinator = requireCoordinator();
+        // Xoá bài nộp/điểm + lottery toàn bộ — tránh BXH còn điểm trong khi track đếm 0 đội.
+        clearPrelimRoundArtifacts(hackathon.getId());
+        clearFinalRoundArtifacts(hackathon.getId());
+        clearWorkflowArtifactsForGd2Reset(hackathon.getId());
+        clearAllLotteryAssignments(hackathon.getId());
+        resetTeamsToPreAdvance(hackathon, prelim, finalRound);
+
         syncHackathonCalendarFromDates(hackathon.getSlug(), computeGd2RegistrationOpenDates());
         applyPrelimState(prelim, new PrelimState(false, false, false, false, 2, 4), coordinator);
         prelim.setActivatedAt(null);
+        prelim.setSubmissionClosedEarlyAt(null);
         prelim.setProblemStatementUrl(null);
         prelim.setProblemReleasedAt(null);
+        prelim.setScoringLockedAt(null);
+        prelim.setScoringLockedBy(null);
+        prelim.setPublishedAt(null);
+        prelim.setPublishedBy(null);
         trackRepository.findByRoundIdOrderBySequenceOrderAsc(prelim.getId())
                 .forEach(t -> {
                     t.setProblemStatementUrl(null);
                     t.setProblemStatementStorageKey(null);
                     t.setProblemStatementOriginalFilename(null);
+                    t.setTopic(null);
                     trackRepository.save(t);
                 });
         roundRepository.save(prelim);
         applyFinalState(finalRound, new FinalState(false, false), coordinator);
+        finalRound.setActivatedAt(null);
+        finalRound.setSubmissionClosedEarlyAt(null);
+        finalRound.setProblemReleasedAt(null);
+        finalRound.setForceLocked(false);
+        finalRound.setForceLockReason(null);
+        finalRound.setScoringLockedBy(null);
+        roundRepository.save(finalRound);
+
+        hackathon.setScheduleAdjustedAt(null);
         if (hackathon.getStatus() != HackathonStatus.ONGOING) {
             hackathon.setStatus(HackathonStatus.ONGOING);
-            hackathonRepository.save(hackathon);
         }
-        clearPrelimLotteryAssignments(hackathon.getId(), prelim.getId());
+        hackathonRepository.save(hackathon);
+
         for (Team team : teamRepository.findByHackathon_Id(hackathon.getId())) {
             if (Boolean.TRUE.equals(team.getIsLocked())) {
                 team.setIsLocked(false);
@@ -2874,6 +2913,47 @@ public class HackathonDevSeedHelper {
         // Gắn lại PDF đề track + CK sau khi reset storage key (Coord upload trước phát đề).
         seedPrelimTrackProblems(prelim);
         seedFinalRoundProblem(finalRound);
+    }
+
+    /** Xóa prizes / appeals / export_jobs / tiebreak khi tua về GĐ2. */
+    @Transactional
+    public void clearWorkflowArtifactsForGd2Reset(Integer hackathonId) {
+        jdbcTemplate.update("""
+                DELETE te FROM tiebreak_evaluations te
+                INNER JOIN rounds r ON r.id = te.round_id
+                WHERE r.hackathon_id = ?
+                """, hackathonId);
+        jdbcTemplate.update("DELETE FROM prizes WHERE hackathon_id = ?", hackathonId);
+        jdbcTemplate.update("""
+                DELETE a FROM appeals a
+                INNER JOIN teams t ON t.id = a.team_id
+                WHERE t.hackathon_id = ?
+                """, hackathonId);
+        jdbcTemplate.update("DELETE FROM export_jobs WHERE hackathon_id = ?", hackathonId);
+        jdbcTemplate.update("""
+                DELETE ir FROM individual_rankings ir
+                WHERE ir.hackathon_id = ?
+                """, hackathonId);
+        jdbcTemplate.update("""
+                DELETE cr FROM chapter_rankings cr
+                WHERE cr.hackathon_id = ?
+                """, hackathonId);
+    }
+
+    /** Xóa toàn bộ phân bảng Sơ loại + Chung kết. */
+    @Transactional
+    public void clearAllLotteryAssignments(Integer hackathonId) {
+        jdbcTemplate.update("""
+                DELETE trt FROM team_round_tracks trt
+                INNER JOIN tracks t ON t.id = trt.track_id
+                INNER JOIN rounds r ON r.id = t.round_id
+                WHERE r.hackathon_id = ?
+                """, hackathonId);
+        jdbcTemplate.update("""
+                DELETE trp FROM team_round_participation trp
+                INNER JOIN rounds r ON r.id = trp.round_id
+                WHERE r.hackathon_id = ?
+                """, hackathonId);
     }
 
     /** Reset hackathon GĐ3 về prelim active (sau khi đã lock/publish hoặc test xong). */

@@ -349,9 +349,14 @@ public class TrackServiceImpl implements TrackService {
         if (trimmed.equals(current)) {
             return;
         }
-        if (!eventRepository.existsByHackathonIdAndType(hackathon.getId(), EventType.KICKOFF)) {
+        // GĐ1: cho phép set/sửa topic trước KICKOFF và trước khi bốc thăm.
+        // Sau KICKOFF hoặc sau khi đã có phân bảng → khóa đổi topic.
+        boolean kickoffDone = eventRepository.existsByHackathonIdAndType(hackathon.getId(), EventType.KICKOFF);
+        boolean lotteryDone = track.getRound() != null
+                && !teamRoundTrackRepository.findByTrack_Round_Id(track.getRound().getId()).isEmpty();
+        if (kickoffDone || lotteryDone) {
             throw new BusinessRuleException(ErrorCode.INVALID_STATE,
-                    "Chưa có sự kiện KICKOFF — topic Track chỉ cập nhật sau Khai mạc (bốc thăm)",
+                    "Không thể đổi chủ đề bảng đấu sau khi đã khai mạc hoặc đã bốc thăm",
                     Map.of("trackId", track.getId(), "hackathonId", hackathon.getId()));
         }
     }

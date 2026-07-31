@@ -83,25 +83,28 @@ public class Gd1DataSeeder {
     private final KitBundleRepository kitBundleRepository;
     private final HackathonRegistrationRepository hackathonRegistrationRepository;
     private final PasswordEncoder passwordEncoder;
+    private final E2eDevFlowGuard e2eDevFlowGuard;
 
     public boolean isAlreadySeeded() {
         return hackathonRepository.existsBySlug(Gd1SeedConstants.SLUG_ONGOING);
     }
 
     private static final List<String> SEED_HACKATHON_SLUGS = List.of(
-            Gd1SeedConstants.SLUG_ONGOING,
-            Gd1SeedConstants.SLUG_FINISHED);
+            Gd1SeedConstants.SLUG_ONGOING);
 
     /**
-     * Đồng bộ lịch seed theo {@link LocalDate#now()} (đăng ký mở ~14 ngày tới, thi sơ loại sau ~15 ngày).
-     * Gọi mỗi lần start dev, idempotent — FE không cần sửa DB khi ngày thực trôi qua.
+     * Đồng bộ lịch seed theo {@link LocalDate#now()} — chỉ khi E2E chưa freeze (GĐ2 baseline).
+     * Khi đang GĐ3+ bỏ qua để không ghi đè lịch tay / sau tua giờ máy.
      */
     @Transactional
     public void repairSeededTimeline() {
+        if (e2eDevFlowGuard.isE2eFlowFrozen()) {
+            e2eDevFlowGuard.logSkip("Gd1.repairSeededTimeline");
+            return;
+        }
         int hackathons = 0;
         int events = 0;
         int rounds = 0;
-        hackathons += ensureFinishedHackathonFullSeed();
         for (String slug : SEED_HACKATHON_SLUGS) {
             Optional<Hackathon> maybe = hackathonRepository.findBySlug(slug);
             if (maybe.isEmpty()) {
@@ -112,45 +115,26 @@ public class Gd1DataSeeder {
             if (repairHackathonCalendar(h, dates)) {
                 hackathons++;
             }
-            if (!Gd1SeedConstants.SLUG_FINISHED.equals(slug)) {
-                events += ensureOrRepairEvents(h, dates);
-                rounds += repairRoundsForHackathon(h, dates);
-            }
+            events += ensureOrRepairEvents(h, dates);
+            rounds += repairRoundsForHackathon(h, dates);
             if (Gd1SeedConstants.SLUG_ONGOING.equals(slug)) {
                 seedKitsIfMissing(h);
             }
         }
         if (hackathons > 0 || events > 0 || rounds > 0) {
             log.info("""
-                    [Gd1DataSeeder] Repair timeline seed data (SEAL 2026 + FINISHED):
+                    [Gd1DataSeeder] Repair timeline seed data (seal-e2e-2026):
                       hackathons={}, events={}, rounds={}""",
                     hackathons, events, rounds);
         }
     }
 
     /**
-     * Bổ sung / đồng bộ dataset archive {@link Gd1SeedConstants#SLUG_FINISHED} (events, rounds, tracks, criteria).
-     * Idempotent — gọi mỗi lần start profile dev.
+     * Archive FINISHED đã bỏ khỏi happy seed — no-op (slug nằm trong DEPRECATED_SLUGS).
      */
     @Transactional
     public void repairSeededFinishedHackathon() {
-        int backfilled = ensureFinishedHackathonFullSeed();
-        hackathonRepository.findBySlug(Gd1SeedConstants.SLUG_FINISHED).ifPresent(h -> {
-            SeedDates dates = computeFinishedDates();
-            repairHackathonCalendar(h, dates);
-            ensureOrRepairEvents(h, dates);
-            repairRoundsForHackathon(h, dates);
-            ensureTrackCriteriaForHackathon(h);
-            if (h.getStatus() != HackathonStatus.FINISHED) {
-                h.setStatus(HackathonStatus.FINISHED);
-                hackathonRepository.save(h);
-            }
-            applyArchivedRoundStateIfPresent(h.getId());
-        });
-        if (backfilled > 0) {
-            log.info("[Gd1DataSeeder] Đã bổ sung cấu trúc full seed cho hackathon FINISHED ({})",
-                    Gd1SeedConstants.SLUG_FINISHED);
-        }
+        // no-op: seal-fall-2025-finished purged
     }
 
     /** @deprecated dùng {@link #repairSeededTimeline()} */
@@ -161,7 +145,7 @@ public class Gd1DataSeeder {
     }
 
     /**
-     * Repair criteria/track sau đổi clone (không FK chéo track) và bổ sung Track 3 trên E2E ONGOING.
+     * Repair criteria; gỡ Track 3 trên E2E nếu DB cũ còn (chỉ khi chưa freeze).
      */
     @Transactional
     public void repairSeededCriteriaAndTracks() {
@@ -169,32 +153,26 @@ public class Gd1DataSeeder {
         if (unlinked > 0) {
             log.info("[Gd1DataSeeder] Đã gỡ source_criteria_id chéo track/round cho {} criterion", unlinked);
         }
+        if (e2eDevFlowGuard.isE2eFlowFrozen()) {
+            e2eDevFlowGuard.logSkip("Gd1.repairSeededCriteriaAndTracks (track mutate)");
+            return;
+        }
         int criteriaFilled = 0;
-        int track3Added = 0;
+        int track3Removed = 0;
         for (String slug : List.of(Gd1SeedConstants.SLUG_ONGOING)) {
             Optional<Hackathon> hackathon = hackathonRepository.findBySlug(slug);
             if (hackathon.isEmpty()) {
                 continue;
             }
             criteriaFilled += ensureTrackCriteriaForHackathon(hackathon.get());
-            if (Gd1SeedConstants.SLUG_ONGOING.equals(slug)) {
-                track3Added += ensureCloneDemoTrack3(hackathon.get());
-            }
+            track3Removed += removeCloneDemoTrack3IfPresent(hackathon.get());
         }
         if (criteriaFilled > 0) {
             log.info("[Gd1DataSeeder] Đã bổ sung criteria thiếu cho {} track", criteriaFilled);
         }
-        if (track3Added > 0) {
-            log.info("[Gd1DataSeeder] Đã thêm Track 3 trên {}", Gd1SeedConstants.SLUG_ONGOING);
+        if (track3Removed > 0) {
+            log.info("[Gd1DataSeeder] Đã gỡ Track 3 trên {}", Gd1SeedConstants.SLUG_ONGOING);
         }
-        tryLoadSeedUsers().ifPresent(users -> hackathonRepository.findBySlug(Gd1SeedConstants.SLUG_ONGOING)
-                .ifPresent(h -> {
-                    int track3Staff = ensureTrack3JudgeAndMentor(h, users);
-                    if (track3Staff > 0) {
-                        log.info("[Gd1DataSeeder] Đã bổ sung mentor/giám khảo Track 3 trên {} ({} mục)",
-                                Gd1SeedConstants.SLUG_ONGOING, track3Staff);
-                    }
-                }));
     }
 
     @Transactional
@@ -211,14 +189,11 @@ public class Gd1DataSeeder {
                 HackathonStatus.ONGOING,
                 Season.Spring,
                 false,
-                true,
+                false,
                 users,
                 dates,
-                "Hackathon E2E — GĐ1 sẵn sàng, 7 đội + 3 SV chưa có nhóm (test GĐ2→GĐ6)");
-        FullHackathonSeed finished = seedFinishedHackathon(users);
-        seedIncompleteHackathon(users.coordinator(), dates);
-
-        SeedSummary summary = new SeedSummary(users, ongoing, finished);
+                "6 đội × 2 track — test GĐ2→GĐ6 continuous");
+        SeedSummary summary = new SeedSummary(users, ongoing, null);
         logSummary(summary);
         return summary;
     }
@@ -752,7 +727,7 @@ public class Gd1DataSeeder {
                 .codingDurationHours(7)
                 .lateSubmissionPolicy(LateSubmissionPolicy.ALLOW_LATE_PENDING)
                 .topNAdvance(2)
-                .minTeamsFinal(6)
+                .minTeamsFinal(4)
                 .tiebreakRule(TiebreakRule.PENALTY_SCORE)
                 .isActive(prelimActive)
                 .build());
@@ -775,7 +750,7 @@ public class Gd1DataSeeder {
                 .round(prelim)
                 .name("Track 1 — RAG Pipeline")
                 .description("Xây dựng hệ thống RAG")
-                .topic("Business Analysis App")
+                .topic(null)
                 .maxTeams(8)
                 .maxTeamsPerGroup(8)
                 .minTeamSize(3)
@@ -788,7 +763,7 @@ public class Gd1DataSeeder {
                 .round(prelim)
                 .name("Track 2 — AI Agent")
                 .description("Thiết kế AI Agent")
-                .topic("Process Automation Agent")
+                .topic(null)
                 .maxTeams(8)
                 .maxTeamsPerGroup(8)
                 .minTeamSize(3)
@@ -805,7 +780,7 @@ public class Gd1DataSeeder {
                     .round(prelim)
                     .name(Gd1SeedConstants.TRACK3_CLONE_DEMO_NAME)
                     .description("EV Charging & Integration — tiêu chí đánh giá và nhân sự đã seed sẵn")
-                    .topic("EV Charging & Integration")
+                    .topic(null)
                     .maxTeams(8)
                     .maxTeamsPerGroup(8)
                     .minTeamSize(3)
@@ -1170,38 +1145,30 @@ public class Gd1DataSeeder {
         return filled;
     }
 
-    /** Bổ sung Track 3 trên hackathon E2E ONGOING nếu chưa có. */
-    private int ensureCloneDemoTrack3(Hackathon hackathon) {
-        Round prelim = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathon.getId()).stream()
-                .filter(r -> !Boolean.TRUE.equals(r.getIsFinal()))
-                .findFirst()
-                .orElse(null);
-        if (prelim == null) {
+    /** Gỡ Track 3 (EV) trên E2E nếu DB cũ còn — cancel + xóa assignments/criteria khi an toàn. */
+    private int removeCloneDemoTrack3IfPresent(Hackathon hackathon) {
+        Track track3 = findTrack3(prelimRound(hackathon)).orElse(null);
+        if (track3 == null) {
             return 0;
         }
-        boolean hasTrack3 = trackRepository.findByRoundIdOrderBySequenceOrderAsc(prelim.getId()).stream()
-                .anyMatch(t -> Gd1SeedConstants.TRACK3_CLONE_DEMO_NAME.equals(t.getName()));
-        if (hasTrack3) {
-            return 0;
-        }
-        int nextOrder = trackRepository.findByRoundIdOrderBySequenceOrderAsc(prelim.getId()).stream()
-                .mapToInt(Track::getSequenceOrder)
-                .max()
-                .orElse(0) + 1;
-        Track track3 = trackRepository.save(Track.builder()
-                .round(prelim)
-                .name(Gd1SeedConstants.TRACK3_CLONE_DEMO_NAME)
-                .description("EV Charging & Integration — tiêu chí đánh giá và nhân sự seed qua repair")
-                .topic("EV Charging & Integration")
-                .maxTeams(8)
-                .maxTeamsPerGroup(8)
-                .minTeamSize(3)
-                .maxTeamSize(5)
-                .sequenceOrder(nextOrder)
-                .status(TrackStatus.OPEN)
-                .build());
-        seedTrack3Criteria(track3);
+        judgeAssignmentRepository.findByTrackId(track3.getId()).forEach(judgeAssignmentRepository::delete);
+        mentorAssignmentRepository.findByTrackId(track3.getId()).forEach(mentorAssignmentRepository::delete);
+        criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(track3.getId())
+                .forEach(c -> {
+                    c.setSourceCriteria(null);
+                    criteriaRepository.save(c);
+                });
+        criteriaRepository.findByTrackIdOrderByDisplayOrderAsc(track3.getId())
+                .forEach(criteriaRepository::delete);
+        track3.setStatus(TrackStatus.CANCELLED);
+        trackRepository.save(track3);
         return 1;
+    }
+
+    /** Bổ sung Track 3 trên hackathon E2E ONGOING nếu chưa có — deprecated (không còn dùng). */
+    @Deprecated
+    private int ensureCloneDemoTrack3(Hackathon hackathon) {
+        return 0;
     }
 
     /** Idempotent — bổ sung mentor + giám khảo cho Track 3 E2E nếu DB cũ thiếu. */
@@ -1437,19 +1404,14 @@ public class Gd1DataSeeder {
         log.info("""
                 [Gd1DataSeeder] Seed MF-01 GĐ1 hoàn tất.
                   Coordinator: id={} email={}
-                  Hackathons:
-                    - {} (id={}) ONGOING — E2E GĐ1, prelim id={} active={}
-                    - {} (id={}) FINISHED — archive
-                  Track 3 EV (ongoing): id={}
+                  Hackathon: {} (id={}) ONGOING — 2 tracks, prelim id={} active={}
                 """,
                 coord.getId(), coord.getEmail(),
                 Gd1SeedConstants.SLUG_ONGOING, summary.ongoing().hackathon().getId(),
                 summary.ongoing().prelimRound() != null
                         ? summary.ongoing().prelimRound().getId() : "n/a",
                 summary.ongoing().prelimRound() != null
-                        ? summary.ongoing().prelimRound().getIsActive() : false,
-                Gd1SeedConstants.SLUG_FINISHED, summary.finished().hackathon().getId(),
-                summary.ongoing().track3() != null ? summary.ongoing().track3().getId() : "n/a");
+                        ? summary.ongoing().prelimRound().getIsActive() : false);
     }
 
     private record SeedDates(

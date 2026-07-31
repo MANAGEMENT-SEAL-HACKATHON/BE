@@ -32,6 +32,8 @@ public class CreateTrackRequest {
 
     private String description;
 
+    @NotBlank
+    @Size(max = 300)
     private String topic;
 
     @Min(1)

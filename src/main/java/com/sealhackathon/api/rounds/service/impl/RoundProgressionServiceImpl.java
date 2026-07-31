@@ -219,6 +219,8 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                     "Chưa đến giờ thi, không thể kết thúc sớm!");
         }
 
+        requireAllEligibleTeamsSubmitted(round);
+
         boolean deadlineAdjusted = round.getSubmissionDeadline() == null
                 || round.getSubmissionDeadline().isAfter(now);
         // examAt already started — do not move start time backwards into the past artificially
@@ -241,12 +243,131 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
                 "submissionOpen", String.valueOf(saved.getSubmissionOpen()),
                 "examAt", String.valueOf(saved.getExamAt())));
 
+        notifySubmissionClosedEarly(saved);
+
         return CloseSubmissionEarlyResponse.builder()
                 .round(roundMapper.toSummary(saved, 0, 0, 0f))
                 .examAtAdjusted(examAtAdjusted)
                 .deadlineAdjusted(deadlineAdjusted)
                 .closedAt(now)
                 .build();
+    }
+
+    /**
+     * BR-RPROG-015A — mọi đội eligible phải đã nộp trước khi close-early (SL + CK).
+     */
+    private void requireAllEligibleTeamsSubmitted(Round round) {
+        List<Team> eligible = listEligibleTeamsForCloseEarly(round);
+        if (eligible.isEmpty()) {
+            throw new BusinessRuleException(ErrorCode.INVALID_STATE,
+                    "Chưa có đội đủ điều kiện nộp bài — không thể kết thúc sớm");
+        }
+        Set<Integer> submittedTeamIds = submissionRepository.findByRound_Id(round.getId()).stream()
+                .map(s -> s.getTeam() != null ? s.getTeam().getId() : null)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        List<Integer> missingTeamIds = eligible.stream()
+                .map(Team::getId)
+                .filter(id -> !submittedTeamIds.contains(id))
+                .toList();
+        if (!missingTeamIds.isEmpty()) {
+            int submitted = eligible.size() - missingTeamIds.size();
+            throw new BusinessRuleException(
+                    ErrorCode.TEAMS_NOT_ALL_SUBMITTED,
+                    "Còn %d/%d đội chưa nộp bài — không thể kết thúc thời gian thi sớm"
+                            .formatted(missingTeamIds.size(), eligible.size()),
+                    Map.of(
+                            "submitted", submitted,
+                            "total", eligible.size(),
+                            "missingTeamIds", missingTeamIds));
+        }
+    }
+
+    private List<Team> listEligibleTeamsForCloseEarly(Round round) {
+        if (Boolean.TRUE.equals(round.getIsFinal())) {
+            List<Team> fromParticipation = teamRoundParticipationRepository.findByRound_Id(round.getId()).stream()
+                    .map(TeamRoundParticipation::getTeam)
+                    .filter(Objects::nonNull)
+                    .toList();
+            if (!fromParticipation.isEmpty()) {
+                return dedupeTeams(fromParticipation);
+            }
+            Integer hackathonId = round.getHackathon() != null ? round.getHackathon().getId() : null;
+            if (hackathonId == null) {
+                return List.of();
+            }
+            Round prelim = roundRepository.findByHackathon_IdOrderByExamAtAsc(hackathonId).stream()
+                    .filter(r -> !Boolean.TRUE.equals(r.getIsFinal()))
+                    .findFirst()
+                    .orElse(null);
+            if (prelim == null) {
+                return List.of();
+            }
+            return dedupeTeams(teamRoundTrackRepository.findByTrack_Round_Id(prelim.getId()).stream()
+                    .filter(trt -> trt.getParticipationStatus() == ParticipationStatus.ADVANCED)
+                    .map(TeamRoundTrack::getTeam)
+                    .filter(Objects::nonNull)
+                    .toList());
+        }
+        return dedupeTeams(teamRoundTrackRepository.findByTrack_Round_Id(round.getId()).stream()
+                .map(TeamRoundTrack::getTeam)
+                .filter(Objects::nonNull)
+                .filter(t -> t.getStatus() == TeamStatus.ACTIVE)
+                .toList());
+    }
+
+    private static List<Team> dedupeTeams(List<Team> teams) {
+        Map<Integer, Team> byId = new LinkedHashMap<>();
+        for (Team t : teams) {
+            if (t.getId() != null) {
+                byId.putIfAbsent(t.getId(), t);
+            }
+        }
+        return new ArrayList<>(byId.values());
+    }
+
+    /** Fan-out in-app notify after close-early (best-effort). */
+    private void notifySubmissionClosedEarly(Round round) {
+        try {
+            Set<User> students = new LinkedHashSet<>();
+            for (Team team : listEligibleTeamsForCloseEarly(round)) {
+                teamMemberRepository.findByTeam_Id(team.getId()).stream()
+                        .filter(tm -> tm.getStatus() == TeamMemberStatus.ACCEPTED)
+                        .map(TeamMember::getUser)
+                        .filter(Objects::nonNull)
+                        .forEach(students::add);
+            }
+            String roundLabel = round.getName() != null ? round.getName() : "vòng thi";
+            if (!students.isEmpty()) {
+                notificationService.sendBatch(
+                        new ArrayList<>(students),
+                        "SUBMISSION_CLOSED_EARLY",
+                        "Cổng nộp đã đóng sớm — %s".formatted(roundLabel),
+                        "Coordinator đã kết thúc thời gian thi sớm. Bạn không thể nộp hoặc sửa bài cho vòng này nữa.",
+                        "rounds",
+                        round.getId());
+            }
+
+            Set<User> staff = new LinkedHashSet<>(collectTrackStaff(round.getId()));
+            if (Boolean.TRUE.equals(round.getIsFinal())) {
+                judgeAssignmentRepository.findByRoundId(round.getId()).stream()
+                        .map(JudgeAssignment::getJudge)
+                        .filter(Objects::nonNull)
+                        .forEach(staff::add);
+            }
+            if (!staff.isEmpty()) {
+                notificationService.sendBatch(
+                        new ArrayList<>(staff),
+                        "SUBMISSION_CLOSED_EARLY",
+                        "Đã kết thúc thời gian thi sớm — %s".formatted(roundLabel),
+                        "Coordinator đã đóng cổng nộp bài sớm. Vòng chuyển sang giai đoạn chấm điểm / hàng đợi thuyết trình.",
+                        "rounds",
+                        round.getId());
+            }
+        } catch (Exception ignored) {
+            // best-effort — close đã persist
+        }
     }
 
     /** Đảm bảo submissionOpen không nằm sau submissionDeadline (TC-GATE-04). */

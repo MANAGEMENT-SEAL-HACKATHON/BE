@@ -248,7 +248,7 @@ class StudentPortalParityIntegrationTest {
     }
 
     @Test
-    @DisplayName("slug: seal-fall-2025-finished — FR-U-32 getAnnualAwards")
+    @DisplayName("FR-U-32 getAnnualAwards — finished Fall ranking (inline fixture)")
     void getAnnualAwards_returnsFallIndividualRanking() throws Exception {
         String token = login(student.getEmail(), "Student@dev1");
 

@@ -176,7 +176,7 @@ id	SERIAL PK	Auto-increment	—
 round_id	INT FK rounds.id ON DELETE CASCADE NOT NULL	[BC-02] Track thuộc Round cụ thể — thay hackathon_id cũ	BREAKING
 name	VARCHAR(200) NOT NULL	VD: "Bảng A", "Track 1 — RAG Pipeline"	—
 description	TEXT	Mô tả chủ đề thi đấu; tuỳ chọn	—
-topic	VARCHAR(300)	[MỚI] Chủ đề bốc thăm tại KICKOFF. NULL/placeholder khi tạo; cập nhật sau bốc thăm	MỚI
+topic	VARCHAR(300)	[MỚI] Chủ đề thi — nhập tại GĐ1; khóa sau KICKOFF/bốc thăm	MỚI
 max_teams	INT	Tổng đội tối đa trong Track (tất cả bảng cộng lại). Fall 2025: 3 bảng × 6 = 18 đội	—
 max_teams_per_group	INT	Số đội tối đa MỖI BẢNG (assigned_group). Fall 2025=6, Spring 2026=8	Giữ từ v2.1
 min_team_size	INT NOT NULL DEFAULT 3	Số thành viên tối thiểu. Thực tế 2 mùa = 3	—
@@ -216,7 +216,7 @@ Không xóa Track khi có Round is_active=TRUE liên quan	App	409
 max_teams_per_group ≤ max_teams nếu cả hai có giá trị	App	422 warn
 min_team_size ≤ max_team_size	DB (CHECK) + App	DB reject; App 422
 Hackathon phải DRAFT hoặc ONGOING để tạo/sửa Track	App	422
-topic: tạo trong GĐ1 có thể để NULL; cập nhật sau bốc thăm tại KICKOFF (GĐ2 Bước 6)	App	Không block nếu NULL khi tạo
+topic: nhập tại GĐ1 (bắt buộc khi tạo track); không đổi sau KICKOFF hoặc sau bốc thăm	App	422 INVALID_STATE nếu đổi muộn; CreateTrackRequest yêu cầu topic
 4.5 Thực tế 2 mùa — Cấu hình Track
 Mùa	Số Track	max_teams	max_teams_per_group	Ghi chú
 Fall 2025	2 Track trong Round Sơ loại	18 (3 bảng × 6)	6	Mỗi Track nhiều bảng; bốc thăm bảng sau bốc thăm Track
@@ -774,7 +774,7 @@ Pending: Phân quyền Coordinator	Nếu cần Coordinator chỉ quản lý Hack
 |-----|---------|
 | Clone nguồn §5.6 | Không có `GET /criteria?track_id=` — dùng `sourceTrackId` trong `POST .../clone` |
 | PATCH status body | Nhận cả `"status"` và `"targetStatus"` (`@JsonAlias`) |
-| `PUT /tracks/{id}` topic | Cần body `topic`; chỉ cho gán topic khác rỗng sau khi đã có event KICKOFF |
+| `PUT /tracks/{id}` topic | Nhập/sửa ở GĐ1; chặn đổi sau KICKOFF hoặc sau khi đã bốc thăm |
 | `ErrorCode` JavaDoc | Comment FR-02/03 có thể còn số v2.x — map theo §10.4 |
 | JWT / email async | Stub `@CoordinatorOnly`; Judge invite email sync trong transaction |
 
