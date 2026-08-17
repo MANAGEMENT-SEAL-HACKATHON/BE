@@ -26,6 +26,16 @@ public class TeamJourneyResponse {
         private String roundName;
         private Integer trackId;
         private String trackName;
+        /** Prelim: ADVANCED|ELIMINATED|PARTICIPATING from TRT. Final: always PARTICIPATING. */
         private String participationStatus;
+        /**
+         * Timeline display for final rounds: COMPLETED | PARTICIPATING | UPCOMING.
+         * Null for preliminary (FE falls back to participationStatus).
+         */
+        private String displayStatus;
+        private Boolean isFinalRound;
+        private Boolean scoringLocked;
+        private Boolean resultPublished;
+        private String hackathonStatus;
     }
 }

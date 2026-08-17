@@ -6,7 +6,6 @@ import com.sealhackathon.api.common.exception.ErrorCode;
 import com.sealhackathon.api.common.exception.ResourceNotFoundException;
 import com.sealhackathon.api.common.exception.ScoringLockedException;
 import com.sealhackathon.api.common.security.CurrentUserAccessor;
-import com.sealhackathon.api.common.value_object.AssignmentResponseStatus;
 import com.sealhackathon.api.judge_assignments.entity.JudgeAssignment;
 import com.sealhackathon.api.judge_assignments.repository.JudgeAssignmentRepository;
 import com.sealhackathon.api.me.judge.dto.request.JudgeScoreCommentRequest;
@@ -98,10 +97,6 @@ public class JudgePortalServiceImpl implements JudgePortalService {
                             .completionStatus(ja.getCompletionStatus().name())
                             .totalTeams(totalTeams)
                             .scoredTeams(scoredTeams)
-                            .responseStatus(ja.getResponseStatus() != null
-                                    ? ja.getResponseStatus().name()
-                                    : AssignmentResponseStatus.ACCEPTED.name())
-                            .declineReason(ja.getDeclineReason())
                             .build();
                 })
                 .toList();
@@ -140,10 +135,6 @@ public class JudgePortalServiceImpl implements JudgePortalService {
                             .roundId(round.getId())
                             .roundName(round.getName())
                             .role(ja.getAssignmentType().name()) // Trả về FINAL_EXTERNAL
-                            .responseStatus(ja.getResponseStatus() != null
-                                    ? ja.getResponseStatus().name()
-                                    : AssignmentResponseStatus.ACCEPTED.name())
-                            .declineReason(ja.getDeclineReason())
                             .build();
                 })
                 .toList();

@@ -1258,7 +1258,7 @@ public class HackathonDevSeedHelper {
                 .round(prelim)
                 .name("Track " + sequence + " — " + suffix)
                 .description("Seed track " + sequence)
-                .topic(null)
+                .topic(resolveSeedTrackTopic(sequence))
                 .maxTeams(8)
                 .maxTeamsPerGroup(8)
                 .minTeamSize(3)
@@ -1266,6 +1266,37 @@ public class HackathonDevSeedHelper {
                 .sequenceOrder(sequence)
                 .status(TrackStatus.OPEN)
                 .build();
+    }
+
+    /** Chủ đề mặc định theo thứ tự bảng đấu seed. */
+    public static String resolveSeedTrackTopic(int sequence) {
+        return switch (sequence) {
+            case 1 -> "RAG Pipeline cho tài liệu nội bộ";
+            case 2 -> "AI Agent tự động hóa quy trình";
+            default -> "EV Charging & Tích hợp hệ thống thông minh";
+        };
+    }
+
+    /** Dev: gán topic cho track prelim còn null/blank (DB cũ hoặc sau migrate). */
+    @Transactional
+    public void backfillTrackTopics() {
+        int updated = 0;
+        for (Track track : trackRepository.findAll()) {
+            if (Boolean.TRUE.equals(track.getRound().getIsFinal())) {
+                continue;
+            }
+            String topic = track.getTopic();
+            if (topic != null && !topic.isBlank()) {
+                continue;
+            }
+            int seq = track.getSequenceOrder() != null ? track.getSequenceOrder() : 1;
+            track.setTopic(resolveSeedTrackTopic(seq));
+            trackRepository.save(track);
+            updated++;
+        }
+        if (updated > 0) {
+            log.info("[HackathonDevSeedHelper] Backfill track topics — tracks={}", updated);
+        }
     }
 
     private void ensureTrackCriteria(Track track) {
@@ -2947,7 +2978,6 @@ public class HackathonDevSeedHelper {
                     t.setProblemStatementUrl(null);
                     t.setProblemStatementStorageKey(null);
                     t.setProblemStatementOriginalFilename(null);
-                    t.setTopic(null);
                     trackRepository.save(t);
                 });
         roundRepository.save(prelim);

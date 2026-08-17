@@ -117,7 +117,7 @@ flowchart TD
 | G2-A01 | Re-lottery trước activate | Đổi track được |
 | G2-A02 | Modal đóng ĐK — Collapse «Quy tắc lịch» | UX hiển thị quy tắc |
 | G2-A03 | Seed 6 đội sẵn Mode A | Bỏ H01–H03, bắt từ H05 |
-| G2-A04 | (Tuỳ chọn) Judge/Mentor decline assignment **trước** round active | `PATCH /me/judge/assignments/{id}/decline`, `/me/mentor/assignments/{id}/decline`, `/me/mentor/team-assignments/{id}/decline` — OK; sau activate → `ASSIGNMENT_DECLINE_TOO_LATE` |
+| G2-A04 | Thay giám khảo/mentor đã gán | DELETE assignment cũ → POST gán mới (không còn luồng từ chối) |
 
 ---
 
@@ -169,7 +169,7 @@ flowchart TD
 | BE Extend-reg | `HackathonRegistrationExtensionServiceImpl` |
 | BE Schedule | `CompetitionScheduleAdjustService.adjust` / `.apply` |
 | BE Broadcast | `StakeholderBroadcastService` (extend / adjust / close-reg cascade) |
-| BE Decline | `JudgeMeController` / `MentorMeController` → `AssignmentResponseService` |
+| BE Assign | `JudgeAssignmentController` / `MentorAssignmentController` / `TeamController` mentor endpoints |
 
 ---
 

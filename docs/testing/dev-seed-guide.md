@@ -33,12 +33,12 @@ Rồi start lại: `mvn spring-boot:run -Dspring-boot.run.profiles=dev`
 
 ### Trạng thái sau seed
 
-- Đăng ký **đang mở**; prelim **inactive**; 2 track (RAG + AI Agent), **`topic = null`** (coord nhập chủ đề ở GĐ1 / trước bốc thăm)
+- Đăng ký **đang mở**; prelim **inactive**; 2 track (RAG + AI Agent), **topic seed sẵn** (RAG Pipeline / AI Agent)
 - 6 đội `E2E-T01`…`E2E-T06` (3 thành viên + `hackathon_registrations`), **chưa khóa**, **chưa lottery**
 - `topNAdvance=2`, `minTeamsFinal=4`
 - Events: WORKSHOP, KICKOFF, BUFFET, AWARDS + kits
 
-`force-gd2-reset` cũng **clear topic** trên tracks prelim về `null`.
+`force-gd2-reset` **giữ topic** trên tracks; chỉ clear PDF đề bài prelim.
 
 ### Freeze guard (demo hội đồng)
 

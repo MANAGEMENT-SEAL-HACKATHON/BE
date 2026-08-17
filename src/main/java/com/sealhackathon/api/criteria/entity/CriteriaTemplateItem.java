@@ -38,4 +38,8 @@ public class CriteriaTemplateItem {
 
     @Column(name = "display_order", nullable = false)
     private Integer displayOrder;
+
+    @Column(name = "is_tiebreaker_priority", nullable = false)
+    @Builder.Default
+    private Boolean isTiebreakerPriority = false;
 }

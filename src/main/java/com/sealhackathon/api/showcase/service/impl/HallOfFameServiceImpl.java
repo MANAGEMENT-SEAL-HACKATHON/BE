@@ -8,9 +8,12 @@ import com.sealhackathon.api.prizes.repository.PrizeRepository;
 import com.sealhackathon.api.prizes.value_object.PrizeRank;
 import com.sealhackathon.api.showcase.dto.response.HallOfFameEntryResponse;
 import com.sealhackathon.api.showcase.entity.HallOfFameEntry;
+import com.sealhackathon.api.showcase.entity.ShowcaseArticle;
 import com.sealhackathon.api.showcase.mapper.ShowcaseMapper;
 import com.sealhackathon.api.showcase.repository.HallOfFameEntryRepository;
+import com.sealhackathon.api.showcase.repository.ShowcaseArticleRepository;
 import com.sealhackathon.api.showcase.service.HallOfFameService;
+import com.sealhackathon.api.showcase.value_object.ShowcaseArticleStatus;
 import com.sealhackathon.api.teams.entity.TeamMember;
 import com.sealhackathon.api.teams.repository.TeamMemberRepository;
 import com.sealhackathon.api.teams.value_object.TeamMemberStatus;
@@ -19,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -37,6 +41,7 @@ public class HallOfFameServiceImpl implements HallOfFameService {
     private final HackathonRepository hackathonRepository;
     private final PrizeRepository prizeRepository;
     private final TeamMemberRepository teamMemberRepository;
+    private final ShowcaseArticleRepository showcaseArticleRepository;
     private final ShowcaseMapper showcaseMapper;
 
     @Override
@@ -87,16 +92,30 @@ public class HallOfFameServiceImpl implements HallOfFameService {
         List<HallOfFameEntry> entries = year == null
                 ? hallOfFameEntryRepository.findAllByOrderByYearDescSeasonAsc()
                 : hallOfFameEntryRepository.findByYearOrderBySeasonAsc(year);
-        return entries.stream().map(showcaseMapper::toHofResponse).toList();
+        return entries.stream().map(this::enrich).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<HallOfFameEntryResponse> listByHackathon(Integer hackathonId) {
         return hallOfFameEntryRepository.findByHackathonId(hackathonId)
-                .map(showcaseMapper::toHofResponse)
+                .map(this::enrich)
                 .map(List::of)
                 .orElse(List.of());
+    }
+
+    private HallOfFameEntryResponse enrich(HallOfFameEntry entry) {
+        Integer hackathonId = entry.getHackathonId();
+        ShowcaseArticle article = showcaseArticleRepository
+                .findFirstByHackathonIdAndStatusOrderByPublishedAtDesc(hackathonId, ShowcaseArticleStatus.PUBLISHED)
+                .orElse(null);
+        String prizeDescription = prizeRepository
+                .findByHackathonIdAndPrizeRank(hackathonId, PrizeRank.FIRST)
+                .map(Prize::getDescription)
+                .filter(StringUtils::hasText)
+                .orElse(null);
+        String bannerUrl = "/api/v1/hackathons/" + hackathonId + "/banner";
+        return showcaseMapper.toHofResponse(entry, article, prizeDescription, bannerUrl);
     }
 
     private HallOfFameEntry buildEntry(Hackathon hackathon, Prize first) {

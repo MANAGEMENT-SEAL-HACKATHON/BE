@@ -12,7 +12,7 @@ public interface TeamRoundTrackRepository extends JpaRepository<TeamRoundTrack, 
 
     List<TeamRoundTrack> findByTeam_Id(Integer teamId);
 
-    @Query("SELECT trt FROM TeamRoundTrack trt JOIN FETCH trt.track t JOIN FETCH t.round WHERE trt.team.id = :teamId")
+    @Query("SELECT trt FROM TeamRoundTrack trt JOIN FETCH trt.track t JOIN FETCH t.round r JOIN FETCH r.hackathon WHERE trt.team.id = :teamId")
     List<TeamRoundTrack> findByTeamIdWithTrackAndRound(@Param("teamId") Integer teamId);
 
     Optional<TeamRoundTrack> findByTeam_IdAndTrack_Round_Id(Integer teamId, Integer roundId);

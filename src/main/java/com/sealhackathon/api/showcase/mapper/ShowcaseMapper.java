@@ -18,10 +18,18 @@ import java.util.List;
 public class ShowcaseMapper {
 
     public HallOfFameEntryResponse toHofResponse(HallOfFameEntry e) {
+        return toHofResponse(e, null, null, null);
+    }
+
+    public HallOfFameEntryResponse toHofResponse(
+            HallOfFameEntry e,
+            ShowcaseArticle publishedArticle,
+            String prizeDescription,
+            String hackathonBannerUrl) {
         if (e == null) {
             return null;
         }
-        return HallOfFameEntryResponse.builder()
+        HallOfFameEntryResponse.HallOfFameEntryResponseBuilder b = HallOfFameEntryResponse.builder()
                 .id(e.getId())
                 .hackathonId(e.getHackathonId())
                 .hackathonName(e.getHackathonName())
@@ -33,9 +41,17 @@ public class ShowcaseMapper {
                 .trackName(e.getTrackName())
                 .prizeName(e.getPrizeName())
                 .prizeValue(e.getPrizeValue())
+                .prizeDescription(prizeDescription)
                 .awardedAt(e.getAwardedAt())
                 .createdAt(e.getCreatedAt())
-                .build();
+                .hackathonBannerUrl(hackathonBannerUrl);
+        if (publishedArticle != null) {
+            b.articleSlug(publishedArticle.getSlug())
+                    .articleTitle(publishedArticle.getTitle())
+                    .articleSummary(publishedArticle.getSummary())
+                    .coverUrl(coverUrl(publishedArticle.getSlug(), publishedArticle.getCoverImageKey()));
+        }
+        return b.build();
     }
 
     public ShowcaseArticleSummaryResponse toSummary(ShowcaseArticle a) {

@@ -526,7 +526,7 @@ Catalog thống nhất các business rules đang được enforce trong backend,
 | BR-SCORE-010 | FR-18 | Score | Validation | Criterion phải thuộc track (SL) hoặc round (CK) của submission | Criterion sai scope | Từ chối | CRITERION_WRONG_ROUND | Criterion track khác | Implemented | ScoreServiceImpl#validateCriterionForSubmission |
 | BR-SCORE-011 | FR-18/FR-23 | Score | SideEffect | Upsert score: isFinal=false; xóa confirm judge; publish LiveScoreSavedEvent | POST score (kể cả sửa) | Invalidate Chốt điểm | N/A | Sửa điểm sau confirm → phải confirm lại | Implemented | ScoreServiceImpl.java |
 | BR-SCORE-012 | FR-20 | Score | Gate | GET ranking (không preview) cần scoring_locked | !scoringLocked | Từ chối | ROUND_NOT_SCORING_LOCKED | Ranking trước lock dùng preview | Implemented | RoundProgressionServiceImpl#ranking |
-| BR-SCORE-013 | FR-20/FR-24 | Score | Gate | Public scoreboard cần isPublished | !isPublished | Từ chối | RESULT_NOT_PUBLISHED | Scoreboard trước publish | Implemented | RoundProgressionServiceImpl#scoreboard |
+| BR-SCORE-013 | FR-20/FR-24 | Score | Gate | Public scoreboard: prelim cần isPublished; final cần hackathon FINISHED (RoundResultVisibility.visibleToPublic) | Không đủ điều kiện | Từ chối | RESULT_NOT_PUBLISHED | Scoreboard CK trước confirm | Implemented | RoundProgressionServiceImpl#scoreboard + RoundResultVisibility |
 
 ## RoundProgression
 
@@ -656,7 +656,7 @@ Catalog thống nhất các business rules đang được enforce trong backend,
 
 | Rule ID | Related Req ID | Module | Rule Type | Business Rule Statement | Condition / Trigger | System Action / Expected Result | Exception / Error Message | Test Case / Example Data | Status | Evidence Link / Note |
 |---------|-----------------|--------|-----------|-------------------------|---------------------|---------------------------------|---------------------------|--------------------------|--------|----------------------|
-| BR-SPORT-001 | FR-24 | StudentPortal | Gate | Student xem điểm chi tiết cần isPublished | !published | Từ chối | RESULT_NOT_PUBLISHED | Xem điểm trước publish | Implemented | me/student/.../StudentPortalServiceImpl.java#getTeamScoreBreakdown |
+| BR-SPORT-001 | FR-24 | StudentPortal | Gate | Student xem điểm/leaderboard: prelim cần isPublished; final cần scoringLocked + PENDING_CONFIRM\|FINISHED (RoundResultVisibility.visibleToParticipants) | Không đủ điều kiện | Từ chối | RESULT_NOT_PUBLISHED | Xem điểm CK trước lock | Implemented | StudentPortalServiceImpl#getTeamScoreBreakdown / getRoundLeaderboard + RoundResultVisibility |
 
 ## MentorPortal
 

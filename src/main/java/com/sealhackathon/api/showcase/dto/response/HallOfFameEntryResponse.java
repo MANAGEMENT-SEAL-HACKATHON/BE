@@ -23,6 +23,14 @@ public class HallOfFameEntryResponse {
     private final String trackName;
     private final String prizeName;
     private final String prizeValue;
+    private final String prizeDescription;
     private final LocalDateTime awardedAt;
     private final LocalDateTime createdAt;
+
+    /** Enrichment from published ShowcaseArticle (optional). */
+    private final String articleSlug;
+    private final String articleTitle;
+    private final String articleSummary;
+    private final String coverUrl;
+    private final String hackathonBannerUrl;
 }

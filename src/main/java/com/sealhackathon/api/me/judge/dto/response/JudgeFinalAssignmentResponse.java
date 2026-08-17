@@ -17,7 +17,4 @@ public class JudgeFinalAssignmentResponse {
     private Integer roundId;
     private String roundName;
     private String role;
-    /** PENDING | ACCEPTED | DECLINED — default ACCEPTED. */
-    private String responseStatus;
-    private String declineReason;
 }

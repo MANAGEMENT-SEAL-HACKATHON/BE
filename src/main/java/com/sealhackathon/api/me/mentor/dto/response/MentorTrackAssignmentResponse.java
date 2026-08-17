@@ -14,7 +14,4 @@ public class MentorTrackAssignmentResponse {
     private Integer assignmentId;
     private Integer trackId;
     private String trackName;
-    /** PENDING | ACCEPTED | DECLINED — default ACCEPTED. */
-    private String responseStatus;
-    private String declineReason;
 }

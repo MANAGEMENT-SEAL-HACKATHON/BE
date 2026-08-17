@@ -261,6 +261,7 @@ public class CriteriaServiceImpl implements CriteriaService {
         }
         int deletedCount = replaceExistingForTrackIfRequested(trackId, req);
         List<Integer> createdIds = saveClonesForTrack(sources, target);
+        ensureSingleTiebreakerPriority(trackId, null);
         auditService.log(AuditAction.CRITERIA_CLONE, "criteria", trackId, Map.of(
                 "targetTrackId", trackId,
                 "targetHackathonId", target.getRound().getHackathon().getId(),
@@ -307,6 +308,7 @@ public class CriteriaServiceImpl implements CriteriaService {
         }
         int deletedCount = replaceExistingForFinalRoundIfRequested(finalRoundId, req);
         List<Integer> createdIds = saveClonesForFinalRound(sources, target);
+        ensureSingleTiebreakerPriority(null, finalRoundId);
         auditService.log(AuditAction.CRITERIA_CLONE, "criteria", finalRoundId, Map.of(
                 "targetRoundId", finalRoundId,
                 "sourceRoundId", req.getSourceRoundId(),
@@ -487,26 +489,52 @@ public class CriteriaServiceImpl implements CriteriaService {
                     "PENALTY không được đặt isTiebreakerPriority",
                     Map.of("type", type.name()));
         }
+        clearOtherTiebreakerPriorities(trackId, finalRoundId, excludeCriteriaId);
+    }
+
+    private void clearOtherTiebreakerPriorities(Integer trackId, Integer finalRoundId, Integer excludeCriteriaId) {
         if (trackId != null) {
-            criteriaRepository.findByTrackIdAndIsTiebreakerPriorityTrue(trackId)
-                    .filter(existing -> excludeCriteriaId == null
-                            || !excludeCriteriaId.equals(existing.getId()))
-                    .ifPresent(existing -> {
-                        throw new BusinessRuleException(ErrorCode.TIEBREAKER_PRIORITY_ALREADY_EXISTS,
-                                "Track đã có criterion isTiebreakerPriority",
-                                Map.of("trackId", trackId, "existingCriterionId", existing.getId()));
+            criteriaRepository.findByTrackIdAndIsTiebreakerPriorityTrueOrderByDisplayOrderAsc(trackId)
+                    .stream()
+                    .filter(existing -> excludeCriteriaId == null || !excludeCriteriaId.equals(existing.getId()))
+                    .forEach(existing -> {
+                        existing.setIsTiebreakerPriority(false);
+                        criteriaRepository.save(existing);
                     });
         }
         if (finalRoundId != null) {
-            criteriaRepository.findByFinalRoundIdAndIsTiebreakerPriorityTrue(finalRoundId)
-                    .filter(existing -> excludeCriteriaId == null
-                            || !excludeCriteriaId.equals(existing.getId()))
-                    .ifPresent(existing -> {
-                        throw new BusinessRuleException(ErrorCode.TIEBREAKER_PRIORITY_ALREADY_EXISTS,
-                                "Round Chung kết đã có criterion isTiebreakerPriority",
-                                Map.of("roundId", finalRoundId, "existingCriterionId", existing.getId()));
+            criteriaRepository.findByFinalRoundIdAndIsTiebreakerPriorityTrueOrderByDisplayOrderAsc(finalRoundId)
+                    .stream()
+                    .filter(existing -> excludeCriteriaId == null || !excludeCriteriaId.equals(existing.getId()))
+                    .forEach(existing -> {
+                        existing.setIsTiebreakerPriority(false);
+                        criteriaRepository.save(existing);
                     });
         }
+    }
+
+    /** Sau clone: giữ một criterion isTiebreakerPriority (ưu tiên mục cuối theo displayOrder). */
+    private void ensureSingleTiebreakerPriority(Integer trackId, Integer finalRoundId) {
+        List<Criteria> withPriority;
+        if (trackId != null) {
+            withPriority = criteriaRepository
+                    .findByTrackIdAndIsTiebreakerPriorityTrueOrderByDisplayOrderAsc(trackId);
+        } else if (finalRoundId != null) {
+            withPriority = criteriaRepository
+                    .findByFinalRoundIdAndIsTiebreakerPriorityTrueOrderByDisplayOrderAsc(finalRoundId);
+        } else {
+            return;
+        }
+        if (withPriority.size() <= 1) {
+            return;
+        }
+        Criteria keep = withPriority.get(withPriority.size() - 1);
+        withPriority.stream()
+                .filter(c -> !c.getId().equals(keep.getId()))
+                .forEach(c -> {
+                    c.setIsTiebreakerPriority(false);
+                    criteriaRepository.save(c);
+                });
     }
 
     private static Map<String, Object> detailsForTiebreakerScope(Integer trackId, Integer finalRoundId) {

@@ -139,7 +139,9 @@ public class CriteriaTemplateServiceImpl implements CriteriaTemplateService {
             template.getItems().add(CriteriaTemplateItem.builder()
                     .template(template).name(request.name().trim()).type(request.type())
                     .weight(request.weight()).maxScore(request.maxScore())
-                    .description(request.description()).displayOrder(request.displayOrder()).build());
+                    .description(request.description()).displayOrder(request.displayOrder())
+                    .isTiebreakerPriority(Boolean.TRUE.equals(request.isTiebreakerPriority()))
+                    .build());
         }
     }
 
@@ -147,7 +149,9 @@ public class CriteriaTemplateServiceImpl implements CriteriaTemplateService {
         return Criteria.builder()
                 .track(track).round(round).name(item.getName()).type(item.getType())
                 .weight(item.getWeight()).maxScore(item.getMaxScore())
-                .description(item.getDescription()).displayOrder(item.getDisplayOrder()).build();
+                .description(item.getDescription()).displayOrder(item.getDisplayOrder())
+                .isTiebreakerPriority(Boolean.TRUE.equals(item.getIsTiebreakerPriority()))
+                .build();
     }
 
     private CriteriaTemplateResponse response(CriteriaTemplate template) {
@@ -157,6 +161,7 @@ public class CriteriaTemplateServiceImpl implements CriteriaTemplateService {
                 template.getCreatedAt(), template.getUpdatedAt(),
                 template.getItems().stream().map(item -> new CriteriaTemplateResponse.Item(
                         item.getId(), item.getName(), item.getType(), item.getWeight(), item.getMaxScore(),
-                        item.getDescription(), item.getDisplayOrder())).toList());
+                        item.getDescription(), item.getDisplayOrder(),
+                        Boolean.TRUE.equals(item.getIsTiebreakerPriority()))).toList());
     }
 }

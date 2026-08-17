@@ -77,6 +77,7 @@ public class DataInitializer implements CommandLineRunner {
         hackathonDevSeedHelper.backfillReleasedPrelimTrackProblems();
         hackathonDevSeedHelper.backfillReleasedFinalRoundProblems();
         hackathonDevSeedHelper.backfillSetupProblemPdfs();
+        hackathonDevSeedHelper.backfillTrackTopics();
         hackathonDevSeedHelper.backfillTiebreakerPriorityFlags();
         hackathonDevSeedHelper.repairAllHackathonBanners();
 

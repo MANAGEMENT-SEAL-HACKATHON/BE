@@ -8,6 +8,5 @@ package com.sealhackathon.api.common.value_object;
  */
 public enum AssignmentResponseStatus {
     PENDING,
-    ACCEPTED,
-    DECLINED
+    ACCEPTED
 }

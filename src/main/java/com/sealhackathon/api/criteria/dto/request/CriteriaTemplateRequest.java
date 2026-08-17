@@ -18,6 +18,7 @@ public record CriteriaTemplateRequest(
             @NotNull @DecimalMin(value = "0.0", inclusive = false) @DecimalMax("1.0") Float weight,
             @NotNull @Min(1) Integer maxScore,
             String description,
-            @NotNull @Min(0) Integer displayOrder
+            @NotNull @Min(0) Integer displayOrder,
+            Boolean isTiebreakerPriority
     ) {}
 }

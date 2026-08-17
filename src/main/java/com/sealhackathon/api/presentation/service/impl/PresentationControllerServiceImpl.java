@@ -68,7 +68,8 @@ public class PresentationControllerServiceImpl implements PresentationController
         User judge = loadJudge(request.getJudgeId());
         ensureJudgeOnTrack(judge.getId(), trackId);
         Integer previousId = track.getControllerJudge() != null ? track.getControllerJudge().getId() : null;
-        assertExpectedController(previousId, request.getExpectedControllerJudgeId());
+        // Compare against resolved controller (OVERRIDE or AUTO_DEFAULT) — FE sends the same from GET
+        assertExpectedController(controllerGuard.resolveTrackControllerId(track), request.getExpectedControllerJudgeId());
 
         track.setControllerJudge(judge);
         trackRepository.save(track);
@@ -119,7 +120,8 @@ public class PresentationControllerServiceImpl implements PresentationController
         User judge = loadJudge(request.getJudgeId());
         ensureJudgeOnRound(judge.getId(), roundId);
         Integer previousId = round.getControllerJudge() != null ? round.getControllerJudge().getId() : null;
-        assertExpectedController(previousId, request.getExpectedControllerJudgeId());
+        // Compare against resolved controller (OVERRIDE or AUTO_DEFAULT) — FE sends the same from GET
+        assertExpectedController(controllerGuard.resolveRoundControllerId(round), request.getExpectedControllerJudgeId());
 
         round.setControllerJudge(judge);
         roundRepository.save(round);
@@ -158,20 +160,32 @@ public class PresentationControllerServiceImpl implements PresentationController
         if (expectedId == null) {
             return;
         }
-        // expectedId == 0 means expect no assigned override controller
+        // expectedId == 0 means expect no resolved controller (UNASSIGNED)
         if (expectedId == 0) {
             if (currentId != null) {
                 throw new ConflictException(ErrorCode.CONTROLLER_CONFLICT,
                         "Controller đã được chuyển bởi người khác",
-                        Map.of("currentControllerJudgeId", currentId));
+                        conflictDetails(currentId, expectedId));
             }
             return;
         }
         if (!java.util.Objects.equals(currentId, expectedId)) {
             throw new ConflictException(ErrorCode.CONTROLLER_CONFLICT,
                     "Controller đã được chuyển bởi người khác",
-                    Map.of("currentControllerJudgeId", currentId, "expectedControllerJudgeId", expectedId));
+                    conflictDetails(currentId, expectedId));
         }
+    }
+
+    /** Null-safe detail map — {@code Map.of} rejects null values and would NPE. */
+    static Map<String, Object> conflictDetails(Integer currentId, Integer expectedId) {
+        Map<String, Object> details = new HashMap<>();
+        if (currentId != null) {
+            details.put("currentControllerJudgeId", currentId);
+        }
+        if (expectedId != null) {
+            details.put("expectedControllerJudgeId", expectedId);
+        }
+        return details;
     }
 
     private Track loadTrack(Integer trackId) {

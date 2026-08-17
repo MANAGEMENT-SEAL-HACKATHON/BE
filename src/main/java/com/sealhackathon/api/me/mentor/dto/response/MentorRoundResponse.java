@@ -28,7 +28,5 @@ public class MentorRoundResponse {
         private Integer teamId;
         private String teamName;
         private Integer assignmentId;
-        private String responseStatus;
-        private String declineReason;
     }
 }

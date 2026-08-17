@@ -34,6 +34,7 @@ import com.sealhackathon.api.rounds.repository.RoundRepository;
 import com.sealhackathon.api.rounds.service.RoundProgressionService;
 import com.sealhackathon.api.rounds.support.RoundPresentationReadiness;
 import com.sealhackathon.api.rounds.support.RoundProblemStatementStorage;
+import com.sealhackathon.api.rounds.support.RoundResultVisibility;
 import com.sealhackathon.api.storage.StoredObjectResource;
 import com.sealhackathon.api.submissions.entity.Submission;
 import com.sealhackathon.api.submissions.repository.SubmissionRepository;
@@ -461,7 +462,7 @@ public class StudentPortalServiceImpl implements StudentPortalService {
         studentAccessGuard.assertTeamMember(teamId);
         Round round = roundRepository.findById(roundId)
                 .orElseThrow(() -> new ResourceNotFoundException("Round", roundId));
-        if (!Boolean.TRUE.equals(round.getIsPublished())) {
+        if (!RoundResultVisibility.visibleToParticipants(round, round.getHackathon())) {
             throw new BusinessRuleException(ErrorCode.RESULT_NOT_PUBLISHED,
                     "Kết quả vòng chưa được công bố — đội chưa thể xem điểm chi tiết",
                     Map.of("roundId", roundId));
@@ -614,8 +615,8 @@ public class StudentPortalServiceImpl implements StudentPortalService {
             studentAccessGuard.assertParticipatedInHackathon(hackathonId);
         }
 
-        // RÀO CHẮN: Xếp hạng chỉ xem được khi đã PUBLISHED (FR-U-21)
-        if (!Boolean.TRUE.equals(round.getIsPublished())) {
+        // Prelim: isPublished. Final: scoringLocked + PENDING_CONFIRM/FINISHED
+        if (!RoundResultVisibility.visibleToParticipants(round, round.getHackathon())) {
             throw new BusinessRuleException(ErrorCode.RESULT_NOT_PUBLISHED,
                     "Kết quả vòng thi này chưa được công bố. Vui lòng quay lại sau.");
         }

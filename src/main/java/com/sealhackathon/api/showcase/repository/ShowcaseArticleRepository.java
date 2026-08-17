@@ -22,4 +22,7 @@ public interface ShowcaseArticleRepository extends JpaRepository<ShowcaseArticle
     List<ShowcaseArticle> findByStatusOrderByPublishedAtDesc(ShowcaseArticleStatus status);
 
     List<ShowcaseArticle> findByHackathonIdOrderByUpdatedAtDesc(Integer hackathonId);
+
+    Optional<ShowcaseArticle> findFirstByHackathonIdAndStatusOrderByPublishedAtDesc(
+            Integer hackathonId, ShowcaseArticleStatus status);
 }

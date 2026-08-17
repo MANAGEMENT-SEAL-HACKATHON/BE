@@ -136,8 +136,6 @@ public final class ErrorCode {
     public static final String JUDGE_ASSIGN_DUPLICATE   = "JUDGE_ASSIGN_DUPLICATE";
     /** Một người (Mentor hoặc Judge) chỉ được gán 1 bảng trong cùng vòng Sơ loại. */
     public static final String PERSONNEL_ONE_TRACK_PER_ROUND = "PERSONNEL_ONE_TRACK_PER_ROUND";
-    /** Từ chối phân công quá muộn — vòng đã active hoặc đã phát đề. */
-    public static final String ASSIGNMENT_DECLINE_TOO_LATE = "ASSIGNMENT_DECLINE_TOO_LATE";
 
     // ---------- FR-06 STATUS ----------
     public static final String STATUS_TRANSITION_INVALID = "STATUS_TRANSITION_INVALID";

@@ -14,7 +14,7 @@ public interface TeamRoundParticipationRepository extends JpaRepository<TeamRoun
 
     List<TeamRoundParticipation> findByTeam_Id(Integer teamId);
 
-    @Query("SELECT trp FROM TeamRoundParticipation trp JOIN FETCH trp.round WHERE trp.team.id = :teamId")
+    @Query("SELECT trp FROM TeamRoundParticipation trp JOIN FETCH trp.round r JOIN FETCH r.hackathon WHERE trp.team.id = :teamId")
     List<TeamRoundParticipation> findByTeamIdWithRound(@Param("teamId") Integer teamId);
 
     List<TeamRoundParticipation> findByRound_Id(Integer roundId);

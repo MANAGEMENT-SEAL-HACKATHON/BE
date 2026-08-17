@@ -22,6 +22,7 @@ public record CriteriaTemplateResponse(
             Float weight,
             Integer maxScore,
             String description,
-            Integer displayOrder
+            Integer displayOrder,
+            Boolean isTiebreakerPriority
     ) {}
 }

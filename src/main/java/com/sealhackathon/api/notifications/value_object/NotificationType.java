@@ -13,8 +13,6 @@ public final class NotificationType {
     public static final String EVENT_REMINDER = "EVENT_REMINDER";
     public static final String EVENT_UPCOMING = "EVENT_UPCOMING";
     public static final String REGISTRATION_EXTENDED = "REGISTRATION_EXTENDED";
-    public static final String JUDGE_DECLINED = "JUDGE_DECLINED";
-    public static final String MENTOR_DECLINED = "MENTOR_DECLINED";
     /** Future-ready — kit issuance fan-out. */
     public static final String KIT_ISSUED = "KIT_ISSUED";
     public static final String HACKATHON_BROADCAST = "HACKATHON_BROADCAST";

@@ -134,7 +134,7 @@ flowchart TD
 | G3-B04 | Bad | Coord | Queue | Force-advance thiếu lý do | Validation / 422 | `VALIDATION_FAILED` | `PresentationQueuePage` | `PresentationQueueController` |
 | G3-B05 | Bad | Student | Submit | Repo platform sai (drive.google) | Toast 422 | `INVALID_REPO_PLATFORM` | `StudentSubmissionPage` | `GitHubRepoValidator` |
 | G3-B06 | Bad | Student | Submit | Thiếu PDF slide | Toast 422 | `SLIDE_FILE_REQUIRED` | `StudentSubmissionPage` | `SubmissionController` |
-| G3-B07 | Bad | Judge / Mentor | Portal | Decline assignment **sau** round active / đề đã phát | 422 toast | `ASSIGNMENT_DECLINE_TOO_LATE` | Judge/Mentor portal | `AssignmentResponseService` — `PATCH /me/judge/assignments/{id}/decline`, `/me/mentor/assignments/{id}/decline`, team-assignments decline |
+| G3-B07 | Bad | Coord | Timer | Trao quyền controller với expectedControllerJudgeId sai (race) | 409 | `CONTROLLER_CONFLICT` | `PresentationControllerCard` | `PresentationControllerServiceImpl#grantTrackController` |
 | G3-B08 | Bad | Coord | Vòng thi | Kết thúc sớm khi còn đội chưa nộp | OK disabled / 422 | `TEAMS_NOT_ALL_SUBMITTED` | `RoundManagementPage` | `RoundProgressionServiceImpl#closeSubmissionEarly` |
 
 ---
@@ -169,7 +169,7 @@ flowchart TD
 | BE Phase gate | `RoundSubmissionWindow`, `RoundPhaseResolver` |
 | BE Score | `ScoreController` |
 | BE Mentor portal | `MentorMeController` |
-| BE Decline | `JudgeMeController` / `MentorMeController` → `AssignmentResponseService` |
+| BE Controller grant | `PresentationControllerController` → `PresentationControllerServiceImpl` |
 | BE Late review | `SubmissionController.reviewLate` |
 | BE Lock / release / close-early | `RoundProgressionController` (`POST /rounds/{id}/close-submission-early`) |
 
@@ -196,6 +196,6 @@ flowchart TD
 | Unlock ai được? | Chỉ SUPERADMIN — Coord 403. |
 | Phase gate nộp / shuffle? | `RoundSubmissionWindow` — đóng khi **deadline** **hoặc** `submissionClosedEarlyAt`, không chỉ deadline. `RoundPhaseResolver`: còn mở → `CODING`; đã đóng → `JUDGING`. Shuffle lúc `CODING` → `SUBMISSION_NOT_CLOSED_FOR_SHUFFLE`. |
 | Early-close rồi shuffle? | Có — G3-H14; FE + BE cùng nhìn `RoundSubmissionWindow`. |
-| Decline sau activate? | `ASSIGNMENT_DECLINE_TOO_LATE`. |
+| Judge/Mentor từ chối phân công? | Không còn — gán là mặc định tham gia; thay người bằng DELETE rồi gán mới. |
 
 **Docs:** `gd3-full-test-matrix-and-seeds.md`, `qa-test-cases` Feature C/D.

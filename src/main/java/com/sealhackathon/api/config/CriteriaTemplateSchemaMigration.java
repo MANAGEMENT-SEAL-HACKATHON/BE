@@ -38,10 +38,12 @@ public class CriteriaTemplateSchemaMigration implements CommandLineRunner {
                     max_score INT NOT NULL,
                     description TEXT NULL,
                     display_order INT NOT NULL,
+                    is_tiebreaker_priority TINYINT(1) NOT NULL DEFAULT 0,
                     CONSTRAINT fk_criteria_template_items_template
                         FOREIGN KEY (template_id) REFERENCES criteria_templates(id) ON DELETE CASCADE
                 )
                 """);
+        ensureTiebreakerColumn();
         jdbcTemplate.update("""
                 INSERT INTO criteria_templates(name, description, is_default, created_at, updated_at)
                 SELECT ?, 'Mẫu mặc định đồng bộ với STANDARD_SYSTEM_CRITERIA trên giao diện', 1,
@@ -54,22 +56,51 @@ public class CriteriaTemplateSchemaMigration implements CommandLineRunner {
                 "SELECT COUNT(*) FROM criteria_template_items WHERE template_id = ?", Integer.class, templateId);
         if (count != null && count == 0) {
             insert(templateId, "Chất lượng giải pháp", "TECHNICAL", .30f,
-                    "Mức độ hoàn thiện, sáng tạo và phù hợp của sản phẩm.", 1);
+                    "Mức độ hoàn thiện, sáng tạo và phù hợp của sản phẩm.", 1, true);
             insert(templateId, "Tính khả thi kỹ thuật", "TECHNICAL", .25f,
-                    "Kiến trúc, triển khai và độ ổn định của hệ thống.", 2);
+                    "Kiến trúc, triển khai và độ ổn định của hệ thống.", 2, false);
             insert(templateId, "Trình bày & demo", "SOFT_SKILL", .25f,
-                    "Khả năng truyền đạt ý tưởng và demo sản phẩm.", 3);
+                    "Khả năng truyền đạt ý tưởng và demo sản phẩm.", 3, false);
             insert(templateId, "Làm việc nhóm", "SOFT_SKILL", .20f,
-                    "Phối hợp, phân công và đóng góp của thành viên.", 4);
+                    "Phối hợp, phân công và đóng góp của thành viên.", 4, false);
+        } else if (templateId != null) {
+            // Existing default template: ensure one priority criterion (Chất lượng giải pháp)
+            Integer priorityCount = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM criteria_template_items WHERE template_id = ? AND is_tiebreaker_priority = 1",
+                    Integer.class, templateId);
+            if (priorityCount != null && priorityCount == 0) {
+                jdbcTemplate.update("""
+                        UPDATE criteria_template_items
+                           SET is_tiebreaker_priority = 1
+                         WHERE template_id = ?
+                           AND name = 'Chất lượng giải pháp'
+                         LIMIT 1
+                        """, templateId);
+            }
+        }
+    }
+
+    private void ensureTiebreakerColumn() {
+        Integer exists = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = 'criteria_template_items'
+                   AND COLUMN_NAME = 'is_tiebreaker_priority'
+                """, Integer.class);
+        if (exists != null && exists == 0) {
+            jdbcTemplate.execute("""
+                    ALTER TABLE criteria_template_items
+                      ADD COLUMN is_tiebreaker_priority TINYINT(1) NOT NULL DEFAULT 0
+                    """);
         }
     }
 
     private void insert(Integer templateId, String name, String type, float weight,
-                        String description, int displayOrder) {
+                        String description, int displayOrder, boolean tiebreakerPriority) {
         jdbcTemplate.update("""
                 INSERT INTO criteria_template_items
-                    (template_id, name, type, weight, max_score, description, display_order)
-                VALUES (?, ?, ?, ?, 10, ?, ?)
-                """, templateId, name, type, weight, description, displayOrder);
+                    (template_id, name, type, weight, max_score, description, display_order, is_tiebreaker_priority)
+                VALUES (?, ?, ?, ?, 10, ?, ?, ?)
+                """, templateId, name, type, weight, description, displayOrder, tiebreakerPriority ? 1 : 0);
     }
 }

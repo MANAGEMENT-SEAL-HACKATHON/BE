@@ -16,6 +16,8 @@ public interface CriteriaRepository extends JpaRepository<Criteria, Integer> {
 
     List<Criteria> findByTrackIdOrderByDisplayOrderAsc(Integer trackId);
 
+    List<Criteria> findByTrackIdAndIsTiebreakerPriorityTrueOrderByDisplayOrderAsc(Integer trackId);
+
     Optional<Criteria> findByTrackIdAndIsTiebreakerPriorityTrue(Integer trackId);
 
     long countByTrackId(Integer trackId);
@@ -87,6 +89,15 @@ public interface CriteriaRepository extends JpaRepository<Criteria, Integer> {
                AND c.isTiebreakerPriority = true
             """)
     Optional<Criteria> findByFinalRoundIdAndIsTiebreakerPriorityTrue(@Param("roundId") Integer roundId);
+
+    @Query("""
+            SELECT c FROM Criteria c
+             WHERE c.round.id = :roundId
+               AND c.track IS NULL
+               AND c.isTiebreakerPriority = true
+             ORDER BY c.displayOrder ASC
+            """)
+    List<Criteria> findByFinalRoundIdAndIsTiebreakerPriorityTrueOrderByDisplayOrderAsc(@Param("roundId") Integer roundId);
 
     @Query("""
             SELECT SUM(c.weight)

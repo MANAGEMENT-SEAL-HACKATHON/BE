@@ -52,7 +52,6 @@ public class CriteriaMapper {
 
     /**
      * Sao chép nội dung sang track đích — không gắn {@code source_criteria_id} để từng dòng xóa/sửa độc lập.
-     * Không copy {@code isTiebreakerPriority} — clone luôn false.
      */
     public Criteria toCloneForTrack(Criteria source, Track targetTrack, int displayOrder) {
         return Criteria.builder()
@@ -66,7 +65,7 @@ public class CriteriaMapper {
                 .description(source.getDescription())
                 .rubricUrl(source.getRubricUrl())
                 .displayOrder(displayOrder)
-                .isTiebreakerPriority(false)
+                .isTiebreakerPriority(Boolean.TRUE.equals(source.getIsTiebreakerPriority()))
                 .build();
     }
 
@@ -82,7 +81,7 @@ public class CriteriaMapper {
                 .description(source.getDescription())
                 .rubricUrl(source.getRubricUrl())
                 .displayOrder(displayOrder)
-                .isTiebreakerPriority(false)
+                .isTiebreakerPriority(Boolean.TRUE.equals(source.getIsTiebreakerPriority()))
                 .build();
     }
 

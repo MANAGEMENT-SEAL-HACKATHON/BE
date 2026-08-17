@@ -70,8 +70,6 @@ public final class AuditAction {
     public static final String MENTOR_UNASSIGNED        = "MENTOR_UNASSIGNED";
     public static final String JUDGE_ASSIGNED           = "JUDGE_ASSIGNED";
     public static final String JUDGE_UNASSIGNED         = "JUDGE_UNASSIGNED";
-    public static final String JUDGE_DECLINED           = "JUDGE_DECLINED";
-    public static final String MENTOR_DECLINED          = "MENTOR_DECLINED";
     /** Tạo/đổi/gỡ assignment_type HEAD — tra cứu thẩm quyền tiebreak/force-ack. */
     public static final String JUDGE_HEAD_CHANGED       = "JUDGE_HEAD_CHANGED";
 

@@ -52,6 +52,7 @@ import com.sealhackathon.api.rounds.service.RoundLockScoringService;
 import com.sealhackathon.api.rounds.service.RoundProgressionService;
 import com.sealhackathon.api.rounds.support.RoundPresentationReadiness;
 import com.sealhackathon.api.rounds.support.RoundProblemStatementStorage;
+import com.sealhackathon.api.rounds.support.RoundResultVisibility;
 import com.sealhackathon.api.rounds.support.TiebreakRuleOrdering;
 import com.sealhackathon.api.rounds.value_object.TiebreakRule;
 import com.sealhackathon.api.submissions.entity.Submission;
@@ -1031,11 +1032,11 @@ public class RoundProgressionServiceImpl implements RoundProgressionService {
         // 1. Lấy thông tin Round (không yêu cầu đăng nhập)
         Round round = roundAccessGuard.requireRound(roundId);
 
-        // 2. Gate Bảo Mật: Chặn tuyệt đối nếu BTC chưa nhấn "Công Bố"
-        if (!Boolean.TRUE.equals(round.getIsPublished())) {
+        // 2. Gate: prelim needs isPublished; final needs FINISHED (public permitAll)
+        if (!RoundResultVisibility.visibleToPublic(round, round.getHackathon())) {
             throw new BusinessRuleException(ErrorCode.RESULT_NOT_PUBLISHED,
                     "Kết quả vòng thi này chưa được Ban Tổ Chức công bố.",
-                    java.util.Map.of("roundId", roundId, "isPublished", false));
+                    java.util.Map.of("roundId", roundId, "isPublished", Boolean.TRUE.equals(round.getIsPublished())));
         }
 
         // 3. Tận dụng lại hàm tính Xếp hạng (Đã xử lý trừ điểm Penalty ở Nhiệm vụ 1)
